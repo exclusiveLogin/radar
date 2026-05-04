@@ -1,6 +1,9 @@
+name: radar
+
 services:
   db:
     image: postgres:16-alpine
+    restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-radar}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-radar}
@@ -9,11 +12,46 @@ services:
       - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - radar_pg_data:/var/lib/postgresql/data
+    networks:
+      - radar_net
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U radar -d radar"]
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U \"${POSTGRES_USER:-radar}\" -d \"${POSTGRES_DB:-radar}\"",
+        ]
       interval: 5s
       timeout: 5s
       retries: 6
+      start_period: 10s
+    stop_grace_period: 10s
+
+  pgadmin:
+    image: dpage/pgadmin4:9.0
+    container_name: radar-pgadmin
+    restart: unless-stopped
+    environment:
+      # pgAdmin 9+ не принимает TLD .local как валидный email — только «настоящий» вид
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-admin@example.com}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:-radar_pgadmin}
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+      PGADMIN_CONFIG_CHECK_EMAIL_DELIVERABILITY: "False"
+      PGADMIN_CONFIG_CONSOLE_LOG_LEVEL: "30"
+    ports:
+      - "${PGADMIN_PORT:-5050}:80"
+    volumes:
+      - radar_pgadmin_data:/var/lib/pgadmin
+      - ./docker/pgadmin/servers.json:/pgadmin4/servers.json:ro
+    networks:
+      - radar_net
+    depends_on:
+      db:
+        condition: service_healthy
+
+networks:
+  radar_net:
+    driver: bridge
 
 volumes:
   radar_pg_data:
+  radar_pgadmin_data:

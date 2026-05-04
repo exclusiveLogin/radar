@@ -146,3 +146,6 @@ vite.config.ts.timestamp-*
 # Telegram MTProto (файловая сессия в корне клона — не коммитить)
 .telegram/
 *.telegram-session
+
+# Сторонние geo-репозитории (git clone из scripts/fetch-geo-vendor.mjs)
+data/geo/vendor/

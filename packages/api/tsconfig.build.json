@@ -15,6 +15,7 @@
     "test",
     "**/*spec.ts",
     "src/migrations/**/*",
-    "src/data-source.ts"
+    "src/data-source.ts",
+    "src/scripts/**/*"
   ]
 }

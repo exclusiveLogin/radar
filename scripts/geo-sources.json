@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "sources": [
+    {
+      "id": "hflabs-region",
+      "cloneUrl": "https://github.com/hflabs/region.git",
+      "vendorDir": "hflabs-region",
+      "artifactDir": "reference/hflabs-region",
+      "includeExtensions": [".json", ".csv", ".md", ".tsv"]
+    },
+    {
+      "id": "Russia_geojson_OSM",
+      "cloneUrl": "https://github.com/timurkanaz/Russia_geojson_OSM.git",
+      "vendorDir": "Russia_geojson_OSM",
+      "artifactDir": "boundaries/Russia_geojson_OSM",
+      "includeExtensions": [".geojson", ".json", ".md"]
+    },
+    {
+      "id": "rnekrasov-geojson",
+      "cloneUrl": "https://github.com/rnekrasov-msk/geojson.git",
+      "vendorDir": "rnekrasov-geojson",
+      "artifactDir": "boundaries/rnekrasov-geojson",
+      "includeExtensions": [".geojson", ".json", ".md"]
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "Servers": {
+    "1": {
+      "Name": "radar-db (docker internal)",
+      "Group": "Radar",
+      "Host": "db",
+      "Port": 5432,
+      "MaintenanceDB": "radar",
+      "Username": "radar",
+      "SSLMode": "prefer",
+      "Shared": false,
+      "UseSSHTunnel": 0,
+      "TunnelHost": "",
+      "TunnelPort": "22",
+      "TunnelUsername": "",
+      "TunnelAuthentication": 0
+    }
+  }
+}
