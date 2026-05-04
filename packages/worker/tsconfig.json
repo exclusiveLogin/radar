@@ -1,6 +1,10 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@repo/root": ["./src/shims/monorepo-root.ts"]
+    },
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "outDir": "./dist",

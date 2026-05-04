@@ -6,7 +6,7 @@
   ],
   "scripts": {
     "up": "docker compose up -d && npm run dev",
-    "dev": "concurrently -n shared,api,web,worker -c cyan,blue,magenta,green \"npm run dev -w @radar/shared\" \"wait-on packages/shared/dist/index.js && npm run dev -w @radar/api\" \"npm run dev -w @radar/web\" \"npm run dev -w @radar/worker\"",
+    "dev": "concurrently -n shared,api,web,worker -c cyan,blue,magenta,green \"npm run dev -w @radar/shared\" \"wait-on packages/shared/dist/index.js && npm run dev -w @radar/api\" \"npm run dev -w @radar/web\" \"wait-on packages/shared/dist/index.js && npm run dev -w @radar/worker\"",
     "dev:app": "concurrently -n shared,api,web -c cyan,blue,magenta \"npm run dev -w @radar/shared\" \"wait-on packages/shared/dist/index.js && npm run dev -w @radar/api\" \"npm run dev -w @radar/web\"",
     "build": "npm run build -w @radar/shared && npm run build -w @radar/api && npm run build -w @radar/web && npm run build -w @radar/worker",
     "lint": "eslint \"packages/*/src/**/*.{ts,tsx}\" --max-warnings 0",
