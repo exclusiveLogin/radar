@@ -1,0 +1,32 @@
+{
+  "name": "radar",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "up": "docker compose up -d && npm run dev",
+    "dev": "concurrently -n shared,api,web,worker -c cyan,blue,magenta,green \"npm run dev -w @radar/shared\" \"wait-on packages/shared/dist/index.js && npm run dev -w @radar/api\" \"npm run dev -w @radar/web\" \"npm run dev -w @radar/worker\"",
+    "dev:app": "concurrently -n shared,api,web -c cyan,blue,magenta \"npm run dev -w @radar/shared\" \"wait-on packages/shared/dist/index.js && npm run dev -w @radar/api\" \"npm run dev -w @radar/web\"",
+    "build": "npm run build -w @radar/shared && npm run build -w @radar/api && npm run build -w @radar/web && npm run build -w @radar/worker",
+    "lint": "eslint \"packages/*/src/**/*.{ts,tsx}\" --max-warnings 0",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "db:up": "docker compose up -d",
+    "db:down": "docker compose down",
+    "migration:run": "npm run migration:run -w @radar/api",
+    "migration:generate": "npm run migration:generate -w @radar/api",
+    "shared:dev": "npm run dev -w @radar/shared",
+    "api:dev": "npm run dev -w @radar/api",
+    "web:dev": "npm run dev -w @radar/web",
+    "worker:dev": "npm run dev -w @radar/worker",
+    "start:api": "npm run start -w @radar/api"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.17.0",
+    "concurrently": "^9.1.2",
+    "eslint": "^9.17.0",
+    "typescript": "^5.7.2",
+    "typescript-eslint": "^8.18.2",
+    "wait-on": "^8.0.1"
+  }
+}

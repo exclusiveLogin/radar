@@ -1,0 +1,31 @@
+:root {
+  font-family: system-ui, sans-serif;
+  line-height: 1.5;
+  color: #e8eaed;
+  background: #0f1115;
+}
+
+body {
+  margin: 0;
+}
+
+.page {
+  max-width: 40rem;
+  margin: 4rem auto;
+  padding: 0 1.5rem;
+}
+
+.box {
+  padding: 1rem;
+  border-radius: 8px;
+  background: #1a1f28;
+  overflow: auto;
+}
+
+.muted {
+  color: #9aa0a6;
+}
+
+.err {
+  color: #f28b82;
+}
