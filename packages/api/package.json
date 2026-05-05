@@ -9,6 +9,8 @@
     "migration:run": "typeorm-ts-node-commonjs migration:run -d src/data-source.ts",
     "migration:generate": "typeorm-ts-node-commonjs migration:generate -d src/data-source.ts",
     "geo:seed": "ts-node --transpile-only src/scripts/seed-geo-dataset.ts",
+    "geo:db:plan": "ts-node --transpile-only src/scripts/geo-sync/cli.ts plan",
+    "geo:db:apply": "ts-node --transpile-only src/scripts/geo-sync/cli.ts apply",
     "typecheck": "tsc -p tsconfig.build.json --noEmit",
     "lint": "eslint \"src/**/*.ts\" --max-warnings 0"
   },

@@ -17,6 +17,25 @@ npm run geo:sync        # копия в artifacts/ + manifest.json
 # проверить diff, закоммитить data/geo/artifacts/
 ```
 
+## Use-case сценарии
+
+1. **Первичный импорт регионов на новой машине**
+   - `npm run geo:vendor`
+   - `npm run geo:sync`
+   - `npm run geo:verify`
+   - `npm run geo:seed`
+   - `npm run geo:db:apply`
+
+2. **Регулярное обновление источников**
+   - `npm run geo:vendor:pull`
+   - `npm run geo:sync`
+   - `npm run geo:verify`
+   - `npm run geo:db:plan`
+   - `npm run geo:db:apply`
+
+3. **Только проверка целостности перед релизом**
+   - `npm run geo:verify`
+
 Обновить уже склонированное:
 
 ```bash

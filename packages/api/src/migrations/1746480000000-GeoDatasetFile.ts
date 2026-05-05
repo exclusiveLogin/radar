@@ -1,4 +1,4 @@
-import { MigrationInterface, QueryRunner } from "typeorm";
+import type { MigrationInterface, QueryRunner } from "typeorm";
 
 export class GeoDatasetFile1746480000000 implements MigrationInterface {
   name = "GeoDatasetFile1746480000000";

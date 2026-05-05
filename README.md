@@ -99,11 +99,19 @@ flowchart LR
 └───────────────────────────────────────────────────────────────────────────┘
 ```
 
+## CQRS + Domain Events
+
+- Write-side публикует доменные события в outbox `domain_events`.
+- Read-side отдает агрегированные данные через `api/events`, `api/regions`, `api/admin/*`.
+- `OutboxRelay` доставляет новые события во внутренний `InProcessEventBus`.
+- В воркере подключены встроенные подписчики `ParseAttemptLogger` и `MetricsAggregator`.
+- Для телеметрии и админ-операций добавлен HLD-каркас `packages/admin-bot`.
+
 ## ⚙️ Текущий статус репозитория
 
 - Готов инфраструктурный каркас монорепо (`api`, `worker`, `web`, `shared`).
 - Реализован cold start (`npm run cold:up`) и dev-контур.
-- Поднят geo-пайплайн `vendor -> artifacts -> manifest -> geo:seed`.
+- Поднят geo-пайплайн `vendor -> artifacts -> manifest -> geo:seed -> geo:db:apply`.
 - Добавлены фикстуры сообщений в `tests/` для отладки фильтров и парсинга.
 
 ## Стек
@@ -120,7 +128,7 @@ flowchart LR
 
 1. Скопировать **`.env.example` → `.env`** (в корне).
 2. Выполнить **`npm run cold:up`** — поднимет Docker (БД + pgAdmin), `npm install`, сборка `@radar/shared`, миграции. Дождаться «Готово», затем **`npm run dev`**.
-   - С гео-пайплайном (долго, нужен интернет):  
+   - С гео-пайплайном (долго, нужен интернет; включает `geo:vendor`, `geo:sync`, `geo:seed`, `geo:db:apply`):  
      `npm run cold:up -- -Geo`
    - Сразу дев-серверы без отдельного `npm run dev`:  
      `npm run cold:up -- -Dev`
@@ -171,6 +179,24 @@ flowchart LR
 
 См. [data/geo/README.md](data/geo/README.md): **`vendor/`** (не в git) → **`geo:sync`** → **`artifacts/`** (коммитимые файлы + манифест).
 
+### Geo tooling: что за что отвечает
+
+- `geo:vendor` — скачивает/обновляет внешние репозитории регионов в `data/geo/vendor`.
+- `geo:sync` — режет и переносит нужные файлы в `data/geo/artifacts` + пишет `manifest.json`.
+- `geo:verify` — проверяет SHA-256 каждого артефакта против манифеста.
+- `geo:seed` — заносит метаданные артефактов в `geo_dataset_file`.
+- `geo:db:plan` — dry-run diff синка справочников (что добавится/обновится/деактивируется).
+- `geo:db:apply` — применяет diff, пишет audit (`geo_sync_log`) и события outbox.
+
+### Enrichers: use-cases
+
+- **Dadata**: основной провайдер точного адресного обогащения (город/село/FIAS/координаты).
+- **Nominatim**: fallback, когда Dadata не дала уверенный матч.
+- **LLM enricher**: текущая заглушка под будущий MCP/LLM сценарий.
+- **CompositeEnricher**: цепочка провайдеров по приоритету.
+- **CachingEnricher**: сначала cache (`place_cache`/in-memory), потом внешние вызовы.
+- Базовый сценарий: если регион найден локально, используем словарь; если в тексте есть уточнение — добираем через enrichers.
+
 ## Worker и Telegram
 
 - В **корне** клона по умолчанию используется файл `.telegram/session` (каталог в `.gitignore`).
@@ -214,13 +240,18 @@ npm run migration:run
 | `npm run up`      | **Docker + dev** — без установки/миграций (ежедневная работа) |
 | `npm run dev`     | все dev-процессы **без** `docker compose` |
 | `npm run dev:app` | shared + API + web (**без** worker) |
+| `npm run bot:dev` | запуск HLD-каркаса admin-bot |
 | `npm run start:api` | прод: `node dist/main.js` у API (**нужен** предварительный `npm run build`) |
 | `npm run db:up`   | `docker compose up -d` (Postgres + **pgAdmin**) |
 | `npm run db:down` | `docker compose down`               |
 | `npm run geo:vendor` | shallow clone в `data/geo/vendor` (игнор git) |
 | `npm run geo:vendor:pull` | обновить клоны в `vendor/` |
 | `npm run geo:sync` | копия в **`data/geo/artifacts`** + `manifest.json` (**коммитим**) |
+| `npm run geo:verify` | пересчитать sha256 артефактов и сверить с `manifest.json` |
 | `npm run geo:seed` | заполнить **`geo_dataset_file`** из манифеста |
+| `npm run geo:db:plan` | dry-run diff для синка справочников в БД |
+| `npm run geo:db:apply` | применить diff-синк справочников в БД + аудит |
+| `npm run worker:parse:snap -- tests/snap_001.txt` | прогон parser CLI без БД на снапшотах |
 | `npm run build`   | сборка всех пакетов, где есть build |
 | `npm run lint`    | ESLint по исходникам                 |
 | `npm run typecheck` | `tsc --noEmit` в пакетах         |

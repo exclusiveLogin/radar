@@ -1,6 +1,7 @@
 import { MONOREPO_ROOT } from "@repo/root";
 import { loadParseRuntimeConfig } from "./parseRuntimeConfig.js";
 import { planChannelIngests } from "./parsing/channelIngestPlanner.js";
+import { createWorkerCompositionRoot } from "./createWorkerCompositionRoot.js";
 import { loadChannelManifest } from "../infrastructure/manifest/channelManifestLoader.js";
 import { loadRootEnv } from "../infrastructure/config/loadRootEnv.js";
 import { createTtyPrompter } from "../infrastructure/io/ttyPrompter.js";
@@ -22,6 +23,7 @@ function readTelegramCredentials():
  */
 export async function runWorkerBootstrap(): Promise<void> {
   loadRootEnv(MONOREPO_ROOT);
+  const runtime = createWorkerCompositionRoot();
 
   const creds = readTelegramCredentials();
   if (!creds.ok) {
@@ -50,6 +52,7 @@ export async function runWorkerBootstrap(): Promise<void> {
   console.log(
     `Конфиг парсинга: batchLimit=${parseConfig.batchLimit}, markAsRead=${parseConfig.markAsRead}.`,
   );
+  console.log("Write-side handlers и event bus инициализированы.");
 
   const prompter = createTtyPrompter();
   await runTelegramUserSessionBootstrap({
@@ -57,4 +60,18 @@ export async function runWorkerBootstrap(): Promise<void> {
     credentials: { apiId: creds.apiId, apiHash: creds.apiHash },
     prompter,
   });
+
+  if (process.env.RADAR_BOOTSTRAP_DEMO_PARSE === "1") {
+    const demoRaw = {
+      channelKey: "demo",
+      telegramMessageId: 1,
+      hash: "demo-hash",
+      postedAt: new Date().toISOString(),
+      rawText: "Внимание по БПЛА в Белгородской области",
+    };
+    const ingested = await runtime.ingestRawMessageHandler.handle(demoRaw);
+    if (ingested.inserted) {
+      await runtime.parseRawMessageHandler.handle(demoRaw);
+    }
+  }
 }

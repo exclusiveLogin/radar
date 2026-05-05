@@ -87,11 +87,12 @@ async function main() {
 
   if (geo) {
     console.log(
-      '\n\x1b[33m[geo] vendor → sync → seed (может занять время)\x1b[0m',
+      '\n\x1b[33m[geo] vendor → sync → seed → db:apply (может занять время)\x1b[0m',
     );
     run('npm', ['run', 'geo:vendor']);
     run('npm', ['run', 'geo:sync']);
     run('npm', ['run', 'geo:seed']);
+    run('npm', ['run', 'geo:db:apply']);
   }
 
   console.log('\n\x1b[36m=== Готово ===\x1b[0m');
