@@ -4,6 +4,8 @@ import type { DataSource } from "typeorm";
 import { EventLocationEntity } from "../events/entities/event-location.entity";
 import { ParseAttemptEntity } from "../events/entities/parse-attempt.entity";
 import { ParsedEventEntity } from "../events/entities/parsed-event.entity";
+import { PlaceStatusActiveEntity } from "../events/entities/place-status-active.entity";
+import { PlaceStatusHistoryEntity } from "../events/entities/place-status-history.entity";
 import { GeoSyncLogEntity } from "../geo/entities/geo-sync-log.entity";
 import { RegionEntity } from "../geo/entities/region.entity";
 
@@ -43,6 +45,36 @@ export class ReadSideQueryService {
   async getEventLocations(parsedEventId: string): Promise<EventLocationEntity[]> {
     return this.dataSource.getRepository(EventLocationEntity).find({
       where: { parsedEventId },
+    });
+  }
+
+  async getPlaceStatuses(params: {
+    placeId?: string;
+    statusCode?: string;
+    limit: number;
+  }): Promise<PlaceStatusActiveEntity[]> {
+    return this.dataSource.getRepository(PlaceStatusActiveEntity).find({
+      where: {
+        ...(params.placeId ? { placeId: params.placeId } : {}),
+        ...(params.statusCode ? { statusCode: params.statusCode } : {}),
+      },
+      order: { updatedAt: "DESC" },
+      take: params.limit,
+    });
+  }
+
+  async getPlaceStatusHistory(params: {
+    placeId?: string;
+    statusCode?: string;
+    limit: number;
+  }): Promise<PlaceStatusHistoryEntity[]> {
+    return this.dataSource.getRepository(PlaceStatusHistoryEntity).find({
+      where: {
+        ...(params.placeId ? { placeId: params.placeId } : {}),
+        ...(params.statusCode ? { statusCode: params.statusCode } : {}),
+      },
+      order: { eventAt: "DESC" },
+      take: params.limit,
     });
   }
 }

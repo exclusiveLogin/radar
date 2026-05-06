@@ -52,6 +52,17 @@ npm run geo:seed
 
 Сидирование читает `data/geo/artifacts/manifest.json` и перезаполняет таблицу **`geo_dataset_file`**.
 
+## Runtime enrichment и рост каталога
+
+- `artifacts`/словарь считаются init pre-cache для первичного матчинга.
+- В эксплуатации worker уточняет локации через подключенные провайдеры.
+- Любой provider-ответ пишется в `place_cache` как provider-aware техлог.
+- Если candidate валиден:
+  - сначала ищем существующий place (`fias -> alias -> name+region`);
+  - при матче добавляем alias из исходного raw-текста;
+  - при отсутствии матча создаем новый place и alias.
+- Таким образом `places` и `place_aliases` постепенно обогащаются по ходу эксплуатации.
+
 ## Конфигурация источников
 
 Один список репозиториев: **`scripts/geo-sources.json`** (используют Node-скрипты `fetch-geo-vendor.mjs` и `geo-sync-artifacts.mjs`).

@@ -20,6 +20,8 @@ export {
   parseConfigSchema,
   parseCursorSchema,
   parsedEventSchema,
+  placeStatusActionSchema,
+  placeStatusEventSchema,
   placeDraftSchema,
   rawMessageSchema,
   readyResponseSchema,
@@ -28,6 +30,8 @@ export {
   syncAllCommandSchema,
   syncPlacesCommandSchema,
   syncRegionsCommandSchema,
+  statusDictionaryEntrySchema,
+  statusDictionarySchema,
 } from "./schemas";
 export { InProcessEventBus } from "./events/inProcessEventBus";
 
@@ -50,6 +54,8 @@ export type {
   IngestEnvelope,
   LocationPrecision,
   MacroZone,
+  PlaceStatusAction,
+  PlaceStatusEvent,
   ParseConfig,
   ParseCursor,
   ParsedEvent,
@@ -61,6 +67,8 @@ export type {
   SyncAllCommand,
   SyncPlacesCommand,
   SyncRegionsCommand,
+  StatusDictionary,
+  StatusDictionaryEntry,
 } from "./schemas";
 export type {
   EventHandler,
@@ -79,11 +87,17 @@ export type {
   IPlaceAliasRepository,
   IPlaceCacheRepository,
   IPlaceRepository,
+  IPlaceStatusHistoryRepository,
+  IPlaceStatusRepository,
   IRawMessageRepository,
   IRegionRepository,
+  IStatusDictionaryRepository,
   ISyncAuditRepository,
+  PlaceStatusActiveRecord,
+  PlaceStatusHistoryRecord,
   PlaceAliasRecord,
   PlaceRecord,
   RegionRecord,
+  StatusDictionaryRecord,
   Unsubscribe,
 } from "./ports";

@@ -26,7 +26,17 @@ export {
   syncRegionsCommandSchema,
 } from "./cqrs";
 export { domainEventSchema, domainEventTypeSchema } from "./events";
-export { aliasDraftSchema, placeDraftSchema, regionDraftSchema } from "./geo";
+export {
+  placeStatusActionSchema,
+  placeStatusEventSchema,
+} from "./events";
+export {
+  aliasDraftSchema,
+  placeDraftSchema,
+  regionDraftSchema,
+  statusDictionaryEntrySchema,
+  statusDictionarySchema,
+} from "./geo";
 
 // --- type-only exports ---
 export type { HealthResponse, ReadyResponse } from "./health";
@@ -55,5 +65,16 @@ export type {
   SyncPlacesCommand,
   SyncRegionsCommand,
 } from "./cqrs";
-export type { DomainEvent, DomainEventType } from "./events";
-export type { AliasDraft, PlaceDraft, RegionDraft } from "./geo";
+export type {
+  DomainEvent,
+  DomainEventType,
+  PlaceStatusAction,
+  PlaceStatusEvent,
+} from "./events";
+export type {
+  AliasDraft,
+  PlaceDraft,
+  RegionDraft,
+  StatusDictionary,
+  StatusDictionaryEntry,
+} from "./geo";

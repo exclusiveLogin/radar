@@ -1,5 +1,13 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
+import type { ILocationEnricher, LocationCandidate } from "@radar/shared";
+import { GeoValidationService } from "../application/parsing/geoValidationService.js";
+import { LocationResolutionService } from "../application/parsing/locationResolutionService.js";
+import {
+  InMemoryPlaceAliasRepository,
+  InMemoryPlaceRepository,
+  InMemoryRegionRepository,
+} from "../application/handlers/inMemoryRepositories.js";
 import { RuleBasedEventClassifier } from "../infrastructure/classifiers/ruleBasedEventClassifier.js";
 import { splitMessageBlocks } from "../domain/parsing/index.js";
 
@@ -9,7 +17,23 @@ type ParseSummary = {
   noise: number;
   meta: number;
   eventShare: number;
+  geoValidation?: {
+    known: number;
+    created: number;
+    rejected: number;
+  };
 };
+
+class NoopEnricher implements ILocationEnricher {
+  readonly name = "dadata";
+
+  async enrich(_input: {
+    rawText: string;
+    regionCode?: string;
+  }): Promise<LocationCandidate | null> {
+    return null;
+  }
+}
 
 function resolveInputPath(arg: string): string {
   if (path.isAbsolute(arg)) return arg;
@@ -39,6 +63,7 @@ async function main(): Promise<void> {
     console.error("Usage: npm run parse:snap -- <path-to-snap.txt>");
     process.exit(1);
   }
+  const withGeoReport = process.argv.includes("--geo-report");
 
   const filePath = resolveInputPath(inputArg);
   if (!fs.existsSync(filePath)) {
@@ -55,6 +80,42 @@ async function main(): Promise<void> {
     result: classifier.classify(block),
   }));
   const summary = buildSummary(results.map((x) => x.result.kind));
+
+  if (withGeoReport) {
+    const resolver = new LocationResolutionService(new NoopEnricher());
+    const validation = new GeoValidationService(
+      new InMemoryRegionRepository(),
+      new InMemoryPlaceRepository(),
+      new InMemoryPlaceAliasRepository(),
+    );
+    let known = 0;
+    let created = 0;
+    let rejected = 0;
+
+    for (const row of results) {
+      if (row.result.kind !== "event") continue;
+      const resolved = await resolver.resolve(row.block);
+      if (resolved.locations.length === 0) {
+        rejected += 1;
+        continue;
+      }
+      let hasAccepted = false;
+      for (const location of resolved.locations) {
+        const decision = await validation.validate(row.block, location);
+        if (decision.decision === "matched_existing") {
+          known += 1;
+          hasAccepted = true;
+        } else if (decision.decision === "created_new") {
+          created += 1;
+          hasAccepted = true;
+        }
+      }
+      if (!hasAccepted) {
+        rejected += 1;
+      }
+    }
+    summary.geoValidation = { known, created, rejected };
+  }
 
   console.log(
     JSON.stringify(

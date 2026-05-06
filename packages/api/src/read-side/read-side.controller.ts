@@ -33,4 +33,32 @@ export class ReadSideController {
     const take = Number(limit ?? 100);
     return this.readSide.getGeoSyncHistory(Number.isFinite(take) ? take : 100);
   }
+
+  @Get("places/status")
+  async placeStatus(
+    @Query("placeId") placeId?: string,
+    @Query("statusCode") statusCode?: string,
+    @Query("limit") limit?: string,
+  ) {
+    const take = Number(limit ?? 500);
+    return this.readSide.getPlaceStatuses({
+      placeId,
+      statusCode,
+      limit: Number.isFinite(take) ? take : 500,
+    });
+  }
+
+  @Get("places/status/history")
+  async placeStatusHistory(
+    @Query("placeId") placeId?: string,
+    @Query("statusCode") statusCode?: string,
+    @Query("limit") limit?: string,
+  ) {
+    const take = Number(limit ?? 1000);
+    return this.readSide.getPlaceStatusHistory({
+      placeId,
+      statusCode,
+      limit: Number.isFinite(take) ? take : 1000,
+    });
+  }
 }

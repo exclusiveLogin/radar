@@ -107,6 +107,16 @@ flowchart LR
 - В воркере подключены встроенные подписчики `ParseAttemptLogger` и `MetricsAggregator`.
 - Для телеметрии и админ-операций добавлен HLD-каркас `packages/admin-bot`.
 
+### Runtime geo enrichment (актуальный контур)
+
+- `raw` сначала проходит классификацию (`noise/meta/event`).
+- Если это event: берется базовый регион из локальных артефактов/словаря.
+- Далее запускается цепочка enrichers (`cache -> dadata -> nominatim -> llm`).
+- Ответ провайдера матчится с каталогом (`fias -> alias -> name+region`).
+- Если place найден: добавляется alias из сырого текста и дозаполняются missing-поля.
+- Если place не найден, но валидация проходит: place создается и становится searchable для следующих сообщений.
+- `place_cache` хранит provider-aware техлог запросов и не заменяет основной каталог `places`.
+
 ## ⚙️ Текущий статус репозитория
 
 - Готов инфраструктурный каркас монорепо (`api`, `worker`, `web`, `shared`).
@@ -196,6 +206,7 @@ flowchart LR
 - **CompositeEnricher**: цепочка провайдеров по приоритету.
 - **CachingEnricher**: сначала cache (`place_cache`/in-memory), потом внешние вызовы.
 - Базовый сценарий: если регион найден локально, используем словарь; если в тексте есть уточнение — добираем через enrichers.
+- Для карт/time-machine статусы place ведутся отдельными тегами (`place_status_active` + `place_status_history`), а `cleared` вычисляется read-side как отсутствие активных тегов.
 
 ## Worker и Telegram
 
@@ -252,6 +263,8 @@ npm run migration:run
 | `npm run geo:db:plan` | dry-run diff для синка справочников в БД |
 | `npm run geo:db:apply` | применить diff-синк справочников в БД + аудит |
 | `npm run worker:parse:snap -- tests/snap_001.txt` | прогон parser CLI без БД на снапшотах |
+| `GET /api/places/status` | активные статус-теги по place (для карты) |
+| `GET /api/places/status/history` | история статус-тегов для time-machine |
 | `npm run build`   | сборка всех пакетов, где есть build |
 | `npm run lint`    | ESLint по исходникам                 |
 | `npm run typecheck` | `tsc --noEmit` в пакетах         |

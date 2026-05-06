@@ -20,15 +20,26 @@ export class CachingEnricher implements ILocationEnricher {
   }): Promise<LocationCandidate | null> {
     const queryNorm = input.rawText.toLowerCase().trim();
     const memoryHit = this.memory.get(queryNorm);
-    if (memoryHit) return memoryHit;
+    if (memoryHit) {
+      return {
+        ...memoryHit,
+        raw: {
+          ...memoryHit.raw,
+          __cacheHit: "memory",
+        },
+      };
+    }
 
     if (this.placeCacheRepository) {
       const dbHit = await this.placeCacheRepository.get(queryNorm);
       if (dbHit) {
         const restored: LocationCandidate = {
-          provider: "dadata",
+          provider: dbHit.provider,
           queryNorm,
-          raw: dbHit,
+          raw: {
+            ...dbHit.raw,
+            __cacheHit: "db",
+          },
         };
         this.memory.set(queryNorm, restored);
         return restored;
@@ -40,7 +51,11 @@ export class CachingEnricher implements ILocationEnricher {
 
     this.memory.set(queryNorm, resolved);
     if (this.placeCacheRepository) {
-      await this.placeCacheRepository.put(queryNorm, resolved.raw);
+      await this.placeCacheRepository.put(
+        queryNorm,
+        resolved.provider,
+        resolved.raw,
+      );
     }
     return resolved;
   }

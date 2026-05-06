@@ -34,4 +34,52 @@ export class TypeOrmPlaceAliasRepository implements IPlaceAliasRepository {
       ["id"],
     );
   }
+
+  async upsertAlias(input: {
+    targetKind: "region" | "place";
+    regionId?: string;
+    placeId?: string;
+    alias: string;
+    source: "auto" | "manual";
+  }): Promise<void> {
+    const repo = this.dataSource.getRepository(PlaceAliasEntity);
+    const aliasNormalized = input.alias.toLowerCase().trim();
+    const existing = await repo.findOne(
+      input.targetKind === "region"
+        ? {
+            where: {
+              targetKind: "region",
+              regionId: input.regionId,
+              aliasNormalized,
+            },
+          }
+        : {
+            where: {
+              targetKind: "place",
+              placeId: input.placeId,
+              aliasNormalized,
+            },
+          },
+    );
+    if (existing) {
+      if (!existing.isActive) {
+        existing.isActive = true;
+        existing.deprecatedAt = null;
+      }
+      existing.alias = input.alias;
+      existing.source = input.source;
+      await repo.save(existing);
+      return;
+    }
+    await repo.save(
+      repo.create({
+        targetKind: input.targetKind,
+        regionId: input.regionId ?? null,
+        placeId: input.placeId ?? null,
+        alias: input.alias,
+        aliasNormalized,
+        source: input.source,
+      }),
+    );
+  }
 }
