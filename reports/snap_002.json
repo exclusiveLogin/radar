@@ -1,0 +1,1502 @@
+[
+  {
+    "index": 0,
+    "file": "snap_002.txt",
+    "raw": {
+      "text": "Радар ПФО • Оповещения по Поволжью, [04.05.2026 06:03]\nСамарская область \nОтбой опасности по БПЛА",
+      "hash": "31dc5dc6f5b69d5633d0799688e1b477940fb5de5187cba17cd2b21cfe53d046",
+      "channelKey": "snap_002",
+      "postedAt": "2026-05-07T21:12:10.802Z",
+      "rawMessageId": "00000000-0000-0000-0000-000000000000"
+    },
+    "classification": {
+      "kind": "event"
+    },
+    "event": {
+      "eventType": "danger",
+      "severity": "danger",
+      "repeat": false
+    },
+    "geo": {
+      "region": {
+        "code": "63",
+        "name": "Самарская обл",
+        "fiasId": "df3d7359-afa9-4aaa-8ff9-197e73906b1c"
+      },
+      "places": [
+        {
+          "name": "Самарская обл",
+          "kind": "locality"
+        }
+      ],
+      "precision": "region",
+      "completeness": 0.25,
+      "source": "local"
+    },
+    "enrich": {
+      "invoked": false,
+      "providersTried": [],
+      "hits": 1,
+      "misses": 0,
+      "cacheHit": false
+    },
+    "diagnostics": {
+      "parserVersion": "0.1.0",
+      "warnings": []
+    }
+  },
+  {
+    "index": 1,
+    "file": "snap_002.txt",
+    "raw": {
+      "text": "Радар ПФО • Оповещения по Поволжью, [04.05.2026 06:03]\nВолгоградская область \nОтбой опасности по БПЛА",
+      "hash": "68bdd755332901bd515d749031f7c3ff4e79e54c2931be98df4f40ba794719d9",
+      "channelKey": "snap_002",
+      "postedAt": "2026-05-07T21:12:10.813Z",
+      "rawMessageId": "00000000-0000-0000-0000-000000000000"
+    },
+    "classification": {
+      "kind": "event"
+    },
+    "event": {
+      "eventType": "danger",
+      "severity": "danger",
+      "repeat": false
+    },
+    "geo": {
+      "region": {
+        "code": "34",
+        "name": "Волгоградская обл",
+        "fiasId": "da051ec8-da2e-4a66-b542-473b8d221ab4"
+      },
+      "places": [
+        {
+          "name": "Волгоградская обл",
+          "kind": "locality"
+        }
+      ],
+      "precision": "region",
+      "completeness": 0.25,
+      "source": "local"
+    },
+    "enrich": {
+      "invoked": false,
+      "providersTried": [],
+      "hits": 1,
+      "misses": 0,
+      "cacheHit": false
+    },
+    "diagnostics": {
+      "parserVersion": "0.1.0",
+      "warnings": []
+    }
+  },
+  {
+    "index": 2,
+    "file": "snap_002.txt",
+    "raw": {
+      "text": "Радар ПФО • Оповещения по Поволжью, [04.05.2026 06:04]\nСаратовская область \nОтбой внимания по БПЛА",
+      "hash": "a5ed3df026d4df118749ac05f891e5606a42e63ecd17f4dfdeed71f788a0f0b1",
+      "channelKey": "snap_002",
+      "postedAt": "2026-05-07T21:12:10.816Z",
+      "rawMessageId": "00000000-0000-0000-0000-000000000000"
+    },
+    "classification": {
+      "kind": "event"
+    },
+    "event": {
+      "eventType": "attention",
+      "severity": "attention",
+      "repeat": false
+    },
+    "geo": {
+      "region": {
+        "code": "64",
+        "name": "Саратовская обл",
+        "fiasId": "df594e0e-a935-4664-9d26-0bae13f904fe"
+      },
+      "places": [
+        {
+          "name": "Саратовская обл",
+          "kind": "locality"
+        }
+      ],
+      "precision": "region",
+      "completeness": 0.25,
+      "source": "local"
+    },
+    "enrich": {
+      "invoked": false,
+      "providersTried": [],
+      "hits": 1,
+      "misses": 0,
+      "cacheHit": false
+    },
+    "diagnostics": {
+      "parserVersion": "0.1.0",
+      "warnings": []
+    }
+  },
+  {
+    "index": 3,
+    "file": "snap_002.txt",
+    "raw": {
+      "text": "Радар ПФО • Оповещения по Поволжью, [04.05.2026 06:04]\nОренбургская область \nОтбой опасности по БПЛА",
+      "hash": "08cee53709f2dbf397a3750dc587fcd3b60ac8e7d761dbf5481aff9d86de04eb",
+      "channelKey": "snap_002",
+      "postedAt": "2026-05-07T21:12:10.816Z",
+      "rawMessageId": "00000000-0000-0000-0000-000000000000"
+    },
+    "classification": {
+      "kind": "event"
+    },
+    "event": {
+      "eventType": "danger",
+      "severity": "danger",
+      "repeat": false
+    },
+    "geo": {
+      "region": {
+        "code": "56",
+        "name": "Оренбургская обл",
+        "fiasId": "8bcec9d6-05bc-4e53-b45c-ba0c6f3a5c44"
+      },
+      "places": [
+        {
+          "name": "Оренбургская обл",
+          "kind": "locality"
+        }
+      ],
+      "precision": "region",
+      "completeness": 0.25,
+      "source": "local"
+    },
+    "enrich": {
+      "invoked": false,
+      "providersTried": [],
+      "hits": 1,
+      "misses": 0,
+      "cacheHit": false
+    },
+    "diagnostics": {
+      "parserVersion": "0.1.0",
+      "warnings": []
+    }
+  },
+  {
+    "index": 4,
+    "file": "snap_002.txt",
+    "raw": {
+      "text": "Радар ПФО • Оповещения по Поволжью, [04.05.2026 06:04]\nРеспублика Татарстан\nОтбой опасности по БПЛА",
+      "hash": "c32e6c97a569dc691f313be9eca02d1816ece83bae60e4ca143260a14ef53e19",
+      "channelKey": "snap_002",
+      "postedAt": "2026-05-07T21:12:10.817Z",
+      "rawMessageId": "00000000-0000-0000-0000-000000000000"
+    },
+    "classification": {
+      "kind": "event"
+    },
+    "event": {
+      "eventType": "danger",
+      "severity": "danger",
+      "repeat": false
+    },
+    "geo": {
+      "region": {
+        "code": "16",
+        "name": "Респ Татарстан",
+        "fiasId": "0c089b04-099e-4e0e-955a-6bf1ce525f1a"
+      },
+      "places": [
+        {
+          "name": "Респ Татарстан",
+          "kind": "locality"
+        }
+      ],
+      "precision": "region",
+      "completeness": 0.25,
+      "source": "local"
+    },
+    "enrich": {
+      "invoked": false,
+      "providersTried": [],
+      "hits": 1,
+      "misses": 0,
+      "cacheHit": false
+    },
+    "diagnostics": {
+      "parserVersion": "0.1.0",
+      "warnings": []
+    }
+  },
+  {
+    "index": 5,
+    "file": "snap_002.txt",
+    "raw": {
+      "text": "Радар ПФО • Оповещения по Поволжью, [04.05.2026 06:09]\nЧелябинская область\nОпасность по БПЛА",
+      "hash": "49ce8447d5172fb095363df784939a9386bd45ede0e1c46b57802a6de740e783",
+      "channelKey": "snap_002",
+      "postedAt": "2026-05-07T21:12:10.817Z",
+      "rawMessageId": "00000000-0000-0000-0000-000000000000"
+    },
+    "classification": {
+      "kind": "event"
+    },
+    "event": {
+      "eventType": "danger",
+      "severity": "danger",
+      "repeat": false
+    },
+    "geo": {
+      "region": {
+        "code": "74",
+        "name": "Челябинская обл",
+        "fiasId": "27eb7c10-a234-44da-a59c-8b1f864966de"
+      },
+      "places": [
+        {
+          "name": "Челябинская обл",
+          "kind": "locality"
+        }
+      ],
+      "precision": "region",
+      "completeness": 0.25,
+      "source": "local"
+    },
+    "enrich": {
+      "invoked": false,
+      "providersTried": [],
+      "hits": 1,
+      "misses": 0,
+      "cacheHit": false
+    },
+    "diagnostics": {
+      "parserVersion": "0.1.0",
+      "warnings": []
+    }
+  },
+  {
+    "index": 6,
+    "file": "snap_002.txt",
+    "raw": {
+      "text": "Радар ПФО • Оповещения по Поволжью, [04.05.2026 06:09]\nСвердловская область \nПермский край\nВнимание по БПЛА",
+      "hash": "11e39fdc8d0233ddbd9115ed92b258a4d0d111e99b06a2c3ecd133c5fae2f5ea",
+      "channelKey": "snap_002",
+      "postedAt": "2026-05-07T21:12:10.818Z",
+      "rawMessageId": "00000000-0000-0000-0000-000000000000"
+    },
+    "classification": {
+      "kind": "event"
+    },
+    "event": {
+      "eventType": "attention",
+      "severity": "attention",
+      "repeat": false
+    },
+    "geo": {
+      "region": {
+        "code": "66",
+        "name": "Свердловская обл",
+        "fiasId": "92b30014-4d52-4e2e-892d-928142b924bf"
+      },
+      "places": [
+        {
+          "name": "Свердловская обл",
+          "kind": "locality"
+        }
+      ],
+      "precision": "region",
+      "completeness": 0.25,
+      "source": "local"
+    },
+    "enrich": {
+      "invoked": false,
+      "providersTried": [],
+      "hits": 1,
+      "misses": 0,
+      "cacheHit": false
+    },
+    "diagnostics": {
+      "parserVersion": "0.1.0",
+      "warnings": []
+    }
+  },
+  {
+    "index": 7,
+    "file": "snap_002.txt",
+    "raw": {
+      "text": "Радар ПФО • Оповещения по Поволжью, [04.05.2026 07:08]\nПермский край\nОпасность по БПЛА",
+      "hash": "6e414d97588f1e2dee0aabf52dfca11016135eeeabaaac33dd3c3fb88e77edec",
+      "channelKey": "snap_002",
+      "postedAt": "2026-05-07T21:12:10.819Z",
+      "rawMessageId": "00000000-0000-0000-0000-000000000000"
+    },
+    "classification": {
+      "kind": "event"
+    },
+    "event": {
+      "eventType": "danger",
+      "severity": "danger",
+      "repeat": false
+    },
+    "geo": {
+      "region": {
+        "code": "59",
+        "name": "Пермский край",
+        "fiasId": "4f8b1a21-e4bb-422f-9087-d3cbf4bebc14"
+      },
+      "places": [
+        {
+          "name": "Пермский край",
+          "kind": "locality"
+        }
+      ],
+      "precision": "region",
+      "completeness": 0.25,
+      "source": "local"
+    },
+    "enrich": {
+      "invoked": false,
+      "providersTried": [],
+      "hits": 1,
+      "misses": 0,
+      "cacheHit": false
+    },
+    "diagnostics": {
+      "parserVersion": "0.1.0",
+      "warnings": []
+    }
+  },
+  {
+    "index": 8,
+    "file": "snap_002.txt",
+    "raw": {
+      "text": "Радар ПФО • Оповещения по Поволжью, [04.05.2026 07:18]\nАэропорт Пермь\nОграничения на ИВП",
+      "hash": "4898430cd4070f4aa9a2e35518ba3e782ac2a7842ed08934902b32ce9475c974",
+      "channelKey": "snap_002",
+      "postedAt": "2026-05-07T21:12:10.819Z",
+      "rawMessageId": "00000000-0000-0000-0000-000000000000"
+    },
+    "classification": {
+      "kind": "event"
+    },
+    "event": {
+      "eventType": "airspace_restriction",
+      "severity": "info",
+      "repeat": false
+    },
+    "geo": {
+      "places": [],
+      "precision": "unknown",
+      "completeness": 0,
+      "source": "local"
+    },
+    "enrich": {
+      "invoked": true,
+      "providersTried": [],
+      "hits": 0,
+      "misses": 1,
+      "cacheHit": false
+    },
+    "diagnostics": {
+      "parserVersion": "0.1.0",
+      "warnings": []
+    }
+  },
+  {
+    "index": 9,
+    "file": "snap_002.txt",
+    "raw": {
+      "text": "Радар ПФО • Оповещения по Поволжью, [04.05.2026 07:18]\nСвердловская область \nОпасность по БПЛА",
+      "hash": "05a46206f4fcd5c254e29c835918cdc984894dbd4dd03723b76afc68b29c51dc",
+      "channelKey": "snap_002",
+      "postedAt": "2026-05-07T21:12:10.820Z",
+      "rawMessageId": "00000000-0000-0000-0000-000000000000"
+    },
+    "classification": {
+      "kind": "event"
+    },
+    "event": {
+      "eventType": "danger",
+      "severity": "danger",
+      "repeat": false
+    },
+    "geo": {
+      "region": {
+        "code": "66",
+        "name": "Свердловская обл",
+        "fiasId": "92b30014-4d52-4e2e-892d-928142b924bf"
+      },
+      "places": [
+        {
+          "name": "Свердловская обл",
+          "kind": "locality"
+        }
+      ],
+      "precision": "region",
+      "completeness": 0.25,
+      "source": "local"
+    },
+    "enrich": {
+      "invoked": false,
+      "providersTried": [],
+      "hits": 1,
+      "misses": 0,
+      "cacheHit": false
+    },
+    "diagnostics": {
+      "parserVersion": "0.1.0",
+      "warnings": []
+    }
+  },
+  {
+    "index": 10,
+    "file": "snap_002.txt",
+    "raw": {
+      "text": "Радар ПФО • Оповещения по Поволжью, [04.05.2026 07:35]\nРадиус режима «Ковер» увеличен до 150 км от г. Перми, на территории Пермского края в 09.20 04 мая. Телефон вызова экстренных служб-112.\n\n‼️Радар Пермского края - @radar_pe",
+      "hash": "283f854f843323566280ea372b4c8af351bbf56f155b6be9ad09d7348bf99ce1",
+      "channelKey": "snap_002",
+      "postedAt": "2026-05-07T21:12:10.821Z"
+    },
+    "classification": {
+      "kind": "noise",
+      "reason": "noise_content"
+    },
+    "geo": {
+      "places": [],
+      "precision": "unknown",
+      "completeness": 0,
+      "source": "local"
+    },
+    "enrich": {
+      "invoked": false,
+      "providersTried": [],
+      "hits": 0,
+      "misses": 0,
+      "cacheHit": false
+    },
+    "diagnostics": {
+      "parserVersion": "0.1.0",
+      "warnings": []
+    }
+  },
+  {
+    "index": 11,
+    "file": "snap_002.txt",
+    "raw": {
+      "text": "Радар ПФО • Оповещения по Поволжью, [04.05.2026 08:06]\nПермь\nПермский край\nОпасность по БПЛА",
+      "hash": "c82a75aa7665d4b80ca59304303ad6ade3154e7db6137c0920263d314e9665ea",
+      "channelKey": "snap_002",
+      "postedAt": "2026-05-07T21:12:10.821Z",
+      "rawMessageId": "00000000-0000-0000-0000-000000000000"
+    },
+    "classification": {
+      "kind": "event"
+    },
+    "event": {
+      "eventType": "danger",
+      "severity": "danger",
+      "repeat": false
+    },
+    "geo": {
+      "region": {
+        "code": "59",
+        "name": "Пермский край",
+        "fiasId": "4f8b1a21-e4bb-422f-9087-d3cbf4bebc14"
+      },
+      "places": [
+        {
+          "name": "Пермский край",
+          "kind": "locality"
+        }
+      ],
+      "precision": "region",
+      "completeness": 0.25,
+      "source": "local"
+    },
+    "enrich": {
+      "invoked": false,
+      "providersTried": [],
+      "hits": 1,
+      "misses": 0,
+      "cacheHit": false
+    },
+    "diagnostics": {
+      "parserVersion": "0.1.0",
+      "warnings": []
+    }
+  },
+  {
+    "index": 12,
+    "file": "snap_002.txt",
+    "raw": {
+      "text": "Радар ПФО • Оповещения по Поволжью, [04.05.2026 08:24]\nЧелябинск\nЧелябинская область \nОпасность по БПЛА",
+      "hash": "d47ff4e5bd471ee50d6627ca7a92186d647cd4e9f0d54790e709b5c8c32aa9fa",
+      "channelKey": "snap_002",
+      "postedAt": "2026-05-07T21:12:10.822Z",
+      "rawMessageId": "00000000-0000-0000-0000-000000000000"
+    },
+    "classification": {
+      "kind": "event"
+    },
+    "event": {
+      "eventType": "danger",
+      "severity": "danger",
+      "repeat": false
+    },
+    "geo": {
+      "region": {
+        "code": "74",
+        "name": "Челябинская обл",
+        "fiasId": "27eb7c10-a234-44da-a59c-8b1f864966de"
+      },
+      "places": [
+        {
+          "name": "Челябинская обл",
+          "kind": "locality"
+        }
+      ],
+      "precision": "region",
+      "completeness": 0.25,
+      "source": "local"
+    },
+    "enrich": {
+      "invoked": false,
+      "providersTried": [],
+      "hits": 1,
+      "misses": 0,
+      "cacheHit": false
+    },
+    "diagnostics": {
+      "parserVersion": "0.1.0",
+      "warnings": []
+    }
+  },
+  {
+    "index": 13,
+    "file": "snap_002.txt",
+    "raw": {
+      "text": "Радар ПФО • Оповещения по Поволжью, [04.05.2026 08:24]\nДрузья, у нас новый канал в MAX. Остальные только фейки, от старого нужно отписаться\n\nЭто не старый канал ‼️\n\nНОВЫЙ КАНАЛ В MAX",
+      "hash": "068fd5063f0eafdb466242fba3c5e9de5ee6b6073d18936484d9b4ee496fb353",
+      "channelKey": "snap_002",
+      "postedAt": "2026-05-07T21:12:10.822Z"
+    },
+    "classification": {
+      "kind": "noise",
+      "reason": "noise_content"
+    },
+    "geo": {
+      "places": [],
+      "precision": "unknown",
+      "completeness": 0,
+      "source": "local"
+    },
+    "enrich": {
+      "invoked": false,
+      "providersTried": [],
+      "hits": 0,
+      "misses": 0,
+      "cacheHit": false
+    },
+    "diagnostics": {
+      "parserVersion": "0.1.0",
+      "warnings": []
+    }
+  },
+  {
+    "index": 14,
+    "file": "snap_002.txt",
+    "raw": {
+      "text": "Радар ПФО • Оповещения по Поволжью, [04.05.2026 08:33]\nЭтой ночью миноборонами РФ уничтожены и перехвачены БПЛА над Ульяновской областью, Самарской областью, Саратовской и Волгоградской областях",
+      "hash": "70cb9de6352b950c503aa029e9b9f4313b9c39d219225f6a970b1b057a03a26f",
+      "channelKey": "snap_002",
+      "postedAt": "2026-05-07T21:12:10.822Z"
+    },
+    "classification": {
+      "kind": "noise",
+      "reason": "event_type_not_detected"
+    },
+    "geo": {
+      "places": [],
+      "precision": "unknown",
+      "completeness": 0,
+      "source": "local"
+    },
+    "enrich": {
+      "invoked": false,
+      "providersTried": [],
+      "hits": 0,
+      "misses": 0,
+      "cacheHit": false
+    },
+    "diagnostics": {
+      "parserVersion": "0.1.0",
+      "warnings": []
+    }
+  },
+  {
+    "index": 15,
+    "file": "snap_002.txt",
+    "raw": {
+      "text": "Радар ПФО • Оповещения по Поволжью, [04.05.2026 09:11]\nРеспублика Башкортостан \nОтбой опасности по БПЛА",
+      "hash": "3b28f83a5b53b16e54af7c50202f8ac1a6fb81fc67959941621b90284866afa8",
+      "channelKey": "snap_002",
+      "postedAt": "2026-05-07T21:12:10.823Z",
+      "rawMessageId": "00000000-0000-0000-0000-000000000000"
+    },
+    "classification": {
+      "kind": "event"
+    },
+    "event": {
+      "eventType": "danger",
+      "severity": "danger",
+      "repeat": false
+    },
+    "geo": {
+      "region": {
+        "code": "02",
+        "name": "Респ Башкортостан",
+        "fiasId": "6f2cbfd8-692a-4ee4-9b16-067210bde3fc"
+      },
+      "places": [
+        {
+          "name": "Респ Башкортостан",
+          "kind": "locality"
+        }
+      ],
+      "precision": "region",
+      "completeness": 0.25,
+      "source": "local"
+    },
+    "enrich": {
+      "invoked": false,
+      "providersTried": [],
+      "hits": 1,
+      "misses": 0,
+      "cacheHit": false
+    },
+    "diagnostics": {
+      "parserVersion": "0.1.0",
+      "warnings": []
+    }
+  },
+  {
+    "index": 16,
+    "file": "snap_002.txt",
+    "raw": {
+      "text": "Радар ПФО • Оповещения по Поволжью, [04.05.2026 09:33]\nПермский край \nОтбой опасности по БПЛА",
+      "hash": "366c43ff1a83d5086165d1ad1b6ccb89f8038a0877efd349850b6da828219d23",
+      "channelKey": "snap_002",
+      "postedAt": "2026-05-07T21:12:10.823Z",
+      "rawMessageId": "00000000-0000-0000-0000-000000000000"
+    },
+    "classification": {
+      "kind": "event"
+    },
+    "event": {
+      "eventType": "danger",
+      "severity": "danger",
+      "repeat": false
+    },
+    "geo": {
+      "region": {
+        "code": "59",
+        "name": "Пермский край",
+        "fiasId": "4f8b1a21-e4bb-422f-9087-d3cbf4bebc14"
+      },
+      "places": [
+        {
+          "name": "Пермский край",
+          "kind": "locality"
+        }
+      ],
+      "precision": "region",
+      "completeness": 0.25,
+      "source": "local"
+    },
+    "enrich": {
+      "invoked": false,
+      "providersTried": [],
+      "hits": 1,
+      "misses": 0,
+      "cacheHit": false
+    },
+    "diagnostics": {
+      "parserVersion": "0.1.0",
+      "warnings": []
+    }
+  },
+  {
+    "index": 17,
+    "file": "snap_002.txt",
+    "raw": {
+      "text": "Радар ПФО • Оповещения по Поволжью, [04.05.2026 12:23]\nКулебакский район\nНижегородская область \nРабота ПВО по БПЛА\nМеры безопасности",
+      "hash": "7660d0191d8649d0e57a15f96b7719fe0a3aae24bdd1e0cc2e79afb056ce35cb",
+      "channelKey": "snap_002",
+      "postedAt": "2026-05-07T21:12:10.824Z",
+      "rawMessageId": "00000000-0000-0000-0000-000000000000"
+    },
+    "classification": {
+      "kind": "event"
+    },
+    "event": {
+      "eventType": "pvo_work",
+      "severity": "danger",
+      "repeat": false
+    },
+    "geo": {
+      "region": {
+        "code": "52",
+        "name": "кулебакский район",
+        "fiasId": "88cd27e2-6a8a-4421-9718-719a28a0a088"
+      },
+      "places": [
+        {
+          "name": "кулебакский район",
+          "kind": "district"
+        }
+      ],
+      "precision": "district",
+      "completeness": 0.5,
+      "source": "local"
+    },
+    "enrich": {
+      "invoked": false,
+      "providersTried": [],
+      "hits": 1,
+      "misses": 0,
+      "cacheHit": false
+    },
+    "diagnostics": {
+      "parserVersion": "0.1.0",
+      "warnings": []
+    }
+  },
+  {
+    "index": 18,
+    "file": "snap_002.txt",
+    "raw": {
+      "text": "Радар ПФО • Оповещения по Поволжью, [04.05.2026 15:14]\nВолгоградская область \nОпасность по БПЛА",
+      "hash": "f08f4b5767f9593087205490d073590bcaf93f87b8b5a8bfe2ac5c13996e0807",
+      "channelKey": "snap_002",
+      "postedAt": "2026-05-07T21:12:10.824Z",
+      "rawMessageId": "00000000-0000-0000-0000-000000000000"
+    },
+    "classification": {
+      "kind": "event"
+    },
+    "event": {
+      "eventType": "danger",
+      "severity": "danger",
+      "repeat": false
+    },
+    "geo": {
+      "region": {
+        "code": "34",
+        "name": "Волгоградская обл",
+        "fiasId": "da051ec8-da2e-4a66-b542-473b8d221ab4"
+      },
+      "places": [
+        {
+          "name": "Волгоградская обл",
+          "kind": "locality"
+        }
+      ],
+      "precision": "region",
+      "completeness": 0.25,
+      "source": "local"
+    },
+    "enrich": {
+      "invoked": false,
+      "providersTried": [],
+      "hits": 1,
+      "misses": 0,
+      "cacheHit": false
+    },
+    "diagnostics": {
+      "parserVersion": "0.1.0",
+      "warnings": []
+    }
+  },
+  {
+    "index": 19,
+    "file": "snap_002.txt",
+    "raw": {
+      "text": "Радар ПФО • Оповещения по Поволжью, [04.05.2026 10:59]\nМы оповещали вас 24/7 \nЕсли у вас есть желание отблагодарить нас, можно сделать это по ссылке\nhttps://pay.cloudtips.ru/p/7471b48f\nОгромнейшее спасибо! 🙏",
+      "hash": "51fc9f3b40174d739724b45c636fc3b893cf1bfec12d72d4a94ca3d27e47161d",
+      "channelKey": "snap_002",
+      "postedAt": "2026-05-07T21:12:10.825Z"
+    },
+    "classification": {
+      "kind": "noise",
+      "reason": "noise_content"
+    },
+    "geo": {
+      "places": [],
+      "precision": "unknown",
+      "completeness": 0,
+      "source": "local"
+    },
+    "enrich": {
+      "invoked": false,
+      "providersTried": [],
+      "hits": 0,
+      "misses": 0,
+      "cacheHit": false
+    },
+    "diagnostics": {
+      "parserVersion": "0.1.0",
+      "warnings": []
+    }
+  },
+  {
+    "index": 20,
+    "file": "snap_002.txt",
+    "raw": {
+      "text": "Радар ПФО • Оповещения по Поволжью, [04.05.2026 09:54]\nОтбой по всем ранее объявленным регионам кроме Нижегородская область",
+      "hash": "eef15b4cc147d333ea4cc1d3a146d44df1c3f3f08ae6a042e1a69a0845e3bd03",
+      "channelKey": "snap_002",
+      "postedAt": "2026-05-07T21:12:10.825Z"
+    },
+    "classification": {
+      "kind": "noise",
+      "reason": "event_type_not_detected"
+    },
+    "geo": {
+      "places": [],
+      "precision": "unknown",
+      "completeness": 0,
+      "source": "local"
+    },
+    "enrich": {
+      "invoked": false,
+      "providersTried": [],
+      "hits": 0,
+      "misses": 0,
+      "cacheHit": false
+    },
+    "diagnostics": {
+      "parserVersion": "0.1.0",
+      "warnings": []
+    }
+  },
+  {
+    "index": 21,
+    "file": "snap_002.txt",
+    "raw": {
+      "text": "Радар ПФО • Оповещения по Поволжью, [04.05.2026 15:58]\nКалачевский район \nВолгоградская область \nВнимание по реактивным БПЛА",
+      "hash": "8c87f772ed6cd615105c26c68e719277f9bd757c5476b16e88540301708781a8",
+      "channelKey": "snap_002",
+      "postedAt": "2026-05-07T21:12:10.825Z",
+      "rawMessageId": "00000000-0000-0000-0000-000000000000"
+    },
+    "classification": {
+      "kind": "event"
+    },
+    "event": {
+      "eventType": "attention",
+      "severity": "critical",
+      "repeat": false
+    },
+    "geo": {
+      "region": {
+        "code": "34",
+        "name": "калачевский район",
+        "fiasId": "da051ec8-da2e-4a66-b542-473b8d221ab4"
+      },
+      "places": [
+        {
+          "name": "калачевский район",
+          "kind": "district"
+        }
+      ],
+      "precision": "district",
+      "completeness": 0.5,
+      "source": "local"
+    },
+    "enrich": {
+      "invoked": false,
+      "providersTried": [],
+      "hits": 1,
+      "misses": 0,
+      "cacheHit": false
+    },
+    "diagnostics": {
+      "parserVersion": "0.1.0",
+      "warnings": []
+    }
+  },
+  {
+    "index": 22,
+    "file": "snap_002.txt",
+    "raw": {
+      "text": "Радар ПФО • Оповещения по Поволжью, [04.05.2026 16:01]\nАэропорт Волгоград\nОграничения на ИВП",
+      "hash": "90321f74a1199e48343a02f8bc286c293c5a6cdbb51020eea767984d6aa49741",
+      "channelKey": "snap_002",
+      "postedAt": "2026-05-07T21:12:10.826Z",
+      "rawMessageId": "00000000-0000-0000-0000-000000000000"
+    },
+    "classification": {
+      "kind": "event"
+    },
+    "event": {
+      "eventType": "airspace_restriction",
+      "severity": "info",
+      "repeat": false
+    },
+    "geo": {
+      "places": [],
+      "precision": "unknown",
+      "completeness": 0,
+      "source": "local"
+    },
+    "enrich": {
+      "invoked": true,
+      "providersTried": [],
+      "hits": 0,
+      "misses": 1,
+      "cacheHit": false
+    },
+    "diagnostics": {
+      "parserVersion": "0.1.0",
+      "warnings": []
+    }
+  },
+  {
+    "index": 23,
+    "file": "snap_002.txt",
+    "raw": {
+      "text": "Радар ПФО • Оповещения по Поволжью, [04.05.2026 16:17]\nВолгоградская область\nПредварительно сбитие реактивного БПЛА\nМеры безопасности",
+      "hash": "4a422376bc4fff0e39ff0d9da40b93bbd67b8b363fd4ce8ef271139c9563aa2d",
+      "channelKey": "snap_002",
+      "postedAt": "2026-05-07T21:12:10.827Z",
+      "rawMessageId": "00000000-0000-0000-0000-000000000000"
+    },
+    "classification": {
+      "kind": "event"
+    },
+    "event": {
+      "eventType": "impact",
+      "severity": "critical",
+      "repeat": false
+    },
+    "geo": {
+      "region": {
+        "code": "34",
+        "name": "Волгоградская обл",
+        "fiasId": "da051ec8-da2e-4a66-b542-473b8d221ab4"
+      },
+      "places": [
+        {
+          "name": "Волгоградская обл",
+          "kind": "locality"
+        }
+      ],
+      "precision": "region",
+      "completeness": 0.25,
+      "source": "local"
+    },
+    "enrich": {
+      "invoked": false,
+      "providersTried": [],
+      "hits": 1,
+      "misses": 0,
+      "cacheHit": false
+    },
+    "diagnostics": {
+      "parserVersion": "0.1.0",
+      "warnings": []
+    }
+  },
+  {
+    "index": 24,
+    "file": "snap_002.txt",
+    "raw": {
+      "text": "Радар ПФО • Оповещения по Поволжью, [04.05.2026 20:42]\nСаратовская область \nОтбой опасности по БПЛА",
+      "hash": "05661b3a9a8f000bd454c2ac2d0e70f416156ec71b580cb59f97ade183b5303a",
+      "channelKey": "snap_002",
+      "postedAt": "2026-05-07T21:12:10.827Z",
+      "rawMessageId": "00000000-0000-0000-0000-000000000000"
+    },
+    "classification": {
+      "kind": "event"
+    },
+    "event": {
+      "eventType": "danger",
+      "severity": "danger",
+      "repeat": false
+    },
+    "geo": {
+      "region": {
+        "code": "64",
+        "name": "Саратовская обл",
+        "fiasId": "df594e0e-a935-4664-9d26-0bae13f904fe"
+      },
+      "places": [
+        {
+          "name": "Саратовская обл",
+          "kind": "locality"
+        }
+      ],
+      "precision": "region",
+      "completeness": 0.25,
+      "source": "local"
+    },
+    "enrich": {
+      "invoked": false,
+      "providersTried": [],
+      "hits": 1,
+      "misses": 0,
+      "cacheHit": false
+    },
+    "diagnostics": {
+      "parserVersion": "0.1.0",
+      "warnings": []
+    }
+  },
+  {
+    "index": 25,
+    "file": "snap_002.txt",
+    "raw": {
+      "text": "Радар ПФО • Оповещения по Поволжью, [04.05.2026 21:14]\nСаратовская область \nУльяновская область\nОпасность по БПЛА",
+      "hash": "01a09baaf8439640f6757c1572091d77e25327d02fbc7691e2b86c9e97342e15",
+      "channelKey": "snap_002",
+      "postedAt": "2026-05-07T21:12:10.828Z",
+      "rawMessageId": "00000000-0000-0000-0000-000000000000"
+    },
+    "classification": {
+      "kind": "event"
+    },
+    "event": {
+      "eventType": "danger",
+      "severity": "danger",
+      "repeat": false
+    },
+    "geo": {
+      "region": {
+        "code": "64",
+        "name": "Саратовская обл",
+        "fiasId": "df594e0e-a935-4664-9d26-0bae13f904fe"
+      },
+      "places": [
+        {
+          "name": "Саратовская обл",
+          "kind": "locality"
+        }
+      ],
+      "precision": "region",
+      "completeness": 0.25,
+      "source": "local"
+    },
+    "enrich": {
+      "invoked": false,
+      "providersTried": [],
+      "hits": 1,
+      "misses": 0,
+      "cacheHit": false
+    },
+    "diagnostics": {
+      "parserVersion": "0.1.0",
+      "warnings": []
+    }
+  },
+  {
+    "index": 26,
+    "file": "snap_002.txt",
+    "raw": {
+      "text": "Радар ПФО • Оповещения по Поволжью, [04.05.2026 19:52]\nСаратовская область \nОпасность по БПЛА",
+      "hash": "efdde599b6175dccdf1d16a8ebb845b100cb59184135c947ebeca6507fea30fe",
+      "channelKey": "snap_002",
+      "postedAt": "2026-05-07T21:12:10.829Z",
+      "rawMessageId": "00000000-0000-0000-0000-000000000000"
+    },
+    "classification": {
+      "kind": "event"
+    },
+    "event": {
+      "eventType": "danger",
+      "severity": "danger",
+      "repeat": false
+    },
+    "geo": {
+      "region": {
+        "code": "64",
+        "name": "Саратовская обл",
+        "fiasId": "df594e0e-a935-4664-9d26-0bae13f904fe"
+      },
+      "places": [
+        {
+          "name": "Саратовская обл",
+          "kind": "locality"
+        }
+      ],
+      "precision": "region",
+      "completeness": 0.25,
+      "source": "local"
+    },
+    "enrich": {
+      "invoked": false,
+      "providersTried": [],
+      "hits": 1,
+      "misses": 0,
+      "cacheHit": false
+    },
+    "diagnostics": {
+      "parserVersion": "0.1.0",
+      "warnings": []
+    }
+  },
+  {
+    "index": 27,
+    "file": "snap_002.txt",
+    "raw": {
+      "text": "Радар ПФО • Оповещения по Поволжью, [04.05.2026 21:17]\nСамарская область \nВнимание по БПЛА",
+      "hash": "67ad430d5d0a6fec1507c7c9f5d45fdb3b831876fabfc22919b2054084c9fd35",
+      "channelKey": "snap_002",
+      "postedAt": "2026-05-07T21:12:10.829Z",
+      "rawMessageId": "00000000-0000-0000-0000-000000000000"
+    },
+    "classification": {
+      "kind": "event"
+    },
+    "event": {
+      "eventType": "attention",
+      "severity": "attention",
+      "repeat": false
+    },
+    "geo": {
+      "region": {
+        "code": "63",
+        "name": "Самарская обл",
+        "fiasId": "df3d7359-afa9-4aaa-8ff9-197e73906b1c"
+      },
+      "places": [
+        {
+          "name": "Самарская обл",
+          "kind": "locality"
+        }
+      ],
+      "precision": "region",
+      "completeness": 0.25,
+      "source": "local"
+    },
+    "enrich": {
+      "invoked": false,
+      "providersTried": [],
+      "hits": 1,
+      "misses": 0,
+      "cacheHit": false
+    },
+    "diagnostics": {
+      "parserVersion": "0.1.0",
+      "warnings": []
+    }
+  },
+  {
+    "index": 28,
+    "file": "snap_002.txt",
+    "raw": {
+      "text": "Радар ПФО • Оповещения по Поволжью, [04.05.2026 21:18]\nВолгоградская область \nОпасность по БПЛА повторно",
+      "hash": "3a3461d62cadd7aca0fe827a86a04c7ff5f5b46711e8b2c96f3bc60dd84687e4",
+      "channelKey": "snap_002",
+      "postedAt": "2026-05-07T21:12:10.830Z",
+      "rawMessageId": "00000000-0000-0000-0000-000000000000"
+    },
+    "classification": {
+      "kind": "event"
+    },
+    "event": {
+      "eventType": "danger",
+      "severity": "danger",
+      "repeat": true
+    },
+    "geo": {
+      "region": {
+        "code": "34",
+        "name": "Волгоградская обл",
+        "fiasId": "da051ec8-da2e-4a66-b542-473b8d221ab4"
+      },
+      "places": [
+        {
+          "name": "Волгоградская обл",
+          "kind": "locality"
+        }
+      ],
+      "precision": "region",
+      "completeness": 0.25,
+      "source": "local"
+    },
+    "enrich": {
+      "invoked": false,
+      "providersTried": [],
+      "hits": 1,
+      "misses": 0,
+      "cacheHit": false
+    },
+    "diagnostics": {
+      "parserVersion": "0.1.0",
+      "warnings": []
+    }
+  },
+  {
+    "index": 29,
+    "file": "snap_002.txt",
+    "raw": {
+      "text": "Радар ПФО • Оповещения по Поволжью, [04.05.2026 21:47]\nУльяновская область \nОтбой опасности по БПЛА",
+      "hash": "7d6b0c0e16a9fdedfa0aee8ef525dc0a773c61c23b59fbd554df5aaae27e9113",
+      "channelKey": "snap_002",
+      "postedAt": "2026-05-07T21:12:10.830Z",
+      "rawMessageId": "00000000-0000-0000-0000-000000000000"
+    },
+    "classification": {
+      "kind": "event"
+    },
+    "event": {
+      "eventType": "danger",
+      "severity": "danger",
+      "repeat": false
+    },
+    "geo": {
+      "region": {
+        "code": "73",
+        "name": "Ульяновская обл",
+        "fiasId": "fee76045-fe22-43a4-ad58-ad99e903bd58"
+      },
+      "places": [
+        {
+          "name": "Ульяновская обл",
+          "kind": "locality"
+        }
+      ],
+      "precision": "region",
+      "completeness": 0.25,
+      "source": "local"
+    },
+    "enrich": {
+      "invoked": false,
+      "providersTried": [],
+      "hits": 1,
+      "misses": 0,
+      "cacheHit": false
+    },
+    "diagnostics": {
+      "parserVersion": "0.1.0",
+      "warnings": []
+    }
+  },
+  {
+    "index": 30,
+    "file": "snap_002.txt",
+    "raw": {
+      "text": "Радар ПФО • Оповещения по Поволжью, [04.05.2026 21:47]\nСамарская область \nОтбой внимания по БПЛА",
+      "hash": "7c3c36589de055130b86b8704601bac9d75771f906c486f83132354ae049d90a",
+      "channelKey": "snap_002",
+      "postedAt": "2026-05-07T21:12:10.830Z",
+      "rawMessageId": "00000000-0000-0000-0000-000000000000"
+    },
+    "classification": {
+      "kind": "event"
+    },
+    "event": {
+      "eventType": "attention",
+      "severity": "attention",
+      "repeat": false
+    },
+    "geo": {
+      "region": {
+        "code": "63",
+        "name": "Самарская обл",
+        "fiasId": "df3d7359-afa9-4aaa-8ff9-197e73906b1c"
+      },
+      "places": [
+        {
+          "name": "Самарская обл",
+          "kind": "locality"
+        }
+      ],
+      "precision": "region",
+      "completeness": 0.25,
+      "source": "local"
+    },
+    "enrich": {
+      "invoked": false,
+      "providersTried": [],
+      "hits": 1,
+      "misses": 0,
+      "cacheHit": false
+    },
+    "diagnostics": {
+      "parserVersion": "0.1.0",
+      "warnings": []
+    }
+  },
+  {
+    "index": 31,
+    "file": "snap_002.txt",
+    "raw": {
+      "text": "Радар ПФО • Оповещения по Поволжью, [04.05.2026 21:50]\nСаратовская область \nОтбой опасности по БПЛА",
+      "hash": "ffe2b80121718c2c985de85fc36a38cee1fc14544c96fa0763a4ca58d6c43e6c",
+      "channelKey": "snap_002",
+      "postedAt": "2026-05-07T21:12:10.831Z",
+      "rawMessageId": "00000000-0000-0000-0000-000000000000"
+    },
+    "classification": {
+      "kind": "event"
+    },
+    "event": {
+      "eventType": "danger",
+      "severity": "danger",
+      "repeat": false
+    },
+    "geo": {
+      "region": {
+        "code": "64",
+        "name": "Саратовская обл",
+        "fiasId": "df594e0e-a935-4664-9d26-0bae13f904fe"
+      },
+      "places": [
+        {
+          "name": "Саратовская обл",
+          "kind": "locality"
+        }
+      ],
+      "precision": "region",
+      "completeness": 0.25,
+      "source": "local"
+    },
+    "enrich": {
+      "invoked": false,
+      "providersTried": [],
+      "hits": 1,
+      "misses": 0,
+      "cacheHit": false
+    },
+    "diagnostics": {
+      "parserVersion": "0.1.0",
+      "warnings": []
+    }
+  },
+  {
+    "index": 32,
+    "file": "snap_002.txt",
+    "raw": {
+      "text": "Радар ПФО • Оповещения по Поволжью, [04.05.2026 21:53]\nНа сегодня нет официального обращения к Украине о прекращении боевых действий, как сообщают российские соцсети. Жизнь важнее празднования годовщин. Объявляем режим тишины с 00:00 5 на 6 мая. До этого момента обеспечим тишину. Действуем зеркально с указанного времени. Российским руководителям нужно предпринять шаги для прекращения войны, если Минобороны РФ не проведет парад в Москве без добровольного согласия Украины.\nВладимир Зеленский. Президент Украины",
+      "hash": "83fc3549600f34e6e364fab852d9313c6659493dcf50a11ecb5af6734c093e4e",
+      "channelKey": "snap_002",
+      "postedAt": "2026-05-07T21:12:10.831Z"
+    },
+    "classification": {
+      "kind": "meta",
+      "reason": "meta_content"
+    },
+    "geo": {
+      "places": [],
+      "precision": "unknown",
+      "completeness": 0,
+      "source": "local"
+    },
+    "enrich": {
+      "invoked": false,
+      "providersTried": [],
+      "hits": 0,
+      "misses": 0,
+      "cacheHit": false
+    },
+    "diagnostics": {
+      "parserVersion": "0.1.0",
+      "warnings": []
+    }
+  },
+  {
+    "index": 33,
+    "file": "snap_002.txt",
+    "raw": {
+      "text": "Радар ПФО • Оповещения по Поволжью, [04.05.2026 22:01]\nНижегородская область \nОпасность по БПЛА сохраняется \n\n🔵 Подписаться\n📲 Мы в MAX",
+      "hash": "9ffe86c4f0508982b43bf802cffaac8835f106a2503607a3887e34c8e18cd9eb",
+      "channelKey": "snap_002",
+      "postedAt": "2026-05-07T21:12:10.831Z",
+      "rawMessageId": "00000000-0000-0000-0000-000000000000"
+    },
+    "classification": {
+      "kind": "event"
+    },
+    "event": {
+      "eventType": "danger",
+      "severity": "danger",
+      "repeat": true
+    },
+    "geo": {
+      "region": {
+        "code": "52",
+        "name": "Нижегородская обл",
+        "fiasId": "88cd27e2-6a8a-4421-9718-719a28a0a088"
+      },
+      "places": [
+        {
+          "name": "Нижегородская обл",
+          "kind": "locality"
+        }
+      ],
+      "precision": "region",
+      "completeness": 0.25,
+      "source": "local"
+    },
+    "enrich": {
+      "invoked": false,
+      "providersTried": [],
+      "hits": 1,
+      "misses": 0,
+      "cacheHit": false
+    },
+    "diagnostics": {
+      "parserVersion": "0.1.0",
+      "warnings": []
+    }
+  },
+  {
+    "index": 34,
+    "file": "snap_002.txt",
+    "raw": {
+      "text": "Радар ПФО • Оповещения по Поволжью, [04.05.2026 22:14]\nВолгоградская область \nСаратовская область\nОпасность по БПЛА повторно\n\n🔵 Подписаться\n📲 Мы в MAX",
+      "hash": "e3a8fe73a6a8d2240e6e93f307955fae81f8ad81adb1ef8359b6167fbc0ae429",
+      "channelKey": "snap_002",
+      "postedAt": "2026-05-07T21:12:10.832Z",
+      "rawMessageId": "00000000-0000-0000-0000-000000000000"
+    },
+    "classification": {
+      "kind": "event"
+    },
+    "event": {
+      "eventType": "danger",
+      "severity": "danger",
+      "repeat": true
+    },
+    "geo": {
+      "region": {
+        "code": "34",
+        "name": "Волгоградская обл",
+        "fiasId": "da051ec8-da2e-4a66-b542-473b8d221ab4"
+      },
+      "places": [
+        {
+          "name": "Волгоградская обл",
+          "kind": "locality"
+        }
+      ],
+      "precision": "region",
+      "completeness": 0.25,
+      "source": "local"
+    },
+    "enrich": {
+      "invoked": false,
+      "providersTried": [],
+      "hits": 1,
+      "misses": 0,
+      "cacheHit": false
+    },
+    "diagnostics": {
+      "parserVersion": "0.1.0",
+      "warnings": []
+    }
+  }
+]

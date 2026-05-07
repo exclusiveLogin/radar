@@ -2,7 +2,9 @@ import type { EventType } from "@radar/shared";
 
 const rules: Array<{ regex: RegExp; type: EventType }> = [
   { regex: /фиксаци(?:я|и).*(бпла)/i, type: "fixation" },
+  { regex: /от\s*\d+\s*бпла/i, type: "fixation" },
   { regex: /внимани[ея].*(бпла)/i, type: "attention" },
+  { regex: /угроз[аы]\s+атак[аи].*(бпла)/i, type: "danger" },
   { regex: /опасност[ьи].*(бпла)/i, type: "danger" },
   { regex: /отбой.*(опасност|внимани).*(бпла)/i, type: "cleared" },
   { regex: /работа пво/i, type: "pvo_work" },

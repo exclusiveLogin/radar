@@ -1,4 +1,4 @@
-// --- runtime exports (schemas, functions, classes) ---
+﻿// --- runtime exports (schemas, functions, classes) ---
 export {
   aliasDraftSchema,
   channelManifestEntrySchema,
@@ -32,6 +32,11 @@ export {
   syncRegionsCommandSchema,
   statusDictionaryEntrySchema,
   statusDictionarySchema,
+  parseReportClassificationSchema,
+  parseReportEnrichSchema,
+  parseReportEventSchema,
+  parseReportGeoSchema,
+  parseReportSchema,
 } from "./schemas";
 export { InProcessEventBus } from "./events/inProcessEventBus";
 
@@ -69,6 +74,11 @@ export type {
   SyncRegionsCommand,
   StatusDictionary,
   StatusDictionaryEntry,
+  ParseReport,
+  ParseReportClassification,
+  ParseReportEnrich,
+  ParseReportEvent,
+  ParseReportGeo,
 } from "./schemas";
 export type {
   EventHandler,
@@ -101,3 +111,4 @@ export type {
   StatusDictionaryRecord,
   Unsubscribe,
 } from "./ports";
+

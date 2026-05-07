@@ -1,4 +1,4 @@
-// --- runtime exports (schemas, functions, classes) ---
+﻿// --- runtime exports (schemas, functions, classes) ---
 export { healthResponseSchema, readyResponseSchema } from "./health";
 export {
   channelManifestEntrySchema,
@@ -37,6 +37,13 @@ export {
   statusDictionaryEntrySchema,
   statusDictionarySchema,
 } from "./geo";
+export {
+  parseReportClassificationSchema,
+  parseReportEnrichSchema,
+  parseReportEventSchema,
+  parseReportGeoSchema,
+  parseReportSchema,
+} from "./reports";
 
 // --- type-only exports ---
 export type { HealthResponse, ReadyResponse } from "./health";
@@ -78,3 +85,11 @@ export type {
   StatusDictionary,
   StatusDictionaryEntry,
 } from "./geo";
+export type {
+  ParseReport,
+  ParseReportClassification,
+  ParseReportEnrich,
+  ParseReportEvent,
+  ParseReportGeo,
+} from "./reports";
+

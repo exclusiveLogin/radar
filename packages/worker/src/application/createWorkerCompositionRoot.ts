@@ -1,3 +1,4 @@
+﻿import type { IPlaceCacheRepository } from "@radar/shared";
 import { InProcessEventBus } from "@radar/shared";
 import { ParseAttemptLogger, MetricsAggregator } from "./subscribers/index.js";
 import { IngestRawMessageHandler } from "./handlers/ingestRawMessageHandler.js";
@@ -19,10 +20,18 @@ import {
   LlmEnricher,
   NominatimEnricher,
 } from "../infrastructure/enrichers/index.js";
+import { GeoCatalog } from "../infrastructure/geo-catalog/index.js";
 import { LocationResolutionService } from "./parsing/locationResolutionService.js";
 import { GeoValidationService } from "./parsing/geoValidationService.js";
+import { ParsePipelineService } from "./parsing/parsePipelineService.js";
 
-export function createWorkerCompositionRoot() {
+export type WorkerCompositionOptions = {
+  placeCacheRepository?: IPlaceCacheRepository;
+  geoCatalog?: GeoCatalog;
+  enableProviders?: boolean;
+};
+
+export function createWorkerCompositionRoot(options: WorkerCompositionOptions = {}) {
   const bus = new InProcessEventBus();
   const parseAttemptLogger = new ParseAttemptLogger();
   const metricsAggregator = new MetricsAggregator();
@@ -37,23 +46,30 @@ export function createWorkerCompositionRoot() {
   const regions = new InMemoryRegionRepository();
   const places = new InMemoryPlaceRepository();
   const aliases = new InMemoryPlaceAliasRepository();
-  const placeCache = new InMemoryPlaceCacheRepository();
+  const placeCache = options.placeCacheRepository ?? new InMemoryPlaceCacheRepository();
   const classifier = new RuleBasedEventClassifier();
-  const compositeEnricher = new CompositeEnricher([
-    new DadataEnricher(process.env.DADATA_TOKEN),
-    new NominatimEnricher(),
-    new LlmEnricher(),
-  ]);
+  const geoCatalog = options.geoCatalog ?? GeoCatalog.loadFromArtifacts();
+
+  const enrichers =
+    options.enableProviders === false
+      ? [new LlmEnricher()]
+      : [
+          new DadataEnricher(process.env.DADATA_TOKEN),
+          new NominatimEnricher(),
+          new LlmEnricher(),
+        ];
+
+  const compositeEnricher = new CompositeEnricher(enrichers);
   const cachedEnricher = new CachingEnricher(compositeEnricher, placeCache);
-  const resolution = new LocationResolutionService(cachedEnricher);
+  const resolution = new LocationResolutionService(geoCatalog, cachedEnricher);
+  const pipeline = new ParsePipelineService(classifier, resolution);
   const validation = new GeoValidationService(regions, places, aliases);
 
   const ingestRawMessageHandler = new IngestRawMessageHandler(rawMessages, bus);
   const parseRawMessageHandler = new ParseRawMessageHandler(
-    classifier,
+    pipeline,
     parsedEvents,
     eventLocations,
-    resolution,
     validation,
     placeCache,
     bus,
@@ -62,6 +78,8 @@ export function createWorkerCompositionRoot() {
   return {
     bus,
     metricsAggregator,
+    geoCatalog,
+    parsePipelineService: pipeline,
     ingestRawMessageHandler,
     parseRawMessageHandler,
   };

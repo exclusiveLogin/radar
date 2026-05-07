@@ -1,31 +1,34 @@
-import type {
+﻿import type {
   DomainEvent,
   IEventLocationRepository,
   IEventPublisher,
   IParsedEventRepository,
-  IEventClassifier,
   IPlaceCacheRepository,
   RawMessage,
 } from "@radar/shared";
 import { randomUUID } from "node:crypto";
 import type { GeoValidationService } from "../parsing/geoValidationService.js";
-import type { LocationResolutionService } from "../parsing/locationResolutionService.js";
+import type { ParsePipelineService } from "../parsing/parsePipelineService.js";
 
 export class ParseRawMessageHandler {
   constructor(
-    private readonly classifier: IEventClassifier,
+    private readonly pipeline: ParsePipelineService,
     private readonly parsedEvents: IParsedEventRepository,
     private readonly eventLocations: IEventLocationRepository,
-    private readonly resolution: LocationResolutionService,
     private readonly validation: GeoValidationService,
     private readonly placeCache: IPlaceCacheRepository,
     private readonly events: IEventPublisher,
   ) {}
 
   async handle(raw: RawMessage): Promise<void> {
-    // 1) Классификация raw текста в event/noise/meta.
-    const classified = this.classifier.classify(raw.rawText);
-    if (classified.kind !== "event") {
+    const pipelineResult = await this.pipeline.execute({
+      rawText: raw.rawText,
+      postedAt: raw.postedAt,
+      channelKey: raw.channelKey,
+      rawMessageId: raw.hash,
+    });
+
+    if (!pipelineResult.parsedEvent) {
       const failed: DomainEvent = {
         id: randomUUID(),
         type: "MessageParseFailed",
@@ -34,7 +37,7 @@ export class ParseRawMessageHandler {
         aggregateType: "raw_message",
         aggregateId: raw.hash,
         payload: {
-          reason: classified.reason,
+          reason: pipelineResult.report.classification.reason ?? "not_event",
           channelKey: raw.channelKey,
         },
       };
@@ -42,40 +45,38 @@ export class ParseRawMessageHandler {
       return;
     }
 
-    const parsed = {
-      ...classified.event,
-      rawMessageId: classified.event.rawMessageId || raw.hash,
-      postedAt: raw.postedAt,
-    };
-
-    // 2) Резолв кандидатных локаций через enrichers -> 3) валидация матчей с каталогом.
-    const resolved = await this.resolution.resolve(raw.rawText);
     const validatedLocations = [];
-    for (const location of resolved.locations) {
+    for (const location of pipelineResult.locations) {
       const validated = await this.validation.validate(raw.rawText, location);
       if (validated.location) {
         validatedLocations.push(validated.location);
       }
     }
-    parsed.locations = validatedLocations;
 
-    // 4) Технические domain events для наблюдаемости пайплайна enrichment.
-    if (resolved.diagnostics.invoked) {
-      const event: DomainEvent = {
-        id: randomUUID(),
-        type: "EnricherInvoked",
-        version: 1,
-        occurredAt: new Date().toISOString(),
-        aggregateType: "raw_message",
-        aggregateId: raw.hash,
-        payload: {
-          provider: resolved.diagnostics.provider ?? "unknown",
+    const parsed = {
+      ...pipelineResult.parsedEvent,
+      rawMessageId: raw.hash,
+      postedAt: raw.postedAt,
+      locations: validatedLocations,
+    };
+
+    if (pipelineResult.diagnostics.invoked) {
+      await this.events.publish([
+        {
+          id: randomUUID(),
+          type: "EnricherInvoked",
+          version: 1,
+          occurredAt: new Date().toISOString(),
+          aggregateType: "raw_message",
+          aggregateId: raw.hash,
+          payload: {
+            provider: pipelineResult.diagnostics.provider ?? "unknown",
+          },
         },
-      };
-      await this.events.publish([event]);
+      ]);
     }
 
-    if (resolved.diagnostics.cacheHit) {
+    if (pipelineResult.diagnostics.cacheHit) {
       await this.events.publish([
         {
           id: randomUUID(),
@@ -85,13 +86,13 @@ export class ParseRawMessageHandler {
           aggregateType: "raw_message",
           aggregateId: raw.hash,
           payload: {
-            provider: resolved.diagnostics.provider ?? "unknown",
+            provider: pipelineResult.diagnostics.provider ?? "unknown",
           },
         },
       ]);
     }
 
-    if (resolved.locations.length === 0) {
+    if (pipelineResult.locations.length === 0) {
       await this.events.publish([
         {
           id: randomUUID(),
@@ -107,14 +108,13 @@ export class ParseRawMessageHandler {
       ]);
     }
 
-    if (resolved.diagnostics.provider) {
-      // Provider-aware кеш ответа enrichment для повторных похожих запросов.
+    if (pipelineResult.diagnostics.provider) {
       await this.placeCache.put(
         raw.rawText.toLowerCase().trim(),
-        resolved.diagnostics.provider,
+        pipelineResult.diagnostics.provider,
         {
           sourceText: raw.rawText,
-          resolvedLocations: resolved.locations,
+          resolvedLocations: pipelineResult.locations,
         },
         {
           validator: "rule",
@@ -123,12 +123,8 @@ export class ParseRawMessageHandler {
       );
     }
 
-    // 5) Персист parsed_event + event_locations и публикация MessageParsed.
     const persisted = await this.parsedEvents.upsert(parsed);
-    await this.eventLocations.replaceForParsedEvent(
-      persisted.id,
-      parsed.locations,
-    );
+    await this.eventLocations.replaceForParsedEvent(persisted.id, parsed.locations);
 
     const success: DomainEvent = {
       id: randomUUID(),

@@ -1,22 +1,18 @@
-import type { EventLocation, ILocationEnricher } from "@radar/shared";
+﻿import type { EventLocation, ILocationEnricher } from "@radar/shared";
+import type { GeoCatalog, GeoCatalogPlace } from "../../infrastructure/geo-catalog/index.js";
 
-const REGION_PATTERNS: Array<{ regex: RegExp; code: string; name: string }> = [
-  { regex: /\bбелгородск/i, code: "31", name: "Белгородская область" },
-  { regex: /\bбрянск/i, code: "32", name: "Брянская область" },
-  { regex: /\bкурск/i, code: "46", name: "Курская область" },
-  { regex: /\bростов/i, code: "61", name: "Ростовская область" },
-  { regex: /\bворонеж/i, code: "36", name: "Воронежская область" },
-];
-
-function detectRegion(text: string): { code: string; name: string } | null {
-  for (const row of REGION_PATTERNS) {
-    if (row.regex.test(text)) return { code: row.code, name: row.name };
-  }
-  return null;
+function toPrecision(kind: GeoCatalogPlace["kind"]): EventLocation["precision"] {
+  if (kind === "district") return "district";
+  if (kind === "city") return "city";
+  if (kind === "settlement") return "settlement";
+  return "locality";
 }
 
 export class LocationResolutionService {
-  constructor(private readonly enricher: ILocationEnricher) {}
+  constructor(
+    private readonly geoCatalog: GeoCatalog,
+    private readonly enricher: ILocationEnricher,
+  ) {}
 
   async resolve(rawText: string): Promise<{
     locations: EventLocation[];
@@ -24,33 +20,32 @@ export class LocationResolutionService {
       invoked: boolean;
       cacheHit: boolean;
       provider?: "dadata" | "nominatim" | "llm";
+      regionDetected: boolean;
+      localPlacesFound: number;
     };
   }> {
-    const region = detectRegion(rawText);
-    const enriched = await this.enricher.enrich({
-      rawText,
-      regionCode: region?.code,
-    });
-    const cacheHit = Boolean(enriched?.raw?.__cacheHit);
+    const region = this.geoCatalog.findRegion(rawText);
+    const localPlaces = region
+      ? this.geoCatalog.findPlacesInRegion(rawText, region.code)
+      : [];
 
-    if (region && enriched?.placeName) {
+    if (region && localPlaces.length > 0) {
       return {
-        locations: [
-          {
-            regionId: "00000000-0000-0000-0000-000000000000",
-            regionCode: region.code,
-            precision: "locality",
-            source: enriched.provider,
-            placeName: enriched.placeName,
-            placeFias: enriched.placeFias,
-            lat: enriched.lat,
-            lon: enriched.lon,
-          },
-        ],
+        locations: localPlaces.map((place) => ({
+          regionId: "00000000-0000-0000-0000-000000000000",
+          regionCode: region.code,
+          regionFias: region.fiasId,
+          precision: toPrecision(place.kind),
+          source: "db",
+          placeName: place.name,
+          lat: place.lat,
+          lon: place.lon,
+        })),
         diagnostics: {
-          invoked: true,
-          cacheHit,
-          provider: enriched.provider,
+          invoked: false,
+          cacheHit: false,
+          regionDetected: true,
+          localPlacesFound: localPlaces.length,
         },
       };
     }
@@ -61,18 +56,23 @@ export class LocationResolutionService {
           {
             regionId: "00000000-0000-0000-0000-000000000000",
             regionCode: region.code,
+            regionFias: region.fiasId,
             precision: "region",
             source: "db",
             placeName: region.name,
           },
         ],
         diagnostics: {
-          invoked: Boolean(enriched),
-          cacheHit,
-          provider: enriched?.provider,
+          invoked: false,
+          cacheHit: false,
+          regionDetected: true,
+          localPlacesFound: 0,
         },
       };
     }
+
+    const enriched = await this.enricher.enrich({ rawText });
+    const cacheHit = Boolean(enriched?.raw?.__cacheHit);
 
     if (!enriched) {
       return {
@@ -80,6 +80,8 @@ export class LocationResolutionService {
         diagnostics: {
           invoked: true,
           cacheHit: false,
+          regionDetected: false,
+          localPlacesFound: 0,
         },
       };
     }
@@ -101,6 +103,8 @@ export class LocationResolutionService {
         invoked: true,
         cacheHit,
         provider: enriched.provider,
+        regionDetected: false,
+        localPlacesFound: 0,
       },
     };
   }

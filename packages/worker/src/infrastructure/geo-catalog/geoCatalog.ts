@@ -1,0 +1,97 @@
+﻿import * as path from "node:path";
+import { CityCatalog, type CityCatalogEntry } from "./cityCatalog.js";
+import {
+  RegionCatalog,
+  resolveArtifactsRoot,
+  type RegionCatalogEntry,
+} from "./regionCatalog.js";
+
+export type GeoCatalogPlace = {
+  name: string;
+  kind: "district" | "city" | "locality" | "settlement";
+  lat?: number;
+  lon?: number;
+  alias?: string;
+};
+
+function normalize(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/ё/g, "е")
+    .replace(/["'`]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+export class GeoCatalog {
+  constructor(
+    private readonly regions: RegionCatalog,
+    private readonly cities: CityCatalog,
+  ) {}
+
+  static loadFromArtifacts(artifactsRoot = resolveArtifactsRoot()): GeoCatalog {
+    const regionCsvPath = path.join(
+      artifactsRoot,
+      "reference",
+      "hflabs-region",
+      "region.csv",
+    );
+    const citiesPath = path.join(
+      artifactsRoot,
+      "boundaries",
+      "Russia_geojson_OSM",
+      "GeoJson's",
+      "Cities",
+    );
+
+    return new GeoCatalog(
+      RegionCatalog.loadFromCsv(regionCsvPath),
+      CityCatalog.loadFromDirectory(citiesPath),
+    );
+  }
+
+  findRegion(rawText: string): RegionCatalogEntry | null {
+    return this.regions.findRegionInText(rawText);
+  }
+
+  findPlacesInRegion(rawText: string, _regionCode?: string): GeoCatalogPlace[] {
+    const found: GeoCatalogPlace[] = [];
+
+    const districtRegex =
+      /(?:^|[^\p{L}\p{N}_])([а-яёa-z][а-яёa-z\-\s]{1,40}?\sрайон)(?=[^\p{L}\p{N}_]|$)/giu;
+    const text = normalize(rawText);
+    for (const match of text.matchAll(districtRegex)) {
+      const districtName = match[1]?.trim();
+      if (!districtName) continue;
+      found.push({
+        name: districtName,
+        kind: "district",
+      });
+    }
+
+    const cities = this.cities.findInText(rawText);
+    for (const city of cities) {
+      found.push({
+        name: city.name,
+        kind: "city",
+        lat: city.lat,
+        lon: city.lon,
+      });
+    }
+
+    const unique = new Map<string, GeoCatalogPlace>();
+    for (const place of found) {
+      unique.set(`${place.kind}:${normalize(place.name)}`, place);
+    }
+
+    return [...unique.values()];
+  }
+
+  listCities(): CityCatalogEntry[] {
+    return this.cities.list();
+  }
+
+  listRegions(): RegionCatalogEntry[] {
+    return this.regions.list();
+  }
+}

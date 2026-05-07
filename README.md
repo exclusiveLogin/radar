@@ -208,6 +208,14 @@ flowchart LR
 - Базовый сценарий: если регион найден локально, используем словарь; если в тексте есть уточнение — добираем через enrichers.
 - Для карт/time-machine статусы place ведутся отдельными тегами (`place_status_active` + `place_status_history`), а `cleared` вычисляется read-side как отсутствие активных тегов.
 
+## Batch parser report
+
+- `worker:parse:report` использует тот же production `ParsePipelineService`, что и Telegram write-side.
+- CLI — это transport-обертка для оффлайн проверки качества парсинга и георезолва.
+- Дефолты: `--input tests --outdir reports --format json --div file`.
+- Поддерживаются форматы: `json|yaml|csv`; режим деления: `file|record`.
+- Флаг `--use-providers` включает enrich-цепочку поверх локального artifacts-first резолва.
+
 ## Worker и Telegram
 
 - В **корне** клона по умолчанию используется файл `.telegram/session` (каталог в `.gitignore`).
@@ -263,6 +271,7 @@ npm run migration:run
 | `npm run geo:db:plan` | dry-run diff для синка справочников в БД |
 | `npm run geo:db:apply` | применить diff-синк справочников в БД + аудит |
 | `npm run worker:parse:snap -- tests/snap_001.txt` | прогон parser CLI без БД на снапшотах |
+| `npm run worker:parse:report -- --input tests --outdir reports --format json --div file` | batch-отчет ParsePipelineService по raw-сообщениям |
 | `GET /api/places/status` | активные статус-теги по place (для карты) |
 | `GET /api/places/status/history` | история статус-тегов для time-machine |
 | `npm run build`   | сборка всех пакетов, где есть build |

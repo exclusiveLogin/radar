@@ -1,8 +1,9 @@
-import * as fs from "node:fs";
+﻿import * as fs from "node:fs";
 import * as path from "node:path";
 import type { ILocationEnricher, LocationCandidate } from "@radar/shared";
 import { GeoValidationService } from "../application/parsing/geoValidationService.js";
 import { LocationResolutionService } from "../application/parsing/locationResolutionService.js";
+import { GeoCatalog } from "../infrastructure/geo-catalog/index.js";
 import {
   InMemoryPlaceAliasRepository,
   InMemoryPlaceRepository,
@@ -11,8 +12,8 @@ import {
 import { RuleBasedEventClassifier } from "../infrastructure/classifiers/ruleBasedEventClassifier.js";
 import { splitMessageBlocks } from "../domain/parsing/index.js";
 
-// CLI для оффлайн прогона parser на сохраненных snapshot-текстах.
-// Нужен для быстрой проверки качества классификации без подключения Telegram.
+// CLI for offline parser runs on saved snapshot texts.
+// Useful for quick quality checks without Telegram connectivity.
 type ParseSummary = {
   totalBlocks: number;
   events: number;
@@ -33,7 +34,7 @@ class NoopEnricher implements ILocationEnricher {
     rawText: string;
     regionCode?: string;
   }): Promise<LocationCandidate | null> {
-    // В snapshot-режиме внешние enrichers не вызываем.
+    // Р’ snapshot-СЂРµР¶РёРјРµ РІРЅРµС€РЅРёРµ enrichers РЅРµ РІС‹Р·С‹РІР°РµРј.
     return null;
   }
 }
@@ -85,7 +86,7 @@ async function main(): Promise<void> {
   const summary = buildSummary(results.map((x) => x.result.kind));
 
   if (withGeoReport) {
-    const resolver = new LocationResolutionService(new NoopEnricher());
+    const resolver = new LocationResolutionService(GeoCatalog.loadFromArtifacts(), new NoopEnricher());
     const validation = new GeoValidationService(
       new InMemoryRegionRepository(),
       new InMemoryPlaceRepository(),
@@ -142,3 +143,4 @@ main().catch((error) => {
   console.error(error);
   process.exit(1);
 });
+
