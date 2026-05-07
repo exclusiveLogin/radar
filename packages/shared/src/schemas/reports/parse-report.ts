@@ -28,7 +28,7 @@ export const parseReportRegionSchema = z.object({
 
 export const parseReportPlaceSchema = z.object({
   name: z.string().min(1),
-  kind: z.enum(["district", "city", "locality", "settlement"]),
+  kind: z.enum(["region", "district", "city", "locality", "settlement"]),
   fiasId: z.string().optional(),
   lat: z.number().finite().optional(),
   lon: z.number().finite().optional(),

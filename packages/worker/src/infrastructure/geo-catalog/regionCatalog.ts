@@ -62,6 +62,12 @@ function buildAliases(name: string, nameWithType?: string): string[] {
   return [...aliases].filter(Boolean);
 }
 
+type RegionMatch = {
+  entry: RegionCatalogEntry;
+  index: number;
+  aliasLength: number;
+};
+
 export class RegionCatalog {
   private readonly entries: RegionCatalogEntry[];
 
@@ -102,25 +108,50 @@ export class RegionCatalog {
     return this.entries.find((entry) => entry.code === normalized) ?? null;
   }
 
-  findRegionInText(rawText: string): RegionCatalogEntry | null {
+  findRegionsInText(rawText: string): RegionCatalogEntry[] {
     const haystack = ` ${normalize(rawText)} `;
+    const matchesByCode = new Map<string, RegionMatch>();
 
-    const sorted = [...this.entries].sort((a, b) => {
-      const aLen = Math.max(...a.aliases.map((x) => x.length), 0);
-      const bLen = Math.max(...b.aliases.map((x) => x.length), 0);
-      return bLen - aLen;
-    });
-
-    for (const entry of sorted) {
+    for (const entry of this.entries) {
       for (const alias of entry.aliases) {
-        if (!alias) continue;
-        if (haystack.includes(` ${alias} `)) {
-          return entry;
+        if (!alias) {
+          continue;
+        }
+
+        const pattern = ` ${alias} `;
+        const index = haystack.indexOf(pattern);
+        if (index < 0) {
+          continue;
+        }
+
+        const current = matchesByCode.get(entry.code);
+        const next: RegionMatch = { entry, index, aliasLength: alias.length };
+        if (!current) {
+          matchesByCode.set(entry.code, next);
+          continue;
+        }
+
+        const shouldReplace =
+          next.index < current.index ||
+          (next.index === current.index && next.aliasLength > current.aliasLength);
+        if (shouldReplace) {
+          matchesByCode.set(entry.code, next);
         }
       }
     }
 
-    return null;
+    return [...matchesByCode.values()]
+      .sort((a, b) => {
+        if (a.index !== b.index) {
+          return a.index - b.index;
+        }
+        return b.aliasLength - a.aliasLength;
+      })
+      .map((match) => match.entry);
+  }
+
+  findRegionInText(rawText: string): RegionCatalogEntry | null {
+    return this.findRegionsInText(rawText)[0] ?? null;
   }
 
   list(): RegionCatalogEntry[] {

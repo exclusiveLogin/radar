@@ -183,7 +183,9 @@ export class ParsePipelineService {
         places: resolved.locations.map((location) => ({
           name: location.placeName ?? location.regionCode,
           kind:
-            location.precision === "district"
+            location.precision === "region"
+              ? "region"
+              : location.precision === "district"
               ? "district"
               : location.precision === "settlement"
                 ? "settlement"

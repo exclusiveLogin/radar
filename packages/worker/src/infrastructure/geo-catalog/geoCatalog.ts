@@ -54,6 +54,10 @@ export class GeoCatalog {
     return this.regions.findRegionInText(rawText);
   }
 
+  findRegions(rawText: string): RegionCatalogEntry[] {
+    return this.regions.findRegionsInText(rawText);
+  }
+
   findPlacesInRegion(rawText: string, _regionCode?: string): GeoCatalogPlace[] {
     const found: GeoCatalogPlace[] = [];
 

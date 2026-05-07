@@ -24,7 +24,28 @@ export class LocationResolutionService {
       localPlacesFound: number;
     };
   }> {
-    const region = this.geoCatalog.findRegion(rawText);
+    const regions = this.geoCatalog.findRegions(rawText);
+
+    if (regions.length > 1) {
+      return {
+        locations: regions.map((region) => ({
+          regionId: "00000000-0000-0000-0000-000000000000",
+          regionCode: region.code,
+          regionFias: region.fiasId,
+          precision: "region",
+          source: "db",
+          placeName: region.name,
+        })),
+        diagnostics: {
+          invoked: false,
+          cacheHit: false,
+          regionDetected: true,
+          localPlacesFound: 0,
+        },
+      };
+    }
+
+    const region = regions[0];
     const localPlaces = region
       ? this.geoCatalog.findPlacesInRegion(rawText, region.code)
       : [];
