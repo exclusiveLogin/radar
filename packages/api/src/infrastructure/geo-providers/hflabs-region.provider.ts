@@ -21,21 +21,52 @@ export class HflabsRegionProvider implements IGeoSourceProvider {
       const lines = content.split(/\r?\n/).filter(Boolean);
       if (lines.length < 2) continue;
       const header = parseDelimited(lines[0]).map((x) => normalizeName(x));
-      const fiasIdx = header.findIndex((h) => h.includes("fias"));
-      const nameIdx = header.findIndex((h) => h.includes("name"));
+      const idx = {
+        fias: header.findIndex((h) => h === "fias id"),
+        kladr: header.findIndex((h) => h === "kladr id"),
+        iso: header.findIndex((h) => h === "iso code"),
+        name: header.findIndex((h) => h === "name"),
+        nameWithType: header.findIndex((h) => h === "name with type"),
+        shortType: header.findIndex((h) => h === "type"),
+        federalDistrict: header.findIndex((h) => h === "federal district"),
+        okato: header.findIndex((h) => h === "okato"),
+        oktmo: header.findIndex((h) => h === "oktmo"),
+        taxOffice: header.findIndex((h) => h === "tax office"),
+        postalCode: header.findIndex((h) => h === "postal code"),
+        timezone: header.findIndex((h) => h === "timezone"),
+        geonameCode: header.findIndex((h) => h === "geoname code"),
+        geonameId: header.findIndex((h) => h === "geoname id"),
+        geonameName: header.findIndex((h) => h === "geoname name"),
+      };
 
-      if (nameIdx < 0) continue;
+      if (idx.name < 0) continue;
       for (let i = 1; i < lines.length; i += 1) {
         const cells = parseDelimited(lines[i]);
-        const name = cells[nameIdx];
+        const name = cells[idx.name];
         if (!name) continue;
-        const fias = fiasIdx >= 0 ? cells[fiasIdx] : undefined;
+        const fias = idx.fias >= 0 ? cells[idx.fias] : undefined;
+        const nameWithType = idx.nameWithType >= 0 ? cells[idx.nameWithType] : undefined;
+        const shortName = idx.shortType >= 0 ? cells[idx.shortType] : undefined;
         regions.push({
           fiasId: fias,
+          kladrId: idx.kladr >= 0 ? cells[idx.kladr] : undefined,
+          iso: idx.iso >= 0 ? cells[idx.iso] : undefined,
           name,
-          nameWithType: name,
+          nameWithType: nameWithType || name,
+          shortName,
+          federalDistrict: idx.federalDistrict >= 0 ? cells[idx.federalDistrict] : undefined,
           frontRegion: false,
           borderRegion: false,
+          sourceMeta: {
+            okato: idx.okato >= 0 ? cells[idx.okato] : undefined,
+            oktmo: idx.oktmo >= 0 ? cells[idx.oktmo] : undefined,
+            taxOffice: idx.taxOffice >= 0 ? cells[idx.taxOffice] : undefined,
+            postalCode: idx.postalCode >= 0 ? cells[idx.postalCode] : undefined,
+            timezone: idx.timezone >= 0 ? cells[idx.timezone] : undefined,
+            geonameCode: idx.geonameCode >= 0 ? cells[idx.geonameCode] : undefined,
+            geonameId: idx.geonameId >= 0 ? cells[idx.geonameId] : undefined,
+            geonameName: idx.geonameName >= 0 ? cells[idx.geonameName] : undefined,
+          },
         });
         aliases.push({
           targetKind: "region",
@@ -43,8 +74,15 @@ export class HflabsRegionProvider implements IGeoSourceProvider {
           alias: name,
           source: "auto",
         });
+        if (nameWithType && normalizeName(nameWithType) !== normalizeName(name)) {
+          aliases.push({
+            targetKind: "region",
+            targetExternalKey: fias ?? normalizeName(name),
+            alias: nameWithType,
+            source: "auto",
+          });
+        }
       }
-      if (regions.length > 0) break;
     }
 
     return {

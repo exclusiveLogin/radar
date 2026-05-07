@@ -13,6 +13,7 @@ export const regionDraftSchema = z.object({
   centroidLat: z.number().finite().optional(),
   centroidLon: z.number().finite().optional(),
   geometryArtifactKey: z.string().optional(),
+  sourceMeta: z.record(z.string(), z.unknown()).optional(),
 });
 
 export const placeDraftSchema = z.object({
@@ -34,6 +35,8 @@ export const placeDraftSchema = z.object({
   centroidLat: z.number().finite().optional(),
   centroidLon: z.number().finite().optional(),
   geometryArtifactKey: z.string().optional(),
+  sourceMeta: z.record(z.string(), z.unknown()).optional(),
+  aliases: z.array(z.string().min(1)).optional(),
 });
 
 export const aliasDraftSchema = z.object({

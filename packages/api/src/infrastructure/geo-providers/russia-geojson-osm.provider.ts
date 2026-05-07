@@ -1,5 +1,5 @@
 import type { GeoProviderSnapshot, IGeoSourceProvider } from "@radar/shared";
-import { listArtifactKeysByPrefix, readArtifactsJson, sourceRevision } from "./geo-provider-utils";
+import { listArtifactKeysByPrefix, normalizeName, readArtifactsJson, sourceRevision } from "./geo-provider-utils";
 
 type FeatureCollection = {
   features?: Array<{
@@ -10,11 +10,22 @@ type FeatureCollection = {
 
 function toName(props: Record<string, unknown>): string | null {
   return (
-    (typeof props.name === "string" && props.name) ||
-    (typeof props.NAME === "string" && props.NAME) ||
-    (typeof props.title === "string" && props.title) ||
+    (typeof props.name === "string" && props.name.trim()) ||
+    (typeof props.NAME === "string" && props.NAME.trim()) ||
+    (typeof props.title === "string" && props.title.trim()) ||
+    (typeof props.region === "string" && props.region.trim()) ||
+    (typeof props.district === "string" && props.district.trim()) ||
+    (typeof props["Federal District"] === "string" &&
+      String(props["Federal District"]).trim()) ||
     null
   );
+}
+
+function firstSegmentName(file: string): string {
+  const base = file.split("/").at(-1) ?? file;
+  const raw = base.replace(/\.geojson$/i, "");
+  const left = raw.includes("_") ? raw.split("_")[0] : raw;
+  return left.trim();
 }
 
 export class RussiaGeoJsonOsmProvider implements IGeoSourceProvider {
@@ -24,29 +35,82 @@ export class RussiaGeoJsonOsmProvider implements IGeoSourceProvider {
     // и создаем place/alias drafts.
     const sourceId = "Russia_geojson_OSM";
     const files = listArtifactKeysByPrefix(sourceId, "boundaries/Russia_geojson_OSM");
+    const regions: GeoProviderSnapshot["regions"] = [];
     const places: GeoProviderSnapshot["places"] = [];
     const aliases: GeoProviderSnapshot["aliases"] = [];
 
-    // TODO: технический лимит для MVP, обрабатывается только часть файлов.
-    // Для полного ingest нужно убрать slice(0, 20).
-    for (const file of files.filter((f) => f.endsWith(".geojson")).slice(0, 20)) {
+    for (const file of files.filter((f) => f.endsWith(".geojson"))) {
       const fc = readArtifactsJson<FeatureCollection>(file);
       if (!fc?.features) continue;
+      const inCountries = file.includes("/Countries/");
+      const inFederalDistricts = file.includes("/Federal Districts/");
+      const inRegions = file.includes("/Regions/");
+      const inCities = file.includes("/Cities/");
+      const regionNameFromFile = inRegions ? firstSegmentName(file) : undefined;
+
       for (const feature of fc.features) {
         if (!feature.properties) continue;
-        const name = toName(feature.properties);
-        if (!name) continue;
+        if (inCountries) {
+          const regionName =
+            typeof feature.properties.region === "string"
+              ? feature.properties.region
+              : toName(feature.properties);
+          if (!regionName) continue;
+          const regionCode = normalizeName(regionName);
+          regions.push({
+            iso: regionCode,
+            name: regionName,
+            nameWithType: regionName,
+            geometryArtifactKey: file,
+            frontRegion: false,
+            borderRegion: false,
+            sourceMeta: {
+              sourceLayer: "countries",
+            },
+          });
+          aliases.push({
+            targetKind: "region",
+            targetExternalKey: regionCode,
+            alias: regionName,
+            source: "auto",
+          });
+          continue;
+        }
+
+        const placeName =
+          typeof feature.properties.district === "string"
+            ? feature.properties.district
+            : toName(feature.properties);
+        if (!placeName) continue;
+        const regionHint =
+          typeof feature.properties.region === "string"
+            ? feature.properties.region
+            : regionNameFromFile;
+        const regionCode = regionHint ? normalizeName(regionHint) : "unknown";
         places.push({
-          regionCode: String(feature.properties.region_code ?? "unknown"),
+          regionCode,
           kind: "locality",
-          name,
-          nameWithType: name,
+          name: placeName,
+          nameWithType: placeName,
           geometryArtifactKey: file,
+          sourceMeta: {
+            sourceLayer: inCities
+              ? "cities"
+              : inRegions
+                ? "regions"
+                : inFederalDistricts
+                  ? "federal-districts"
+                  : "unknown",
+            federalDistrict:
+              typeof feature.properties["Federal District"] === "string"
+                ? feature.properties["Federal District"]
+                : undefined,
+          },
         });
         aliases.push({
           targetKind: "place",
-          targetExternalKey: `${file}:${name}`,
-          alias: name,
+          targetExternalKey: `${regionCode}:locality:${normalizeName(placeName)}`,
+          alias: placeName,
           source: "auto",
         });
       }
@@ -55,7 +119,7 @@ export class RussiaGeoJsonOsmProvider implements IGeoSourceProvider {
     return {
       sourceId,
       sourceRevision: sourceRevision(sourceId),
-      regions: [],
+      regions,
       places,
       aliases,
     };

@@ -7,7 +7,15 @@ export type RegionRecord = {
   id: string;
   code: string;
   fiasId?: string;
+  kladrId?: string;
+  iso?: string;
   name: string;
+  nameWithType?: string;
+  shortName?: string;
+  federalDistrict?: string;
+  geometryArtifactKey?: string;
+  sourceMeta?: Record<string, unknown>;
+  lastSourceRevision?: string;
   frontRegion: boolean;
   borderRegion: boolean;
 };
@@ -18,7 +26,13 @@ export type PlaceRecord = {
   parentPlaceId?: string;
   kind: "district" | "city" | "locality" | "settlement" | "urban_okrug" | "mo_go";
   name: string;
+  nameWithType?: string;
   fiasId?: string;
+  kladrId?: string;
+  oktmo?: string;
+  geometryArtifactKey?: string;
+  sourceMeta?: Record<string, unknown>;
+  lastSourceRevision?: string;
 };
 
 export type PlaceAliasRecord = {
@@ -28,6 +42,7 @@ export type PlaceAliasRecord = {
   targetKind: "region" | "place";
   regionId?: string;
   placeId?: string;
+  source?: "auto" | "manual";
 };
 
 export type StatusDictionaryRecord = {
@@ -59,6 +74,7 @@ export type PlaceStatusHistoryRecord = {
 
 export interface IRegionRepository {
   findByCode(code: string): Promise<RegionRecord | null>;
+  listActive(): Promise<RegionRecord[]>;
   upsertMany(regions: RegionRecord[]): Promise<void>;
 }
 
@@ -66,11 +82,13 @@ export interface IPlaceRepository {
   findById(id: string): Promise<PlaceRecord | null>;
   findByFias(fiasId: string): Promise<PlaceRecord | null>;
   findByNameInRegion(name: string, regionId: string): Promise<PlaceRecord | null>;
+  listActive(): Promise<PlaceRecord[]>;
   upsertMany(places: PlaceRecord[]): Promise<void>;
 }
 
 export interface IPlaceAliasRepository {
   findByAlias(aliasNormalized: string): Promise<PlaceAliasRecord[]>;
+  listActive(): Promise<PlaceAliasRecord[]>;
   upsertAlias(input: {
     targetKind: "region" | "place";
     regionId?: string;

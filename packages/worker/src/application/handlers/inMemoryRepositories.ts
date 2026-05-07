@@ -88,6 +88,10 @@ export class InMemoryRegionRepository implements IRegionRepository {
     return this.rows.get(code) ?? null;
   }
 
+  async listActive(): Promise<RegionRecord[]> {
+    return [...this.rows.values()];
+  }
+
   async upsertMany(regions: RegionRecord[]): Promise<void> {
     for (const row of regions) {
       this.rows.set(row.code, row);
@@ -127,6 +131,10 @@ export class InMemoryPlaceRepository implements IPlaceRepository {
     return null;
   }
 
+  async listActive(): Promise<PlaceRecord[]> {
+    return [...this.rows.values()];
+  }
+
   async upsertMany(places: PlaceRecord[]): Promise<void> {
     for (const row of places) {
       this.rows.set(row.id, row);
@@ -145,6 +153,10 @@ export class InMemoryPlaceAliasRepository implements IPlaceAliasRepository {
       }
     }
     return result;
+  }
+
+  async listActive(): Promise<PlaceAliasRecord[]> {
+    return [...this.rows.values()];
   }
 
   async upsertAlias(input: {
@@ -168,6 +180,7 @@ export class InMemoryPlaceAliasRepository implements IPlaceAliasRepository {
       targetKind: input.targetKind,
       regionId: input.regionId,
       placeId: input.placeId,
+      source: input.source,
     });
   }
 

@@ -16,23 +16,56 @@ export class TypeOrmPlaceAliasRepository implements IPlaceAliasRepository {
       targetKind: r.targetKind,
       regionId: r.regionId ?? undefined,
       placeId: r.placeId ?? undefined,
+      source: r.source,
+    }));
+  }
+
+  async listActive(): Promise<PlaceAliasRecord[]> {
+    const rows = await this.dataSource.getRepository(PlaceAliasEntity).find({
+      where: { isActive: true },
+    });
+    return rows.map((r) => ({
+      id: r.id,
+      alias: r.alias,
+      aliasNormalized: r.aliasNormalized,
+      targetKind: r.targetKind,
+      regionId: r.regionId ?? undefined,
+      placeId: r.placeId ?? undefined,
+      source: r.source,
     }));
   }
 
   async upsertMany(aliases: PlaceAliasRecord[]): Promise<void> {
     if (aliases.length === 0) return;
     const repo = this.dataSource.getRepository(PlaceAliasEntity);
-    await repo.upsert(
-      aliases.map((a) => ({
-        id: a.id,
+    for (const a of aliases) {
+      const existing = await repo.findOne({
+        where:
+          a.targetKind === "region"
+            ? {
+                targetKind: "region",
+                regionId: a.regionId ?? undefined,
+                aliasNormalized: a.aliasNormalized,
+              }
+            : {
+                targetKind: "place",
+                placeId: a.placeId ?? undefined,
+                aliasNormalized: a.aliasNormalized,
+              },
+      });
+      const row = repo.create({
+        id: existing?.id ?? a.id,
         alias: a.alias,
         aliasNormalized: a.aliasNormalized,
         targetKind: a.targetKind,
         regionId: a.regionId ?? null,
         placeId: a.placeId ?? null,
-      })),
-      ["id"],
-    );
+        source: a.source ?? "auto",
+        isActive: true,
+        deprecatedAt: null,
+      });
+      await repo.save(row);
+    }
   }
 
   async upsertAlias(input: {

@@ -1,5 +1,5 @@
-import type { IGeoSourceProvider, IPlaceAliasRepository, IPlaceRepository, IRegionRepository } from "@radar/shared";
-import { diffAliases, diffPlaces, diffRegions } from "./diff-engine";
+import type { AliasDraft, IGeoSourceProvider, IPlaceAliasRepository, IPlaceRepository, IRegionRepository, PlaceDraft, RegionDraft } from "@radar/shared";
+import { diffAliases, diffPlaces, diffRegions, normalizeName } from "./diff-engine";
 
 export type GeoSyncPlan = {
   sourceId: string;
@@ -24,14 +24,59 @@ export class GeoSyncPlanService {
 
   async plan(): Promise<GeoSyncPlan> {
     const snapshot = await this.provider.loadSnapshot();
-    const currentRegions = snapshot.regions.flatMap(() => []); // placeholder until read-side queries added
-    const currentPlaces = snapshot.places.flatMap(() => []);
-    const currentAliases = snapshot.aliases.flatMap(() => []);
+    const currentRegionsRaw = await this.regions.listActive();
+    const currentPlacesRaw = await this.places.listActive();
+    const currentAliasesRaw = await this.aliases.listActive();
 
-    // Touch repositories so constructor deps are meaningful in this milestone.
-    await this.regions.findByCode("__noop__");
-    await this.places.findById("00000000-0000-0000-0000-000000000000");
-    await this.aliases.findByAlias("__noop__");
+    const currentRegions: RegionDraft[] = currentRegionsRaw.map((row) => ({
+      fiasId: row.fiasId,
+      kladrId: row.kladrId,
+      iso: row.iso,
+      name: row.name,
+      nameWithType: row.nameWithType,
+      shortName: row.shortName,
+      federalDistrict: row.federalDistrict,
+      frontRegion: row.frontRegion,
+      borderRegion: row.borderRegion,
+      geometryArtifactKey: row.geometryArtifactKey,
+      sourceMeta: row.sourceMeta,
+    }));
+
+    const currentPlaces: PlaceDraft[] = currentPlacesRaw.map((row) => ({
+      regionCode: row.regionId,
+      kind: row.kind,
+      name: row.name,
+      nameWithType: row.nameWithType,
+      fiasId: row.fiasId,
+      kladrId: row.kladrId,
+      oktmo: row.oktmo,
+      geometryArtifactKey: row.geometryArtifactKey,
+    }));
+
+    const currentAliases: AliasDraft[] = currentAliasesRaw.map((row) => ({
+      targetKind: row.targetKind,
+      targetExternalKey:
+        row.targetKind === "region"
+          ? `region:${row.regionId ?? ""}`
+          : `place:${row.placeId ?? ""}`,
+      alias: row.alias,
+      source: row.source ?? "auto",
+    }));
+
+    // Дополнительно учитываем name+region ключи для places,
+    // чтобы diff корректно видел существующие записи без FIAS.
+    for (const row of currentPlacesRaw) {
+      currentPlaces.push({
+        regionCode: row.regionId,
+        kind: row.kind,
+        name: normalizeName(row.name),
+        nameWithType: row.nameWithType,
+        fiasId: row.fiasId,
+        kladrId: row.kladrId,
+        oktmo: row.oktmo,
+        geometryArtifactKey: row.geometryArtifactKey,
+      });
+    }
 
     const regionDiff = diffRegions(currentRegions, snapshot.regions);
     const placeDiff = diffPlaces(currentPlaces, snapshot.places);

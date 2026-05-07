@@ -1,4 +1,5 @@
 import type { AliasDraft, GeoProviderSnapshot, IGeoSourceProvider, PlaceDraft, RegionDraft } from "@radar/shared";
+import { normalizeName } from "./geo-provider-utils";
 
 function dedupeByKey<T>(
   rows: T[],
@@ -26,15 +27,15 @@ export class CompositeGeoProvider implements IGeoSourceProvider {
     const sourceRevision = snapshots.map((s) => s.sourceRevision).join("|");
     const regions = dedupeByKey<RegionDraft>(
       snapshots.flatMap((s) => s.regions),
-      (row) => row.fiasId ?? row.iso ?? row.name.toLowerCase(),
+      (row) => row.fiasId ?? row.iso ?? normalizeName(row.name),
     );
     const places = dedupeByKey<PlaceDraft>(
       snapshots.flatMap((s) => s.places),
-      (row) => row.fiasId ?? `${row.regionCode}:${row.kind}:${row.name.toLowerCase()}`,
+      (row) => row.fiasId ?? `${row.regionCode}:${row.kind}:${normalizeName(row.name)}`,
     );
     const aliases = dedupeByKey<AliasDraft>(
       snapshots.flatMap((s) => s.aliases),
-      (row) => `${row.targetKind}:${row.targetExternalKey}:${row.alias.toLowerCase()}`,
+      (row) => `${row.targetKind}:${row.targetExternalKey}:${normalizeName(row.alias)}`,
     );
 
     return {

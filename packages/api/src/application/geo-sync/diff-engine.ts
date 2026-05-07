@@ -22,19 +22,40 @@ const emptyStats = (): DiffStats => ({
   noop: 0,
 });
 
+export function normalizeName(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/ё/g, "е")
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .trim()
+    .replace(/\s+/g, " ");
+}
+
+export function regionDraftKey(row: RegionDraft): string {
+  return row.fiasId ?? row.iso ?? normalizeName(row.name);
+}
+
+export function placeDraftKey(row: PlaceDraft): string {
+  return row.fiasId ?? `${row.regionCode}:${row.kind}:${normalizeName(row.name)}`;
+}
+
+export function aliasDraftKey(row: AliasDraft): string {
+  return `${row.targetKind}:${row.targetExternalKey}:${normalizeName(row.alias)}`;
+}
+
 export function diffRegions(
   current: RegionDraft[],
   expected: RegionDraft[],
 ): DiffReport<RegionDraft> {
   const map = new Map<string, RegionDraft>();
   for (const row of current) {
-    map.set(row.fiasId ?? row.iso ?? row.name.toLowerCase(), row);
+    map.set(regionDraftKey(row), row);
   }
   const stats = emptyStats();
   const toUpsert: RegionDraft[] = [];
   const sample: Array<{ key: string; action: keyof DiffStats }> = [];
   for (const row of expected) {
-    const key = row.fiasId ?? row.iso ?? row.name.toLowerCase();
+    const key = regionDraftKey(row);
     const currentRow = map.get(key);
     if (!currentRow) {
       stats.added += 1;
@@ -44,6 +65,8 @@ export function diffRegions(
     }
     const semanticEqual =
       currentRow.name === row.name &&
+      (currentRow.nameWithType ?? "") === (row.nameWithType ?? "") &&
+      (currentRow.kladrId ?? "") === (row.kladrId ?? "") &&
       currentRow.frontRegion === row.frontRegion &&
       currentRow.borderRegion === row.borderRegion;
     if (semanticEqual) {
@@ -63,13 +86,13 @@ export function diffPlaces(
 ): DiffReport<PlaceDraft> {
   const map = new Map<string, PlaceDraft>();
   for (const row of current) {
-    map.set(row.fiasId ?? `${row.regionCode}:${row.kind}:${row.name.toLowerCase()}`, row);
+    map.set(placeDraftKey(row), row);
   }
   const stats = emptyStats();
   const toUpsert: PlaceDraft[] = [];
   const sample: Array<{ key: string; action: keyof DiffStats }> = [];
   for (const row of expected) {
-    const key = row.fiasId ?? `${row.regionCode}:${row.kind}:${row.name.toLowerCase()}`;
+    const key = placeDraftKey(row);
     const currentRow = map.get(key);
     if (!currentRow) {
       stats.added += 1;
@@ -79,8 +102,11 @@ export function diffPlaces(
     }
     const semanticEqual =
       currentRow.name === row.name &&
+      (currentRow.nameWithType ?? "") === (row.nameWithType ?? "") &&
       currentRow.regionCode === row.regionCode &&
-      currentRow.kind === row.kind;
+      currentRow.kind === row.kind &&
+      (currentRow.kladrId ?? "") === (row.kladrId ?? "") &&
+      (currentRow.oktmo ?? "") === (row.oktmo ?? "");
     if (semanticEqual) {
       stats.noop += 1;
       continue;
@@ -98,13 +124,13 @@ export function diffAliases(
 ): DiffReport<AliasDraft> {
   const map = new Map<string, AliasDraft>();
   for (const row of current) {
-    map.set(`${row.targetKind}:${row.targetExternalKey}:${row.alias.toLowerCase()}`, row);
+    map.set(aliasDraftKey(row), row);
   }
   const stats = emptyStats();
   const toUpsert: AliasDraft[] = [];
   const sample: Array<{ key: string; action: keyof DiffStats }> = [];
   for (const row of expected) {
-    const key = `${row.targetKind}:${row.targetExternalKey}:${row.alias.toLowerCase()}`;
+    const key = aliasDraftKey(row);
     const currentRow = map.get(key);
     if (!currentRow) {
       stats.added += 1;
