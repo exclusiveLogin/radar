@@ -52,16 +52,26 @@ export class LocationResolutionService {
 
     if (region && localPlaces.length > 0) {
       return {
-        locations: localPlaces.map((place) => ({
-          regionId: "00000000-0000-0000-0000-000000000000",
-          regionCode: region.code,
-          regionFias: region.fiasId,
-          precision: toPrecision(place.kind),
-          source: "db",
-          placeName: place.name,
-          lat: place.lat,
-          lon: place.lon,
-        })),
+        locations: [
+          {
+            regionId: "00000000-0000-0000-0000-000000000000",
+            regionCode: region.code,
+            regionFias: region.fiasId,
+            precision: "region",
+            source: "db" as const,
+            placeName: region.name,
+          },
+          ...localPlaces.map((place) => ({
+            regionId: "00000000-0000-0000-0000-000000000000",
+            regionCode: region.code,
+            regionFias: region.fiasId,
+            precision: toPrecision(place.kind),
+            source: "db" as const,
+            placeName: place.name,
+            lat: place.lat,
+            lon: place.lon,
+          })),
+        ],
         diagnostics: {
           invoked: false,
           cacheHit: false,
@@ -88,6 +98,30 @@ export class LocationResolutionService {
           cacheHit: false,
           regionDetected: true,
           localPlacesFound: 0,
+        },
+      };
+    }
+
+    const cityOnlyPlaces = this.geoCatalog
+      .findPlacesInRegion(rawText)
+      .filter((place) => place.kind === "city");
+
+    if (cityOnlyPlaces.length > 0) {
+      return {
+        locations: cityOnlyPlaces.map((place) => ({
+          regionId: "00000000-0000-0000-0000-000000000000",
+          regionCode: "unknown",
+          precision: "city",
+          source: "db" as const,
+          placeName: place.name,
+          lat: place.lat,
+          lon: place.lon,
+        })),
+        diagnostics: {
+          invoked: false,
+          cacheHit: false,
+          regionDetected: false,
+          localPlacesFound: cityOnlyPlaces.length,
         },
       };
     }

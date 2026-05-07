@@ -147,6 +147,8 @@ function toFlatRecords(fileName: string, payload: Array<Record<string, unknown>>
     const classification = (row.classification as Record<string, unknown>) ?? {};
     const event = (row.event as Record<string, unknown> | undefined) ?? {};
     const geo = (row.geo as Record<string, unknown>) ?? {};
+    const regions = (geo.regions as Array<Record<string, unknown>> | undefined) ?? [];
+    const firstRegion = regions[0] ?? {};
     const places = (geo.places as Array<Record<string, unknown>> | undefined) ?? [];
     const firstPlace = places[0] ?? {};
 
@@ -155,7 +157,7 @@ function toFlatRecords(fileName: string, payload: Array<Record<string, unknown>>
       index,
       kind: String(classification.kind ?? "unknown"),
       eventType: String(event.eventType ?? ""),
-      regionCode: String((geo.region as Record<string, unknown> | undefined)?.code ?? ""),
+      regionCode: String(firstRegion.code ?? ""),
       placeName: String(firstPlace.name ?? ""),
       precision: String(geo.precision ?? "unknown"),
       completeness: Number(geo.completeness ?? 0),

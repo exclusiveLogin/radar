@@ -74,6 +74,31 @@ function deriveSource(input: {
   return first.source;
 }
 
+function buildGeoRegions(locations: EventLocation[]): Array<{
+  code: string;
+  name: string;
+  fiasId?: string;
+}> {
+  const unique = new Map<string, { code: string; name: string; fiasId?: string }>();
+
+  for (const location of locations) {
+    if (location.precision !== "region") {
+      continue;
+    }
+    const key = `${location.regionCode}:${location.regionFias ?? ""}`;
+    if (unique.has(key)) {
+      continue;
+    }
+    unique.set(key, {
+      code: location.regionCode,
+      name: location.placeName ?? location.regionCode,
+      fiasId: location.regionFias,
+    });
+  }
+
+  return [...unique.values()];
+}
+
 export class ParsePipelineService {
   constructor(
     private readonly classifier: IEventClassifier,
@@ -149,7 +174,7 @@ export class ParsePipelineService {
       provider: resolved.diagnostics.provider,
       cacheHit: resolved.diagnostics.cacheHit,
     });
-    const primaryRegion = resolved.locations[0];
+    const regions = buildGeoRegions(resolved.locations);
 
     const report = parseReportSchema.parse({
       index: input.index,
@@ -173,19 +198,13 @@ export class ParsePipelineService {
         macroZone: parsedEvent.macroZone,
       },
       geo: {
-        region: primaryRegion
-          ? {
-              code: primaryRegion.regionCode,
-              name: primaryRegion.placeName ?? primaryRegion.regionCode,
-              fiasId: primaryRegion.regionFias,
-            }
-          : undefined,
-        places: resolved.locations.map((location) => ({
+        regions,
+        places: resolved.locations
+          .filter((location) => location.precision !== "region")
+          .map((location) => ({
           name: location.placeName ?? location.regionCode,
           kind:
-            location.precision === "region"
-              ? "region"
-              : location.precision === "district"
+            location.precision === "district"
               ? "district"
               : location.precision === "settlement"
                 ? "settlement"

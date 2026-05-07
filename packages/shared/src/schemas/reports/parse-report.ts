@@ -28,7 +28,7 @@ export const parseReportRegionSchema = z.object({
 
 export const parseReportPlaceSchema = z.object({
   name: z.string().min(1),
-  kind: z.enum(["region", "district", "city", "locality", "settlement"]),
+  kind: z.enum(["district", "city", "locality", "settlement"]),
   fiasId: z.string().optional(),
   lat: z.number().finite().optional(),
   lon: z.number().finite().optional(),
@@ -36,7 +36,7 @@ export const parseReportPlaceSchema = z.object({
 });
 
 export const parseReportGeoSchema = z.object({
-  region: parseReportRegionSchema.optional(),
+  regions: z.array(parseReportRegionSchema).default([]),
   places: z.array(parseReportPlaceSchema).default([]),
   precision: z.enum([
     "unknown",

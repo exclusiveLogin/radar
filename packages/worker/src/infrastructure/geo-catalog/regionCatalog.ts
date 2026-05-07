@@ -48,15 +48,20 @@ function buildAliases(name: string, nameWithType?: string): string[] {
   for (const value of values) {
     const normalized = normalize(value);
     aliases.add(normalized);
-    aliases.add(
-      normalized
-        .replace(
-          /(?:^|\s)(обл|область|респ|республика|край|ао|автономный округ)(?=\s|$)/g,
-          " ",
-        )
-        .replace(/\s+/g, " ")
-        .trim(),
-    );
+    const withoutType = normalized
+      .replace(
+        /(?:^|\s)(обл|область|респ|республика|край|ао|автономный округ)(?=\s|$)/g,
+        " ",
+      )
+      .replace(/\s+/g, " ")
+      .trim();
+    aliases.add(withoutType);
+
+    const adjectiveStem = withoutType.replace(/(ская|ский|ское|ские)$/i, "").trim();
+    if (adjectiveStem.length >= 5) {
+      aliases.add(adjectiveStem);
+    }
+
   }
 
   return [...aliases].filter(Boolean);
