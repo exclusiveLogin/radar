@@ -74,7 +74,6 @@ export class GeoSyncApplyService {
       }
 
       const placeRows: PlaceRecord[] = [];
-      const placeByExternalKey = new Map<string, PlaceRecord>();
       for (const draft of snapshot.places) {
         const region = regionByExternalKey.get(draft.regionCode) ??
           regionByExternalKey.get(normalizeName(draft.regionCode));
@@ -94,18 +93,32 @@ export class GeoSyncApplyService {
           lastSourceRevision: snapshot.sourceRevision,
         };
         placeRows.push(place);
-        placeByExternalKey.set(placeDraftKey(draft), place);
       }
       await this.places.upsertMany(placeRows);
       const activePlaces = await this.places.listActive();
+      const placeByExternalKey = new Map<string, PlaceRecord>();
+      const placeByFias = new Map<string, PlaceRecord>();
+      const placeByNaturalKey = new Map<string, PlaceRecord>();
       for (const row of activePlaces) {
-        const syntheticDraft: PlaceDraft = {
-          regionCode: row.regionId,
-          kind: row.kind,
-          name: row.name,
-          fiasId: row.fiasId,
-        };
-        placeByExternalKey.set(placeDraftKey(syntheticDraft), row);
+        if (row.fiasId) {
+          placeByFias.set(row.fiasId, row);
+        }
+        placeByNaturalKey.set(
+          `${row.regionId}:${row.kind}:${normalizeName(row.name)}`,
+          row,
+        );
+      }
+      for (const draft of snapshot.places) {
+        const region = regionByExternalKey.get(draft.regionCode) ??
+          regionByExternalKey.get(normalizeName(draft.regionCode));
+        if (!region) continue;
+        const persistedPlace = draft.fiasId
+          ? placeByFias.get(draft.fiasId)
+          : placeByNaturalKey.get(
+              `${region.id}:${draft.kind}:${normalizeName(draft.name)}`,
+            );
+        if (!persistedPlace) continue;
+        placeByExternalKey.set(placeDraftKey(draft), persistedPlace);
       }
 
       const aliasRows: PlaceAliasRecord[] = [];

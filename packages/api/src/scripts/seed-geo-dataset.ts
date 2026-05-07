@@ -56,13 +56,20 @@ async function main(): Promise<void> {
   await client.connect();
   try {
     await client.query("BEGIN");
-    await client.query(`DELETE FROM geo_dataset_file`);
     for (const f of manifest.files) {
       await client.query(
         `INSERT INTO geo_dataset_file (
           artifact_key, rel_path, sha256_hex, byte_size,
           source_id, source_revision, clone_url, manifest_version
-        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+        ON CONFLICT (artifact_key) DO UPDATE SET
+          rel_path = EXCLUDED.rel_path,
+          sha256_hex = EXCLUDED.sha256_hex,
+          byte_size = EXCLUDED.byte_size,
+          source_id = EXCLUDED.source_id,
+          source_revision = EXCLUDED.source_revision,
+          clone_url = EXCLUDED.clone_url,
+          manifest_version = EXCLUDED.manifest_version`,
         [
           f.artifactKey,
           f.relPath,

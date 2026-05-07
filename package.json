@@ -18,6 +18,8 @@
     "geo:vendor:pull": "node scripts/pull-geo-vendor.mjs",
     "geo:sync": "node scripts/geo-sync-artifacts.mjs",
     "geo:verify": "node scripts/geo-verify.mjs",
+    "geo:init": "node scripts/geo-init.mjs",
+    "geo:update": "node scripts/geo-update.mjs",
     "geo:seed": "npm run geo:seed -w @radar/api",
     "geo:db:plan": "npm run geo:db:plan -w @radar/api",
     "geo:db:apply": "npm run geo:db:apply -w @radar/api",

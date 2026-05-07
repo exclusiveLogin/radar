@@ -3,6 +3,42 @@
 Дата: 2026-05-07  
 Основано на фактическом профиле `data/geo/artifacts` (manifest + разбор содержимого файлов).
 
+---
+
+## 0) Как данные хранятся в БД (важно)
+
+Этот блок фиксирует модель хранения, чтобы не путаться между файлами-артефактами и доменными сущностями.
+
+### `geo_dataset_file` (реестр артефактов)
+
+- Назначение: каталог файлов из `data/geo/artifacts/manifest.json`.
+- Содержит: `artifact_key`, `rel_path`, `sha256`, `byte_size`, `source_id`, `source_revision`, `clone_url`, `manifest_version`.
+- Важно: это не таблица регионов/городов, а реестр файлов источника.
+
+### `regions` (субъекты РФ)
+
+- Назначение: доменные сущности регионов.
+- Ключевые поля: `fias_id`, `kladr_id`, `iso`, `name`, `name_with_type`, `federal_district`, `front_region`, `border_region`, `source_meta`, `last_source_revision`.
+- Геометрия хранится не в БД-полигоне, а как ссылка `geometry_artifact_key` -> `geo_dataset_file.artifact_key`.
+
+### `places` (географические места внутри региона)
+
+- Назначение: города/районы/локалитеты (`kind`).
+- Ключевые поля: `region_id`, `kind`, `name`, `name_with_type`, `name_normalized`, `fias_id`, `kladr_id`, `oktmo`, `parent_place_id`, `source_meta`, `last_source_revision`.
+- Геометрия также хранится ссылкой через `geometry_artifact_key` -> `geo_dataset_file.artifact_key`.
+- Важно: `place` в проекте = "место" (город, район, населенный пункт и т.п.).
+
+### `place_aliases` (алиасы для матчинга)
+
+- Назначение: варианты названий для устойчивого поиска/резолва.
+- Ключевые поля: `target_kind` (`region|place`), `region_id|place_id`, `alias`, `alias_normalized`, `source` (`auto|manual`), `is_active`.
+
+### Ограничения удаления и порядок очистки
+
+- В `regions` и `places` есть FK на `geo_dataset_file(artifact_key)` с `ON DELETE RESTRICT`.
+- Поэтому нельзя просто делать `DELETE FROM geo_dataset_file`, пока на файлы есть ссылки.
+- Для полного пересноса/очистки порядок удаления: `place_aliases` -> `places` -> `regions` -> `geo_dataset_file`.
+
 ## 1) Инвентарь источников
 
 1. `hflabs-region`
@@ -194,23 +230,19 @@ type RnekrasovPlaceDraft = {
 
 ---
 
-## 5) Проблемы текущего контура, блокирующие полноценный ingest
+## 5) Остаточные проблемы и ограничения
 
-- В `geo-sync` провайдерах сейчас частичный проход (`slice(0, 20)` для geojson-файлов) — обрабатывается не весь источник.
-- `geo-sync-plan` использует placeholder current-state (diff не сравнивает с фактическими данными БД).
-- `geo-sync-apply` не формирует `placeRows`/`aliasRows` (по факту в БД остаются пустые `places/place_aliases`).
+- Есть доля `unknown:*` в ключах `places` (не везде корректно определяется `regionCode` при объединении источников).
+- Нужна безопасная чистка "сиротских" записей в `geo_dataset_file` (которые уже не в manifest и не используются в `regions/places`).
+- Нужен регулярный аудит полноты `source_meta` для `places` и при необходимости отдельная миграция/расширение схемы.
 
 ---
 
-## 6) План подгонки парсеров (следующий шаг)
+## 6) Следующие шаги
 
-1. Убрать лимиты `slice(0, 20)` и читать все файлы по source.
-2. Разделить парсеры по file-class:
-   - `Russia_geojson_OSM`: countries/regions/cities/federal-districts.
-   - `rnekrasov`: subjects/admin_level_10/admin_level_9/admin_level_3.
-3. Ввести явные DTO `RegionDraftV2`/`PlaceDraftV2`/`AliasDraftV2` с `source_meta`.
-4. Реализовать фактическое заполнение `placeRows` и `aliasRows` в apply.
-5. Добавить coverage-отчет после sync:
-   - files parsed / skipped
-   - features parsed / rejected
-   - fields completeness (`fias`, `kladr`, `region_hint`, geometry).
+1. Дожать mapping `regionCode` для OSM/rnekrasov-слоев, чтобы уменьшить `unknown:*`.
+2. Добавить пост-seed cleanup для `geo_dataset_file`: удалять только неиспользуемые ключи.
+3. Автоматизировать coverage-отчет после sync:
+   - files parsed / skipped,
+   - features parsed / rejected,
+   - completeness полей (`fias`, `kladr`, `region_hint`, geometry).
