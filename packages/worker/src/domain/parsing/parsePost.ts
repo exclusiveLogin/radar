@@ -1,4 +1,4 @@
-import type { ClassifiedPost } from "@radar/shared";
+import type { ClassifiedPost, EventType } from "@radar/shared";
 import { extractCounts } from "./extractCounts.js";
 import { extractDirection } from "./extractDirection.js";
 import { extractEventType } from "./extractEventType.js";
@@ -8,7 +8,11 @@ import { PARSER_VERSION } from "./version.js";
 
 const UNKNOWN_RAW_MESSAGE_ID = "00000000-0000-0000-0000-000000000000";
 
-function inferSeverity(raw: string): "info" | "attention" | "danger" | "critical" {
+function inferSeverity(
+  raw: string,
+  eventType: EventType,
+): "info" | "attention" | "danger" | "critical" {
+  if (eventType === "cleared") return "info";
   if (/сбит|реактив/i.test(raw)) return "critical";
   if (/опасност|тревог/i.test(raw)) return "danger";
   if (/внимани/i.test(raw)) return "attention";
@@ -26,7 +30,7 @@ export function parsePost(rawPost: string): ClassifiedPost {
     event: {
       rawMessageId: UNKNOWN_RAW_MESSAGE_ID,
       eventType,
-      severity: inferSeverity(rawPost),
+      severity: inferSeverity(rawPost, eventType),
       repeat: extractRepeatFlag(rawPost),
       count: extractCounts(rawPost),
       direction: extractDirection(rawPost),
