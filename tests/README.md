@@ -22,6 +22,14 @@ npm run worker:parse:report -- --input tests --outdir reports --format json --di
 
 Результат: `reports/snap_001.json`, `reports/snap_002.json`, `reports/snap_003.json`.
 
+### 2.1) Прогон всей папки с агрегированным отчетом
+
+```bash
+npm run worker:parse:report -- --input tests --outdir reports --format json --div none
+```
+
+Результат: один агрегированный json-отчет по всем файлам во входной папке.
+
 ### 3) Gap-анализ качества парсинга
 
 ```bash
