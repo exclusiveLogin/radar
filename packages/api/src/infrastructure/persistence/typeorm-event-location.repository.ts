@@ -1,7 +1,7 @@
 import type { EventLocation, IEventLocationRepository } from "@radar/shared";
 import { randomUUID } from "node:crypto";
 import type { DataSource } from "typeorm";
-import { EventLocationEntity } from "../../events/entities/event-location.entity";
+import { EventLocationEntity } from "../../events/entities";
 
 export class TypeOrmEventLocationRepository implements IEventLocationRepository {
   constructor(private readonly dataSource: DataSource) {}

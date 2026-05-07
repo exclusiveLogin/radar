@@ -1,7 +1,7 @@
 import type { IParsedEventRepository, ParsedEvent } from "@radar/shared";
 import { randomUUID } from "node:crypto";
 import type { DataSource } from "typeorm";
-import { ParsedEventEntity } from "../../events/entities/parsed-event.entity";
+import { ParsedEventEntity } from "../../events/entities";
 
 export class TypeOrmParsedEventRepository implements IParsedEventRepository {
   constructor(private readonly dataSource: DataSource) {}

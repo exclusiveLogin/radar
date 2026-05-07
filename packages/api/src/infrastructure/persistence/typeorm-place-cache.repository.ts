@@ -1,6 +1,6 @@
 import type { IPlaceCacheRepository } from "@radar/shared";
 import type { DataSource } from "typeorm";
-import { PlaceCacheEntity } from "../../events/entities/place-cache.entity";
+import { PlaceCacheEntity } from "../../events/entities";
 
 export class TypeOrmPlaceCacheRepository implements IPlaceCacheRepository {
   constructor(private readonly dataSource: DataSource) {}

@@ -1,6 +1,998 @@
 {
   "version": 1,
-  "generatedAt": null,
-  "sources": [],
-  "files": []
+  "generatedAt": "2026-05-07T13:17:30.302Z",
+  "sources": [
+    {
+      "id": "hflabs-region",
+      "revision": "0c9550cc4a18c553b54229257980a417d99bb43b",
+      "cloneUrl": "https://github.com/hflabs/region.git",
+      "vendorDir": "hflabs-region"
+    },
+    {
+      "id": "Russia_geojson_OSM",
+      "revision": "5af46d6dab9a502713611846892e4185f157dab7",
+      "cloneUrl": "https://github.com/timurkanaz/Russia_geojson_OSM.git",
+      "vendorDir": "Russia_geojson_OSM"
+    },
+    {
+      "id": "rnekrasov-geojson",
+      "revision": "7591d6609fe5cfdb4a0245b3a7cea9aae36bf737",
+      "cloneUrl": "https://github.com/rnekrasov-msk/geojson.git",
+      "vendorDir": "rnekrasov-geojson"
+    }
+  ],
+  "files": [
+    {
+      "artifactKey": "reference/hflabs-region/README.md",
+      "relPath": "reference/hflabs-region/README.md",
+      "sourceId": "hflabs-region",
+      "sourceRevision": "0c9550cc4a18c553b54229257980a417d99bb43b",
+      "cloneUrl": "https://github.com/hflabs/region.git",
+      "sha256": "6f06824566b6493a9edf0c819f5c9f72cea16dd976d9f8bcf3b4efa79b00a620",
+      "byteSize": 1119
+    },
+    {
+      "artifactKey": "reference/hflabs-region/region.csv",
+      "relPath": "reference/hflabs-region/region.csv",
+      "sourceId": "hflabs-region",
+      "sourceRevision": "0c9550cc4a18c553b54229257980a417d99bb43b",
+      "cloneUrl": "https://github.com/hflabs/region.git",
+      "sha256": "b56fa30308d4f63c4655321ad130bee5279ce8f73b8a61dc9478fa41cd71c3b1",
+      "byteSize": 17694
+    },
+    {
+      "artifactKey": "reference/hflabs-region/region.csv-metadata.json",
+      "relPath": "reference/hflabs-region/region.csv-metadata.json",
+      "sourceId": "hflabs-region",
+      "sourceRevision": "0c9550cc4a18c553b54229257980a417d99bb43b",
+      "cloneUrl": "https://github.com/hflabs/region.git",
+      "sha256": "f71887846f612e44405f8585ff9e8f4db624cdaae129a3467a684dd1acecb1bd",
+      "byteSize": 2571
+    },
+    {
+      "artifactKey": "boundaries/Russia_geojson_OSM/GeoJson's/Cities/Казань_Kazan.geojson",
+      "relPath": "boundaries/Russia_geojson_OSM/GeoJson's/Cities/Казань_Kazan.geojson",
+      "sourceId": "Russia_geojson_OSM",
+      "sourceRevision": "5af46d6dab9a502713611846892e4185f157dab7",
+      "cloneUrl": "https://github.com/timurkanaz/Russia_geojson_OSM.git",
+      "sha256": "7cfede4289696cd9852a5a9f93f9754a50617b9b52a87c5b5f96f9b126d2c037",
+      "byteSize": 88945
+    },
+    {
+      "artifactKey": "boundaries/Russia_geojson_OSM/GeoJson's/Cities/Москва_Moscow.geojson",
+      "relPath": "boundaries/Russia_geojson_OSM/GeoJson's/Cities/Москва_Moscow.geojson",
+      "sourceId": "Russia_geojson_OSM",
+      "sourceRevision": "5af46d6dab9a502713611846892e4185f157dab7",
+      "cloneUrl": "https://github.com/timurkanaz/Russia_geojson_OSM.git",
+      "sha256": "d81647b4553477cf7a0d9cdedef5456490f69e364a417b90cf099aed1652bcb1",
+      "byteSize": 1098252
+    },
+    {
+      "artifactKey": "boundaries/Russia_geojson_OSM/GeoJson's/Cities/Санкт-Петербург_Saint-Petersburg.geojson",
+      "relPath": "boundaries/Russia_geojson_OSM/GeoJson's/Cities/Санкт-Петербург_Saint-Petersburg.geojson",
+      "sourceId": "Russia_geojson_OSM",
+      "sourceRevision": "5af46d6dab9a502713611846892e4185f157dab7",
+      "cloneUrl": "https://github.com/timurkanaz/Russia_geojson_OSM.git",
+      "sha256": "8ccb4f2c747a7354b5f7cd3433d0450aa05afbc9d2aead2f0a85f72aedfb3b4f",
+      "byteSize": 832841
+    },
+    {
+      "artifactKey": "boundaries/Russia_geojson_OSM/GeoJson's/Cities/Севастополь_Sevastopol.geojson",
+      "relPath": "boundaries/Russia_geojson_OSM/GeoJson's/Cities/Севастополь_Sevastopol.geojson",
+      "sourceId": "Russia_geojson_OSM",
+      "sourceRevision": "5af46d6dab9a502713611846892e4185f157dab7",
+      "cloneUrl": "https://github.com/timurkanaz/Russia_geojson_OSM.git",
+      "sha256": "6051750fe7a814f4a5ab01a06b6cc3cfe765506fccb9e31d2df0dc81a5e40e23",
+      "byteSize": 72970
+    },
+    {
+      "artifactKey": "boundaries/Russia_geojson_OSM/GeoJson's/Countries/Russia_regions.geojson",
+      "relPath": "boundaries/Russia_geojson_OSM/GeoJson's/Countries/Russia_regions.geojson",
+      "sourceId": "Russia_geojson_OSM",
+      "sourceRevision": "5af46d6dab9a502713611846892e4185f157dab7",
+      "cloneUrl": "https://github.com/timurkanaz/Russia_geojson_OSM.git",
+      "sha256": "6f8666b91ca2852f443eb3445ca246972f83bd571f0f840ff89760b37928810e",
+      "byteSize": 52181864
+    },
+    {
+      "artifactKey": "boundaries/Russia_geojson_OSM/GeoJson's/Federal Districts/ДФО FEFO.geojson",
+      "relPath": "boundaries/Russia_geojson_OSM/GeoJson's/Federal Districts/ДФО FEFO.geojson",
+      "sourceId": "Russia_geojson_OSM",
+      "sourceRevision": "5af46d6dab9a502713611846892e4185f157dab7",
+      "cloneUrl": "https://github.com/timurkanaz/Russia_geojson_OSM.git",
+      "sha256": "ddc975eb1875448515338e34a87efd1eea21ce5f681b9e053d213d4829225546",
+      "byteSize": 1801456
+    },
+    {
+      "artifactKey": "boundaries/Russia_geojson_OSM/GeoJson's/Federal Districts/ПФО VFD.geojson",
+      "relPath": "boundaries/Russia_geojson_OSM/GeoJson's/Federal Districts/ПФО VFD.geojson",
+      "sourceId": "Russia_geojson_OSM",
+      "sourceRevision": "5af46d6dab9a502713611846892e4185f157dab7",
+      "cloneUrl": "https://github.com/timurkanaz/Russia_geojson_OSM.git",
+      "sha256": "4ddebe22140ab92f73d827699aeca1786de6922cc29f98ff159bc4a60c5889b8",
+      "byteSize": 956510
+    },
+    {
+      "artifactKey": "boundaries/Russia_geojson_OSM/GeoJson's/Federal Districts/СЗФО NWFO.geojson",
+      "relPath": "boundaries/Russia_geojson_OSM/GeoJson's/Federal Districts/СЗФО NWFO.geojson",
+      "sourceId": "Russia_geojson_OSM",
+      "sourceRevision": "5af46d6dab9a502713611846892e4185f157dab7",
+      "cloneUrl": "https://github.com/timurkanaz/Russia_geojson_OSM.git",
+      "sha256": "23123c747edbda406f211e2bf6ef1d9978dcd489f88249cbd8f80129be05da70",
+      "byteSize": 1099807
+    },
+    {
+      "artifactKey": "boundaries/Russia_geojson_OSM/GeoJson's/Federal Districts/СКФО NCFD.geojson",
+      "relPath": "boundaries/Russia_geojson_OSM/GeoJson's/Federal Districts/СКФО NCFD.geojson",
+      "sourceId": "Russia_geojson_OSM",
+      "sourceRevision": "5af46d6dab9a502713611846892e4185f157dab7",
+      "cloneUrl": "https://github.com/timurkanaz/Russia_geojson_OSM.git",
+      "sha256": "ecfdf40ca54da3db5eeee70dcf5866ca6f04c53210b6fee17772daf725606d43",
+      "byteSize": 271108
+    },
+    {
+      "artifactKey": "boundaries/Russia_geojson_OSM/GeoJson's/Federal Districts/СФО SFD.geojson",
+      "relPath": "boundaries/Russia_geojson_OSM/GeoJson's/Federal Districts/СФО SFD.geojson",
+      "sourceId": "Russia_geojson_OSM",
+      "sourceRevision": "5af46d6dab9a502713611846892e4185f157dab7",
+      "cloneUrl": "https://github.com/timurkanaz/Russia_geojson_OSM.git",
+      "sha256": "85bffc52ee363141b31d675c2a3462869b1f6e369a70ae2b015cbb24c53eae4b",
+      "byteSize": 2324755
+    },
+    {
+      "artifactKey": "boundaries/Russia_geojson_OSM/GeoJson's/Federal Districts/УрФО UrFO.geojson",
+      "relPath": "boundaries/Russia_geojson_OSM/GeoJson's/Federal Districts/УрФО UrFO.geojson",
+      "sourceId": "Russia_geojson_OSM",
+      "sourceRevision": "5af46d6dab9a502713611846892e4185f157dab7",
+      "cloneUrl": "https://github.com/timurkanaz/Russia_geojson_OSM.git",
+      "sha256": "9a77c15d71abe4689ecf4cb581bd2d663926165c70a5eb831f3421198ad45df2",
+      "byteSize": 1519408
+    },
+    {
+      "artifactKey": "boundaries/Russia_geojson_OSM/GeoJson's/Federal Districts/ЦФО CFD.geojson",
+      "relPath": "boundaries/Russia_geojson_OSM/GeoJson's/Federal Districts/ЦФО CFD.geojson",
+      "sourceId": "Russia_geojson_OSM",
+      "sourceRevision": "5af46d6dab9a502713611846892e4185f157dab7",
+      "cloneUrl": "https://github.com/timurkanaz/Russia_geojson_OSM.git",
+      "sha256": "26d00d7f9d58cbf5077c90d0861a23ff343062f2b1051e56072fb378eb4a4e47",
+      "byteSize": 1051115
+    },
+    {
+      "artifactKey": "boundaries/Russia_geojson_OSM/GeoJson's/Federal Districts/ЮФО SFO.geojson",
+      "relPath": "boundaries/Russia_geojson_OSM/GeoJson's/Federal Districts/ЮФО SFO.geojson",
+      "sourceId": "Russia_geojson_OSM",
+      "sourceRevision": "5af46d6dab9a502713611846892e4185f157dab7",
+      "cloneUrl": "https://github.com/timurkanaz/Russia_geojson_OSM.git",
+      "sha256": "edb399502dca723b01cdfa6b487fcddd6a5cf20c38224fd875c8022fe1ad7ebb",
+      "byteSize": 366009
+    },
+    {
+      "artifactKey": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/CFO/Белгородская область_Belgorod region.geojson",
+      "relPath": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/CFO/Белгородская область_Belgorod region.geojson",
+      "sourceId": "Russia_geojson_OSM",
+      "sourceRevision": "5af46d6dab9a502713611846892e4185f157dab7",
+      "cloneUrl": "https://github.com/timurkanaz/Russia_geojson_OSM.git",
+      "sha256": "573a96b4357941765a9167476e98095718d7b5e9d7f03e286c64476db17142d5",
+      "byteSize": 437432
+    },
+    {
+      "artifactKey": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/CFO/Брянская область_Bryansk region.geojson",
+      "relPath": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/CFO/Брянская область_Bryansk region.geojson",
+      "sourceId": "Russia_geojson_OSM",
+      "sourceRevision": "5af46d6dab9a502713611846892e4185f157dab7",
+      "cloneUrl": "https://github.com/timurkanaz/Russia_geojson_OSM.git",
+      "sha256": "6db436cedefdb4e545cc229b921e0251fd6983a56324cf54013bb33ed11cde48",
+      "byteSize": 896516
+    },
+    {
+      "artifactKey": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/CFO/Владимирская область_Vladimir region.geojson",
+      "relPath": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/CFO/Владимирская область_Vladimir region.geojson",
+      "sourceId": "Russia_geojson_OSM",
+      "sourceRevision": "5af46d6dab9a502713611846892e4185f157dab7",
+      "cloneUrl": "https://github.com/timurkanaz/Russia_geojson_OSM.git",
+      "sha256": "32aa3223c6e1a86ac8f2efe8965779c588b53f758cf68c826970803f2ad46f78",
+      "byteSize": 574382
+    },
+    {
+      "artifactKey": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/CFO/Воронежская область_Voronezh region.geojson",
+      "relPath": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/CFO/Воронежская область_Voronezh region.geojson",
+      "sourceId": "Russia_geojson_OSM",
+      "sourceRevision": "5af46d6dab9a502713611846892e4185f157dab7",
+      "cloneUrl": "https://github.com/timurkanaz/Russia_geojson_OSM.git",
+      "sha256": "323b161179db25187ac0693899b5c9af6e235fe4e42a4770f4baa9b59e62a844",
+      "byteSize": 648777
+    },
+    {
+      "artifactKey": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/CFO/Ивановская область_Ivanovo region.geojson",
+      "relPath": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/CFO/Ивановская область_Ivanovo region.geojson",
+      "sourceId": "Russia_geojson_OSM",
+      "sourceRevision": "5af46d6dab9a502713611846892e4185f157dab7",
+      "cloneUrl": "https://github.com/timurkanaz/Russia_geojson_OSM.git",
+      "sha256": "8c254be4025fb9cf9a9d177ba4afc77f634d9221e6d4ae009fe019a097fe9eab",
+      "byteSize": 420401
+    },
+    {
+      "artifactKey": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/CFO/Калужская область_Kaluga region.geojson",
+      "relPath": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/CFO/Калужская область_Kaluga region.geojson",
+      "sourceId": "Russia_geojson_OSM",
+      "sourceRevision": "5af46d6dab9a502713611846892e4185f157dab7",
+      "cloneUrl": "https://github.com/timurkanaz/Russia_geojson_OSM.git",
+      "sha256": "5cfe7fd0c85ea8d908ad55982f777f22048bc1315a953cc463ae2fdc5b1060a2",
+      "byteSize": 1902233
+    },
+    {
+      "artifactKey": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/CFO/Костромская область_Kostroma region.geojson",
+      "relPath": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/CFO/Костромская область_Kostroma region.geojson",
+      "sourceId": "Russia_geojson_OSM",
+      "sourceRevision": "5af46d6dab9a502713611846892e4185f157dab7",
+      "cloneUrl": "https://github.com/timurkanaz/Russia_geojson_OSM.git",
+      "sha256": "d14d711fcd601ba305679d1b7c6bbd04ff298f4a5d4b83ef952b2cddeb3a7ac4",
+      "byteSize": 974766
+    },
+    {
+      "artifactKey": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/CFO/Курская область_Kursk region.geojson",
+      "relPath": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/CFO/Курская область_Kursk region.geojson",
+      "sourceId": "Russia_geojson_OSM",
+      "sourceRevision": "5af46d6dab9a502713611846892e4185f157dab7",
+      "cloneUrl": "https://github.com/timurkanaz/Russia_geojson_OSM.git",
+      "sha256": "d1984cf910067dafb3c517de8f19c3dbd807de52cd483716a784436a5dd5667a",
+      "byteSize": 846068
+    },
+    {
+      "artifactKey": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/CFO/Липецкая область_Lipetsk region.geojson",
+      "relPath": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/CFO/Липецкая область_Lipetsk region.geojson",
+      "sourceId": "Russia_geojson_OSM",
+      "sourceRevision": "5af46d6dab9a502713611846892e4185f157dab7",
+      "cloneUrl": "https://github.com/timurkanaz/Russia_geojson_OSM.git",
+      "sha256": "b219722e40775c1499ee75597cb8e99c7c5c2e5f5c25c327fda93283ab0f065b",
+      "byteSize": 664478
+    },
+    {
+      "artifactKey": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/CFO/Московская область_Moscow Region.geojson",
+      "relPath": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/CFO/Московская область_Moscow Region.geojson",
+      "sourceId": "Russia_geojson_OSM",
+      "sourceRevision": "5af46d6dab9a502713611846892e4185f157dab7",
+      "cloneUrl": "https://github.com/timurkanaz/Russia_geojson_OSM.git",
+      "sha256": "e3a669a24787c7713d1979345237a9334329bcc77d6be01add30afe3b045e1dd",
+      "byteSize": 2495661
+    },
+    {
+      "artifactKey": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/CFO/Орловская область_Orel region.geojson",
+      "relPath": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/CFO/Орловская область_Orel region.geojson",
+      "sourceId": "Russia_geojson_OSM",
+      "sourceRevision": "5af46d6dab9a502713611846892e4185f157dab7",
+      "cloneUrl": "https://github.com/timurkanaz/Russia_geojson_OSM.git",
+      "sha256": "5b5f5af4eee1ee58e3777b715f1d742a2e5a029cf1f44af781c3c1840e749f78",
+      "byteSize": 470931
+    },
+    {
+      "artifactKey": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/CFO/Рязанская область_Ryazan region.geojson",
+      "relPath": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/CFO/Рязанская область_Ryazan region.geojson",
+      "sourceId": "Russia_geojson_OSM",
+      "sourceRevision": "5af46d6dab9a502713611846892e4185f157dab7",
+      "cloneUrl": "https://github.com/timurkanaz/Russia_geojson_OSM.git",
+      "sha256": "0b945ef67bdc7b71605a87893fcd02cc8774a4a437448e90d74df7db7c9159a8",
+      "byteSize": 1523717
+    },
+    {
+      "artifactKey": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/CFO/Смоленская область_Smolensk region.geojson",
+      "relPath": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/CFO/Смоленская область_Smolensk region.geojson",
+      "sourceId": "Russia_geojson_OSM",
+      "sourceRevision": "5af46d6dab9a502713611846892e4185f157dab7",
+      "cloneUrl": "https://github.com/timurkanaz/Russia_geojson_OSM.git",
+      "sha256": "281d93710a22776925b196798a9236b5babfdf9dab6f9421dcd4a62d72c767ea",
+      "byteSize": 1586194
+    },
+    {
+      "artifactKey": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/CFO/Тамбовская область_Tambov region.geojson",
+      "relPath": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/CFO/Тамбовская область_Tambov region.geojson",
+      "sourceId": "Russia_geojson_OSM",
+      "sourceRevision": "5af46d6dab9a502713611846892e4185f157dab7",
+      "cloneUrl": "https://github.com/timurkanaz/Russia_geojson_OSM.git",
+      "sha256": "b3548d7da5bc35e39c99527323c8b2d09e2d003873f4c42f56053415235bfd54",
+      "byteSize": 661436
+    },
+    {
+      "artifactKey": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/CFO/Тверская область_Tver region.geojson",
+      "relPath": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/CFO/Тверская область_Tver region.geojson",
+      "sourceId": "Russia_geojson_OSM",
+      "sourceRevision": "5af46d6dab9a502713611846892e4185f157dab7",
+      "cloneUrl": "https://github.com/timurkanaz/Russia_geojson_OSM.git",
+      "sha256": "0b256d1915b115fccbec892ef1d33ac99c0310b5c364aa4c755627967bd8621f",
+      "byteSize": 1142500
+    },
+    {
+      "artifactKey": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/CFO/Тульская область_Tula region.geojson",
+      "relPath": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/CFO/Тульская область_Tula region.geojson",
+      "sourceId": "Russia_geojson_OSM",
+      "sourceRevision": "5af46d6dab9a502713611846892e4185f157dab7",
+      "cloneUrl": "https://github.com/timurkanaz/Russia_geojson_OSM.git",
+      "sha256": "e40f730d62a3a9fd68b2d6143d8c0d6f250024a67d64db9e2e538c0ac6d612ad",
+      "byteSize": 676137
+    },
+    {
+      "artifactKey": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/CFO/Ярославская область_Yaroslavl region.geojson",
+      "relPath": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/CFO/Ярославская область_Yaroslavl region.geojson",
+      "sourceId": "Russia_geojson_OSM",
+      "sourceRevision": "5af46d6dab9a502713611846892e4185f157dab7",
+      "cloneUrl": "https://github.com/timurkanaz/Russia_geojson_OSM.git",
+      "sha256": "3cc2025566c6c8d207e70bf432824da08b94d89dcef81904e294e410f9e03495",
+      "byteSize": 587849
+    },
+    {
+      "artifactKey": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/Crimea/Республика Крым_Crimea Republic.geojson",
+      "relPath": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/Crimea/Республика Крым_Crimea Republic.geojson",
+      "sourceId": "Russia_geojson_OSM",
+      "sourceRevision": "5af46d6dab9a502713611846892e4185f157dab7",
+      "cloneUrl": "https://github.com/timurkanaz/Russia_geojson_OSM.git",
+      "sha256": "f7a2ad88a19b3e34d6ecc3abd372d5b77105305a17cd9af75d51467ff1bb1ea9",
+      "byteSize": 1179130
+    },
+    {
+      "artifactKey": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/DFO/Амурская область_Amur Region.geojson",
+      "relPath": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/DFO/Амурская область_Amur Region.geojson",
+      "sourceId": "Russia_geojson_OSM",
+      "sourceRevision": "5af46d6dab9a502713611846892e4185f157dab7",
+      "cloneUrl": "https://github.com/timurkanaz/Russia_geojson_OSM.git",
+      "sha256": "234e1bd97cea9592ef66488145f0129a760aacd989f4069bef8e2cc18787bb66",
+      "byteSize": 1867435
+    },
+    {
+      "artifactKey": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/DFO/Еврейская автономная область_Jewish Autonomous Region.geojson",
+      "relPath": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/DFO/Еврейская автономная область_Jewish Autonomous Region.geojson",
+      "sourceId": "Russia_geojson_OSM",
+      "sourceRevision": "5af46d6dab9a502713611846892e4185f157dab7",
+      "cloneUrl": "https://github.com/timurkanaz/Russia_geojson_OSM.git",
+      "sha256": "ce57a6b1e884226c38779e1d4c2cca7558f0fc88ea3e961d9048e6099278d0f3",
+      "byteSize": 985702
+    },
+    {
+      "artifactKey": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/DFO/Камчатский край_Kamchatka.geojson",
+      "relPath": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/DFO/Камчатский край_Kamchatka.geojson",
+      "sourceId": "Russia_geojson_OSM",
+      "sourceRevision": "5af46d6dab9a502713611846892e4185f157dab7",
+      "cloneUrl": "https://github.com/timurkanaz/Russia_geojson_OSM.git",
+      "sha256": "32efe426b7e3ca4556bfdc6a7df2331eca53b0ce8218e2c21396bc2d3c72eb0e",
+      "byteSize": 676040
+    },
+    {
+      "artifactKey": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/DFO/Магаданская область_Magadan.geojson",
+      "relPath": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/DFO/Магаданская область_Magadan.geojson",
+      "sourceId": "Russia_geojson_OSM",
+      "sourceRevision": "5af46d6dab9a502713611846892e4185f157dab7",
+      "cloneUrl": "https://github.com/timurkanaz/Russia_geojson_OSM.git",
+      "sha256": "104f1a1d4a77b7af963cb2a3c265c204ce2b8f6266cd7dc3caf00f49bcfa8ee8",
+      "byteSize": 865416
+    },
+    {
+      "artifactKey": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/DFO/Приморский край_Primorskiy Region.geojson",
+      "relPath": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/DFO/Приморский край_Primorskiy Region.geojson",
+      "sourceId": "Russia_geojson_OSM",
+      "sourceRevision": "5af46d6dab9a502713611846892e4185f157dab7",
+      "cloneUrl": "https://github.com/timurkanaz/Russia_geojson_OSM.git",
+      "sha256": "10be5bc1d109e87bc311ff57eeef8a291d1c6c829a1bdc425ce35759c33ea153",
+      "byteSize": 3427954
+    },
+    {
+      "artifactKey": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/DFO/Республика Саха (Якутия)_Yakutia.geojson",
+      "relPath": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/DFO/Республика Саха (Якутия)_Yakutia.geojson",
+      "sourceId": "Russia_geojson_OSM",
+      "sourceRevision": "5af46d6dab9a502713611846892e4185f157dab7",
+      "cloneUrl": "https://github.com/timurkanaz/Russia_geojson_OSM.git",
+      "sha256": "b802f61656711fcf3e52e22b57d1d7666f70c696370a53c3ef81a0ead4a1fb66",
+      "byteSize": 17958671
+    },
+    {
+      "artifactKey": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/DFO/Сахалинская область_Sakhalin.geojson",
+      "relPath": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/DFO/Сахалинская область_Sakhalin.geojson",
+      "sourceId": "Russia_geojson_OSM",
+      "sourceRevision": "5af46d6dab9a502713611846892e4185f157dab7",
+      "cloneUrl": "https://github.com/timurkanaz/Russia_geojson_OSM.git",
+      "sha256": "46530c4f8102e5a04c9064ce49a9b6d9ca876d4506336291f693361f0b093e3d",
+      "byteSize": 386274
+    },
+    {
+      "artifactKey": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/DFO/Хабаровский край_Khabarovsk Region.geojson",
+      "relPath": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/DFO/Хабаровский край_Khabarovsk Region.geojson",
+      "sourceId": "Russia_geojson_OSM",
+      "sourceRevision": "5af46d6dab9a502713611846892e4185f157dab7",
+      "cloneUrl": "https://github.com/timurkanaz/Russia_geojson_OSM.git",
+      "sha256": "ecb2205a82eb4572d82729442df9897244e1cc2de4da47da3df669918d6f4670",
+      "byteSize": 3074827
+    },
+    {
+      "artifactKey": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/DFO/Чукотский автономный округ_Chukotka Autonomous Region.geojson",
+      "relPath": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/DFO/Чукотский автономный округ_Chukotka Autonomous Region.geojson",
+      "sourceId": "Russia_geojson_OSM",
+      "sourceRevision": "5af46d6dab9a502713611846892e4185f157dab7",
+      "cloneUrl": "https://github.com/timurkanaz/Russia_geojson_OSM.git",
+      "sha256": "4993287241cf294be426d4caaf90377e07836601ae8360698fc78c5ec595e3c0",
+      "byteSize": 573553
+    },
+    {
+      "artifactKey": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/PFO/Кировская область_Kirov Region.geojson",
+      "relPath": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/PFO/Кировская область_Kirov Region.geojson",
+      "sourceId": "Russia_geojson_OSM",
+      "sourceRevision": "5af46d6dab9a502713611846892e4185f157dab7",
+      "cloneUrl": "https://github.com/timurkanaz/Russia_geojson_OSM.git",
+      "sha256": "bde0c39b5f02873d35303022fc5b9b7e26d43ea595501a85701fe44004cc7c9e",
+      "byteSize": 1223653
+    },
+    {
+      "artifactKey": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/PFO/Нижегородская область_Nizhny Novgorod Region.geojson",
+      "relPath": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/PFO/Нижегородская область_Nizhny Novgorod Region.geojson",
+      "sourceId": "Russia_geojson_OSM",
+      "sourceRevision": "5af46d6dab9a502713611846892e4185f157dab7",
+      "cloneUrl": "https://github.com/timurkanaz/Russia_geojson_OSM.git",
+      "sha256": "14dea0b4cde38e7e627e360cdee1ba82d29152dcf091d478a481271e292e75a7",
+      "byteSize": 3171538
+    },
+    {
+      "artifactKey": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/PFO/Оренбургская область_Orenburg Region.geojson",
+      "relPath": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/PFO/Оренбургская область_Orenburg Region.geojson",
+      "sourceId": "Russia_geojson_OSM",
+      "sourceRevision": "5af46d6dab9a502713611846892e4185f157dab7",
+      "cloneUrl": "https://github.com/timurkanaz/Russia_geojson_OSM.git",
+      "sha256": "ad0dcd60dce6a74efe074fda5f2645dbf4d9ea37f8a8dc2e42cd4cf30608a672",
+      "byteSize": 868215
+    },
+    {
+      "artifactKey": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/PFO/Пензенская область_Penza Region.geojson",
+      "relPath": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/PFO/Пензенская область_Penza Region.geojson",
+      "sourceId": "Russia_geojson_OSM",
+      "sourceRevision": "5af46d6dab9a502713611846892e4185f157dab7",
+      "cloneUrl": "https://github.com/timurkanaz/Russia_geojson_OSM.git",
+      "sha256": "8d707028f6716a4c6abfeb3b09c20977d6a7beb62c3c8502258b852c35b574ce",
+      "byteSize": 833277
+    },
+    {
+      "artifactKey": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/PFO/Пермский край_Perm Region.geojson",
+      "relPath": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/PFO/Пермский край_Perm Region.geojson",
+      "sourceId": "Russia_geojson_OSM",
+      "sourceRevision": "5af46d6dab9a502713611846892e4185f157dab7",
+      "cloneUrl": "https://github.com/timurkanaz/Russia_geojson_OSM.git",
+      "sha256": "33772ea3c58ae6d9da76d07172a82809746eab41231f85112e7de67e9c413d88",
+      "byteSize": 1586054
+    },
+    {
+      "artifactKey": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/PFO/Республика Башкортостан_Bashkortostan Republic.geojson",
+      "relPath": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/PFO/Республика Башкортостан_Bashkortostan Republic.geojson",
+      "sourceId": "Russia_geojson_OSM",
+      "sourceRevision": "5af46d6dab9a502713611846892e4185f157dab7",
+      "cloneUrl": "https://github.com/timurkanaz/Russia_geojson_OSM.git",
+      "sha256": "b02d5556c2938c7fb6dad47ae853642c2cd88a02e705569d4562c74d18305ee9",
+      "byteSize": 2117599
+    },
+    {
+      "artifactKey": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/PFO/Республика Марий Эл_Mari El Republic.geojson",
+      "relPath": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/PFO/Республика Марий Эл_Mari El Republic.geojson",
+      "sourceId": "Russia_geojson_OSM",
+      "sourceRevision": "5af46d6dab9a502713611846892e4185f157dab7",
+      "cloneUrl": "https://github.com/timurkanaz/Russia_geojson_OSM.git",
+      "sha256": "ddd0e29da7cb9103a381389f8167648135a48755296fc608a2a74fe54c42d097",
+      "byteSize": 565157
+    },
+    {
+      "artifactKey": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/PFO/Республика Мордовия_Mordovia Republic.geojson",
+      "relPath": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/PFO/Республика Мордовия_Mordovia Republic.geojson",
+      "sourceId": "Russia_geojson_OSM",
+      "sourceRevision": "5af46d6dab9a502713611846892e4185f157dab7",
+      "cloneUrl": "https://github.com/timurkanaz/Russia_geojson_OSM.git",
+      "sha256": "0746fcad74a80f9590378244287c955c89a25598355ace11a28454451f085f03",
+      "byteSize": 1883287
+    },
+    {
+      "artifactKey": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/PFO/Республика Татарстан_Tatarstan.geojson",
+      "relPath": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/PFO/Республика Татарстан_Tatarstan.geojson",
+      "sourceId": "Russia_geojson_OSM",
+      "sourceRevision": "5af46d6dab9a502713611846892e4185f157dab7",
+      "cloneUrl": "https://github.com/timurkanaz/Russia_geojson_OSM.git",
+      "sha256": "02ca6a71bf79b68ae388031143a5c5bfb3e912ceea3ab03fdf205e9ee33017ad",
+      "byteSize": 2301640
+    },
+    {
+      "artifactKey": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/PFO/Самарская область_Samara Region.geojson",
+      "relPath": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/PFO/Самарская область_Samara Region.geojson",
+      "sourceId": "Russia_geojson_OSM",
+      "sourceRevision": "5af46d6dab9a502713611846892e4185f157dab7",
+      "cloneUrl": "https://github.com/timurkanaz/Russia_geojson_OSM.git",
+      "sha256": "abe8165e4494626e2cea75bd4d6998d748a493350774666b4abc770a8ba40fb2",
+      "byteSize": 821601
+    },
+    {
+      "artifactKey": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/PFO/Саратовская область_Saratov Region.geojson",
+      "relPath": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/PFO/Саратовская область_Saratov Region.geojson",
+      "sourceId": "Russia_geojson_OSM",
+      "sourceRevision": "5af46d6dab9a502713611846892e4185f157dab7",
+      "cloneUrl": "https://github.com/timurkanaz/Russia_geojson_OSM.git",
+      "sha256": "6188b57b0d14c7912fa663555213eb7dc5461cc4c71ae0b02555a960fd9a880a",
+      "byteSize": 1239651
+    },
+    {
+      "artifactKey": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/PFO/Удмуртская Республика_Udmurtia Republic.geojson",
+      "relPath": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/PFO/Удмуртская Республика_Udmurtia Republic.geojson",
+      "sourceId": "Russia_geojson_OSM",
+      "sourceRevision": "5af46d6dab9a502713611846892e4185f157dab7",
+      "cloneUrl": "https://github.com/timurkanaz/Russia_geojson_OSM.git",
+      "sha256": "c3424831b33eb1ab5ecbce0a641f84c04af940b521ac96daa9ce1c46b6ea2104",
+      "byteSize": 512483
+    },
+    {
+      "artifactKey": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/PFO/Ульяновская область_Ulyanovsk Region.geojson",
+      "relPath": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/PFO/Ульяновская область_Ulyanovsk Region.geojson",
+      "sourceId": "Russia_geojson_OSM",
+      "sourceRevision": "5af46d6dab9a502713611846892e4185f157dab7",
+      "cloneUrl": "https://github.com/timurkanaz/Russia_geojson_OSM.git",
+      "sha256": "ad208e8fc3ce407ff4c1cd42f14217313f24f7fd07b8eec51f551810f9bc42e2",
+      "byteSize": 898268
+    },
+    {
+      "artifactKey": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/PFO/Чувашская Республика - Чувашия_Chuvashia Republic.geojson",
+      "relPath": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/PFO/Чувашская Республика - Чувашия_Chuvashia Republic.geojson",
+      "sourceId": "Russia_geojson_OSM",
+      "sourceRevision": "5af46d6dab9a502713611846892e4185f157dab7",
+      "cloneUrl": "https://github.com/timurkanaz/Russia_geojson_OSM.git",
+      "sha256": "4f69fe98c9391e6ba2de77dcf66b92d8d2910160bd455c6d3257352d2541f93d",
+      "byteSize": 922792
+    },
+    {
+      "artifactKey": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/SFO/Алтайский край_Altai Region.geojson",
+      "relPath": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/SFO/Алтайский край_Altai Region.geojson",
+      "sourceId": "Russia_geojson_OSM",
+      "sourceRevision": "5af46d6dab9a502713611846892e4185f157dab7",
+      "cloneUrl": "https://github.com/timurkanaz/Russia_geojson_OSM.git",
+      "sha256": "8affb7b8b67f8a7c94c09e65fdf5bd2135f44e10da872cfc822aaed5b56bd47a",
+      "byteSize": 1727748
+    },
+    {
+      "artifactKey": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/SFO/Забайкальский край_Zabaikalskiy Region.geojson",
+      "relPath": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/SFO/Забайкальский край_Zabaikalskiy Region.geojson",
+      "sourceId": "Russia_geojson_OSM",
+      "sourceRevision": "5af46d6dab9a502713611846892e4185f157dab7",
+      "cloneUrl": "https://github.com/timurkanaz/Russia_geojson_OSM.git",
+      "sha256": "f0310a55716e736288edd89873bc66c9179751058f6a5d7ce21ead4cc6b9811f",
+      "byteSize": 1211368
+    },
+    {
+      "artifactKey": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/SFO/Иркутская область_Irkutsk Region.geojson",
+      "relPath": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/SFO/Иркутская область_Irkutsk Region.geojson",
+      "sourceId": "Russia_geojson_OSM",
+      "sourceRevision": "5af46d6dab9a502713611846892e4185f157dab7",
+      "cloneUrl": "https://github.com/timurkanaz/Russia_geojson_OSM.git",
+      "sha256": "41ad86a936df636000a5c99c1741164bd169000753e49498cc627464147677d6",
+      "byteSize": 4184375
+    },
+    {
+      "artifactKey": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/SFO/Кемеровская область_Kemerovo Region.geojson",
+      "relPath": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/SFO/Кемеровская область_Kemerovo Region.geojson",
+      "sourceId": "Russia_geojson_OSM",
+      "sourceRevision": "5af46d6dab9a502713611846892e4185f157dab7",
+      "cloneUrl": "https://github.com/timurkanaz/Russia_geojson_OSM.git",
+      "sha256": "75ad57eb2222a3e2460c1efcd782bbee58512a1563e1cc16e0e4c822c7536b72",
+      "byteSize": 1067384
+    },
+    {
+      "artifactKey": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/SFO/Красноярский край_Krasnoyarsk Region.geojson",
+      "relPath": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/SFO/Красноярский край_Krasnoyarsk Region.geojson",
+      "sourceId": "Russia_geojson_OSM",
+      "sourceRevision": "5af46d6dab9a502713611846892e4185f157dab7",
+      "cloneUrl": "https://github.com/timurkanaz/Russia_geojson_OSM.git",
+      "sha256": "395572f03b970256d95122ddadbcaae74f1e29e631846691fff82bb2e6837af8",
+      "byteSize": 6549881
+    },
+    {
+      "artifactKey": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/SFO/Новосибирская область_Novosibirsk Region.geojson",
+      "relPath": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/SFO/Новосибирская область_Novosibirsk Region.geojson",
+      "sourceId": "Russia_geojson_OSM",
+      "sourceRevision": "5af46d6dab9a502713611846892e4185f157dab7",
+      "cloneUrl": "https://github.com/timurkanaz/Russia_geojson_OSM.git",
+      "sha256": "5e06b72ea7ca6e4ac7ffe8ad6496ce6b684752177059c7b20248e73b9e731f86",
+      "byteSize": 2018212
+    },
+    {
+      "artifactKey": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/SFO/Омская область_Omsk Region.geojson",
+      "relPath": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/SFO/Омская область_Omsk Region.geojson",
+      "sourceId": "Russia_geojson_OSM",
+      "sourceRevision": "5af46d6dab9a502713611846892e4185f157dab7",
+      "cloneUrl": "https://github.com/timurkanaz/Russia_geojson_OSM.git",
+      "sha256": "156aeee1552a58ff35f7b8294cbe5f7497c6027210787b369a28be74f081525d",
+      "byteSize": 515156
+    },
+    {
+      "artifactKey": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/SFO/Республика Алтай_Altai Republic.geojson",
+      "relPath": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/SFO/Республика Алтай_Altai Republic.geojson",
+      "sourceId": "Russia_geojson_OSM",
+      "sourceRevision": "5af46d6dab9a502713611846892e4185f157dab7",
+      "cloneUrl": "https://github.com/timurkanaz/Russia_geojson_OSM.git",
+      "sha256": "60f9f381bd86ce19b26a5c3a586d0d9ac425fc6583d4c206b720293c161440b5",
+      "byteSize": 641993
+    },
+    {
+      "artifactKey": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/SFO/Республика Бурятия_Buryat Republic.geojson",
+      "relPath": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/SFO/Республика Бурятия_Buryat Republic.geojson",
+      "sourceId": "Russia_geojson_OSM",
+      "sourceRevision": "5af46d6dab9a502713611846892e4185f157dab7",
+      "cloneUrl": "https://github.com/timurkanaz/Russia_geojson_OSM.git",
+      "sha256": "2749c7a437d1c8fcbdc4d3e443276e98fcd918ad3b5a453800af476e02d00c6d",
+      "byteSize": 1535463
+    },
+    {
+      "artifactKey": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/SFO/Республика Тыва_Tyva Republic.geojson",
+      "relPath": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/SFO/Республика Тыва_Tyva Republic.geojson",
+      "sourceId": "Russia_geojson_OSM",
+      "sourceRevision": "5af46d6dab9a502713611846892e4185f157dab7",
+      "cloneUrl": "https://github.com/timurkanaz/Russia_geojson_OSM.git",
+      "sha256": "5575e4bbded7377054c11e04f8840121bd981b46799c4695ed505f19b0214aad",
+      "byteSize": 1331908
+    },
+    {
+      "artifactKey": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/SFO/Республика Хакасия_Khaksia Republic.geojson",
+      "relPath": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/SFO/Республика Хакасия_Khaksia Republic.geojson",
+      "sourceId": "Russia_geojson_OSM",
+      "sourceRevision": "5af46d6dab9a502713611846892e4185f157dab7",
+      "cloneUrl": "https://github.com/timurkanaz/Russia_geojson_OSM.git",
+      "sha256": "38350c97db0052150862e35d8838df55c07db4c93f736e0a2d5ecff68d866e8e",
+      "byteSize": 434176
+    },
+    {
+      "artifactKey": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/SFO/Томская область_Tom Region.geojson",
+      "relPath": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/SFO/Томская область_Tom Region.geojson",
+      "sourceId": "Russia_geojson_OSM",
+      "sourceRevision": "5af46d6dab9a502713611846892e4185f157dab7",
+      "cloneUrl": "https://github.com/timurkanaz/Russia_geojson_OSM.git",
+      "sha256": "8f0790869c72c0ec6f1022b521e5d860e8d61d615af527015c5412f1e5718fbc",
+      "byteSize": 838207
+    },
+    {
+      "artifactKey": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/SKFO/Кабардино-Балкарская Республика_Kabardino-Balkaria Republic.geojson",
+      "relPath": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/SKFO/Кабардино-Балкарская Республика_Kabardino-Balkaria Republic.geojson",
+      "sourceId": "Russia_geojson_OSM",
+      "sourceRevision": "5af46d6dab9a502713611846892e4185f157dab7",
+      "cloneUrl": "https://github.com/timurkanaz/Russia_geojson_OSM.git",
+      "sha256": "5f978fd6d28235c047be58c300ec9dc97ba46835445c5f383e6626aa8d40c623",
+      "byteSize": 453725
+    },
+    {
+      "artifactKey": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/SKFO/Карачаево-Черкесская Республика_Karachayevo-Cherkessiya Republic.geojson",
+      "relPath": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/SKFO/Карачаево-Черкесская Республика_Karachayevo-Cherkessiya Republic.geojson",
+      "sourceId": "Russia_geojson_OSM",
+      "sourceRevision": "5af46d6dab9a502713611846892e4185f157dab7",
+      "cloneUrl": "https://github.com/timurkanaz/Russia_geojson_OSM.git",
+      "sha256": "42b14ad9bc57480257992c63a82bfedcadf48391e3608dbc1fa36a8baf41a2c1",
+      "byteSize": 290978
+    },
+    {
+      "artifactKey": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/SKFO/Республика Дагестан_Dagestan Republic.geojson",
+      "relPath": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/SKFO/Республика Дагестан_Dagestan Republic.geojson",
+      "sourceId": "Russia_geojson_OSM",
+      "sourceRevision": "5af46d6dab9a502713611846892e4185f157dab7",
+      "cloneUrl": "https://github.com/timurkanaz/Russia_geojson_OSM.git",
+      "sha256": "f1b800c4a3709918b557b687a750b223fcbb6d080c7b1e79f23654ae7b3738d8",
+      "byteSize": 1606682
+    },
+    {
+      "artifactKey": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/SKFO/Республика Ингушетия_Ingushetia Republic.geojson",
+      "relPath": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/SKFO/Республика Ингушетия_Ingushetia Republic.geojson",
+      "sourceId": "Russia_geojson_OSM",
+      "sourceRevision": "5af46d6dab9a502713611846892e4185f157dab7",
+      "cloneUrl": "https://github.com/timurkanaz/Russia_geojson_OSM.git",
+      "sha256": "9695437d8552d1c3602647a99a875008a3df54faa02af5b8b75c3513b9ad6be4",
+      "byteSize": 96947
+    },
+    {
+      "artifactKey": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/SKFO/Республика Северная Осетия-Алания_North Osetia Republic.geojson",
+      "relPath": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/SKFO/Республика Северная Осетия-Алания_North Osetia Republic.geojson",
+      "sourceId": "Russia_geojson_OSM",
+      "sourceRevision": "5af46d6dab9a502713611846892e4185f157dab7",
+      "cloneUrl": "https://github.com/timurkanaz/Russia_geojson_OSM.git",
+      "sha256": "0b5dbda0c086ce7b23eb7ca3be8bda460d9caa0941f2fee0fb0c5b4040ea9dbf",
+      "byteSize": 129826
+    },
+    {
+      "artifactKey": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/SKFO/Ставропольский край_Stavropol Region.geojson",
+      "relPath": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/SKFO/Ставропольский край_Stavropol Region.geojson",
+      "sourceId": "Russia_geojson_OSM",
+      "sourceRevision": "5af46d6dab9a502713611846892e4185f157dab7",
+      "cloneUrl": "https://github.com/timurkanaz/Russia_geojson_OSM.git",
+      "sha256": "9a78fc42f8db7e81a6e1672199fd7161efd89c35074e7d82baeeda7f005fe851",
+      "byteSize": 673955
+    },
+    {
+      "artifactKey": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/SKFO/Чеченская Республика_Chechnya Republic.geojson",
+      "relPath": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/SKFO/Чеченская Республика_Chechnya Republic.geojson",
+      "sourceId": "Russia_geojson_OSM",
+      "sourceRevision": "5af46d6dab9a502713611846892e4185f157dab7",
+      "cloneUrl": "https://github.com/timurkanaz/Russia_geojson_OSM.git",
+      "sha256": "b1b46e88a7e6158d53895e0021811a4345903bc06ed64cefb5c950c3ee5682fa",
+      "byteSize": 848687
+    },
+    {
+      "artifactKey": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/SZFO/Архангельская область_Arhangelsk region.geojson",
+      "relPath": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/SZFO/Архангельская область_Arhangelsk region.geojson",
+      "sourceId": "Russia_geojson_OSM",
+      "sourceRevision": "5af46d6dab9a502713611846892e4185f157dab7",
+      "cloneUrl": "https://github.com/timurkanaz/Russia_geojson_OSM.git",
+      "sha256": "4911d771591a58d3c9fbbce7cd60a9b123ad8481cc03dc8f10649fd6f405ff28",
+      "byteSize": 499813
+    },
+    {
+      "artifactKey": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/SZFO/Вологодская область_Vologda region.geojson",
+      "relPath": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/SZFO/Вологодская область_Vologda region.geojson",
+      "sourceId": "Russia_geojson_OSM",
+      "sourceRevision": "5af46d6dab9a502713611846892e4185f157dab7",
+      "cloneUrl": "https://github.com/timurkanaz/Russia_geojson_OSM.git",
+      "sha256": "43fb956c7c6a01598060a27dc6a5dc716a939ff7b91522af728d4323c1aa2196",
+      "byteSize": 422069
+    },
+    {
+      "artifactKey": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/SZFO/Калининградская область_Kaliningrad region.geojson",
+      "relPath": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/SZFO/Калининградская область_Kaliningrad region.geojson",
+      "sourceId": "Russia_geojson_OSM",
+      "sourceRevision": "5af46d6dab9a502713611846892e4185f157dab7",
+      "cloneUrl": "https://github.com/timurkanaz/Russia_geojson_OSM.git",
+      "sha256": "be99b7303c7441b35741c8822884cc7405689aaaf4ca909369a5725cda6a319b",
+      "byteSize": 822712
+    },
+    {
+      "artifactKey": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/SZFO/Ленинградская область_Leningrad region.geojson",
+      "relPath": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/SZFO/Ленинградская область_Leningrad region.geojson",
+      "sourceId": "Russia_geojson_OSM",
+      "sourceRevision": "5af46d6dab9a502713611846892e4185f157dab7",
+      "cloneUrl": "https://github.com/timurkanaz/Russia_geojson_OSM.git",
+      "sha256": "abf90f7333af7886b428cdc7717d7444edb6b16accf6ea3248b742e7fcef70a4",
+      "byteSize": 866709
+    },
+    {
+      "artifactKey": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/SZFO/Мурманская область_Murmansk region.geojson",
+      "relPath": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/SZFO/Мурманская область_Murmansk region.geojson",
+      "sourceId": "Russia_geojson_OSM",
+      "sourceRevision": "5af46d6dab9a502713611846892e4185f157dab7",
+      "cloneUrl": "https://github.com/timurkanaz/Russia_geojson_OSM.git",
+      "sha256": "3908c046b816a72380e50b3e3c2803a62fd33b263b6de564fbccf496cd2c7d4e",
+      "byteSize": 326935
+    },
+    {
+      "artifactKey": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/SZFO/Ненецкий автономный округ_Nenets Autonomous District.geojson",
+      "relPath": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/SZFO/Ненецкий автономный округ_Nenets Autonomous District.geojson",
+      "sourceId": "Russia_geojson_OSM",
+      "sourceRevision": "5af46d6dab9a502713611846892e4185f157dab7",
+      "cloneUrl": "https://github.com/timurkanaz/Russia_geojson_OSM.git",
+      "sha256": "bea9bd20d3fbaf5e9b1bb3ffacf3a92b9bb67ccdfd16159a068cfd8b72fd4a64",
+      "byteSize": 353441
+    },
+    {
+      "artifactKey": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/SZFO/Новгородская область_Novgorod region.geojson",
+      "relPath": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/SZFO/Новгородская область_Novgorod region.geojson",
+      "sourceId": "Russia_geojson_OSM",
+      "sourceRevision": "5af46d6dab9a502713611846892e4185f157dab7",
+      "cloneUrl": "https://github.com/timurkanaz/Russia_geojson_OSM.git",
+      "sha256": "7cf1cd62cec9ec7fb03a6466b3e3742aeaf419aae7c70685540bde87782c45e1",
+      "byteSize": 324760
+    },
+    {
+      "artifactKey": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/SZFO/Псковская область_Pskov region.geojson",
+      "relPath": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/SZFO/Псковская область_Pskov region.geojson",
+      "sourceId": "Russia_geojson_OSM",
+      "sourceRevision": "5af46d6dab9a502713611846892e4185f157dab7",
+      "cloneUrl": "https://github.com/timurkanaz/Russia_geojson_OSM.git",
+      "sha256": "2e95d97b4fe3650cc5f1b88c73200f63c288f1183c75a321da4f547feacc2d57",
+      "byteSize": 1499388
+    },
+    {
+      "artifactKey": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/SZFO/Республика Карелия_Karelia region.geojson",
+      "relPath": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/SZFO/Республика Карелия_Karelia region.geojson",
+      "sourceId": "Russia_geojson_OSM",
+      "sourceRevision": "5af46d6dab9a502713611846892e4185f157dab7",
+      "cloneUrl": "https://github.com/timurkanaz/Russia_geojson_OSM.git",
+      "sha256": "45789b344f98941ff93e572b794f6a5700af44361947266c1f06f582196a3358",
+      "byteSize": 201418
+    },
+    {
+      "artifactKey": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/SZFO/Республика Коми_Komi region.geojson",
+      "relPath": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/SZFO/Республика Коми_Komi region.geojson",
+      "sourceId": "Russia_geojson_OSM",
+      "sourceRevision": "5af46d6dab9a502713611846892e4185f157dab7",
+      "cloneUrl": "https://github.com/timurkanaz/Russia_geojson_OSM.git",
+      "sha256": "cd49a9e6d7e62e4b8e0619c86d65adafeb0a4e756422a3e401c4201141e3c303",
+      "byteSize": 750658
+    },
+    {
+      "artifactKey": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/UFO/Курганская область_Kurgan Region.geojson",
+      "relPath": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/UFO/Курганская область_Kurgan Region.geojson",
+      "sourceId": "Russia_geojson_OSM",
+      "sourceRevision": "5af46d6dab9a502713611846892e4185f157dab7",
+      "cloneUrl": "https://github.com/timurkanaz/Russia_geojson_OSM.git",
+      "sha256": "a56241eb7ac77b83aefa181aa9bde4e3081b9e5c30eca686a7e8c7fb33ff8951",
+      "byteSize": 412849
+    },
+    {
+      "artifactKey": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/UFO/Свердловская область_Sverdlovsk Region.geojson",
+      "relPath": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/UFO/Свердловская область_Sverdlovsk Region.geojson",
+      "sourceId": "Russia_geojson_OSM",
+      "sourceRevision": "5af46d6dab9a502713611846892e4185f157dab7",
+      "cloneUrl": "https://github.com/timurkanaz/Russia_geojson_OSM.git",
+      "sha256": "d057f949d0745e5fe07a58442bb93fde7b3046d2b6f4f6c51a401a0cb3ec66eb",
+      "byteSize": 798228
+    },
+    {
+      "artifactKey": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/UFO/Тюменская область_Tyumen Region.geojson",
+      "relPath": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/UFO/Тюменская область_Tyumen Region.geojson",
+      "sourceId": "Russia_geojson_OSM",
+      "sourceRevision": "5af46d6dab9a502713611846892e4185f157dab7",
+      "cloneUrl": "https://github.com/timurkanaz/Russia_geojson_OSM.git",
+      "sha256": "8fa0076f5c6605e647dfc20499852a3aa4b97ae550f25f055b4b389fd34b9929",
+      "byteSize": 803790
+    },
+    {
+      "artifactKey": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/UFO/Ханты-Мансийский автономный округ_Khanty-Mansy Autonomous Region.geojson",
+      "relPath": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/UFO/Ханты-Мансийский автономный округ_Khanty-Mansy Autonomous Region.geojson",
+      "sourceId": "Russia_geojson_OSM",
+      "sourceRevision": "5af46d6dab9a502713611846892e4185f157dab7",
+      "cloneUrl": "https://github.com/timurkanaz/Russia_geojson_OSM.git",
+      "sha256": "13b7c3a5ffc79b2b9374baa2d2e7760a80097f9024305c32a96fb3a61a258c31",
+      "byteSize": 2373749
+    },
+    {
+      "artifactKey": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/UFO/Челябинская область_Chelyabinsk Region.geojson",
+      "relPath": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/UFO/Челябинская область_Chelyabinsk Region.geojson",
+      "sourceId": "Russia_geojson_OSM",
+      "sourceRevision": "5af46d6dab9a502713611846892e4185f157dab7",
+      "cloneUrl": "https://github.com/timurkanaz/Russia_geojson_OSM.git",
+      "sha256": "8486c92607cb67f9a17c9960b0cdbc4196711919d2be67cbcce7d9b4fb5cfb54",
+      "byteSize": 998516
+    },
+    {
+      "artifactKey": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/UFO/Ямало-Ненецкий автономный округ_Yamalo-Nenets Autonomous Region.geojson",
+      "relPath": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/UFO/Ямало-Ненецкий автономный округ_Yamalo-Nenets Autonomous Region.geojson",
+      "sourceId": "Russia_geojson_OSM",
+      "sourceRevision": "5af46d6dab9a502713611846892e4185f157dab7",
+      "cloneUrl": "https://github.com/timurkanaz/Russia_geojson_OSM.git",
+      "sha256": "6e363856b037aad5c3288392303bfd570e06a9d7e3801627affb3c0545b4c3a0",
+      "byteSize": 832903
+    },
+    {
+      "artifactKey": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/YUFO/Астраханская область_Astrakhan region.geojson",
+      "relPath": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/YUFO/Астраханская область_Astrakhan region.geojson",
+      "sourceId": "Russia_geojson_OSM",
+      "sourceRevision": "5af46d6dab9a502713611846892e4185f157dab7",
+      "cloneUrl": "https://github.com/timurkanaz/Russia_geojson_OSM.git",
+      "sha256": "5d4ea1bb3720f931cc832594dea7c2493ef29ee8e5ff64874ea29af242de2c30",
+      "byteSize": 396051
+    },
+    {
+      "artifactKey": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/YUFO/Волгоградская область_Volgograd region.geojson",
+      "relPath": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/YUFO/Волгоградская область_Volgograd region.geojson",
+      "sourceId": "Russia_geojson_OSM",
+      "sourceRevision": "5af46d6dab9a502713611846892e4185f157dab7",
+      "cloneUrl": "https://github.com/timurkanaz/Russia_geojson_OSM.git",
+      "sha256": "110c26349a327c2bb229c1458dfb9e52b96a524df9c4c8cf58155a0210ec474d",
+      "byteSize": 1154607
+    },
+    {
+      "artifactKey": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/YUFO/Краснодарский край_Krasnodar region.geojson",
+      "relPath": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/YUFO/Краснодарский край_Krasnodar region.geojson",
+      "sourceId": "Russia_geojson_OSM",
+      "sourceRevision": "5af46d6dab9a502713611846892e4185f157dab7",
+      "cloneUrl": "https://github.com/timurkanaz/Russia_geojson_OSM.git",
+      "sha256": "3c4b8a1feeb8e8fa210da0cd35b2a88716cb58255cd337829f33a9383be8bdb2",
+      "byteSize": 1655363
+    },
+    {
+      "artifactKey": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/YUFO/Республика Адыгея (Адыгея)_Adygea Republic.geojson",
+      "relPath": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/YUFO/Республика Адыгея (Адыгея)_Adygea Republic.geojson",
+      "sourceId": "Russia_geojson_OSM",
+      "sourceRevision": "5af46d6dab9a502713611846892e4185f157dab7",
+      "cloneUrl": "https://github.com/timurkanaz/Russia_geojson_OSM.git",
+      "sha256": "563b2e4dffe5c55002d402b6a1bfe204d1de5e960ebfd4cca2f3ef125de1f7ff",
+      "byteSize": 198232
+    },
+    {
+      "artifactKey": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/YUFO/Республика Калмыкия_Kalmykia Republic.geojson",
+      "relPath": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/YUFO/Республика Калмыкия_Kalmykia Republic.geojson",
+      "sourceId": "Russia_geojson_OSM",
+      "sourceRevision": "5af46d6dab9a502713611846892e4185f157dab7",
+      "cloneUrl": "https://github.com/timurkanaz/Russia_geojson_OSM.git",
+      "sha256": "f01eb76977c34144ca2be0301a2944f52be80e16f221574440647f97cc81c6f4",
+      "byteSize": 226160
+    },
+    {
+      "artifactKey": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/YUFO/Ростовская область_Rostov region.geojson",
+      "relPath": "boundaries/Russia_geojson_OSM/GeoJson's/Regions/YUFO/Ростовская область_Rostov region.geojson",
+      "sourceId": "Russia_geojson_OSM",
+      "sourceRevision": "5af46d6dab9a502713611846892e4185f157dab7",
+      "cloneUrl": "https://github.com/timurkanaz/Russia_geojson_OSM.git",
+      "sha256": "8e470deb3adbf317bc5a593bf69f2402413331baa6874d72875bd4b11ead5bcd",
+      "byteSize": 2145503
+    },
+    {
+      "artifactKey": "boundaries/Russia_geojson_OSM/Readme.md",
+      "relPath": "boundaries/Russia_geojson_OSM/Readme.md",
+      "sourceId": "Russia_geojson_OSM",
+      "sourceRevision": "5af46d6dab9a502713611846892e4185f157dab7",
+      "cloneUrl": "https://github.com/timurkanaz/Russia_geojson_OSM.git",
+      "sha256": "93b091a978798b9065c501922a793f34ee4bb8e6a8c0d59f8529962a74fa8a6a",
+      "byteSize": 192
+    },
+    {
+      "artifactKey": "boundaries/rnekrasov-geojson/admin_level_0.geojson",
+      "relPath": "boundaries/rnekrasov-geojson/admin_level_0.geojson",
+      "sourceId": "rnekrasov-geojson",
+      "sourceRevision": "7591d6609fe5cfdb4a0245b3a7cea9aae36bf737",
+      "cloneUrl": "https://github.com/rnekrasov-msk/geojson.git",
+      "sha256": "298a55889244e93f6626c1b32d2b37580c6ed8fa1bdb9ca797de0311e94b11a9",
+      "byteSize": 233
+    },
+    {
+      "artifactKey": "boundaries/rnekrasov-geojson/admin_level_1.geojson",
+      "relPath": "boundaries/rnekrasov-geojson/admin_level_1.geojson",
+      "sourceId": "rnekrasov-geojson",
+      "sourceRevision": "7591d6609fe5cfdb4a0245b3a7cea9aae36bf737",
+      "cloneUrl": "https://github.com/rnekrasov-msk/geojson.git",
+      "sha256": "298a55889244e93f6626c1b32d2b37580c6ed8fa1bdb9ca797de0311e94b11a9",
+      "byteSize": 233
+    },
+    {
+      "artifactKey": "boundaries/rnekrasov-geojson/admin_level_10.geojson",
+      "relPath": "boundaries/rnekrasov-geojson/admin_level_10.geojson",
+      "sourceId": "rnekrasov-geojson",
+      "sourceRevision": "7591d6609fe5cfdb4a0245b3a7cea9aae36bf737",
+      "cloneUrl": "https://github.com/rnekrasov-msk/geojson.git",
+      "sha256": "890690d93b1294d3ee860b9e168ba5aa3ef60c229d4840fac05bb772d69984ca",
+      "byteSize": 20940351
+    },
+    {
+      "artifactKey": "boundaries/rnekrasov-geojson/admin_level_2.geojson",
+      "relPath": "boundaries/rnekrasov-geojson/admin_level_2.geojson",
+      "sourceId": "rnekrasov-geojson",
+      "sourceRevision": "7591d6609fe5cfdb4a0245b3a7cea9aae36bf737",
+      "cloneUrl": "https://github.com/rnekrasov-msk/geojson.git",
+      "sha256": "c91a663095d421af0262485590b24cd9c281a30270a06bf27a95dcf5438900b9",
+      "byteSize": 2576223
+    },
+    {
+      "artifactKey": "boundaries/rnekrasov-geojson/admin_level_3.geojson",
+      "relPath": "boundaries/rnekrasov-geojson/admin_level_3.geojson",
+      "sourceId": "rnekrasov-geojson",
+      "sourceRevision": "7591d6609fe5cfdb4a0245b3a7cea9aae36bf737",
+      "cloneUrl": "https://github.com/rnekrasov-msk/geojson.git",
+      "sha256": "7d31c22d90683d1cde923f30d4473a18591898b66cbd1a765310134eabda9bd2",
+      "byteSize": 8278563
+    },
+    {
+      "artifactKey": "boundaries/rnekrasov-geojson/admin_level_9.geojson",
+      "relPath": "boundaries/rnekrasov-geojson/admin_level_9.geojson",
+      "sourceId": "rnekrasov-geojson",
+      "sourceRevision": "7591d6609fe5cfdb4a0245b3a7cea9aae36bf737",
+      "cloneUrl": "https://github.com/rnekrasov-msk/geojson.git",
+      "sha256": "bd2d45777e7ca51dc46f3c1ffef54fab130c4097a38e2381bc4186eef75c3763",
+      "byteSize": 4741578
+    },
+    {
+      "artifactKey": "boundaries/rnekrasov-geojson/README.md",
+      "relPath": "boundaries/rnekrasov-geojson/README.md",
+      "sourceId": "rnekrasov-geojson",
+      "sourceRevision": "7591d6609fe5cfdb4a0245b3a7cea9aae36bf737",
+      "cloneUrl": "https://github.com/rnekrasov-msk/geojson.git",
+      "sha256": "63f6316ee66a30bbb6d7874dbc00399c60ad92b32764bd37fc337c727471de89",
+      "byteSize": 149
+    },
+    {
+      "artifactKey": "boundaries/rnekrasov-geojson/regions.geojson",
+      "relPath": "boundaries/rnekrasov-geojson/regions.geojson",
+      "sourceId": "rnekrasov-geojson",
+      "sourceRevision": "7591d6609fe5cfdb4a0245b3a7cea9aae36bf737",
+      "cloneUrl": "https://github.com/rnekrasov-msk/geojson.git",
+      "sha256": "ec50463528f019776510faf766b241d28d6e0b3d60211ba12a951d9dbdf3020d",
+      "byteSize": 1146478
+    },
+    {
+      "artifactKey": "boundaries/rnekrasov-geojson/russia_subjects_github.json",
+      "relPath": "boundaries/rnekrasov-geojson/russia_subjects_github.json",
+      "sourceId": "rnekrasov-geojson",
+      "sourceRevision": "7591d6609fe5cfdb4a0245b3a7cea9aae36bf737",
+      "cloneUrl": "https://github.com/rnekrasov-msk/geojson.git",
+      "sha256": "e40b18556541fa502b987377f328e93d45ae62adf63a42be19d161e2e9030fb6",
+      "byteSize": 25010301
+    }
+  ]
 }

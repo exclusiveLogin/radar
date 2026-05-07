@@ -3,7 +3,7 @@ import type {
   PlaceStatusHistoryRecord,
 } from "@radar/shared";
 import type { DataSource } from "typeorm";
-import { PlaceStatusHistoryEntity } from "../../events/entities/place-status-history.entity";
+import { PlaceStatusHistoryEntity } from "../../events/entities";
 
 export class TypeOrmPlaceStatusHistoryRepository
   implements IPlaceStatusHistoryRepository

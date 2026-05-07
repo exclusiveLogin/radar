@@ -1,7 +1,7 @@
 import type { IIngestCursorRepository } from "@radar/shared";
 import type { DataSource } from "typeorm";
-import { ChannelEntity } from "../../ingest/entities/channel.entity";
-import { IngestCursorEntity } from "../../ingest/entities/ingest-cursor.entity";
+import { ChannelEntity } from "../../ingest/entities";
+import { IngestCursorEntity } from "../../ingest/entities";
 
 export class TypeOrmIngestCursorRepository implements IIngestCursorRepository {
   constructor(private readonly dataSource: DataSource) {}

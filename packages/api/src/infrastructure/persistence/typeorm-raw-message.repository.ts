@@ -1,8 +1,8 @@
 import type { IRawMessageRepository, RawMessage } from "@radar/shared";
 import { randomUUID } from "node:crypto";
 import type { DataSource } from "typeorm";
-import { ChannelEntity } from "../../ingest/entities/channel.entity";
-import { RawMessageEntity } from "../../ingest/entities/raw-message.entity";
+import { ChannelEntity } from "../../ingest/entities";
+import { RawMessageEntity } from "../../ingest/entities";
 
 export class TypeOrmRawMessageRepository implements IRawMessageRepository {
   constructor(private readonly dataSource: DataSource) {}

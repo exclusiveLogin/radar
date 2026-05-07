@@ -1,6 +1,6 @@
 import type { IRegionRepository, RegionRecord } from "@radar/shared";
 import type { DataSource } from "typeorm";
-import { RegionEntity } from "../../geo/entities/region.entity";
+import { RegionEntity } from "../../geo/entities";
 
 export class TypeOrmRegionRepository implements IRegionRepository {
   constructor(private readonly dataSource: DataSource) {}

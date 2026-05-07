@@ -23,6 +23,7 @@ export class ParseRawMessageHandler {
   ) {}
 
   async handle(raw: RawMessage): Promise<void> {
+    // 1) Классификация raw текста в event/noise/meta.
     const classified = this.classifier.classify(raw.rawText);
     if (classified.kind !== "event") {
       const failed: DomainEvent = {
@@ -47,6 +48,7 @@ export class ParseRawMessageHandler {
       postedAt: raw.postedAt,
     };
 
+    // 2) Резолв кандидатных локаций через enrichers -> 3) валидация матчей с каталогом.
     const resolved = await this.resolution.resolve(raw.rawText);
     const validatedLocations = [];
     for (const location of resolved.locations) {
@@ -57,6 +59,7 @@ export class ParseRawMessageHandler {
     }
     parsed.locations = validatedLocations;
 
+    // 4) Технические domain events для наблюдаемости пайплайна enrichment.
     if (resolved.diagnostics.invoked) {
       const event: DomainEvent = {
         id: randomUUID(),
@@ -105,6 +108,7 @@ export class ParseRawMessageHandler {
     }
 
     if (resolved.diagnostics.provider) {
+      // Provider-aware кеш ответа enrichment для повторных похожих запросов.
       await this.placeCache.put(
         raw.rawText.toLowerCase().trim(),
         resolved.diagnostics.provider,
@@ -119,6 +123,7 @@ export class ParseRawMessageHandler {
       );
     }
 
+    // 5) Персист parsed_event + event_locations и публикация MessageParsed.
     const persisted = await this.parsedEvents.upsert(parsed);
     await this.eventLocations.replaceForParsedEvent(
       persisted.id,

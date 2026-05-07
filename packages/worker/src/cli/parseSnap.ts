@@ -11,6 +11,8 @@ import {
 import { RuleBasedEventClassifier } from "../infrastructure/classifiers/ruleBasedEventClassifier.js";
 import { splitMessageBlocks } from "../domain/parsing/index.js";
 
+// CLI для оффлайн прогона parser на сохраненных snapshot-текстах.
+// Нужен для быстрой проверки качества классификации без подключения Telegram.
 type ParseSummary = {
   totalBlocks: number;
   events: number;
@@ -31,6 +33,7 @@ class NoopEnricher implements ILocationEnricher {
     rawText: string;
     regionCode?: string;
   }): Promise<LocationCandidate | null> {
+    // В snapshot-режиме внешние enrichers не вызываем.
     return null;
   }
 }

@@ -1,13 +1,13 @@
 import { Injectable } from "@nestjs/common";
 import { InjectDataSource } from "@nestjs/typeorm";
 import type { DataSource } from "typeorm";
-import { EventLocationEntity } from "../events/entities/event-location.entity";
-import { ParseAttemptEntity } from "../events/entities/parse-attempt.entity";
-import { ParsedEventEntity } from "../events/entities/parsed-event.entity";
-import { PlaceStatusActiveEntity } from "../events/entities/place-status-active.entity";
-import { PlaceStatusHistoryEntity } from "../events/entities/place-status-history.entity";
-import { GeoSyncLogEntity } from "../geo/entities/geo-sync-log.entity";
-import { RegionEntity } from "../geo/entities/region.entity";
+import { EventLocationEntity } from "../events/entities";
+import { ParseAttemptEntity } from "../events/entities";
+import { ParsedEventEntity } from "../events/entities";
+import { PlaceStatusActiveEntity } from "../events/entities";
+import { PlaceStatusHistoryEntity } from "../events/entities";
+import { GeoSyncLogEntity } from "../geo/entities";
+import { RegionEntity } from "../geo/entities";
 
 @Injectable()
 export class ReadSideQueryService {

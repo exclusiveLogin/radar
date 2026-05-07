@@ -1,6 +1,6 @@
 import type { IPlaceAliasRepository, PlaceAliasRecord } from "@radar/shared";
 import type { DataSource } from "typeorm";
-import { PlaceAliasEntity } from "../../geo/entities/place-alias.entity";
+import { PlaceAliasEntity } from "../../geo/entities";
 
 export class TypeOrmPlaceAliasRepository implements IPlaceAliasRepository {
   constructor(private readonly dataSource: DataSource) {}

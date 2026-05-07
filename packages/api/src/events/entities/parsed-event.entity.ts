@@ -7,7 +7,7 @@
  * ---
  */
 import { Column, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from "typeorm";
-import { RawMessageEntity } from "../../ingest/entities/raw-message.entity";
+import { RawMessageEntity } from "../../ingest/entities";
 
 @Entity({ name: "parsed_events" })
 export class ParsedEventEntity {

@@ -19,11 +19,16 @@ function toName(props: Record<string, unknown>): string | null {
 
 export class RussiaGeoJsonOsmProvider implements IGeoSourceProvider {
   async loadSnapshot(): Promise<GeoProviderSnapshot> {
+    // Источник: предсобранные artifacts из Russia_geojson_OSM.
+    // На текущем этапе используем упрощенный name extraction
+    // и создаем place/alias drafts.
     const sourceId = "Russia_geojson_OSM";
     const files = listArtifactKeysByPrefix(sourceId, "boundaries/Russia_geojson_OSM");
     const places: GeoProviderSnapshot["places"] = [];
     const aliases: GeoProviderSnapshot["aliases"] = [];
 
+    // TODO: технический лимит для MVP, обрабатывается только часть файлов.
+    // Для полного ingest нужно убрать slice(0, 20).
     for (const file of files.filter((f) => f.endsWith(".geojson")).slice(0, 20)) {
       const fc = readArtifactsJson<FeatureCollection>(file);
       if (!fc?.features) continue;

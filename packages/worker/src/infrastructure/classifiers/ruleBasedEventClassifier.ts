@@ -1,6 +1,8 @@
 import type { ClassifiedPost, IEventClassifier } from "@radar/shared";
 import { classifyContentKind, parsePost, stripSignature } from "../../domain/parsing/index.js";
 
+// Правиловый классификатор сообщений:
+// чистка подписи -> определение типа контента -> парсинг event-полей.
 export class RuleBasedEventClassifier implements IEventClassifier {
   classify(rawPost: string): ClassifiedPost {
     const cleaned = stripSignature(rawPost);

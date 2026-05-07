@@ -1,4 +1,9 @@
 #!/usr/bin/env node
+// geo:sync
+// 1) Проверяет наличие vendor-клонов.
+// 2) Копирует разрешенные файлы в data/geo/artifacts.
+// 3) Формирует manifest.json (source revision + sha256 + size).
+// Скрипт не парсит гео-структуры и не пишет данные в БД.
 import { createHash } from 'node:crypto';
 import {
   copyFileSync,
@@ -33,6 +38,7 @@ mkdirSync(artifactsRoot, { recursive: true });
 
 for (const s of config.sources) {
   const destPrefix = join(artifactsRoot, s.artifactDir);
+  // Пересобираем снапшот source-папки целиком, чтобы не держать stale файлы.
   if (existsSync(destPrefix)) rmSync(destPrefix, { recursive: true, force: true });
 }
 
@@ -85,6 +91,7 @@ for (const s of config.sources) {
       full.lastIndexOf('.') >= 0
         ? full.slice(full.lastIndexOf('.')).toLowerCase()
         : '';
+    // В artifacts попадает только whitelist расширений из geo-sources.json.
     if (!exts.has(ext)) continue;
 
     const relFromVendor = relative(srcResolved, full).replace(/\\/g, '/');

@@ -1,6 +1,6 @@
 import type { DomainEvent, IDomainEventRepository } from "@radar/shared";
 import type { DataSource } from "typeorm";
-import { DomainEventEntity } from "../../events/entities/domain-event.entity";
+import { DomainEventEntity } from "../../events/entities";
 
 export class TypeOrmDomainEventRepository implements IDomainEventRepository {
   constructor(private readonly dataSource: DataSource) {}

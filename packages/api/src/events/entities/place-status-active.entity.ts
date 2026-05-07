@@ -1,5 +1,5 @@
 import { Column, Entity, JoinColumn, ManyToOne, PrimaryColumn } from "typeorm";
-import { PlaceEntity } from "../../geo/entities/place.entity";
+import { PlaceEntity } from "../../geo/entities";
 import { StatusDictionaryEntity } from "./status-dictionary.entity";
 
 @Entity({ name: "place_status_active" })

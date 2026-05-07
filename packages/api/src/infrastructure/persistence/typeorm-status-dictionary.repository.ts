@@ -3,7 +3,7 @@ import type {
   StatusDictionaryRecord,
 } from "@radar/shared";
 import type { DataSource } from "typeorm";
-import { StatusDictionaryEntity } from "../../events/entities/status-dictionary.entity";
+import { StatusDictionaryEntity } from "../../events/entities";
 
 export class TypeOrmStatusDictionaryRepository
   implements IStatusDictionaryRepository

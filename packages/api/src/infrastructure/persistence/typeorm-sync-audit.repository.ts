@@ -1,7 +1,7 @@
 import type { ISyncAuditRepository } from "@radar/shared";
 import { randomUUID } from "node:crypto";
 import type { DataSource } from "typeorm";
-import { GeoSyncLogEntity } from "../../geo/entities/geo-sync-log.entity";
+import { GeoSyncLogEntity } from "../../geo/entities";
 
 export class TypeOrmSyncAuditRepository implements ISyncAuditRepository {
   constructor(private readonly dataSource: DataSource) {}

@@ -1,7 +1,7 @@
 import type { IEventPublisher } from "@radar/shared";
 import type { DataSource } from "typeorm";
 import { IsNull } from "typeorm";
-import { DomainEventEntity } from "../../events/entities/domain-event.entity";
+import { DomainEventEntity } from "../../events/entities";
 
 export class OutboxRelay {
   private timer: NodeJS.Timeout | null = null;

@@ -7,8 +7,8 @@
  * ---
  */
 import { Column, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from "typeorm";
-import { PlaceEntity } from "../../geo/entities/place.entity";
-import { RegionEntity } from "../../geo/entities/region.entity";
+import { PlaceEntity } from "../../geo/entities";
+import { RegionEntity } from "../../geo/entities";
 import { ParsedEventEntity } from "./parsed-event.entity";
 
 @Entity({ name: "event_locations" })

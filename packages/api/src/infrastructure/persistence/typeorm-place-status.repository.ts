@@ -3,7 +3,7 @@ import type {
   PlaceStatusActiveRecord,
 } from "@radar/shared";
 import type { DataSource } from "typeorm";
-import { PlaceStatusActiveEntity } from "../../events/entities/place-status-active.entity";
+import { PlaceStatusActiveEntity } from "../../events/entities";
 
 export class TypeOrmPlaceStatusRepository implements IPlaceStatusRepository {
   constructor(private readonly dataSource: DataSource) {}

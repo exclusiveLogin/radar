@@ -1,4 +1,8 @@
 #!/usr/bin/env node
+// geo:verify
+// Проверяет целостность artifact snapshot:
+// для каждого файла из manifest.json сверяет sha256.
+// Это проверка "байты совпадают", а не валидация схемы данных.
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
