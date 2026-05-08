@@ -6,7 +6,7 @@
       "text": "Чапаевск\nНовокуйбышевск\nСамарская область\nМеры безопасности\n❗️Радар Самара - @radar_samaraa\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "01c6b1747eafcd2438afd7f93cfc572b6678572f1228b68b5f3e8f6914db2f5f",
       "channelKey": "snap_001",
-      "postedAt": "2026-05-08T20:44:31.153Z",
+      "postedAt": "2026-05-08T21:13:47.378Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -37,11 +37,13 @@
       ],
       "precision": "locality",
       "completeness": 0.75,
-      "source": "local"
+      "source": "llm"
     },
     "enrich": {
-      "invoked": false,
-      "providersTried": [],
+      "invoked": true,
+      "providersTried": [
+        "llm"
+      ],
       "hits": 3,
       "misses": 0,
       "cacheHit": false
@@ -58,11 +60,85 @@
           "durationMs": 3
         },
         {
+          "id": "llm",
+          "ok": true,
+          "durationMs": 15269
+        },
+        {
           "id": "finalizer",
           "ok": true,
-          "durationMs": 0
+          "durationMs": 1
         }
       ]
+    },
+    "geoArtifact": {
+      "catalog": {
+        "schemaVersion": 1,
+        "regions": [
+          {
+            "code": "63",
+            "name": "Самарская обл",
+            "fiasId": "df3d7359-afa9-4aaa-8ff9-197e73906b1c"
+          }
+        ],
+        "places": [
+          {
+            "name": "Чапаевск",
+            "kind": "city",
+            "regionCode": "63"
+          },
+          {
+            "name": "Новокуйбышевск",
+            "kind": "city",
+            "regionCode": "63"
+          }
+        ]
+      },
+      "llm": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "name": "63",
+            "kind": "region",
+            "regionCode": "63"
+          },
+          {
+            "name": "Чапаевск",
+            "kind": "city",
+            "regionCode": "63"
+          },
+          {
+            "name": "Новокуйбышевск",
+            "kind": "city",
+            "regionCode": "63"
+          }
+        ],
+        "confidence": 1,
+        "reason": "В тексте указаны населенные пункты и область, regionCodeHint подтверждает регион"
+      },
+      "finalizer": {
+        "schemaVersion": 1,
+        "regions": [
+          {
+            "code": "63",
+            "name": "Самарская обл",
+            "fiasId": "df3d7359-afa9-4aaa-8ff9-197e73906b1c"
+          }
+        ],
+        "places": [
+          {
+            "name": "Чапаевск",
+            "kind": "city"
+          },
+          {
+            "name": "Новокуйбышевск",
+            "kind": "city"
+          }
+        ],
+        "precision": "locality",
+        "completeness": 0.75,
+        "source": "llm"
+      }
     }
   },
   {
@@ -72,7 +148,7 @@
       "text": "Чапаевск\nСамарская область\nФиксация БПЛА\n❗️Радар Самара - @radar_samaraa\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "a28ba3a8f0cafe9df64af7c958d45db199079497fb92b4e4788a6c1e47a567ba",
       "channelKey": "snap_001",
-      "postedAt": "2026-05-08T20:44:31.162Z",
+      "postedAt": "2026-05-08T21:14:02.656Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -99,11 +175,13 @@
       ],
       "precision": "locality",
       "completeness": 0.75,
-      "source": "local"
+      "source": "llm"
     },
     "enrich": {
-      "invoked": false,
-      "providersTried": [],
+      "invoked": true,
+      "providersTried": [
+        "llm"
+      ],
       "hits": 2,
       "misses": 0,
       "cacheHit": false
@@ -117,7 +195,12 @@
         {
           "id": "catalog",
           "ok": true,
-          "durationMs": 1
+          "durationMs": 2
+        },
+        {
+          "id": "llm",
+          "ok": true,
+          "durationMs": 6302
         },
         {
           "id": "finalizer",
@@ -125,6 +208,61 @@
           "durationMs": 0
         }
       ]
+    },
+    "geoArtifact": {
+      "catalog": {
+        "schemaVersion": 1,
+        "regions": [
+          {
+            "code": "63",
+            "name": "Самарская обл",
+            "fiasId": "df3d7359-afa9-4aaa-8ff9-197e73906b1c"
+          }
+        ],
+        "places": [
+          {
+            "name": "Чапаевск",
+            "kind": "city",
+            "regionCode": "63"
+          }
+        ]
+      },
+      "llm": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "name": "63",
+            "kind": "region",
+            "regionCode": "63"
+          },
+          {
+            "name": "Чапаевск",
+            "kind": "city",
+            "regionCode": "63"
+          }
+        ],
+        "confidence": 1,
+        "reason": "Регион указан явно в тексте и совпадает с regionCodeHint"
+      },
+      "finalizer": {
+        "schemaVersion": 1,
+        "regions": [
+          {
+            "code": "63",
+            "name": "Самарская обл",
+            "fiasId": "df3d7359-afa9-4aaa-8ff9-197e73906b1c"
+          }
+        ],
+        "places": [
+          {
+            "name": "Чапаевск",
+            "kind": "city"
+          }
+        ],
+        "precision": "locality",
+        "completeness": 0.75,
+        "source": "llm"
+      }
     }
   },
   {
@@ -134,7 +272,7 @@
       "text": "Чапаевск \nНовокуйбышевск \nСамарская область. Работа ПВО без остановки. Свыше 20 сбитий\n❗️Радар Самара - @radar_samaraa\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "3b8373493e37722db99455189793b70829a5521c33ead09f61a0ece76b653120",
       "channelKey": "snap_001",
-      "postedAt": "2026-05-08T20:44:31.164Z",
+      "postedAt": "2026-05-08T21:14:08.961Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -166,11 +304,13 @@
       ],
       "precision": "locality",
       "completeness": 0.75,
-      "source": "local"
+      "source": "llm"
     },
     "enrich": {
-      "invoked": false,
-      "providersTried": [],
+      "invoked": true,
+      "providersTried": [
+        "llm"
+      ],
       "hits": 3,
       "misses": 0,
       "cacheHit": false
@@ -184,7 +324,12 @@
         {
           "id": "catalog",
           "ok": true,
-          "durationMs": 0
+          "durationMs": 1
+        },
+        {
+          "id": "llm",
+          "ok": true,
+          "durationMs": 7636
         },
         {
           "id": "finalizer",
@@ -192,6 +337,75 @@
           "durationMs": 0
         }
       ]
+    },
+    "geoArtifact": {
+      "catalog": {
+        "schemaVersion": 1,
+        "regions": [
+          {
+            "code": "63",
+            "name": "Самарская обл",
+            "fiasId": "df3d7359-afa9-4aaa-8ff9-197e73906b1c"
+          }
+        ],
+        "places": [
+          {
+            "name": "Чапаевск",
+            "kind": "city",
+            "regionCode": "63"
+          },
+          {
+            "name": "Новокуйбышевск",
+            "kind": "city",
+            "regionCode": "63"
+          }
+        ]
+      },
+      "llm": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "name": "63",
+            "kind": "region",
+            "regionCode": "63"
+          },
+          {
+            "name": "Чапаевск",
+            "kind": "city",
+            "regionCode": "63"
+          },
+          {
+            "name": "Новокуйбышевск",
+            "kind": "city",
+            "regionCode": "63"
+          }
+        ],
+        "confidence": 1,
+        "reason": "Код региона указан в hint"
+      },
+      "finalizer": {
+        "schemaVersion": 1,
+        "regions": [
+          {
+            "code": "63",
+            "name": "Самарская обл",
+            "fiasId": "df3d7359-afa9-4aaa-8ff9-197e73906b1c"
+          }
+        ],
+        "places": [
+          {
+            "name": "Чапаевск",
+            "kind": "city"
+          },
+          {
+            "name": "Новокуйбышевск",
+            "kind": "city"
+          }
+        ],
+        "precision": "locality",
+        "completeness": 0.75,
+        "source": "llm"
+      }
     }
   },
   {
@@ -201,7 +415,7 @@
       "text": "От 2 БПЛА на Комсомольский район Тольятти, Самарская область\n❗️Радар Самара - @radar_samaraa\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "95d75971928781bf5beff598c02486cb1ff88530c7358803d4a8839e887e0818",
       "channelKey": "snap_001",
-      "postedAt": "2026-05-08T20:44:31.165Z",
+      "postedAt": "2026-05-08T21:14:16.600Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -229,11 +443,13 @@
       ],
       "precision": "district",
       "completeness": 0.5,
-      "source": "local"
+      "source": "llm"
     },
     "enrich": {
-      "invoked": false,
-      "providersTried": [],
+      "invoked": true,
+      "providersTried": [
+        "llm"
+      ],
       "hits": 2,
       "misses": 0,
       "cacheHit": false
@@ -250,11 +466,71 @@
           "durationMs": 0
         },
         {
+          "id": "llm",
+          "ok": true,
+          "durationMs": 7043
+        },
+        {
           "id": "finalizer",
           "ok": true,
           "durationMs": 0
         }
       ]
+    },
+    "geoArtifact": {
+      "catalog": {
+        "schemaVersion": 1,
+        "regions": [
+          {
+            "code": "63",
+            "name": "Самарская обл",
+            "fiasId": "df3d7359-afa9-4aaa-8ff9-197e73906b1c"
+          }
+        ],
+        "places": [
+          {
+            "name": "комсомольский район",
+            "kind": "district",
+            "regionCode": "63"
+          }
+        ]
+      },
+      "llm": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "name": "63",
+            "kind": "region",
+            "regionCode": "63"
+          },
+          {
+            "name": "Комсомольский район",
+            "kind": "district",
+            "regionCode": "63"
+          }
+        ],
+        "confidence": 1,
+        "reason": "В тексте указано полное название района и область, а regionCodeHint подтверждает субъект РФ"
+      },
+      "finalizer": {
+        "schemaVersion": 1,
+        "regions": [
+          {
+            "code": "63",
+            "name": "Самарская обл",
+            "fiasId": "df3d7359-afa9-4aaa-8ff9-197e73906b1c"
+          }
+        ],
+        "places": [
+          {
+            "name": "комсомольский район",
+            "kind": "district"
+          }
+        ],
+        "precision": "district",
+        "completeness": 0.5,
+        "source": "llm"
+      }
     }
   },
   {
@@ -264,7 +540,7 @@
       "text": "Сызрань, Тольятти, Самара, Новокуйбышевск, Самарская область - угроза атаки БПЛА, повторно\n❗️Радар Самара - @radar_samaraa\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "0323b2f70dd7091e1268d5da2499d5207a0363f34ee494d0c51c9621a16a1794",
       "channelKey": "snap_001",
-      "postedAt": "2026-05-08T20:44:31.166Z",
+      "postedAt": "2026-05-08T21:14:23.644Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -283,15 +559,34 @@
           "fiasId": "df3d7359-afa9-4aaa-8ff9-197e73906b1c"
         }
       ],
-      "places": [],
-      "precision": "region",
-      "completeness": 0.25,
-      "source": "local"
+      "places": [
+        {
+          "name": "Сызрань",
+          "kind": "city"
+        },
+        {
+          "name": "Тольятти",
+          "kind": "city"
+        },
+        {
+          "name": "Самара",
+          "kind": "city"
+        },
+        {
+          "name": "Новокуйбышевск",
+          "kind": "locality"
+        }
+      ],
+      "precision": "locality",
+      "completeness": 0.75,
+      "source": "llm"
     },
     "enrich": {
-      "invoked": false,
-      "providersTried": [],
-      "hits": 1,
+      "invoked": true,
+      "providersTried": [
+        "llm"
+      ],
+      "hits": 5,
       "misses": 0,
       "cacheHit": false
     },
@@ -307,11 +602,97 @@
           "durationMs": 0
         },
         {
+          "id": "llm",
+          "ok": true,
+          "durationMs": 13044
+        },
+        {
           "id": "finalizer",
           "ok": true,
           "durationMs": 0
         }
       ]
+    },
+    "geoArtifact": {
+      "catalog": {
+        "schemaVersion": 1,
+        "regions": [
+          {
+            "code": "63",
+            "name": "Самарская обл",
+            "fiasId": "df3d7359-afa9-4aaa-8ff9-197e73906b1c"
+          }
+        ],
+        "places": []
+      },
+      "llm": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "name": "63",
+            "kind": "region",
+            "regionCode": "63"
+          },
+          {
+            "name": "Сызрань",
+            "kind": "city",
+            "regionCode": "63"
+          },
+          {
+            "name": "Тольятти",
+            "kind": "city",
+            "regionCode": "63"
+          },
+          {
+            "name": "Самара",
+            "kind": "city",
+            "regionCode": "63"
+          },
+          {
+            "name": "Новокуйбышевск",
+            "kind": "locality",
+            "regionCode": "63"
+          },
+          {
+            "name": "Самарская область",
+            "kind": "region",
+            "regionCode": "63"
+          }
+        ],
+        "confidence": 1,
+        "reason": "В тексте явно указан короткий нормализованный код субъекта РФ"
+      },
+      "finalizer": {
+        "schemaVersion": 1,
+        "regions": [
+          {
+            "code": "63",
+            "name": "Самарская обл",
+            "fiasId": "df3d7359-afa9-4aaa-8ff9-197e73906b1c"
+          }
+        ],
+        "places": [
+          {
+            "name": "Сызрань",
+            "kind": "city"
+          },
+          {
+            "name": "Тольятти",
+            "kind": "city"
+          },
+          {
+            "name": "Самара",
+            "kind": "city"
+          },
+          {
+            "name": "Новокуйбышевск",
+            "kind": "locality"
+          }
+        ],
+        "precision": "locality",
+        "completeness": 0.75,
+        "source": "llm"
+      }
     }
   },
   {
@@ -321,7 +702,7 @@
       "text": "Сызранский район\nСамарская область\nФиксация БПЛА\n❗️Радар Самара - @radar_samaraa\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "fd4932c2458478c65b981576a92639c7b498b91bfcda04f95fa5cb0ee2b877b4",
       "channelKey": "snap_001",
-      "postedAt": "2026-05-08T20:44:31.166Z",
+      "postedAt": "2026-05-08T21:14:36.689Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -348,11 +729,13 @@
       ],
       "precision": "district",
       "completeness": 0.5,
-      "source": "local"
+      "source": "llm"
     },
     "enrich": {
-      "invoked": false,
-      "providersTried": [],
+      "invoked": true,
+      "providersTried": [
+        "llm"
+      ],
       "hits": 2,
       "misses": 0,
       "cacheHit": false
@@ -369,11 +752,71 @@
           "durationMs": 0
         },
         {
+          "id": "llm",
+          "ok": true,
+          "durationMs": 6048
+        },
+        {
           "id": "finalizer",
           "ok": true,
           "durationMs": 0
         }
       ]
+    },
+    "geoArtifact": {
+      "catalog": {
+        "schemaVersion": 1,
+        "regions": [
+          {
+            "code": "63",
+            "name": "Самарская обл",
+            "fiasId": "df3d7359-afa9-4aaa-8ff9-197e73906b1c"
+          }
+        ],
+        "places": [
+          {
+            "name": "сызранский район",
+            "kind": "district",
+            "regionCode": "63"
+          }
+        ]
+      },
+      "llm": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "name": "63",
+            "kind": "region",
+            "regionCode": "63"
+          },
+          {
+            "name": "Сызранский район",
+            "kind": "district",
+            "regionCode": "63"
+          }
+        ],
+        "confidence": 1,
+        "reason": "Код региона найден в regionCodeHint"
+      },
+      "finalizer": {
+        "schemaVersion": 1,
+        "regions": [
+          {
+            "code": "63",
+            "name": "Самарская обл",
+            "fiasId": "df3d7359-afa9-4aaa-8ff9-197e73906b1c"
+          }
+        ],
+        "places": [
+          {
+            "name": "сызранский район",
+            "kind": "district"
+          }
+        ],
+        "precision": "district",
+        "completeness": 0.5,
+        "source": "llm"
+      }
     }
   },
   {
@@ -383,7 +826,7 @@
       "text": "Красноармейский район\nСамарская область\nФиксация от 2 БПЛА\n❗️Радар Самара - @radar_samaraa\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "77a350c7cf27870e4e9c611a6b2d766b5671375d21bf0b51fd9718ad40b5de77",
       "channelKey": "snap_001",
-      "postedAt": "2026-05-08T20:44:31.167Z",
+      "postedAt": "2026-05-08T21:14:42.738Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -411,11 +854,13 @@
       ],
       "precision": "district",
       "completeness": 0.5,
-      "source": "local"
+      "source": "llm"
     },
     "enrich": {
-      "invoked": false,
-      "providersTried": [],
+      "invoked": true,
+      "providersTried": [
+        "llm"
+      ],
       "hits": 2,
       "misses": 0,
       "cacheHit": false
@@ -432,11 +877,71 @@
           "durationMs": 0
         },
         {
+          "id": "llm",
+          "ok": true,
+          "durationMs": 7234
+        },
+        {
           "id": "finalizer",
           "ok": true,
           "durationMs": 0
         }
       ]
+    },
+    "geoArtifact": {
+      "catalog": {
+        "schemaVersion": 1,
+        "regions": [
+          {
+            "code": "63",
+            "name": "Самарская обл",
+            "fiasId": "df3d7359-afa9-4aaa-8ff9-197e73906b1c"
+          }
+        ],
+        "places": [
+          {
+            "name": "красноармейский район",
+            "kind": "district",
+            "regionCode": "63"
+          }
+        ]
+      },
+      "llm": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "name": "63",
+            "kind": "region",
+            "regionCode": "63"
+          },
+          {
+            "name": "Красноармейский район",
+            "kind": "district",
+            "regionCode": "63"
+          }
+        ],
+        "confidence": 1,
+        "reason": "Данные из текста и regionCodeHint"
+      },
+      "finalizer": {
+        "schemaVersion": 1,
+        "regions": [
+          {
+            "code": "63",
+            "name": "Самарская обл",
+            "fiasId": "df3d7359-afa9-4aaa-8ff9-197e73906b1c"
+          }
+        ],
+        "places": [
+          {
+            "name": "красноармейский район",
+            "kind": "district"
+          }
+        ],
+        "precision": "district",
+        "completeness": 0.5,
+        "source": "llm"
+      }
     }
   },
   {
@@ -446,7 +951,7 @@
       "text": "Началась работа ПВО по ним\n❗️Радар Самара - @radar_samaraa\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "5416e9799c64960757612cf5e3a172a2d38b72cf3cedf12498140fb82ce08f5c",
       "channelKey": "snap_001",
-      "postedAt": "2026-05-08T20:44:31.168Z",
+      "postedAt": "2026-05-08T21:14:49.974Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -465,8 +970,10 @@
       "source": "local"
     },
     "enrich": {
-      "invoked": false,
-      "providersTried": [],
+      "invoked": true,
+      "providersTried": [
+        "llm"
+      ],
       "hits": 0,
       "misses": 1,
       "cacheHit": false
@@ -483,11 +990,37 @@
           "durationMs": 0
         },
         {
+          "id": "llm",
+          "ok": true,
+          "durationMs": 5363
+        },
+        {
           "id": "finalizer",
           "ok": true,
           "durationMs": 0
         }
       ]
+    },
+    "geoArtifact": {
+      "catalog": {
+        "schemaVersion": 1,
+        "regions": [],
+        "places": []
+      },
+      "llm": {
+        "schemaVersion": 1,
+        "nodes": [],
+        "confidence": 0,
+        "reason": "no result"
+      },
+      "finalizer": {
+        "schemaVersion": 1,
+        "regions": [],
+        "places": [],
+        "precision": "unknown",
+        "completeness": 0,
+        "source": "local"
+      }
     }
   },
   {
@@ -497,7 +1030,7 @@
       "text": "Тольятти\nСамарская область\nФиксация БПЛА\n❗️Радар Самара - @radar_samaraa\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "5428a0c1867404be17cf9c76ebe4e79ba60002f1241ae4ec64aacbdd570d5b1e",
       "channelKey": "snap_001",
-      "postedAt": "2026-05-08T20:44:31.168Z",
+      "postedAt": "2026-05-08T21:14:55.337Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -524,11 +1057,13 @@
       ],
       "precision": "locality",
       "completeness": 0.75,
-      "source": "local"
+      "source": "llm"
     },
     "enrich": {
-      "invoked": false,
-      "providersTried": [],
+      "invoked": true,
+      "providersTried": [
+        "llm"
+      ],
       "hits": 2,
       "misses": 0,
       "cacheHit": false
@@ -545,11 +1080,71 @@
           "durationMs": 0
         },
         {
+          "id": "llm",
+          "ok": true,
+          "durationMs": 6128
+        },
+        {
           "id": "finalizer",
           "ok": true,
           "durationMs": 0
         }
       ]
+    },
+    "geoArtifact": {
+      "catalog": {
+        "schemaVersion": 1,
+        "regions": [
+          {
+            "code": "63",
+            "name": "Самарская обл",
+            "fiasId": "df3d7359-afa9-4aaa-8ff9-197e73906b1c"
+          }
+        ],
+        "places": [
+          {
+            "name": "Тольятти",
+            "kind": "city",
+            "regionCode": "63"
+          }
+        ]
+      },
+      "llm": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "name": "63",
+            "kind": "region",
+            "regionCode": "63"
+          },
+          {
+            "name": "Тольятти",
+            "kind": "city",
+            "regionCode": "63"
+          }
+        ],
+        "confidence": 1,
+        "reason": "Область Самара указана в тексте и regionCodeHint"
+      },
+      "finalizer": {
+        "schemaVersion": 1,
+        "regions": [
+          {
+            "code": "63",
+            "name": "Самарская обл",
+            "fiasId": "df3d7359-afa9-4aaa-8ff9-197e73906b1c"
+          }
+        ],
+        "places": [
+          {
+            "name": "Тольятти",
+            "kind": "city"
+          }
+        ],
+        "precision": "locality",
+        "completeness": 0.75,
+        "source": "llm"
+      }
     }
   },
   {
@@ -559,7 +1154,7 @@
       "text": "Волжский район\nСамарская область\nФиксация от 2 БПЛА\n❗️Радар Самара - @radar_samaraa\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "e326ba7deafb59e2374d102b9592591cf8408f9fff0582454fe9eacc6840b0e5",
       "channelKey": "snap_001",
-      "postedAt": "2026-05-08T20:44:31.169Z",
+      "postedAt": "2026-05-08T21:15:01.466Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -587,11 +1182,13 @@
       ],
       "precision": "district",
       "completeness": 0.5,
-      "source": "local"
+      "source": "llm"
     },
     "enrich": {
-      "invoked": false,
-      "providersTried": [],
+      "invoked": true,
+      "providersTried": [
+        "llm"
+      ],
       "hits": 2,
       "misses": 0,
       "cacheHit": false
@@ -608,11 +1205,71 @@
           "durationMs": 0
         },
         {
+          "id": "llm",
+          "ok": true,
+          "durationMs": 6199
+        },
+        {
           "id": "finalizer",
           "ok": true,
           "durationMs": 0
         }
       ]
+    },
+    "geoArtifact": {
+      "catalog": {
+        "schemaVersion": 1,
+        "regions": [
+          {
+            "code": "63",
+            "name": "Самарская обл",
+            "fiasId": "df3d7359-afa9-4aaa-8ff9-197e73906b1c"
+          }
+        ],
+        "places": [
+          {
+            "name": "волжский район",
+            "kind": "district",
+            "regionCode": "63"
+          }
+        ]
+      },
+      "llm": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "name": "63",
+            "kind": "region",
+            "regionCode": "63"
+          },
+          {
+            "name": "Волжский район",
+            "kind": "district",
+            "regionCode": "63"
+          }
+        ],
+        "confidence": 1,
+        "reason": "Данные прямые из текста и соответствуют regionCodeHint"
+      },
+      "finalizer": {
+        "schemaVersion": 1,
+        "regions": [
+          {
+            "code": "63",
+            "name": "Самарская обл",
+            "fiasId": "df3d7359-afa9-4aaa-8ff9-197e73906b1c"
+          }
+        ],
+        "places": [
+          {
+            "name": "волжский район",
+            "kind": "district"
+          }
+        ],
+        "precision": "district",
+        "completeness": 0.5,
+        "source": "llm"
+      }
     }
   },
   {
@@ -622,7 +1279,7 @@
       "text": "Чапаевск\nСамарская область\nРабота ПВО по БПЛА\nМеры безопасности\n❗️Радар Самара - @radar_samaraa\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "f6d08647ad869193eb9d3640c9fa49244e514f3dc5c5375faa15f4482907e1d4",
       "channelKey": "snap_001",
-      "postedAt": "2026-05-08T20:44:31.169Z",
+      "postedAt": "2026-05-08T21:15:07.665Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -649,11 +1306,13 @@
       ],
       "precision": "locality",
       "completeness": 0.75,
-      "source": "local"
+      "source": "llm"
     },
     "enrich": {
-      "invoked": false,
-      "providersTried": [],
+      "invoked": true,
+      "providersTried": [
+        "llm"
+      ],
       "hits": 2,
       "misses": 0,
       "cacheHit": false
@@ -670,11 +1329,71 @@
           "durationMs": 0
         },
         {
+          "id": "llm",
+          "ok": true,
+          "durationMs": 7344
+        },
+        {
           "id": "finalizer",
           "ok": true,
           "durationMs": 0
         }
       ]
+    },
+    "geoArtifact": {
+      "catalog": {
+        "schemaVersion": 1,
+        "regions": [
+          {
+            "code": "63",
+            "name": "Самарская обл",
+            "fiasId": "df3d7359-afa9-4aaa-8ff9-197e73906b1c"
+          }
+        ],
+        "places": [
+          {
+            "name": "Чапаевск",
+            "kind": "city",
+            "regionCode": "63"
+          }
+        ]
+      },
+      "llm": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "name": "63",
+            "kind": "region",
+            "regionCode": "63"
+          },
+          {
+            "name": "Чапаевск",
+            "kind": "city",
+            "regionCode": "63"
+          }
+        ],
+        "confidence": 1,
+        "reason": "Область Самара явно указана в тексте и regionCodeHint"
+      },
+      "finalizer": {
+        "schemaVersion": 1,
+        "regions": [
+          {
+            "code": "63",
+            "name": "Самарская обл",
+            "fiasId": "df3d7359-afa9-4aaa-8ff9-197e73906b1c"
+          }
+        ],
+        "places": [
+          {
+            "name": "Чапаевск",
+            "kind": "city"
+          }
+        ],
+        "precision": "locality",
+        "completeness": 0.75,
+        "source": "llm"
+      }
     }
   },
   {
@@ -684,7 +1403,7 @@
       "text": "Волжский район\nСамарская область\nФиксация БПЛА\n❗️Радар Самара - @radar_samaraa\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "c5af30060a68d35acd7a5fde47a72a2732da3b6777819fdb4bb326fa431a598f",
       "channelKey": "snap_001",
-      "postedAt": "2026-05-08T20:44:31.170Z",
+      "postedAt": "2026-05-08T21:15:15.010Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -711,11 +1430,13 @@
       ],
       "precision": "district",
       "completeness": 0.5,
-      "source": "local"
+      "source": "llm"
     },
     "enrich": {
-      "invoked": false,
-      "providersTried": [],
+      "invoked": true,
+      "providersTried": [
+        "llm"
+      ],
       "hits": 2,
       "misses": 0,
       "cacheHit": false
@@ -732,11 +1453,71 @@
           "durationMs": 0
         },
         {
+          "id": "llm",
+          "ok": true,
+          "durationMs": 6346
+        },
+        {
           "id": "finalizer",
           "ok": true,
           "durationMs": 0
         }
       ]
+    },
+    "geoArtifact": {
+      "catalog": {
+        "schemaVersion": 1,
+        "regions": [
+          {
+            "code": "63",
+            "name": "Самарская обл",
+            "fiasId": "df3d7359-afa9-4aaa-8ff9-197e73906b1c"
+          }
+        ],
+        "places": [
+          {
+            "name": "волжский район",
+            "kind": "district",
+            "regionCode": "63"
+          }
+        ]
+      },
+      "llm": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "name": "63",
+            "kind": "region",
+            "regionCode": "63"
+          },
+          {
+            "name": "Волжский район",
+            "kind": "district",
+            "regionCode": "63"
+          }
+        ],
+        "confidence": 1,
+        "reason": "Код субъекта РФ найден в regionCodeHint"
+      },
+      "finalizer": {
+        "schemaVersion": 1,
+        "regions": [
+          {
+            "code": "63",
+            "name": "Самарская обл",
+            "fiasId": "df3d7359-afa9-4aaa-8ff9-197e73906b1c"
+          }
+        ],
+        "places": [
+          {
+            "name": "волжский район",
+            "kind": "district"
+          }
+        ],
+        "precision": "district",
+        "completeness": 0.5,
+        "source": "llm"
+      }
     }
   },
   {
@@ -746,7 +1527,7 @@
       "text": "Самарская область\nОтбой опасности по БПЛА\n❗️Радар Самара - @radar_samaraa\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "c4b3d486556f879282bc29c031d654cc13c2852b7a7e682bd334f06a10b542df",
       "channelKey": "snap_001",
-      "postedAt": "2026-05-08T20:44:31.170Z",
+      "postedAt": "2026-05-08T21:15:21.356Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -768,11 +1549,13 @@
       "places": [],
       "precision": "region",
       "completeness": 0.25,
-      "source": "local"
+      "source": "llm"
     },
     "enrich": {
-      "invoked": false,
-      "providersTried": [],
+      "invoked": true,
+      "providersTried": [
+        "llm"
+      ],
       "hits": 1,
       "misses": 0,
       "cacheHit": false
@@ -789,11 +1572,60 @@
           "durationMs": 0
         },
         {
+          "id": "llm",
+          "ok": true,
+          "durationMs": 6473
+        },
+        {
           "id": "finalizer",
           "ok": true,
           "durationMs": 0
         }
       ]
+    },
+    "geoArtifact": {
+      "catalog": {
+        "schemaVersion": 1,
+        "regions": [
+          {
+            "code": "63",
+            "name": "Самарская обл",
+            "fiasId": "df3d7359-afa9-4aaa-8ff9-197e73906b1c"
+          }
+        ],
+        "places": []
+      },
+      "llm": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "name": "63",
+            "kind": "region",
+            "regionCode": "63"
+          },
+          {
+            "name": "Самарская область",
+            "kind": "region",
+            "regionCode": "63"
+          }
+        ],
+        "confidence": 1,
+        "reason": "Код региона найден в regionCodeHint"
+      },
+      "finalizer": {
+        "schemaVersion": 1,
+        "regions": [
+          {
+            "code": "63",
+            "name": "Самарская обл",
+            "fiasId": "df3d7359-afa9-4aaa-8ff9-197e73906b1c"
+          }
+        ],
+        "places": [],
+        "precision": "region",
+        "completeness": 0.25,
+        "source": "llm"
+      }
     }
   }
 ]

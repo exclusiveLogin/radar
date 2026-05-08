@@ -35,10 +35,10 @@ export function loadLlmRuntimeConfig(env = process.env): LlmRuntimeConfig {
     provider: env.RADAR_LLM_PROVIDER?.trim() || "ollama",
     baseUrl: env.RADAR_LLM_BASE_URL?.trim() || "http://127.0.0.1:11434/v1",
     model: env.RADAR_LLM_MODEL?.trim() || "qwen2.5:3b",
-    timeoutMs: parseNumber(env.RADAR_LLM_TIMEOUT_MS, 5000),
+    timeoutMs: parseNumber(env.RADAR_LLM_TIMEOUT_MS, 30000),
     maxTokens: parseNumber(env.RADAR_LLM_MAX_TOKENS, 220),
     temperature: parseNumber(env.RADAR_LLM_TEMPERATURE, 0),
     jsonMode: parseBoolean(env.RADAR_LLM_JSON_MODE, true),
-    retryCount: parseNumber(env.RADAR_LLM_RETRY_COUNT, 1),
+    retryCount: parseNumber(env.RADAR_LLM_RETRY_COUNT, 0),
   });
 }

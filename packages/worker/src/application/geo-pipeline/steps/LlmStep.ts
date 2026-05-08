@@ -1,5 +1,6 @@
-import type { GeoPipelineContext, GeoPipelineStep } from "../GeoPipelineContext.js";
+import type { GeoNode } from "@radar/shared";
 import type { LlmEnricher } from "../../../infrastructure/enrichers/llmEnricher.js";
+import type { GeoPipelineContext, GeoPipelineStep } from "../GeoPipelineContext.js";
 
 export class LlmStep implements GeoPipelineStep {
   readonly id = "llm";
@@ -8,9 +9,9 @@ export class LlmStep implements GeoPipelineStep {
 
   async run(ctx: GeoPipelineContext): Promise<void> {
     const regionCode = ctx.artifact.catalog?.regions[0]?.code;
-    const candidate = await this.enricher.enrich({ rawText: ctx.rawText, regionCode });
+    const result = await this.enricher.enrich({ rawText: ctx.rawText, regionCode });
 
-    if (!candidate) {
+    if (!result) {
       ctx.artifact.llm = {
         schemaVersion: 1,
         nodes: [],
@@ -20,34 +21,30 @@ export class LlmStep implements GeoPipelineStep {
       return;
     }
 
-    const raw = candidate.raw as Record<string, unknown>;
-    const confidence = typeof raw.confidence === "number" ? raw.confidence : 0;
-    const reason = typeof raw.reason === "string" ? raw.reason : "";
+    const nodes: GeoNode[] = [];
 
-    const nodes: import("@radar/shared").GeoNode[] = [];
-
-    if (candidate.regionCode) {
+    if (result.regionCode) {
       nodes.push({
-        name: candidate.regionCode,
+        name: result.regionCode,
         kind: "region",
-        regionCode: candidate.regionCode,
+        regionCode: result.regionCode,
       });
     }
 
-    if (candidate.placeName) {
+    for (const place of result.places) {
       nodes.push({
-        name: candidate.placeName,
-        kind: "locality",
-        regionCode: candidate.regionCode,
-        fiasId: candidate.placeFias,
+        name: place.placeName,
+        kind: place.kind === "region" ? "region" : place.kind,
+        regionCode: result.regionCode ?? regionCode,
+        fiasId: place.placeFias,
       });
     }
 
     ctx.artifact.llm = {
       schemaVersion: 1,
       nodes,
-      confidence,
-      reason,
+      confidence: result.confidence,
+      reason: result.reason,
     };
   }
 }
