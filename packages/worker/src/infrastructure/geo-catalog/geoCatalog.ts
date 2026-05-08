@@ -1,5 +1,6 @@
 ﻿import * as path from "node:path";
 import { CityCatalog, type CityCatalogEntry } from "./cityCatalog.js";
+import { extractFallbackCities } from "./cityFallbackExtractors.js";
 import {
   RegionCatalog,
   resolveArtifactsRoot,
@@ -20,6 +21,16 @@ function normalize(value: string): string {
     .replace(/ё/g, "е")
     .replace(/["'`]/g, "")
     .replace(/\s+/g, " ")
+    .trim();
+}
+
+function cleanDistrictName(value: string): string {
+  return value
+    .replace(
+      /^(?:бпла|бплаи?|угроза|опасность|внимание|фиксация|отбой)\s+(?:по\s+|на\s+)?/i,
+      "",
+    )
+    .replace(/^(?:по|на|в|во|к|из|от)\s+/i, "")
     .trim();
 }
 
@@ -65,7 +76,7 @@ export class GeoCatalog {
       /(?:^|[^\p{L}\p{N}_])([а-яёa-z][а-яёa-z\-\s]{1,40}?\sрайон)(?=[^\p{L}\p{N}_]|$)/giu;
     const text = normalize(rawText);
     for (const match of text.matchAll(districtRegex)) {
-      const districtName = match[1]?.trim();
+      const districtName = cleanDistrictName(match[1]?.trim() ?? "");
       if (!districtName) continue;
       found.push({
         name: districtName,
@@ -80,6 +91,13 @@ export class GeoCatalog {
         kind: "city",
         lat: city.lat,
         lon: city.lon,
+      });
+    }
+
+    for (const cityName of extractFallbackCities(rawText)) {
+      found.push({
+        name: cityName,
+        kind: "city",
       });
     }
 

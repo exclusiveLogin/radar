@@ -6,7 +6,7 @@
       "text": "Чапаевск\nНовокуйбышевск\nСамарская область\nМеры безопасности\n❗️Радар Самара - @radar_samaraa\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "01c6b1747eafcd2438afd7f93cfc572b6678572f1228b68b5f3e8f6914db2f5f",
       "channelKey": "snap_001",
-      "postedAt": "2026-05-07T22:00:26.033Z",
+      "postedAt": "2026-05-08T12:07:59.100Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -25,15 +25,24 @@
           "fiasId": "df3d7359-afa9-4aaa-8ff9-197e73906b1c"
         }
       ],
-      "places": [],
-      "precision": "region",
-      "completeness": 0.25,
+      "places": [
+        {
+          "name": "Чапаевск",
+          "kind": "city"
+        },
+        {
+          "name": "Новокуйбышевск",
+          "kind": "city"
+        }
+      ],
+      "precision": "locality",
+      "completeness": 0.75,
       "source": "local"
     },
     "enrich": {
       "invoked": false,
       "providersTried": [],
-      "hits": 1,
+      "hits": 3,
       "misses": 0,
       "cacheHit": false
     },
@@ -49,7 +58,7 @@
       "text": "Чапаевск\nСамарская область\nФиксация БПЛА\n❗️Радар Самара - @radar_samaraa\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "a28ba3a8f0cafe9df64af7c958d45db199079497fb92b4e4788a6c1e47a567ba",
       "channelKey": "snap_001",
-      "postedAt": "2026-05-07T22:00:26.040Z",
+      "postedAt": "2026-05-08T12:07:59.108Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -68,15 +77,20 @@
           "fiasId": "df3d7359-afa9-4aaa-8ff9-197e73906b1c"
         }
       ],
-      "places": [],
-      "precision": "region",
-      "completeness": 0.25,
+      "places": [
+        {
+          "name": "Чапаевск",
+          "kind": "city"
+        }
+      ],
+      "precision": "locality",
+      "completeness": 0.75,
       "source": "local"
     },
     "enrich": {
       "invoked": false,
       "providersTried": [],
-      "hits": 1,
+      "hits": 2,
       "misses": 0,
       "cacheHit": false
     },
@@ -92,7 +106,7 @@
       "text": "Чапаевск \nНовокуйбышевск \nСамарская область. Работа ПВО без остановки. Свыше 20 сбитий\n❗️Радар Самара - @radar_samaraa\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "3b8373493e37722db99455189793b70829a5521c33ead09f61a0ece76b653120",
       "channelKey": "snap_001",
-      "postedAt": "2026-05-07T22:00:26.042Z",
+      "postedAt": "2026-05-08T12:07:59.110Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -112,15 +126,24 @@
           "fiasId": "df3d7359-afa9-4aaa-8ff9-197e73906b1c"
         }
       ],
-      "places": [],
-      "precision": "region",
-      "completeness": 0.25,
+      "places": [
+        {
+          "name": "Чапаевск",
+          "kind": "city"
+        },
+        {
+          "name": "Новокуйбышевск",
+          "kind": "city"
+        }
+      ],
+      "precision": "locality",
+      "completeness": 0.75,
       "source": "local"
     },
     "enrich": {
       "invoked": false,
       "providersTried": [],
-      "hits": 1,
+      "hits": 3,
       "misses": 0,
       "cacheHit": false
     },
@@ -136,7 +159,7 @@
       "text": "От 2 БПЛА на Комсомольский район Тольятти, Самарская область\n❗️Радар Самара - @radar_samaraa\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "95d75971928781bf5beff598c02486cb1ff88530c7358803d4a8839e887e0818",
       "channelKey": "snap_001",
-      "postedAt": "2026-05-07T22:00:26.043Z",
+      "postedAt": "2026-05-08T12:07:59.111Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -158,7 +181,7 @@
       ],
       "places": [
         {
-          "name": "бпла на комсомольский район",
+          "name": "комсомольский район",
           "kind": "district"
         }
       ],
@@ -185,7 +208,7 @@
       "text": "Сызрань, Тольятти, Самара, Новокуйбышевск, Самарская область - угроза атаки БПЛА, повторно\n❗️Радар Самара - @radar_samaraa\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "0323b2f70dd7091e1268d5da2499d5207a0363f34ee494d0c51c9621a16a1794",
       "channelKey": "snap_001",
-      "postedAt": "2026-05-07T22:00:26.043Z",
+      "postedAt": "2026-05-08T12:07:59.112Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -228,7 +251,7 @@
       "text": "Сызранский район\nСамарская область\nФиксация БПЛА\n❗️Радар Самара - @radar_samaraa\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "fd4932c2458478c65b981576a92639c7b498b91bfcda04f95fa5cb0ee2b877b4",
       "channelKey": "snap_001",
-      "postedAt": "2026-05-07T22:00:26.044Z",
+      "postedAt": "2026-05-08T12:07:59.112Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -276,7 +299,7 @@
       "text": "Красноармейский район\nСамарская область\nФиксация от 2 БПЛА\n❗️Радар Самара - @radar_samaraa\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "77a350c7cf27870e4e9c611a6b2d766b5671375d21bf0b51fd9718ad40b5de77",
       "channelKey": "snap_001",
-      "postedAt": "2026-05-07T22:00:26.044Z",
+      "postedAt": "2026-05-08T12:07:59.112Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -325,7 +348,7 @@
       "text": "Началась работа ПВО по ним\n❗️Радар Самара - @radar_samaraa\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "5416e9799c64960757612cf5e3a172a2d38b72cf3cedf12498140fb82ce08f5c",
       "channelKey": "snap_001",
-      "postedAt": "2026-05-07T22:00:26.045Z",
+      "postedAt": "2026-05-08T12:07:59.113Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -362,7 +385,7 @@
       "text": "Тольятти\nСамарская область\nФиксация БПЛА\n❗️Радар Самара - @radar_samaraa\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "5428a0c1867404be17cf9c76ebe4e79ba60002f1241ae4ec64aacbdd570d5b1e",
       "channelKey": "snap_001",
-      "postedAt": "2026-05-07T22:00:26.045Z",
+      "postedAt": "2026-05-08T12:07:59.113Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -381,15 +404,20 @@
           "fiasId": "df3d7359-afa9-4aaa-8ff9-197e73906b1c"
         }
       ],
-      "places": [],
-      "precision": "region",
-      "completeness": 0.25,
+      "places": [
+        {
+          "name": "Тольятти",
+          "kind": "city"
+        }
+      ],
+      "precision": "locality",
+      "completeness": 0.75,
       "source": "local"
     },
     "enrich": {
       "invoked": false,
       "providersTried": [],
-      "hits": 1,
+      "hits": 2,
       "misses": 0,
       "cacheHit": false
     },
@@ -405,7 +433,7 @@
       "text": "Волжский район\nСамарская область\nФиксация от 2 БПЛА\n❗️Радар Самара - @radar_samaraa\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "e326ba7deafb59e2374d102b9592591cf8408f9fff0582454fe9eacc6840b0e5",
       "channelKey": "snap_001",
-      "postedAt": "2026-05-07T22:00:26.046Z",
+      "postedAt": "2026-05-08T12:07:59.114Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -454,7 +482,7 @@
       "text": "Чапаевск\nСамарская область\nРабота ПВО по БПЛА\nМеры безопасности\n❗️Радар Самара - @radar_samaraa\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "f6d08647ad869193eb9d3640c9fa49244e514f3dc5c5375faa15f4482907e1d4",
       "channelKey": "snap_001",
-      "postedAt": "2026-05-07T22:00:26.046Z",
+      "postedAt": "2026-05-08T12:07:59.114Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -473,15 +501,20 @@
           "fiasId": "df3d7359-afa9-4aaa-8ff9-197e73906b1c"
         }
       ],
-      "places": [],
-      "precision": "region",
-      "completeness": 0.25,
+      "places": [
+        {
+          "name": "Чапаевск",
+          "kind": "city"
+        }
+      ],
+      "precision": "locality",
+      "completeness": 0.75,
       "source": "local"
     },
     "enrich": {
       "invoked": false,
       "providersTried": [],
-      "hits": 1,
+      "hits": 2,
       "misses": 0,
       "cacheHit": false
     },
@@ -497,7 +530,7 @@
       "text": "Волжский район\nСамарская область\nФиксация БПЛА\n❗️Радар Самара - @radar_samaraa\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "c5af30060a68d35acd7a5fde47a72a2732da3b6777819fdb4bb326fa431a598f",
       "channelKey": "snap_001",
-      "postedAt": "2026-05-07T22:00:26.046Z",
+      "postedAt": "2026-05-08T12:07:59.114Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -545,7 +578,7 @@
       "text": "Самарская область\nОтбой опасности по БПЛА\n❗️Радар Самара - @radar_samaraa\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "c4b3d486556f879282bc29c031d654cc13c2852b7a7e682bd334f06a10b542df",
       "channelKey": "snap_001",
-      "postedAt": "2026-05-07T22:00:26.046Z",
+      "postedAt": "2026-05-08T12:07:59.114Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
