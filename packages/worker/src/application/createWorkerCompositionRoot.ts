@@ -14,11 +14,10 @@ import {
 } from "./handlers/inMemoryRepositories.js";
 import { RuleBasedEventClassifier } from "../infrastructure/classifiers/ruleBasedEventClassifier.js";
 import {
+  buildEnricherChain,
   CachingEnricher,
-  CompositeEnricher,
-  DadataEnricher,
-  LlmEnricher,
-  NominatimEnricher,
+  resolveEnricherFlagsFromEnv,
+  wrapEnricherFallback,
 } from "../infrastructure/enrichers/index.js";
 import { loadLlmRuntimeConfig } from "../infrastructure/enrichers/llmRuntimeConfig.js";
 import { GeoCatalog } from "../infrastructure/geo-catalog/index.js";
@@ -51,17 +50,18 @@ export function createWorkerCompositionRoot(options: WorkerCompositionOptions = 
   const classifier = new RuleBasedEventClassifier();
   const geoCatalog = options.geoCatalog ?? GeoCatalog.loadFromArtifacts();
   const llmRuntimeConfig = loadLlmRuntimeConfig();
+  const envFlags = resolveEnricherFlagsFromEnv();
+  const effectiveFlags =
+    options.enableProviders === false
+      ? { dadata: false, nominatim: false, llm: false }
+      : envFlags;
+  const enrichers: ILocationEnricher[] = buildEnricherChain(
+    effectiveFlags,
+    llmRuntimeConfig,
+    process.env.DADATA_TOKEN,
+  );
 
-  const enrichers: ILocationEnricher[] = [];
-  if (options.enableProviders !== false) {
-    enrichers.push(
-      new DadataEnricher(process.env.DADATA_TOKEN),
-      new NominatimEnricher(),
-    );
-    enrichers.push(new LlmEnricher(llmRuntimeConfig));
-  }
-
-  const compositeEnricher = new CompositeEnricher(enrichers);
+  const compositeEnricher = wrapEnricherFallback(enrichers);
   const cachedEnricher = new CachingEnricher(compositeEnricher, placeCache);
   const resolution = new LocationResolutionService(geoCatalog, cachedEnricher);
   const pipeline = new ParsePipelineService(classifier, resolution);

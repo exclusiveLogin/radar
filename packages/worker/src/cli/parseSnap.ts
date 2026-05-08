@@ -1,19 +1,27 @@
 ﻿import * as fs from "node:fs";
 import * as path from "node:path";
-import type { ILocationEnricher, LocationCandidate } from "@radar/shared";
+import { MONOREPO_ROOT } from "@repo/root";
+import type { ILocationEnricher } from "@radar/shared";
 import { GeoValidationService } from "../application/parsing/geoValidationService.js";
 import { LocationResolutionService } from "../application/parsing/locationResolutionService.js";
 import { GeoCatalog } from "../infrastructure/geo-catalog/index.js";
 import {
   InMemoryPlaceAliasRepository,
+  InMemoryPlaceCacheRepository,
   InMemoryPlaceRepository,
   InMemoryRegionRepository,
 } from "../application/handlers/inMemoryRepositories.js";
 import { RuleBasedEventClassifier } from "../infrastructure/classifiers/ruleBasedEventClassifier.js";
+import {
+  buildEnricherChain,
+  CachingEnricher,
+  wrapEnricherFallback,
+} from "../infrastructure/enrichers/index.js";
+import { loadRootEnv } from "../infrastructure/config/loadRootEnv.js";
+import { loadLlmRuntimeConfig } from "../infrastructure/enrichers/llmRuntimeConfig.js";
 import { splitMessageBlocks } from "../domain/parsing/index.js";
 
 // CLI for offline parser runs on saved snapshot texts.
-// Useful for quick quality checks without Telegram connectivity.
 type ParseSummary = {
   totalBlocks: number;
   events: number;
@@ -25,18 +33,56 @@ type ParseSummary = {
     created: number;
     rejected: number;
   };
+  geoEnrichers?: {
+    dadata: boolean;
+    nominatim: boolean;
+    llm: boolean;
+  };
 };
 
-class NoopEnricher implements ILocationEnricher {
-  readonly name = "dadata";
+type ParsedCli = {
+  filePathArg: string;
+  withGeoReport: boolean;
+  enrichDadata: boolean;
+  enrichNominatim: boolean;
+  enrichLlm: boolean;
+};
 
-  async enrich(_input: {
-    rawText: string;
-    regionCode?: string;
-  }): Promise<LocationCandidate | null> {
-    // Р’ snapshot-СЂРµР¶РёРјРµ РІРЅРµС€РЅРёРµ enrichers РЅРµ РІС‹Р·С‹РІР°РµРј.
-    return null;
+function parseParseSnapCli(argv: string[]): ParsedCli {
+  const tokens = argv.slice(2);
+  let filePathArg = "";
+  let withGeoReport = false;
+  let enrichDadata = false;
+  let enrichNominatim = false;
+  let enrichLlm = false;
+
+  for (const t of tokens) {
+    if (t.startsWith("--")) {
+      switch (t) {
+        case "--geo-report":
+          withGeoReport = true;
+          break;
+        case "--dadataEnrich":
+        case "--enrich-dadata":
+          enrichDadata = true;
+          break;
+        case "--nominatimEnrich":
+        case "--enrich-nominatim":
+          enrichNominatim = true;
+          break;
+        case "--llmEnrich":
+        case "--enrich-llm":
+          enrichLlm = true;
+          break;
+        default:
+          break;
+      }
+      continue;
+    }
+    filePathArg = t;
   }
+
+  return { filePathArg, withGeoReport, enrichDadata, enrichNominatim, enrichLlm };
 }
 
 function resolveInputPath(arg: string): string {
@@ -61,15 +107,47 @@ function buildSummary(kinds: Array<"event" | "noise" | "meta">): ParseSummary {
   };
 }
 
+function buildGeoReportEnricher(cli: ParsedCli): ILocationEnricher {
+  const anyEnrich = cli.enrichDadata || cli.enrichNominatim || cli.enrichLlm;
+  if (!anyEnrich) {
+    return wrapEnricherFallback([]);
+  }
+  const llmRuntimeConfig = loadLlmRuntimeConfig();
+  const llmConfigForRun = cli.enrichLlm
+    ? { ...llmRuntimeConfig, enabled: true }
+    : llmRuntimeConfig;
+  const chain = buildEnricherChain(
+    {
+      dadata: cli.enrichDadata,
+      nominatim: cli.enrichNominatim,
+      llm: cli.enrichLlm,
+    },
+    llmConfigForRun,
+    process.env.DADATA_TOKEN,
+  );
+  const composite = wrapEnricherFallback(chain);
+  return new CachingEnricher(composite, new InMemoryPlaceCacheRepository());
+}
+
 async function main(): Promise<void> {
-  const inputArg = process.argv[2];
-  if (!inputArg) {
-    console.error("Usage: npm run parse:snap -- <path-to-snap.txt>");
+  loadRootEnv(MONOREPO_ROOT);
+  const cli = parseParseSnapCli(process.argv);
+  if (!cli.filePathArg) {
+    console.error(
+      "Usage: npm run parse:snap -- <path-to-snap.txt> [--geo-report] [--dadataEnrich|--enrich-dadata] [--nominatimEnrich|--enrich-nominatim] [--llmEnrich|--enrich-llm]",
+    );
     process.exit(1);
   }
-  const withGeoReport = process.argv.includes("--geo-report");
 
-  const filePath = resolveInputPath(inputArg);
+  const wantsEnrichers =
+    cli.enrichDadata || cli.enrichNominatim || cli.enrichLlm;
+  if (wantsEnrichers && !cli.withGeoReport) {
+    console.warn(
+      "parse:snap: флаги enrichers действуют только вместе с --geo-report, игнорируются.",
+    );
+  }
+
+  const filePath = resolveInputPath(cli.filePathArg);
   if (!fs.existsSync(filePath)) {
     console.error(`File not found: ${filePath}`);
     process.exit(1);
@@ -85,8 +163,16 @@ async function main(): Promise<void> {
   }));
   const summary = buildSummary(results.map((x) => x.result.kind));
 
-  if (withGeoReport) {
-    const resolver = new LocationResolutionService(GeoCatalog.loadFromArtifacts(), new NoopEnricher());
+  if (cli.withGeoReport) {
+    const resolver = new LocationResolutionService(
+      GeoCatalog.loadFromArtifacts(),
+      buildGeoReportEnricher(cli),
+    );
+    summary.geoEnrichers = {
+      dadata: cli.enrichDadata,
+      nominatim: cli.enrichNominatim,
+      llm: cli.enrichLlm,
+    };
     const validation = new GeoValidationService(
       new InMemoryRegionRepository(),
       new InMemoryPlaceRepository(),
@@ -143,4 +229,3 @@ main().catch((error) => {
   console.error(error);
   process.exit(1);
 });
-
