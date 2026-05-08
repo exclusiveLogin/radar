@@ -14,4 +14,5 @@ export type {
   ParseReportEnrich,
   ParseReportEvent,
   ParseReportGeo,
+  ParseReportGeoPipeline,
 } from "./parse-report";

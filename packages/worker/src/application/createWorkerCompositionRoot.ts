@@ -1,4 +1,4 @@
-﻿import type { ILocationEnricher, IPlaceCacheRepository } from "@radar/shared";
+﻿import type { IPlaceCacheRepository } from "@radar/shared";
 import { InProcessEventBus } from "@radar/shared";
 import { ParseAttemptLogger, MetricsAggregator } from "./subscribers/index.js";
 import { IngestRawMessageHandler } from "./handlers/ingestRawMessageHandler.js";
@@ -13,14 +13,28 @@ import {
   InMemoryRawMessageRepository,
 } from "./handlers/inMemoryRepositories.js";
 import { RuleBasedEventClassifier } from "../infrastructure/classifiers/ruleBasedEventClassifier.js";
+import { DadataEnricher } from "../infrastructure/enrichers/dadataEnricher.js";
+import { LlmEnricher } from "../infrastructure/enrichers/llmEnricher.js";
+import { NominatimEnricher } from "../infrastructure/enrichers/nominatimEnricher.js";
 import {
-  buildEnricherChain,
-  CachingEnricher,
+  loadLlmRuntimeConfig,
+  type LlmRuntimeConfig,
+} from "../infrastructure/enrichers/llmRuntimeConfig.js";
+import {
+  DEFAULT_PIPELINE_ORDER,
   resolveEnricherFlagsFromEnv,
-  wrapEnricherFallback,
-} from "../infrastructure/enrichers/index.js";
-import { loadLlmRuntimeConfig } from "../infrastructure/enrichers/llmRuntimeConfig.js";
+  resolvePipelineOrderFromEnv,
+} from "../infrastructure/enrichers/enricherChainFactory.js";
+import type {
+  PipelineStepId,
+  ResolvedEnricherFlags,
+} from "../infrastructure/enrichers/enricherChainFactory.js";
 import { GeoCatalog } from "../infrastructure/geo-catalog/index.js";
+import type { GeoPipelineStep } from "./geo-pipeline/GeoPipelineContext.js";
+import { CatalogStep } from "./geo-pipeline/steps/CatalogStep.js";
+import { DadataStep } from "./geo-pipeline/steps/DadataStep.js";
+import { NominatimStep } from "./geo-pipeline/steps/NominatimStep.js";
+import { LlmStep } from "./geo-pipeline/steps/LlmStep.js";
 import { LocationResolutionService } from "./parsing/locationResolutionService.js";
 import { GeoValidationService } from "./parsing/geoValidationService.js";
 import { ParsePipelineService } from "./parsing/parsePipelineService.js";
@@ -28,7 +42,19 @@ import { ParsePipelineService } from "./parsing/parsePipelineService.js";
 export type WorkerCompositionOptions = {
   placeCacheRepository?: IPlaceCacheRepository;
   geoCatalog?: GeoCatalog;
-  enableProviders?: boolean;
+  /**
+   * Полная замена env-флагов enrichers (например parse:snap задаёт три булева из CLI).
+   * Если false — отключает все внешние провайдеры (только каталог + финалайзер).
+   */
+  explicitEnricherFlags?: ResolvedEnricherFlags | false;
+  /**
+   * Явный порядок шагов пайплайна (CLI override).
+   * Если не задан — читается из env RADAR_GEO_PIPELINE_ORDER, иначе DEFAULT_PIPELINE_ORDER.
+   * `FinalizerStep` всегда добавляется последним в runGeoPipeline автоматически.
+   */
+  pipelineOrder?: PipelineStepId[];
+  /** Поверх `loadLlmRuntimeConfig()` (например `enabled: true` при `--enrich-llm`). */
+  llmRuntimeOverride?: Partial<LlmRuntimeConfig>;
 };
 
 export function createWorkerCompositionRoot(options: WorkerCompositionOptions = {}) {
@@ -49,21 +75,38 @@ export function createWorkerCompositionRoot(options: WorkerCompositionOptions = 
   const placeCache = options.placeCacheRepository ?? new InMemoryPlaceCacheRepository();
   const classifier = new RuleBasedEventClassifier();
   const geoCatalog = options.geoCatalog ?? GeoCatalog.loadFromArtifacts();
-  const llmRuntimeConfig = loadLlmRuntimeConfig();
-  const envFlags = resolveEnricherFlagsFromEnv();
-  const effectiveFlags =
-    options.enableProviders === false
-      ? { dadata: false, nominatim: false, llm: false }
-      : envFlags;
-  const enrichers: ILocationEnricher[] = buildEnricherChain(
-    effectiveFlags,
-    llmRuntimeConfig,
-    process.env.DADATA_TOKEN,
-  );
 
-  const compositeEnricher = wrapEnricherFallback(enrichers);
-  const cachedEnricher = new CachingEnricher(compositeEnricher, placeCache);
-  const resolution = new LocationResolutionService(geoCatalog, cachedEnricher);
+  const llmRuntimeConfig = {
+    ...loadLlmRuntimeConfig(),
+    ...(options.llmRuntimeOverride ?? {}),
+  };
+
+  const flags: ResolvedEnricherFlags =
+    options.explicitEnricherFlags === false
+      ? { dadata: false, nominatim: false, llm: false }
+      : (options.explicitEnricherFlags ?? resolveEnricherFlagsFromEnv());
+
+  // ── Resolve execution order: options → env → default ──────────────────
+  const order: PipelineStepId[] =
+    options.pipelineOrder ??
+    resolvePipelineOrderFromEnv() ??
+    DEFAULT_PIPELINE_ORDER;
+
+  // ── Step factory map ───────────────────────────────────────────────────
+  const stepFactories: Record<PipelineStepId, () => GeoPipelineStep | null> = {
+    catalog: () => new CatalogStep(geoCatalog),
+    llm: () => (flags.llm ? new LlmStep(new LlmEnricher(llmRuntimeConfig)) : null),
+    dadata: () =>
+      flags.dadata ? new DadataStep(new DadataEnricher(process.env.DADATA_TOKEN), placeCache) : null,
+    nominatim: () => (flags.nominatim ? new NominatimStep(new NominatimEnricher(), placeCache) : null),
+  };
+
+  const steps: GeoPipelineStep[] = order
+    .map((id) => stepFactories[id]())
+    .filter((s): s is GeoPipelineStep => s !== null);
+  // FinalizerStep is always appended inside runGeoPipeline
+
+  const resolution = new LocationResolutionService(steps);
   const pipeline = new ParsePipelineService(classifier, resolution);
   const validation = new GeoValidationService(regions, places, aliases);
 
@@ -81,6 +124,7 @@ export function createWorkerCompositionRoot(options: WorkerCompositionOptions = 
     bus,
     metricsAggregator,
     geoCatalog,
+    locationResolutionService: resolution,
     parsePipelineService: pipeline,
     ingestRawMessageHandler,
     parseRawMessageHandler,

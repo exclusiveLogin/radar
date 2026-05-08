@@ -32,6 +32,14 @@ export {
 } from "./events";
 export {
   aliasDraftSchema,
+  geoEnrichmentArtifactSchema,
+  geoEnrichmentCatalogSchema,
+  geoEnrichmentDadataSchema,
+  geoEnrichmentFinalizerSchema,
+  geoEnrichmentLlmSchema,
+  geoEnrichmentNominatimSchema,
+  geoPipelineReportSchema,
+  geoPipelineStepLogSchema,
   placeDraftSchema,
   regionDraftSchema,
   statusDictionaryEntrySchema,
@@ -80,6 +88,14 @@ export type {
 } from "./events";
 export type {
   AliasDraft,
+  GeoEnrichmentArtifact,
+  GeoEnrichmentCatalog,
+  GeoEnrichmentDadata,
+  GeoEnrichmentFinalizer,
+  GeoEnrichmentLlm,
+  GeoEnrichmentNominatim,
+  GeoNode,
+  GeoPipelineReport,
   PlaceDraft,
   RegionDraft,
   StatusDictionary,
@@ -91,5 +107,6 @@ export type {
   ParseReportEnrich,
   ParseReportEvent,
   ParseReportGeo,
+  ParseReportGeoPipeline,
 } from "./reports";
 

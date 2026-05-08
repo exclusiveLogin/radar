@@ -2,10 +2,11 @@
 export { CachingEnricher } from "./cachingEnricher.js";
 export { CompositeEnricher } from "./compositeEnricher.js";
 export { DadataEnricher } from "./dadataEnricher.js";
-export type { ResolvedEnricherFlags } from "./enricherChainFactory.js";
+export type { PipelineStepId, ResolvedEnricherFlags } from "./enricherChainFactory.js";
 export {
-  buildEnricherChain,
+  DEFAULT_PIPELINE_ORDER,
   resolveEnricherFlagsFromEnv,
+  resolvePipelineOrderFromEnv,
   wrapEnricherFallback,
 } from "./enricherChainFactory.js";
 export { LlmEnricher } from "./llmEnricher.js";

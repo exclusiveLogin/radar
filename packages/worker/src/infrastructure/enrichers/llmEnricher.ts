@@ -7,8 +7,6 @@ const llmResponseSchema = z.object({
   placeName: z.string().min(1).nullable().optional(),
   regionCode: z.string().min(1).nullable().optional(),
   placeFias: z.string().min(1).nullable().optional(),
-  lat: z.number().finite().min(-90).max(90).nullable().optional(),
-  lon: z.number().finite().min(-180).max(180).nullable().optional(),
   confidence: z.number().min(0).max(1).default(0),
   reason: z.string().max(500).default(""),
 });
@@ -137,8 +135,6 @@ export class LlmEnricher implements ILocationEnricher {
         const hasSignal =
           Boolean(candidate.placeName) ||
           Boolean(candidate.placeFias) ||
-          (candidate.lat !== null && candidate.lat !== undefined) ||
-          (candidate.lon !== null && candidate.lon !== undefined) ||
           Boolean(candidate.regionCode);
 
         if (!hasSignal) return null;
@@ -149,8 +145,6 @@ export class LlmEnricher implements ILocationEnricher {
           regionCode: input.regionCode ?? candidate.regionCode ?? undefined,
           placeName: candidate.placeName ?? undefined,
           placeFias: candidate.placeFias ?? undefined,
-          lat: candidate.lat ?? undefined,
-          lon: candidate.lon ?? undefined,
           raw: {
             provider: this.name,
             model: payload.data.model ?? this.config.model,

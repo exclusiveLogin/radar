@@ -86,7 +86,10 @@ async function main(): Promise<void> {
     );
   }
 
-  const runtime = createWorkerCompositionRoot({ enableProviders: true });
+  const runtime = createWorkerCompositionRoot({
+    llmRuntimeOverride: { enabled: true },
+    explicitEnricherFlags: { dadata: false, nominatim: false, llm: true },
+  });
   const source = fs.readFileSync(filePath, "utf8");
   const blocks = splitMessageBlocks(source);
   const results = [];

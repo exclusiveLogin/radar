@@ -1,27 +1,18 @@
 ﻿import * as fs from "node:fs";
 import * as path from "node:path";
 import { MONOREPO_ROOT } from "@repo/root";
-import type { ILocationEnricher } from "@radar/shared";
+import { createWorkerCompositionRoot } from "../application/createWorkerCompositionRoot.js";
+import type { PipelineStepId } from "../infrastructure/enrichers/enricherChainFactory.js";
 import { GeoValidationService } from "../application/parsing/geoValidationService.js";
-import { LocationResolutionService } from "../application/parsing/locationResolutionService.js";
-import { GeoCatalog } from "../infrastructure/geo-catalog/index.js";
 import {
   InMemoryPlaceAliasRepository,
-  InMemoryPlaceCacheRepository,
   InMemoryPlaceRepository,
   InMemoryRegionRepository,
 } from "../application/handlers/inMemoryRepositories.js";
 import { RuleBasedEventClassifier } from "../infrastructure/classifiers/ruleBasedEventClassifier.js";
-import {
-  buildEnricherChain,
-  CachingEnricher,
-  wrapEnricherFallback,
-} from "../infrastructure/enrichers/index.js";
 import { loadRootEnv } from "../infrastructure/config/loadRootEnv.js";
-import { loadLlmRuntimeConfig } from "../infrastructure/enrichers/llmRuntimeConfig.js";
 import { splitMessageBlocks } from "../domain/parsing/index.js";
 
-// CLI for offline parser runs on saved snapshot texts.
 type ParseSummary = {
   totalBlocks: number;
   events: number;
@@ -46,6 +37,7 @@ type ParsedCli = {
   enrichDadata: boolean;
   enrichNominatim: boolean;
   enrichLlm: boolean;
+  pipelineOrder: PipelineStepId[] | undefined;
 };
 
 function parseParseSnapCli(argv: string[]): ParsedCli {
@@ -55,9 +47,20 @@ function parseParseSnapCli(argv: string[]): ParsedCli {
   let enrichDadata = false;
   let enrichNominatim = false;
   let enrichLlm = false;
+  let pipelineOrder: PipelineStepId[] | undefined;
+
+  const validStepIds = new Set<PipelineStepId>(["catalog", "llm", "dadata", "nominatim"]);
 
   for (const t of tokens) {
     if (t.startsWith("--")) {
+      if (t.startsWith("--pipeline-order=")) {
+        const raw = t.slice("--pipeline-order=".length);
+        pipelineOrder = raw
+          .split(",")
+          .map((s) => s.trim().toLowerCase() as PipelineStepId)
+          .filter((s) => validStepIds.has(s));
+        continue;
+      }
       switch (t) {
         case "--geo-report":
           withGeoReport = true;
@@ -82,7 +85,7 @@ function parseParseSnapCli(argv: string[]): ParsedCli {
     filePathArg = t;
   }
 
-  return { filePathArg, withGeoReport, enrichDadata, enrichNominatim, enrichLlm };
+  return { filePathArg, withGeoReport, enrichDadata, enrichNominatim, enrichLlm, pipelineOrder };
 }
 
 function resolveInputPath(arg: string): string {
@@ -107,34 +110,12 @@ function buildSummary(kinds: Array<"event" | "noise" | "meta">): ParseSummary {
   };
 }
 
-function buildGeoReportEnricher(cli: ParsedCli): ILocationEnricher {
-  const anyEnrich = cli.enrichDadata || cli.enrichNominatim || cli.enrichLlm;
-  if (!anyEnrich) {
-    return wrapEnricherFallback([]);
-  }
-  const llmRuntimeConfig = loadLlmRuntimeConfig();
-  const llmConfigForRun = cli.enrichLlm
-    ? { ...llmRuntimeConfig, enabled: true }
-    : llmRuntimeConfig;
-  const chain = buildEnricherChain(
-    {
-      dadata: cli.enrichDadata,
-      nominatim: cli.enrichNominatim,
-      llm: cli.enrichLlm,
-    },
-    llmConfigForRun,
-    process.env.DADATA_TOKEN,
-  );
-  const composite = wrapEnricherFallback(chain);
-  return new CachingEnricher(composite, new InMemoryPlaceCacheRepository());
-}
-
 async function main(): Promise<void> {
   loadRootEnv(MONOREPO_ROOT);
   const cli = parseParseSnapCli(process.argv);
   if (!cli.filePathArg) {
     console.error(
-      "Usage: npm run parse:snap -- <path-to-snap.txt> [--geo-report] [--dadataEnrich|--enrich-dadata] [--nominatimEnrich|--enrich-nominatim] [--llmEnrich|--enrich-llm]",
+      "Usage: npm run parse:snap -- <path-to-snap.txt> [--geo-report] [--enrich-dadata] [--enrich-nominatim] [--enrich-llm] [--pipeline-order=catalog,llm,dadata,nominatim]",
     );
     process.exit(1);
   }
@@ -153,6 +134,20 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
+  const runtime = createWorkerCompositionRoot(
+    cli.withGeoReport
+      ? {
+          explicitEnricherFlags: {
+            dadata: cli.enrichDadata,
+            nominatim: cli.enrichNominatim,
+            llm: cli.enrichLlm,
+          },
+          pipelineOrder: cli.pipelineOrder,
+          llmRuntimeOverride: cli.enrichLlm ? { enabled: true } : undefined,
+        }
+      : { explicitEnricherFlags: false },
+  );
+
   const source = fs.readFileSync(filePath, "utf8");
   const blocks = splitMessageBlocks(source);
   const classifier = new RuleBasedEventClassifier();
@@ -164,10 +159,6 @@ async function main(): Promise<void> {
   const summary = buildSummary(results.map((x) => x.result.kind));
 
   if (cli.withGeoReport) {
-    const resolver = new LocationResolutionService(
-      GeoCatalog.loadFromArtifacts(),
-      buildGeoReportEnricher(cli),
-    );
     summary.geoEnrichers = {
       dadata: cli.enrichDadata,
       nominatim: cli.enrichNominatim,
@@ -184,7 +175,7 @@ async function main(): Promise<void> {
 
     for (const row of results) {
       if (row.result.kind !== "event") continue;
-      const resolved = await resolver.resolve(row.block);
+      const resolved = await runtime.locationResolutionService.resolve(row.block);
       if (resolved.locations.length === 0) {
         rejected += 1;
         continue;

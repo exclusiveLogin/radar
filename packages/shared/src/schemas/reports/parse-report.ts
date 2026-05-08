@@ -1,4 +1,5 @@
 ﻿import { z } from "zod";
+import { geoEnrichmentArtifactSchema, geoPipelineReportSchema } from "../geo/enrichment-artifact";
 import { eventTypeSchema } from "../ingest/event-type";
 import { macroZoneSchema } from "../ingest/macro-zone";
 import { severitySchema } from "../ingest/severity";
@@ -79,6 +80,8 @@ export const parseReportSchema = z.object({
       warnings: z.array(z.string()).default([]),
     })
     .optional(),
+  geoPipeline: geoPipelineReportSchema.optional(),
+  geoArtifact: geoEnrichmentArtifactSchema.optional(),
 });
 
 export type ParseReport = z.infer<typeof parseReportSchema>;
@@ -88,3 +91,4 @@ export type ParseReportClassification = z.infer<
 export type ParseReportEvent = z.infer<typeof parseReportEventSchema>;
 export type ParseReportGeo = z.infer<typeof parseReportGeoSchema>;
 export type ParseReportEnrich = z.infer<typeof parseReportEnrichSchema>;
+export type ParseReportGeoPipeline = z.infer<typeof geoPipelineReportSchema>;

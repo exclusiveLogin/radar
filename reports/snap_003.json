@@ -6,7 +6,7 @@
       "text": "Радар по всей России | БПЛА, ракеты, самолёты, [04.05.2026 18:28]\nСвердловский район \nОрловская область\nФиксации БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "4024073503b3037bde7dbf6830a3b2117e6051a1f1fd7344fd420ba6de4fac2b",
       "channelKey": "snap_003",
-      "postedAt": "2026-05-08T12:07:59.127Z",
+      "postedAt": "2026-05-08T20:44:31.185Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -45,6 +45,20 @@
     "diagnostics": {
       "parserVersion": "0.1.0",
       "warnings": []
+    },
+    "geoPipeline": {
+      "steps": [
+        {
+          "id": "catalog",
+          "ok": true,
+          "durationMs": 0
+        },
+        {
+          "id": "finalizer",
+          "ok": true,
+          "durationMs": 0
+        }
+      ]
     }
   },
   {
@@ -54,7 +68,7 @@
       "text": "Радар по всей России | БПЛА, ракеты, самолёты, [04.05.2026 18:28]\nБолховский район \nОрловская область\nФиксации БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "14d4bf4c8053d7d7fbd3854801e20dbe6cdb309465dac2af0cccf93caf533953",
       "channelKey": "snap_003",
-      "postedAt": "2026-05-08T12:07:59.128Z",
+      "postedAt": "2026-05-08T20:44:31.186Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -93,6 +107,20 @@
     "diagnostics": {
       "parserVersion": "0.1.0",
       "warnings": []
+    },
+    "geoPipeline": {
+      "steps": [
+        {
+          "id": "catalog",
+          "ok": true,
+          "durationMs": 0
+        },
+        {
+          "id": "finalizer",
+          "ok": true,
+          "durationMs": 0
+        }
+      ]
     }
   },
   {
@@ -102,7 +130,7 @@
       "text": "Радар по всей России | БПЛА, ракеты, самолёты, [04.05.2026 18:29]\nМО Истра \nФиксации БПЛА в вашем направлении \nМосковская область\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "8afc256b82c90115fca9f972755485f8d8a05d5881ba6cabbac79cbc99868a9a",
       "channelKey": "snap_003",
-      "postedAt": "2026-05-08T12:07:59.128Z",
+      "postedAt": "2026-05-08T20:44:31.186Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -142,6 +170,20 @@
     "diagnostics": {
       "parserVersion": "0.1.0",
       "warnings": []
+    },
+    "geoPipeline": {
+      "steps": [
+        {
+          "id": "catalog",
+          "ok": true,
+          "durationMs": 0
+        },
+        {
+          "id": "finalizer",
+          "ok": true,
+          "durationMs": 0
+        }
+      ]
     }
   },
   {
@@ -151,7 +193,7 @@
       "text": "Радар по всей России | БПЛА, ракеты, самолёты, [04.05.2026 18:29]\nМорозовский район \nРостовская область \nФиксация 3 БПЛА в направлении Калачевского района \nВолгоградская область\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "a4b342fd694d93f30899304a32180f76c59c7f03bdbe4605018708bae56d8d7b",
       "channelKey": "snap_003",
-      "postedAt": "2026-05-08T12:07:59.128Z",
+      "postedAt": "2026-05-08T20:44:31.186Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -176,21 +218,40 @@
           "fiasId": "da051ec8-da2e-4a66-b542-473b8d221ab4"
         }
       ],
-      "places": [],
-      "precision": "region",
-      "completeness": 0.25,
+      "places": [
+        {
+          "name": "морозовский район",
+          "kind": "district"
+        }
+      ],
+      "precision": "district",
+      "completeness": 0.5,
       "source": "local"
     },
     "enrich": {
       "invoked": false,
       "providersTried": [],
-      "hits": 2,
+      "hits": 3,
       "misses": 0,
       "cacheHit": false
     },
     "diagnostics": {
       "parserVersion": "0.1.0",
       "warnings": []
+    },
+    "geoPipeline": {
+      "steps": [
+        {
+          "id": "catalog",
+          "ok": true,
+          "durationMs": 0
+        },
+        {
+          "id": "finalizer",
+          "ok": true,
+          "durationMs": 0
+        }
+      ]
     }
   },
   {
@@ -200,7 +261,7 @@
       "text": "Радар по всей России | БПЛА, ракеты, самолёты, [04.05.2026 18:30]\nДорогобужский район\nВяземский район\nСмоленская область\nФиксации БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "8043c34bd8b9c2649fd1cb26c52f67242d88b03e4d037b586f5d839d9d676f42",
       "channelKey": "snap_003",
-      "postedAt": "2026-05-08T12:07:59.128Z",
+      "postedAt": "2026-05-08T20:44:31.187Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -243,6 +304,20 @@
     "diagnostics": {
       "parserVersion": "0.1.0",
       "warnings": []
+    },
+    "geoPipeline": {
+      "steps": [
+        {
+          "id": "catalog",
+          "ok": true,
+          "durationMs": 0
+        },
+        {
+          "id": "finalizer",
+          "ok": true,
+          "durationMs": 0
+        }
+      ]
     }
   },
   {
@@ -252,7 +327,7 @@
       "text": "Радар по всей России | БПЛА, ракеты, самолёты, [04.05.2026 18:31]\nБоровский район\nМалоярославецкий район\nКалужская область\nФиксация БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "65fb034d9198abbce86f6444c854e0711dfd08ecc3ba2ab7e90dc431f6260225",
       "channelKey": "snap_003",
-      "postedAt": "2026-05-08T12:07:59.128Z",
+      "postedAt": "2026-05-08T20:44:31.187Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -295,6 +370,20 @@
     "diagnostics": {
       "parserVersion": "0.1.0",
       "warnings": []
+    },
+    "geoPipeline": {
+      "steps": [
+        {
+          "id": "catalog",
+          "ok": true,
+          "durationMs": 0
+        },
+        {
+          "id": "finalizer",
+          "ok": true,
+          "durationMs": 0
+        }
+      ]
     }
   },
   {
@@ -304,7 +393,7 @@
       "text": "Радар по всей России | БПЛА, ракеты, самолёты, [04.05.2026 18:34]\nКалач-на-Дону \nФиксация БПЛА на север \nВолгоградская область\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "cd3b227f9ab482454f2966becc777f6ea2c4733e4b8b49899b18c32bb60c3581",
       "channelKey": "snap_003",
-      "postedAt": "2026-05-08T12:07:59.129Z",
+      "postedAt": "2026-05-08T20:44:31.187Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -343,6 +432,20 @@
     "diagnostics": {
       "parserVersion": "0.1.0",
       "warnings": []
+    },
+    "geoPipeline": {
+      "steps": [
+        {
+          "id": "catalog",
+          "ok": true,
+          "durationMs": 0
+        },
+        {
+          "id": "finalizer",
+          "ok": true,
+          "durationMs": 0
+        }
+      ]
     }
   },
   {
@@ -352,7 +455,7 @@
       "text": "Радар по всей России | БПЛА, ракеты, самолёты, [04.05.2026 18:34]\nБелгородская область - ракетная опасность\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "74d91b9ba32747515df00f084daf96efc955286695478e334dc6e38155466e4d",
       "channelKey": "snap_003",
-      "postedAt": "2026-05-08T12:07:59.129Z",
+      "postedAt": "2026-05-08T20:44:31.187Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -386,6 +489,20 @@
     "diagnostics": {
       "parserVersion": "0.1.0",
       "warnings": []
+    },
+    "geoPipeline": {
+      "steps": [
+        {
+          "id": "catalog",
+          "ok": true,
+          "durationMs": 0
+        },
+        {
+          "id": "finalizer",
+          "ok": true,
+          "durationMs": 0
+        }
+      ]
     }
   },
   {
@@ -395,7 +512,7 @@
       "text": "Радар по всей России | БПЛА, ракеты, самолёты, [04.05.2026 18:46]\nГО Клин\nМосковская область \nРабота ПВО по БПЛА \nМеры безопасности\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "d272823824c8e4b7a24470e8439194b164e36f275cdc27e45433db6f7a261c86",
       "channelKey": "snap_003",
-      "postedAt": "2026-05-08T12:07:59.129Z",
+      "postedAt": "2026-05-08T20:44:31.187Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -434,6 +551,20 @@
     "diagnostics": {
       "parserVersion": "0.1.0",
       "warnings": []
+    },
+    "geoPipeline": {
+      "steps": [
+        {
+          "id": "catalog",
+          "ok": true,
+          "durationMs": 0
+        },
+        {
+          "id": "finalizer",
+          "ok": true,
+          "durationMs": 0
+        }
+      ]
     }
   },
   {
@@ -443,7 +574,7 @@
       "text": "Радар по всей России | БПЛА, ракеты, самолёты, [04.05.2026 18:40]\nИстра\nМосковская область\nРабота ПВО по БПЛА \nМеры безопасности\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "09fe72b74c11ba85056fe2a4e5dce13006fed2039f1c310b99d75c157423cc5a",
       "channelKey": "snap_003",
-      "postedAt": "2026-05-08T12:07:59.129Z",
+      "postedAt": "2026-05-08T20:44:31.188Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -482,6 +613,20 @@
     "diagnostics": {
       "parserVersion": "0.1.0",
       "warnings": []
+    },
+    "geoPipeline": {
+      "steps": [
+        {
+          "id": "catalog",
+          "ok": true,
+          "durationMs": 0
+        },
+        {
+          "id": "finalizer",
+          "ok": true,
+          "durationMs": 0
+        }
+      ]
     }
   },
   {
@@ -491,7 +636,7 @@
       "text": "Радар по всей России | БПЛА, ракеты, самолёты, [04.05.2026 18:40]\nМариновка \nВолгоградская область \nЕще 3 БПЛА в вашем направлении\nМеры безопасности\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "a535ab0ba0ed1b0d2fc9f4340bbb8363ded5dc8d1fd8507ecdc6102102ecc203",
       "channelKey": "snap_003",
-      "postedAt": "2026-05-08T12:07:59.129Z",
+      "postedAt": "2026-05-08T20:44:31.188Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -531,6 +676,20 @@
     "diagnostics": {
       "parserVersion": "0.1.0",
       "warnings": []
+    },
+    "geoPipeline": {
+      "steps": [
+        {
+          "id": "catalog",
+          "ok": true,
+          "durationMs": 0
+        },
+        {
+          "id": "finalizer",
+          "ok": true,
+          "durationMs": 0
+        }
+      ]
     }
   },
   {
@@ -540,7 +699,7 @@
       "text": "Радар по всей России | БПЛА, ракеты, самолёты, [04.05.2026 18:38]\nВолгоградская область \nВсе 3 БПЛА сбито \nНа данный момент более фиксаций не наблюдаем\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "2aa699dd44cdea5390612e261fa63e25e3542b70a6ed8c9850c4744e48e4213b",
       "channelKey": "snap_003",
-      "postedAt": "2026-05-08T12:07:59.130Z"
+      "postedAt": "2026-05-08T20:44:31.188Z"
     },
     "classification": {
       "kind": "noise",
@@ -572,7 +731,7 @@
       "text": "Радар по всей России | БПЛА, ракеты, самолёты, [04.05.2026 18:37]\nМариновка \nРабота ПВО по БПЛА \nВолгоградская область\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "a4c3ad1a4e19066309effd7edf29615f1b8c9ab88e50949399d33f6f293811a8",
       "channelKey": "snap_003",
-      "postedAt": "2026-05-08T12:07:59.130Z",
+      "postedAt": "2026-05-08T20:44:31.188Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -611,6 +770,20 @@
     "diagnostics": {
       "parserVersion": "0.1.0",
       "warnings": []
+    },
+    "geoPipeline": {
+      "steps": [
+        {
+          "id": "catalog",
+          "ok": true,
+          "durationMs": 0
+        },
+        {
+          "id": "finalizer",
+          "ok": true,
+          "durationMs": 0
+        }
+      ]
     }
   },
   {
@@ -620,7 +793,7 @@
       "text": "Радар по всей России | БПЛА, ракеты, самолёты, [04.05.2026 18:38]\nДубна\nМосковская область \nФиксация от 2 БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "a5a39243de626193e4b186dbbd8625a8f146f5966ea77e1f73d44e5831906501",
       "channelKey": "snap_003",
-      "postedAt": "2026-05-08T12:07:59.130Z",
+      "postedAt": "2026-05-08T20:44:31.188Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -660,6 +833,20 @@
     "diagnostics": {
       "parserVersion": "0.1.0",
       "warnings": []
+    },
+    "geoPipeline": {
+      "steps": [
+        {
+          "id": "catalog",
+          "ok": true,
+          "durationMs": 0
+        },
+        {
+          "id": "finalizer",
+          "ok": true,
+          "durationMs": 0
+        }
+      ]
     }
   },
   {
@@ -669,7 +856,7 @@
       "text": "Радар по всей России | БПЛА, ракеты, самолёты, [04.05.2026 18:34]\nДубна \nМосковская область \nПриготовиться к сбитие \nМеры безопасности\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "0102f7a47ab840cf23df0555f6449f03a0ea3d17767d4162798b3b0b17803506",
       "channelKey": "snap_003",
-      "postedAt": "2026-05-08T12:07:59.130Z",
+      "postedAt": "2026-05-08T20:44:31.189Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -708,6 +895,20 @@
     "diagnostics": {
       "parserVersion": "0.1.0",
       "warnings": []
+    },
+    "geoPipeline": {
+      "steps": [
+        {
+          "id": "catalog",
+          "ok": true,
+          "durationMs": 0
+        },
+        {
+          "id": "finalizer",
+          "ok": true,
+          "durationMs": 0
+        }
+      ]
     }
   },
   {
@@ -717,7 +918,7 @@
       "text": "Радар по всей России | БПЛА, ракеты, самолёты, [04.05.2026 18:46]\nВеликий Новгород, Новгородская область - опасность по БПЛА сохраняется\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "2a237f9fea78aae3aa394436e141be49e7304e03c851efa16565e65e23d5cbfb",
       "channelKey": "snap_003",
-      "postedAt": "2026-05-08T12:07:59.130Z",
+      "postedAt": "2026-05-08T20:44:31.189Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -751,6 +952,20 @@
     "diagnostics": {
       "parserVersion": "0.1.0",
       "warnings": []
+    },
+    "geoPipeline": {
+      "steps": [
+        {
+          "id": "catalog",
+          "ok": true,
+          "durationMs": 0
+        },
+        {
+          "id": "finalizer",
+          "ok": true,
+          "durationMs": 0
+        }
+      ]
     }
   },
   {
@@ -760,7 +975,7 @@
       "text": "Радар по всей России | БПЛА, ракеты, самолёты, [04.05.2026 18:52]\nРославльский район\nСмоленская область\nФиксация БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "4f3312da76e0fd672a08d79850076cc524965d6be2f86d968c05fd532d791319",
       "channelKey": "snap_003",
-      "postedAt": "2026-05-08T12:07:59.130Z",
+      "postedAt": "2026-05-08T20:44:31.189Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -799,6 +1014,20 @@
     "diagnostics": {
       "parserVersion": "0.1.0",
       "warnings": []
+    },
+    "geoPipeline": {
+      "steps": [
+        {
+          "id": "catalog",
+          "ok": true,
+          "durationMs": 0
+        },
+        {
+          "id": "finalizer",
+          "ok": true,
+          "durationMs": 0
+        }
+      ]
     }
   },
   {
@@ -808,7 +1037,7 @@
       "text": "Радар по всей России | БПЛА, ракеты, самолёты, [04.05.2026 18:52]\nГО Клин\nМосковская область \nРабота ПВО по БПЛА \nМеры безопасности\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "910bf01ef7a847f2c3d3bbd02b275dee9db231c2011f9614c456cb72cc6e0acd",
       "channelKey": "snap_003",
-      "postedAt": "2026-05-08T12:07:59.131Z",
+      "postedAt": "2026-05-08T20:44:31.189Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -847,6 +1076,20 @@
     "diagnostics": {
       "parserVersion": "0.1.0",
       "warnings": []
+    },
+    "geoPipeline": {
+      "steps": [
+        {
+          "id": "catalog",
+          "ok": true,
+          "durationMs": 0
+        },
+        {
+          "id": "finalizer",
+          "ok": true,
+          "durationMs": 0
+        }
+      ]
     }
   },
   {
@@ -856,7 +1099,7 @@
       "text": "Радар по всей России | БПЛА, ракеты, самолёты, [04.05.2026 18:53]\nБрянская область \nТревога по БПЛА \nСохраняется \n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "a2949a978f5f7d61879e85a2b18566047e5bc7d27661e601dee91edc87953195",
       "channelKey": "snap_003",
-      "postedAt": "2026-05-08T12:07:59.131Z",
+      "postedAt": "2026-05-08T20:44:31.190Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -895,6 +1138,20 @@
     "diagnostics": {
       "parserVersion": "0.1.0",
       "warnings": []
+    },
+    "geoPipeline": {
+      "steps": [
+        {
+          "id": "catalog",
+          "ok": true,
+          "durationMs": 0
+        },
+        {
+          "id": "finalizer",
+          "ok": true,
+          "durationMs": 0
+        }
+      ]
     }
   },
   {
@@ -904,7 +1161,7 @@
       "text": "Радар по всей России | БПЛА, ракеты, самолёты, [04.05.2026 18:53]\nЕршичский район\nСмоленская область\nФиксация БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "e6382009bab9330a70e5c5e92cb3f052e3b3f89b4a1ef6c357d199b5a32316be",
       "channelKey": "snap_003",
-      "postedAt": "2026-05-08T12:07:59.131Z",
+      "postedAt": "2026-05-08T20:44:31.190Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -943,6 +1200,20 @@
     "diagnostics": {
       "parserVersion": "0.1.0",
       "warnings": []
+    },
+    "geoPipeline": {
+      "steps": [
+        {
+          "id": "catalog",
+          "ok": true,
+          "durationMs": 0
+        },
+        {
+          "id": "finalizer",
+          "ok": true,
+          "durationMs": 0
+        }
+      ]
     }
   },
   {
@@ -952,7 +1223,7 @@
       "text": "Радар по всей России | БПЛА, ракеты, самолёты, [04.05.2026 18:54]\nВеликий Новгород, Новгородская область - отбой опасности по БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "c329a590b0cf0b411b453e54f8159ce7ecc4187fa857565ac3fcc707c2de359e",
       "channelKey": "snap_003",
-      "postedAt": "2026-05-08T12:07:59.131Z",
+      "postedAt": "2026-05-08T20:44:31.190Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -986,6 +1257,20 @@
     "diagnostics": {
       "parserVersion": "0.1.0",
       "warnings": []
+    },
+    "geoPipeline": {
+      "steps": [
+        {
+          "id": "catalog",
+          "ok": true,
+          "durationMs": 0
+        },
+        {
+          "id": "finalizer",
+          "ok": true,
+          "durationMs": 0
+        }
+      ]
     }
   },
   {
@@ -995,7 +1280,7 @@
       "text": "Радар по всей России | БПЛА, ракеты, самолёты, [04.05.2026 18:54]\nЗападная часть Московская область \nТревога по БПЛА от Калужской области \nМного\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "f5b86dbefcc18903c1c265082f990c5465fd384670507ba561f64e2ad66fce65",
       "channelKey": "snap_003",
-      "postedAt": "2026-05-08T12:07:59.131Z",
+      "postedAt": "2026-05-08T20:44:31.190Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -1034,6 +1319,20 @@
     "diagnostics": {
       "parserVersion": "0.1.0",
       "warnings": []
+    },
+    "geoPipeline": {
+      "steps": [
+        {
+          "id": "catalog",
+          "ok": true,
+          "durationMs": 0
+        },
+        {
+          "id": "finalizer",
+          "ok": true,
+          "durationMs": 0
+        }
+      ]
     }
   },
   {
@@ -1043,7 +1342,7 @@
       "text": "Радар по всей России | БПЛА, ракеты, самолёты, [04.05.2026 18:55]\nВолгоградская область \nОпасность по БПЛА \nВ том числе реактивным\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "0616b236ae1fe47b3470f0ece8cac869f242140c676c6db75b7492d6a667bee6",
       "channelKey": "snap_003",
-      "postedAt": "2026-05-08T12:07:59.132Z",
+      "postedAt": "2026-05-08T20:44:31.190Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -1077,6 +1376,20 @@
     "diagnostics": {
       "parserVersion": "0.1.0",
       "warnings": []
+    },
+    "geoPipeline": {
+      "steps": [
+        {
+          "id": "catalog",
+          "ok": true,
+          "durationMs": 0
+        },
+        {
+          "id": "finalizer",
+          "ok": true,
+          "durationMs": 0
+        }
+      ]
     }
   },
   {
@@ -1086,7 +1399,7 @@
       "text": "Радар по всей России | БПЛА, ракеты, самолёты, [04.05.2026 18:55]\nНавля и близлежащие \nОпасность по БПЛА \nБрянская область\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "bc2610b82494a8d10839714c008df569b86e828470e2629636947b208e2af698",
       "channelKey": "snap_003",
-      "postedAt": "2026-05-08T12:07:59.132Z",
+      "postedAt": "2026-05-08T20:44:31.191Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -1125,6 +1438,20 @@
     "diagnostics": {
       "parserVersion": "0.1.0",
       "warnings": []
+    },
+    "geoPipeline": {
+      "steps": [
+        {
+          "id": "catalog",
+          "ok": true,
+          "durationMs": 0
+        },
+        {
+          "id": "finalizer",
+          "ok": true,
+          "durationMs": 0
+        }
+      ]
     }
   },
   {
@@ -1134,7 +1461,7 @@
       "text": "Радар по всей России | БПЛА, ракеты, самолёты, [04.05.2026 18:58]\nРостовская область\nОпасность по БПЛА\nСохраняется\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "8d203c08f5a3f2012a0bcbbc00ab1dabeb52c7b535956efd8e718864a4efde6c",
       "channelKey": "snap_003",
-      "postedAt": "2026-05-08T12:07:59.132Z",
+      "postedAt": "2026-05-08T20:44:31.191Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -1173,6 +1500,20 @@
     "diagnostics": {
       "parserVersion": "0.1.0",
       "warnings": []
+    },
+    "geoPipeline": {
+      "steps": [
+        {
+          "id": "catalog",
+          "ok": true,
+          "durationMs": 0
+        },
+        {
+          "id": "finalizer",
+          "ok": true,
+          "durationMs": 0
+        }
+      ]
     }
   },
   {
@@ -1182,7 +1523,7 @@
       "text": "Радар по всей России | БПЛА, ракеты, самолёты, [04.05.2026 19:03]\nРостовская область\nВнимание по реактивным БПЛА повторно\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "e8806f821533c0431a44777d0716df5719cd82b6f3da0f24188453595c6a60dc",
       "channelKey": "snap_003",
-      "postedAt": "2026-05-08T12:07:59.132Z",
+      "postedAt": "2026-05-08T20:44:31.191Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -1216,6 +1557,20 @@
     "diagnostics": {
       "parserVersion": "0.1.0",
       "warnings": []
+    },
+    "geoPipeline": {
+      "steps": [
+        {
+          "id": "catalog",
+          "ok": true,
+          "durationMs": 0
+        },
+        {
+          "id": "finalizer",
+          "ok": true,
+          "durationMs": 0
+        }
+      ]
     }
   },
   {
@@ -1225,7 +1580,7 @@
       "text": "Радар по всей России | БПЛА, ракеты, самолёты, [04.05.2026 19:04]\nГО Клин\nМосковская область \nСбитие БПЛА \nМеры безопасности\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "09e4b38ca9f676c43ff48fcecc1b34af3bd0dee6ca3ccc25048632d88f444973",
       "channelKey": "snap_003",
-      "postedAt": "2026-05-08T12:07:59.132Z",
+      "postedAt": "2026-05-08T20:44:31.191Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -1264,6 +1619,20 @@
     "diagnostics": {
       "parserVersion": "0.1.0",
       "warnings": []
+    },
+    "geoPipeline": {
+      "steps": [
+        {
+          "id": "catalog",
+          "ok": true,
+          "durationMs": 0
+        },
+        {
+          "id": "finalizer",
+          "ok": true,
+          "durationMs": 0
+        }
+      ]
     }
   },
   {
@@ -1273,7 +1642,7 @@
       "text": "Радар по всей России | БПЛА, ракеты, самолёты, [04.05.2026 19:08]\nСерафимовичский район\nВолгоградская область\nФиксация от 2 БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "9308cebc6f354291440635552dd1df5457f085f497dea78500eb20cd7af749c5",
       "channelKey": "snap_003",
-      "postedAt": "2026-05-08T12:07:59.133Z",
+      "postedAt": "2026-05-08T20:44:31.191Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -1313,6 +1682,20 @@
     "diagnostics": {
       "parserVersion": "0.1.0",
       "warnings": []
+    },
+    "geoPipeline": {
+      "steps": [
+        {
+          "id": "catalog",
+          "ok": true,
+          "durationMs": 0
+        },
+        {
+          "id": "finalizer",
+          "ok": true,
+          "durationMs": 0
+        }
+      ]
     }
   },
   {
@@ -1322,7 +1705,7 @@
       "text": "Радар по всей России | БПЛА, ракеты, самолёты, [04.05.2026 19:10]\nРедкино, Тверь, Конаково, Тверская область \nОпасность по БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "b9f35f854b725742132820a6f7185b131b2b3627e1e3b804226d8fdbde66ef43",
       "channelKey": "snap_003",
-      "postedAt": "2026-05-08T12:07:59.133Z",
+      "postedAt": "2026-05-08T20:44:31.192Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -1356,6 +1739,20 @@
     "diagnostics": {
       "parserVersion": "0.1.0",
       "warnings": []
+    },
+    "geoPipeline": {
+      "steps": [
+        {
+          "id": "catalog",
+          "ok": true,
+          "durationMs": 0
+        },
+        {
+          "id": "finalizer",
+          "ok": true,
+          "durationMs": 0
+        }
+      ]
     }
   },
   {
@@ -1365,7 +1762,7 @@
       "text": "Радар по всей России | БПЛА, ракеты, самолёты, [04.05.2026 19:13]\nДорогобужский район\nСмоленская область\nФиксации БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "a1660287937f6ed2d666c47e7fc0ef3c1ffc718b75991b82a6c6cead9b30918a",
       "channelKey": "snap_003",
-      "postedAt": "2026-05-08T12:07:59.133Z",
+      "postedAt": "2026-05-08T20:44:31.192Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -1404,6 +1801,20 @@
     "diagnostics": {
       "parserVersion": "0.1.0",
       "warnings": []
+    },
+    "geoPipeline": {
+      "steps": [
+        {
+          "id": "catalog",
+          "ok": true,
+          "durationMs": 0
+        },
+        {
+          "id": "finalizer",
+          "ok": true,
+          "durationMs": 0
+        }
+      ]
     }
   },
   {
@@ -1413,7 +1824,7 @@
       "text": "Радар по всей России | БПЛА, ракеты, самолёты, [04.05.2026 19:14]\nОбнинск\nКалужская область\nФиксации БПЛА в направлении Московской области\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "5e5c60ed7810929b316a40bb4fd4b6b9d55aa3df3521e7cf03da59ff65d8d39f",
       "channelKey": "snap_003",
-      "postedAt": "2026-05-08T12:07:59.133Z",
+      "postedAt": "2026-05-08T20:44:31.192Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -1453,6 +1864,20 @@
     "diagnostics": {
       "parserVersion": "0.1.0",
       "warnings": []
+    },
+    "geoPipeline": {
+      "steps": [
+        {
+          "id": "catalog",
+          "ok": true,
+          "durationMs": 0
+        },
+        {
+          "id": "finalizer",
+          "ok": true,
+          "durationMs": 0
+        }
+      ]
     }
   },
   {
@@ -1462,7 +1887,7 @@
       "text": "Радар по всей России | БПЛА, ракеты, самолёты, [04.05.2026 19:19]\nМариновка \nВолгоградская область \nПредварительно все 3 цели сбиты \nОпасность не снимаем\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "600974cbc8904a9c6833a28be52383f13ad9c1f9fd2e1996f39d5b133a422b08",
       "channelKey": "snap_003",
-      "postedAt": "2026-05-08T12:07:59.133Z"
+      "postedAt": "2026-05-08T20:44:31.192Z"
     },
     "classification": {
       "kind": "noise",
@@ -1494,7 +1919,7 @@
       "text": "Радар по всей России | БПЛА, ракеты, самолёты, [04.05.2026 19:20]\nТверская область от Московской области \nТревога по БПЛА\nМного\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "054e8dae8ad2df32244964bedd794ce8ebe6b8c683dc7fafd904a83a2fec1573",
       "channelKey": "snap_003",
-      "postedAt": "2026-05-08T12:07:59.133Z",
+      "postedAt": "2026-05-08T20:44:31.192Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -1533,6 +1958,20 @@
     "diagnostics": {
       "parserVersion": "0.1.0",
       "warnings": []
+    },
+    "geoPipeline": {
+      "steps": [
+        {
+          "id": "catalog",
+          "ok": true,
+          "durationMs": 0
+        },
+        {
+          "id": "finalizer",
+          "ok": true,
+          "durationMs": 0
+        }
+      ]
     }
   },
   {
@@ -1542,7 +1981,7 @@
       "text": "Радар по всей России | БПЛА, ракеты, самолёты, [04.05.2026 19:21]\nдля г. Елец, Елецкого МО, Долгоруковского МО, Становлянского МО, Измалковского МО.\nЛипецкая область\nОпасность по БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "a583adb6e55e418b6b1778ca158fad09ceb187f019d6eeda2cd4881a5e705f16",
       "channelKey": "snap_003",
-      "postedAt": "2026-05-08T12:07:59.134Z",
+      "postedAt": "2026-05-08T20:44:31.193Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -1601,6 +2040,20 @@
     "diagnostics": {
       "parserVersion": "0.1.0",
       "warnings": []
+    },
+    "geoPipeline": {
+      "steps": [
+        {
+          "id": "catalog",
+          "ok": true,
+          "durationMs": 0
+        },
+        {
+          "id": "finalizer",
+          "ok": true,
+          "durationMs": 0
+        }
+      ]
     }
   },
   {
@@ -1610,7 +2063,7 @@
       "text": "Радар по всей России | БПЛА, ракеты, самолёты, [04.05.2026 19:22]\nБелевский район\nТульская область\nФиксации БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "e0ce0544ebc1739361fa9f61199072c139319c20ac96a65f105c0de7aaea48c8",
       "channelKey": "snap_003",
-      "postedAt": "2026-05-08T12:07:59.134Z",
+      "postedAt": "2026-05-08T20:44:31.193Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -1649,6 +2102,20 @@
     "diagnostics": {
       "parserVersion": "0.1.0",
       "warnings": []
+    },
+    "geoPipeline": {
+      "steps": [
+        {
+          "id": "catalog",
+          "ok": true,
+          "durationMs": 0
+        },
+        {
+          "id": "finalizer",
+          "ok": true,
+          "durationMs": 0
+        }
+      ]
     }
   },
   {
@@ -1658,7 +2125,7 @@
       "text": "Радар по всей России | БПЛА, ракеты, самолёты, [04.05.2026 19:28]\nМариновка \nЕще фиксации к вам \nВолгоградская область\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "5b1dd8d944d4f10fb1f84e8f33f69d2b8c790411eb2548f978751be34dc6d21a",
       "channelKey": "snap_003",
-      "postedAt": "2026-05-08T12:07:59.134Z"
+      "postedAt": "2026-05-08T20:44:31.193Z"
     },
     "classification": {
       "kind": "noise",
@@ -1690,7 +2157,7 @@
       "text": "Радар по всей России | БПЛА, ракеты, самолёты, [04.05.2026 19:34]\nСергиево-Посадский ГО\nМосковская область\nВ вашем направлении фиксация БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "d9d9cecf383e3c6bd26c37743f6662c1942ca090eddbcc6e0a483580e81188eb",
       "channelKey": "snap_003",
-      "postedAt": "2026-05-08T12:07:59.134Z",
+      "postedAt": "2026-05-08T20:44:31.193Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -1730,6 +2197,20 @@
     "diagnostics": {
       "parserVersion": "0.1.0",
       "warnings": []
+    },
+    "geoPipeline": {
+      "steps": [
+        {
+          "id": "catalog",
+          "ok": true,
+          "durationMs": 0
+        },
+        {
+          "id": "finalizer",
+          "ok": true,
+          "durationMs": 0
+        }
+      ]
     }
   },
   {
@@ -1739,7 +2220,7 @@
       "text": "Радар по всей России | БПЛА, ракеты, самолёты, [04.05.2026 19:35]\nТверь\nТверская область\nФиксация БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "a63b0be954417fe802998a685f662151083843b8751c1a2b6e7c3c2562d8861b",
       "channelKey": "snap_003",
-      "postedAt": "2026-05-08T12:07:59.134Z",
+      "postedAt": "2026-05-08T20:44:31.193Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -1778,6 +2259,20 @@
     "diagnostics": {
       "parserVersion": "0.1.0",
       "warnings": []
+    },
+    "geoPipeline": {
+      "steps": [
+        {
+          "id": "catalog",
+          "ok": true,
+          "durationMs": 0
+        },
+        {
+          "id": "finalizer",
+          "ok": true,
+          "durationMs": 0
+        }
+      ]
     }
   },
   {
@@ -1787,7 +2282,7 @@
       "text": "Радар по всей России | БПЛА, ракеты, самолёты, [04.05.2026 19:36]\nСтароминская и близлежащие \nОпасность по БПЛА \nКраснодарский край\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "bc3bae305a8af325e28a963613e8ffa15b7303e0f780feae4010d286381c8300",
       "channelKey": "snap_003",
-      "postedAt": "2026-05-08T12:07:59.135Z",
+      "postedAt": "2026-05-08T20:44:31.194Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -1826,6 +2321,20 @@
     "diagnostics": {
       "parserVersion": "0.1.0",
       "warnings": []
+    },
+    "geoPipeline": {
+      "steps": [
+        {
+          "id": "catalog",
+          "ok": true,
+          "durationMs": 0
+        },
+        {
+          "id": "finalizer",
+          "ok": true,
+          "durationMs": 0
+        }
+      ]
     }
   },
   {
@@ -1835,7 +2344,7 @@
       "text": "Радар по всей России | БПЛА, ракеты, самолёты, [04.05.2026 20:05]\nЛенинградская область - опасность БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "42b420d4e77853a0a02d03e9542cc0bd9ebcb014780bca6a77ec4255853277f7",
       "channelKey": "snap_003",
-      "postedAt": "2026-05-08T12:07:59.135Z",
+      "postedAt": "2026-05-08T20:44:31.194Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -1869,6 +2378,20 @@
     "diagnostics": {
       "parserVersion": "0.1.0",
       "warnings": []
+    },
+    "geoPipeline": {
+      "steps": [
+        {
+          "id": "catalog",
+          "ok": true,
+          "durationMs": 0
+        },
+        {
+          "id": "finalizer",
+          "ok": true,
+          "durationMs": 0
+        }
+      ]
     }
   },
   {
@@ -1878,7 +2401,7 @@
       "text": "Радар по всей России | БПЛА, ракеты, самолёты, [04.05.2026 20:05]\nСаратовская область\nОпасность по БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "d456f4162d809588107487b8a46d52c3badf8a4a366eb90d310ce6181013dbab",
       "channelKey": "snap_003",
-      "postedAt": "2026-05-08T12:07:59.135Z",
+      "postedAt": "2026-05-08T20:44:31.194Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -1912,6 +2435,20 @@
     "diagnostics": {
       "parserVersion": "0.1.0",
       "warnings": []
+    },
+    "geoPipeline": {
+      "steps": [
+        {
+          "id": "catalog",
+          "ok": true,
+          "durationMs": 0
+        },
+        {
+          "id": "finalizer",
+          "ok": true,
+          "durationMs": 0
+        }
+      ]
     }
   },
   {
@@ -1921,7 +2458,7 @@
       "text": "Радар по всей России | БПЛА, ракеты, самолёты, [04.05.2026 20:14]\nЗнаменск \nАстраханская область\nОтбой опасности по БПЛА \nНа территории области режим опасности сохранятся\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "30572a8555cdb4e598211d49a87894ef675017e15a21dc7d8da6827535647328",
       "channelKey": "snap_003",
-      "postedAt": "2026-05-08T12:07:59.136Z",
+      "postedAt": "2026-05-08T20:44:31.194Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -1960,6 +2497,20 @@
     "diagnostics": {
       "parserVersion": "0.1.0",
       "warnings": []
+    },
+    "geoPipeline": {
+      "steps": [
+        {
+          "id": "catalog",
+          "ok": true,
+          "durationMs": 0
+        },
+        {
+          "id": "finalizer",
+          "ok": true,
+          "durationMs": 0
+        }
+      ]
     }
   },
   {
@@ -1969,7 +2520,7 @@
       "text": "Радар по всей России | БПЛА, ракеты, самолёты, [04.05.2026 20:15]\nТыловые регионы \nПриготовиться к очередной волне БПЛА от Брянской области\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "b6e09726c8fefb8aa9ee62c02d10d275e74045a355129de94446fb935cd39cfb",
       "channelKey": "snap_003",
-      "postedAt": "2026-05-08T12:07:59.136Z"
+      "postedAt": "2026-05-08T20:44:31.194Z"
     },
     "classification": {
       "kind": "noise",
@@ -2001,7 +2552,7 @@
       "text": "Радар по всей России | БПЛА, ракеты, самолёты, [04.05.2026 20:16]\nСмоленская область \nПовторно\nОпасность по БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "e1c004b533abc6577b4a0b1c746806d3fccbce213cef15647646950c22e50c79",
       "channelKey": "snap_003",
-      "postedAt": "2026-05-08T12:07:59.136Z",
+      "postedAt": "2026-05-08T20:44:31.194Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -2040,6 +2591,20 @@
     "diagnostics": {
       "parserVersion": "0.1.0",
       "warnings": []
+    },
+    "geoPipeline": {
+      "steps": [
+        {
+          "id": "catalog",
+          "ok": true,
+          "durationMs": 0
+        },
+        {
+          "id": "finalizer",
+          "ok": true,
+          "durationMs": 0
+        }
+      ]
     }
   },
   {
@@ -2049,7 +2614,7 @@
       "text": "Радар по всей России | БПЛА, ракеты, самолёты, [04.05.2026 20:26]\nЯрославская область\nОпасность по БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "0aeb6597b9d754d8ebbe7b0f39f5eee09ca19258d1241ca5f71ceee4651f1701",
       "channelKey": "snap_003",
-      "postedAt": "2026-05-08T12:07:59.136Z",
+      "postedAt": "2026-05-08T20:44:31.195Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -2083,6 +2648,20 @@
     "diagnostics": {
       "parserVersion": "0.1.0",
       "warnings": []
+    },
+    "geoPipeline": {
+      "steps": [
+        {
+          "id": "catalog",
+          "ok": true,
+          "durationMs": 0
+        },
+        {
+          "id": "finalizer",
+          "ok": true,
+          "durationMs": 0
+        }
+      ]
     }
   },
   {
@@ -2092,7 +2671,7 @@
       "text": "Радар по всей России | БПЛА, ракеты, самолёты, [04.05.2026 20:27]\nЧереповец, Вологодская область - внимание по БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "1e4ae711841468efae0444ce199b9a90cb1eb4ad7bb7908d2ea65499fe6c39b7",
       "channelKey": "snap_003",
-      "postedAt": "2026-05-08T12:07:59.136Z",
+      "postedAt": "2026-05-08T20:44:31.195Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -2126,6 +2705,20 @@
     "diagnostics": {
       "parserVersion": "0.1.0",
       "warnings": []
+    },
+    "geoPipeline": {
+      "steps": [
+        {
+          "id": "catalog",
+          "ok": true,
+          "durationMs": 0
+        },
+        {
+          "id": "finalizer",
+          "ok": true,
+          "durationMs": 0
+        }
+      ]
     }
   },
   {
@@ -2135,7 +2728,7 @@
       "text": "Радар по всей России | БПЛА, ракеты, самолёты, [04.05.2026 20:28]\nСергиево-Посадский ГО\nМосковская область\nСбитие БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "ac40684259c287bf73a04521e81f31b01cfcce66aab849d30cfd303ff6bcf842",
       "channelKey": "snap_003",
-      "postedAt": "2026-05-08T12:07:59.137Z",
+      "postedAt": "2026-05-08T20:44:31.195Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -2174,6 +2767,20 @@
     "diagnostics": {
       "parserVersion": "0.1.0",
       "warnings": []
+    },
+    "geoPipeline": {
+      "steps": [
+        {
+          "id": "catalog",
+          "ok": true,
+          "durationMs": 0
+        },
+        {
+          "id": "finalizer",
+          "ok": true,
+          "durationMs": 0
+        }
+      ]
     }
   },
   {
@@ -2183,7 +2790,7 @@
       "text": "Радар по всей России | БПЛА, ракеты, самолёты, [04.05.2026 20:45]\nХотынецкий район\nОрловская область\nФиксация БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "cc81b8fc9931ce5afcf588506b895da7fba964ca1f100892558b1e8ed518c0b4",
       "channelKey": "snap_003",
-      "postedAt": "2026-05-08T12:07:59.137Z",
+      "postedAt": "2026-05-08T20:44:31.195Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -2222,6 +2829,20 @@
     "diagnostics": {
       "parserVersion": "0.1.0",
       "warnings": []
+    },
+    "geoPipeline": {
+      "steps": [
+        {
+          "id": "catalog",
+          "ok": true,
+          "durationMs": 0
+        },
+        {
+          "id": "finalizer",
+          "ok": true,
+          "durationMs": 0
+        }
+      ]
     }
   },
   {
@@ -2231,7 +2852,7 @@
       "text": "Радар по всей России | БПЛА, ракеты, самолёты, [04.05.2026 20:45]\nСаратовская область\nОтбой опасности по БПЛА\nВнимание по БПЛА сохраняется\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "ecf6ca38b622aa9bedcbb6e12ba6175d00ced49019c36970de9b8071e68e49a8",
       "channelKey": "snap_003",
-      "postedAt": "2026-05-08T12:07:59.137Z",
+      "postedAt": "2026-05-08T20:44:31.195Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -2265,6 +2886,20 @@
     "diagnostics": {
       "parserVersion": "0.1.0",
       "warnings": []
+    },
+    "geoPipeline": {
+      "steps": [
+        {
+          "id": "catalog",
+          "ok": true,
+          "durationMs": 0
+        },
+        {
+          "id": "finalizer",
+          "ok": true,
+          "durationMs": 0
+        }
+      ]
     }
   },
   {
@@ -2274,7 +2909,7 @@
       "text": "Радар по всей России | БПЛА, ракеты, самолёты, [04.05.2026 20:45]\nАлексин\nТульская область\nРабота ПВО по БПЛА \nМеры безопасности\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "336adb2e642d47844ff080a0d953ee5052fd33c7194caa3805e04d5ca957254b",
       "channelKey": "snap_003",
-      "postedAt": "2026-05-08T12:07:59.138Z",
+      "postedAt": "2026-05-08T20:44:31.196Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -2313,6 +2948,20 @@
     "diagnostics": {
       "parserVersion": "0.1.0",
       "warnings": []
+    },
+    "geoPipeline": {
+      "steps": [
+        {
+          "id": "catalog",
+          "ok": true,
+          "durationMs": 0
+        },
+        {
+          "id": "finalizer",
+          "ok": true,
+          "durationMs": 0
+        }
+      ]
     }
   },
   {
@@ -2322,7 +2971,7 @@
       "text": "Радар по всей России | БПЛА, ракеты, самолёты, [04.05.2026 20:46]\nМобильную связь, интернет и СМС отключат в Москве и Санкт-Петербурге с 5 по 9 мая\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "5616f7944126faa1da8e0ce2e5d46684034becd755def64ee4d32c74bdaa93e4",
       "channelKey": "snap_003",
-      "postedAt": "2026-05-08T12:07:59.138Z"
+      "postedAt": "2026-05-08T20:44:31.196Z"
     },
     "classification": {
       "kind": "noise",
@@ -2354,7 +3003,7 @@
       "text": "Радар по всей России | БПЛА, ракеты, самолёты, [04.05.2026 20:46]\nВологодская область - опасность БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "816a9b65651d4e7b59c8b99fc9542adfc9bcc151853d4caa8e00ed6b1a659871",
       "channelKey": "snap_003",
-      "postedAt": "2026-05-08T12:07:59.138Z",
+      "postedAt": "2026-05-08T20:44:31.196Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -2388,6 +3037,20 @@
     "diagnostics": {
       "parserVersion": "0.1.0",
       "warnings": []
+    },
+    "geoPipeline": {
+      "steps": [
+        {
+          "id": "catalog",
+          "ok": true,
+          "durationMs": 0
+        },
+        {
+          "id": "finalizer",
+          "ok": true,
+          "durationMs": 0
+        }
+      ]
     }
   },
   {
@@ -2397,7 +3060,7 @@
       "text": "Радар по всей России | БПЛА, ракеты, самолёты, [04.05.2026 20:47]\nМинобороны РФ официально объявило перемирие на 8–9 мая в часть Дня Победы.\n\nВ случае попыток Украины реализовать свои преступные планы с целью срыва празднования Дня Победы ВС РФ нанесут ответный удар по центру Киева\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "7a665c025c49ffdc64345dc4ee69e7daf8f297c954d32e36b15402229998f877",
       "channelKey": "snap_003",
-      "postedAt": "2026-05-08T12:07:59.138Z"
+      "postedAt": "2026-05-08T20:44:31.196Z"
     },
     "classification": {
       "kind": "meta",
@@ -2429,7 +3092,7 @@
       "text": "Радар по всей России | БПЛА, ракеты, самолёты, [04.05.2026 21:11]\nАлексин\nТульская область\nРабота ПВО по БПЛА \nМеры безопасности\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "ed050c7a3b78e1802d8bfdeeb06d87f09f893eec481560c4e530c56a78df9e29",
       "channelKey": "snap_003",
-      "postedAt": "2026-05-08T12:07:59.138Z",
+      "postedAt": "2026-05-08T20:44:31.196Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -2468,6 +3131,20 @@
     "diagnostics": {
       "parserVersion": "0.1.0",
       "warnings": []
+    },
+    "geoPipeline": {
+      "steps": [
+        {
+          "id": "catalog",
+          "ok": true,
+          "durationMs": 0
+        },
+        {
+          "id": "finalizer",
+          "ok": true,
+          "durationMs": 0
+        }
+      ]
     }
   },
   {
@@ -2477,7 +3154,7 @@
       "text": "Радар по всей России | БПЛА, ракеты, самолёты, [04.05.2026 21:11]\nАстраханская область\nОтбой опасности по БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "98bb728c0e83fbc5424491953b2b5a4267cff5494640437c826aaa09c81ee14b",
       "channelKey": "snap_003",
-      "postedAt": "2026-05-08T12:07:59.139Z",
+      "postedAt": "2026-05-08T20:44:31.196Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -2511,6 +3188,20 @@
     "diagnostics": {
       "parserVersion": "0.1.0",
       "warnings": []
+    },
+    "geoPipeline": {
+      "steps": [
+        {
+          "id": "catalog",
+          "ok": true,
+          "durationMs": 0
+        },
+        {
+          "id": "finalizer",
+          "ok": true,
+          "durationMs": 0
+        }
+      ]
     }
   },
   {
@@ -2520,7 +3211,7 @@
       "text": "Радар по всей России | БПЛА, ракеты, самолёты, [04.05.2026 21:12]\nОт 6 БПЛА через Московскую область в направлении Ярославской области\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "89dda780029f09d8e61b036c5c42d6694efa77414dcdb6c6d149c32f6879ccc9",
       "channelKey": "snap_003",
-      "postedAt": "2026-05-08T12:07:59.139Z",
+      "postedAt": "2026-05-08T20:44:31.196Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -2541,7 +3232,7 @@
       "source": "local"
     },
     "enrich": {
-      "invoked": true,
+      "invoked": false,
       "providersTried": [],
       "hits": 0,
       "misses": 1,
@@ -2550,6 +3241,20 @@
     "diagnostics": {
       "parserVersion": "0.1.0",
       "warnings": []
+    },
+    "geoPipeline": {
+      "steps": [
+        {
+          "id": "catalog",
+          "ok": true,
+          "durationMs": 0
+        },
+        {
+          "id": "finalizer",
+          "ok": true,
+          "durationMs": 0
+        }
+      ]
     }
   },
   {
@@ -2559,7 +3264,7 @@
       "text": "Радар по всей России | БПЛА, ракеты, самолёты, [04.05.2026 21:15]\nУльяновская область\nОпасность по БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "f12bd6f541a9b55f4f22785c242062b4c16810997f143f625c81ab9d593dbc29",
       "channelKey": "snap_003",
-      "postedAt": "2026-05-08T12:07:59.139Z",
+      "postedAt": "2026-05-08T20:44:31.197Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -2593,6 +3298,20 @@
     "diagnostics": {
       "parserVersion": "0.1.0",
       "warnings": []
+    },
+    "geoPipeline": {
+      "steps": [
+        {
+          "id": "catalog",
+          "ok": true,
+          "durationMs": 0
+        },
+        {
+          "id": "finalizer",
+          "ok": true,
+          "durationMs": 0
+        }
+      ]
     }
   },
   {
@@ -2602,7 +3321,7 @@
       "text": "Радар по всей России | БПЛА, ракеты, самолёты, [04.05.2026 21:15]\nОрловская область \nОпасность по БПЛА \nПовторно\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "f591db926cb6e41a71d25f4ae4b1746e2f4427847df6fc0f9d91406a96e9cc2f",
       "channelKey": "snap_003",
-      "postedAt": "2026-05-08T12:07:59.140Z",
+      "postedAt": "2026-05-08T20:44:31.197Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -2641,6 +3360,20 @@
     "diagnostics": {
       "parserVersion": "0.1.0",
       "warnings": []
+    },
+    "geoPipeline": {
+      "steps": [
+        {
+          "id": "catalog",
+          "ok": true,
+          "durationMs": 0
+        },
+        {
+          "id": "finalizer",
+          "ok": true,
+          "durationMs": 0
+        }
+      ]
     }
   },
   {
@@ -2650,7 +3383,7 @@
       "text": "Радар по всей России | БПЛА, ракеты, самолёты, [04.05.2026 21:16]\nСтарая Русса, Старорусский район, Новгородская область\nОпасность по БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "90a6fe1f4d9e39fd1a26642367d89824c20f7796a4d9efe02c71beb4206ed2f3",
       "channelKey": "snap_003",
-      "postedAt": "2026-05-08T12:07:59.140Z",
+      "postedAt": "2026-05-08T20:44:31.197Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -2689,6 +3422,20 @@
     "diagnostics": {
       "parserVersion": "0.1.0",
       "warnings": []
+    },
+    "geoPipeline": {
+      "steps": [
+        {
+          "id": "catalog",
+          "ok": true,
+          "durationMs": 0
+        },
+        {
+          "id": "finalizer",
+          "ok": true,
+          "durationMs": 0
+        }
+      ]
     }
   },
   {
@@ -2698,7 +3445,7 @@
       "text": "Радар по всей России | БПЛА, ракеты, самолёты, [04.05.2026 21:16]\nОрехово-Зуево и близлежащие \nОпасность по БПЛА \nМосковская область\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "e4180ac930f344fbb5b0ce94b508112c69da724410caf0a9cba340b277312831",
       "channelKey": "snap_003",
-      "postedAt": "2026-05-08T12:07:59.140Z",
+      "postedAt": "2026-05-08T20:44:31.198Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -2737,6 +3484,20 @@
     "diagnostics": {
       "parserVersion": "0.1.0",
       "warnings": []
+    },
+    "geoPipeline": {
+      "steps": [
+        {
+          "id": "catalog",
+          "ok": true,
+          "durationMs": 0
+        },
+        {
+          "id": "finalizer",
+          "ok": true,
+          "durationMs": 0
+        }
+      ]
     }
   },
   {
@@ -2746,7 +3507,7 @@
       "text": "Радар по всей России | БПЛА, ракеты, самолёты, [04.05.2026 21:16]\nАстраханская область\nОпасность по БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "ce3f20aab9fa5dd032deef650b43854ab3c8f4f5535922fe8b7c81b64c32acec",
       "channelKey": "snap_003",
-      "postedAt": "2026-05-08T12:07:59.141Z",
+      "postedAt": "2026-05-08T20:44:31.198Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -2780,6 +3541,20 @@
     "diagnostics": {
       "parserVersion": "0.1.0",
       "warnings": []
+    },
+    "geoPipeline": {
+      "steps": [
+        {
+          "id": "catalog",
+          "ok": true,
+          "durationMs": 0
+        },
+        {
+          "id": "finalizer",
+          "ok": true,
+          "durationMs": 0
+        }
+      ]
     }
   },
   {
@@ -2789,7 +3564,7 @@
       "text": "Радар по всей России | БПЛА, ракеты, самолёты, [04.05.2026 21:17]\nЕгорьевск \nПодольск и близлежащие \nОпасность по БПЛА \nМосковская область\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "5b911ff2f2058f73324a0db74bb0c004b47679e7dd0116a9bf810856cd130a29",
       "channelKey": "snap_003",
-      "postedAt": "2026-05-08T12:07:59.141Z",
+      "postedAt": "2026-05-08T20:44:31.198Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -2832,6 +3607,20 @@
     "diagnostics": {
       "parserVersion": "0.1.0",
       "warnings": []
+    },
+    "geoPipeline": {
+      "steps": [
+        {
+          "id": "catalog",
+          "ok": true,
+          "durationMs": 0
+        },
+        {
+          "id": "finalizer",
+          "ok": true,
+          "durationMs": 0
+        }
+      ]
     }
   },
   {
@@ -2841,7 +3630,7 @@
       "text": "Радар по всей России | БПЛА, ракеты, самолёты, [04.05.2026 21:17]\nВладимирская область \nИвановская область \nОпасность по БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "524aff4f97393ca457d52d11bc851820a15e2b4e80cc96471ad254de0604b6ed",
       "channelKey": "snap_003",
-      "postedAt": "2026-05-08T12:07:59.142Z",
+      "postedAt": "2026-05-08T20:44:31.198Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -2880,6 +3669,20 @@
     "diagnostics": {
       "parserVersion": "0.1.0",
       "warnings": []
+    },
+    "geoPipeline": {
+      "steps": [
+        {
+          "id": "catalog",
+          "ok": true,
+          "durationMs": 0
+        },
+        {
+          "id": "finalizer",
+          "ok": true,
+          "durationMs": 0
+        }
+      ]
     }
   },
   {
@@ -2889,7 +3692,7 @@
       "text": "Радар по всей России | БПЛА, ракеты, самолёты, [04.05.2026 21:18]\nБрянская область \nТревога по БПЛА \nПовторно\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "0c3d6cb2a4d58999ea651f33ac2bfec40212a1e0ef30a624006e14ea2ab2b57d",
       "channelKey": "snap_003",
-      "postedAt": "2026-05-08T12:07:59.142Z",
+      "postedAt": "2026-05-08T20:44:31.198Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -2928,6 +3731,20 @@
     "diagnostics": {
       "parserVersion": "0.1.0",
       "warnings": []
+    },
+    "geoPipeline": {
+      "steps": [
+        {
+          "id": "catalog",
+          "ok": true,
+          "durationMs": 0
+        },
+        {
+          "id": "finalizer",
+          "ok": true,
+          "durationMs": 0
+        }
+      ]
     }
   },
   {
@@ -2937,7 +3754,7 @@
       "text": "Радар по всей России | БПЛА, ракеты, самолёты, [04.05.2026 21:18]\nСамарская область\nОпасность по БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "eabeb2aa9431448a85f9d73e38fb7724c8116da2bc5ffaa59b8d25616a6e5d5c",
       "channelKey": "snap_003",
-      "postedAt": "2026-05-08T12:07:59.142Z",
+      "postedAt": "2026-05-08T20:44:31.199Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -2971,6 +3788,20 @@
     "diagnostics": {
       "parserVersion": "0.1.0",
       "warnings": []
+    },
+    "geoPipeline": {
+      "steps": [
+        {
+          "id": "catalog",
+          "ok": true,
+          "durationMs": 0
+        },
+        {
+          "id": "finalizer",
+          "ok": true,
+          "durationMs": 0
+        }
+      ]
     }
   },
   {
@@ -2980,7 +3811,7 @@
       "text": "Радар по всей России | БПЛА, ракеты, самолёты, [04.05.2026 21:24]\nЕщё фиксации БПЛА от ГГ Брянской области\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "56dda1601491b409ac5599927bb354003d225646b4f14b3a71ab55fe288abba5",
       "channelKey": "snap_003",
-      "postedAt": "2026-05-08T12:07:59.142Z",
+      "postedAt": "2026-05-08T20:44:31.199Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -2999,7 +3830,7 @@
       "source": "local"
     },
     "enrich": {
-      "invoked": true,
+      "invoked": false,
       "providersTried": [],
       "hits": 0,
       "misses": 1,
@@ -3008,6 +3839,20 @@
     "diagnostics": {
       "parserVersion": "0.1.0",
       "warnings": []
+    },
+    "geoPipeline": {
+      "steps": [
+        {
+          "id": "catalog",
+          "ok": true,
+          "durationMs": 0
+        },
+        {
+          "id": "finalizer",
+          "ok": true,
+          "durationMs": 0
+        }
+      ]
     }
   },
   {
@@ -3017,7 +3862,7 @@
       "text": "Радар по всей России | БПЛА, ракеты, самолёты, [04.05.2026 21:24]\nБрянская область \nБелгородская область \nОрловская область \nМеры безопасности\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "f1d87cd9d3b2958c8abdc41fa3db57039d4bafb6a11b577a9481c64a87ca7754",
       "channelKey": "snap_003",
-      "postedAt": "2026-05-08T12:07:59.142Z",
+      "postedAt": "2026-05-08T20:44:31.199Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -3061,6 +3906,20 @@
     "diagnostics": {
       "parserVersion": "0.1.0",
       "warnings": []
+    },
+    "geoPipeline": {
+      "steps": [
+        {
+          "id": "catalog",
+          "ok": true,
+          "durationMs": 0
+        },
+        {
+          "id": "finalizer",
+          "ok": true,
+          "durationMs": 0
+        }
+      ]
     }
   },
   {
@@ -3070,7 +3929,7 @@
       "text": "Радар по всей России | БПЛА, ракеты, самолёты, [04.05.2026 21:33]\nГО Одинцово\nМосковская область\nРабота ПВО по БПЛА\nМеры безопасности\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "b53eece970fa2726858869e7c5c92f6d9db7f880e8b700dbd9c032a3d0ad7aba",
       "channelKey": "snap_003",
-      "postedAt": "2026-05-08T12:07:59.143Z",
+      "postedAt": "2026-05-08T20:44:31.199Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -3109,6 +3968,20 @@
     "diagnostics": {
       "parserVersion": "0.1.0",
       "warnings": []
+    },
+    "geoPipeline": {
+      "steps": [
+        {
+          "id": "catalog",
+          "ok": true,
+          "durationMs": 0
+        },
+        {
+          "id": "finalizer",
+          "ok": true,
+          "durationMs": 0
+        }
+      ]
     }
   },
   {
@@ -3118,7 +3991,7 @@
       "text": "Радар по всей России | БПЛА, ракеты, самолёты, [04.05.2026 21:33]\nТульская область \nКалужская область \nСмоленская область \nМосковская область \nПриготовиться к очередной волне БПЛА\nМножественные фиксации\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "a3fbb7b6dfb78b8462e8d7ba6bb7879af486f76bf01eb732fea79371655c6341",
       "channelKey": "snap_003",
-      "postedAt": "2026-05-08T12:07:59.143Z"
+      "postedAt": "2026-05-08T20:44:31.199Z"
     },
     "classification": {
       "kind": "noise",
@@ -3150,7 +4023,7 @@
       "text": "Радар по всей России | БПЛА, ракеты, самолёты, [04.05.2026 21:52]\nГО Домодедово\nМосковская область\nСбитие БПЛА \nМеры безопасности\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "c0124007915a9f4a0e6dcc3deb9624013ef14598973b6a05ba3bce04849fd4a5",
       "channelKey": "snap_003",
-      "postedAt": "2026-05-08T12:07:59.143Z",
+      "postedAt": "2026-05-08T20:44:31.199Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -3189,6 +4062,20 @@
     "diagnostics": {
       "parserVersion": "0.1.0",
       "warnings": []
+    },
+    "geoPipeline": {
+      "steps": [
+        {
+          "id": "catalog",
+          "ok": true,
+          "durationMs": 0
+        },
+        {
+          "id": "finalizer",
+          "ok": true,
+          "durationMs": 0
+        }
+      ]
     }
   },
   {
@@ -3198,7 +4085,7 @@
       "text": "Радар по всей России | БПЛА, ракеты, самолёты, [04.05.2026 21:52]\nКалачевский район\nВолгоградская область\nФиксация реактивного БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "689237bb4f523d8c23e1fcf9c1e9e83e8e94c779629f8aaff7f2ec44fedb0321",
       "channelKey": "snap_003",
-      "postedAt": "2026-05-08T12:07:59.143Z",
+      "postedAt": "2026-05-08T20:44:31.200Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -3237,6 +4124,20 @@
     "diagnostics": {
       "parserVersion": "0.1.0",
       "warnings": []
+    },
+    "geoPipeline": {
+      "steps": [
+        {
+          "id": "catalog",
+          "ok": true,
+          "durationMs": 0
+        },
+        {
+          "id": "finalizer",
+          "ok": true,
+          "durationMs": 0
+        }
+      ]
     }
   },
   {
@@ -3246,7 +4147,7 @@
       "text": "Радар по всей России | БПЛА, ракеты, самолёты, [04.05.2026 21:53]\nУльяновская область\nОтбой опасности по БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "8eb7b36972dac4f08dbde4b884549c778b84d4c852a0dc894d346364cd061e1d",
       "channelKey": "snap_003",
-      "postedAt": "2026-05-08T12:07:59.143Z",
+      "postedAt": "2026-05-08T20:44:31.200Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -3280,6 +4181,20 @@
     "diagnostics": {
       "parserVersion": "0.1.0",
       "warnings": []
+    },
+    "geoPipeline": {
+      "steps": [
+        {
+          "id": "catalog",
+          "ok": true,
+          "durationMs": 0
+        },
+        {
+          "id": "finalizer",
+          "ok": true,
+          "durationMs": 0
+        }
+      ]
     }
   },
   {
@@ -3289,7 +4204,7 @@
       "text": "Радар по всей России | БПЛА, ракеты, самолёты, [04.05.2026 21:54]\nШуйский район\nИвановская область\nФиксация БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "28b92a50719500caf657396709fa97ccb9025b5305ca8ec3855e978f4bcb5858",
       "channelKey": "snap_003",
-      "postedAt": "2026-05-08T12:07:59.143Z",
+      "postedAt": "2026-05-08T20:44:31.200Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -3328,6 +4243,20 @@
     "diagnostics": {
       "parserVersion": "0.1.0",
       "warnings": []
+    },
+    "geoPipeline": {
+      "steps": [
+        {
+          "id": "catalog",
+          "ok": true,
+          "durationMs": 0
+        },
+        {
+          "id": "finalizer",
+          "ok": true,
+          "durationMs": 0
+        }
+      ]
     }
   },
   {
@@ -3337,7 +4266,7 @@
       "text": "Радар по всей России | БПЛА, ракеты, самолёты, [04.05.2026 21:54]\nРославльский район\nСмоленская область\nФиксации БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "f73e2fd396e449521686f3913bf5346f74d169d17837c79a0dfce9a83de5ae06",
       "channelKey": "snap_003",
-      "postedAt": "2026-05-08T12:07:59.143Z",
+      "postedAt": "2026-05-08T20:44:31.201Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -3376,6 +4305,20 @@
     "diagnostics": {
       "parserVersion": "0.1.0",
       "warnings": []
+    },
+    "geoPipeline": {
+      "steps": [
+        {
+          "id": "catalog",
+          "ok": true,
+          "durationMs": 0
+        },
+        {
+          "id": "finalizer",
+          "ok": true,
+          "durationMs": 0
+        }
+      ]
     }
   },
   {
@@ -3385,7 +4328,7 @@
       "text": "Радар по всей России | БПЛА, ракеты, самолёты, [04.05.2026 21:55]\nЧереповецкий район, Вологодская область - опасность по БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "c7537a311cfc9c80fb37a6bf21dddb221ec2654ab0b30e46c548f76ada2c94c6",
       "channelKey": "snap_003",
-      "postedAt": "2026-05-08T12:07:59.144Z",
+      "postedAt": "2026-05-08T20:44:31.201Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -3424,6 +4367,20 @@
     "diagnostics": {
       "parserVersion": "0.1.0",
       "warnings": []
+    },
+    "geoPipeline": {
+      "steps": [
+        {
+          "id": "catalog",
+          "ok": true,
+          "durationMs": 0
+        },
+        {
+          "id": "finalizer",
+          "ok": true,
+          "durationMs": 1
+        }
+      ]
     }
   }
 ]

@@ -60,7 +60,10 @@ export class ParseRawMessageHandler {
       locations: validatedLocations,
     };
 
-    if (pipelineResult.diagnostics.invoked) {
+    const enrich = pipelineResult.report.enrich ?? { invoked: false, cacheHit: false, providersTried: [] as string[] };
+    const primaryProvider = enrich.providersTried[0] as "dadata" | "nominatim" | "llm" | undefined;
+
+    if (enrich.invoked) {
       await this.events.publish([
         {
           id: randomUUID(),
@@ -70,13 +73,13 @@ export class ParseRawMessageHandler {
           aggregateType: "raw_message",
           aggregateId: raw.hash,
           payload: {
-            provider: pipelineResult.diagnostics.provider ?? "unknown",
+            provider: primaryProvider ?? "unknown",
           },
         },
       ]);
     }
 
-    if (pipelineResult.diagnostics.cacheHit) {
+    if (enrich.cacheHit) {
       await this.events.publish([
         {
           id: randomUUID(),
@@ -86,7 +89,7 @@ export class ParseRawMessageHandler {
           aggregateType: "raw_message",
           aggregateId: raw.hash,
           payload: {
-            provider: pipelineResult.diagnostics.provider ?? "unknown",
+            provider: primaryProvider ?? "unknown",
           },
         },
       ]);
@@ -108,10 +111,10 @@ export class ParseRawMessageHandler {
       ]);
     }
 
-    if (pipelineResult.diagnostics.provider) {
+    if (primaryProvider) {
       await this.placeCache.put(
         raw.rawText.toLowerCase().trim(),
-        pipelineResult.diagnostics.provider,
+        primaryProvider,
         {
           sourceText: raw.rawText,
           resolvedLocations: pipelineResult.locations,

@@ -2,6 +2,7 @@
 import * as path from "node:path";
 import { MONOREPO_ROOT } from "@repo/root";
 import { createWorkerCompositionRoot } from "../application/createWorkerCompositionRoot.js";
+import type { PipelineStepId } from "../infrastructure/enrichers/enricherChainFactory.js";
 import { splitMessageBlocks } from "../domain/parsing/index.js";
 import {
   JsonPlaceCacheRepository,
@@ -14,7 +15,10 @@ type CliOptions = {
   outdir: string;
   format: "json" | "yaml" | "csv";
   div: "file" | "record";
-  useProviders: boolean;
+  enrichDadata: boolean;
+  enrichNominatim: boolean;
+  enrichLlm: boolean;
+  pipelineOrder: PipelineStepId[] | undefined;
 };
 
 type FlatRecord = {
@@ -34,6 +38,11 @@ function parseArgs(argv: string[]): CliOptions {
   for (let i = 2; i < argv.length; i += 1) {
     const token = argv[i];
     if (!token.startsWith("--")) continue;
+    if (token.includes("=")) {
+      const [key, val] = token.slice(2).split("=", 2);
+      map.set(key, val);
+      continue;
+    }
     const key = token.slice(2);
     const next = argv[i + 1];
     if (next && !next.startsWith("--")) {
@@ -54,12 +63,25 @@ function parseArgs(argv: string[]): CliOptions {
     ? (divRaw as CliOptions["div"])
     : "file";
 
+  const validStepIds = new Set<PipelineStepId>(["catalog", "llm", "dadata", "nominatim"]);
+  const orderRaw = map.get("pipeline-order");
+  const pipelineOrder =
+    orderRaw && orderRaw !== true
+      ? (orderRaw as string)
+          .split(",")
+          .map((s) => s.trim().toLowerCase() as PipelineStepId)
+          .filter((s) => validStepIds.has(s))
+      : undefined;
+
   return {
     input: String(map.get("input") ?? "tests"),
     outdir: String(map.get("outdir") ?? "reports"),
     format,
     div,
-    useProviders: map.has("use-providers"),
+    enrichDadata: map.has("enrich-dadata") || map.has("use-providers"),
+    enrichNominatim: map.has("enrich-nominatim") || map.has("use-providers"),
+    enrichLlm: map.has("enrich-llm"),
+    pipelineOrder,
   };
 }
 
@@ -219,10 +241,19 @@ async function main(): Promise<void> {
 
   ensureCleanOutdir(outdir);
 
+  const anyProvider = options.enrichDadata || options.enrichNominatim || options.enrichLlm;
   const placeCache = new JsonPlaceCacheRepository(resolveJsonPlaceCachePath());
   const runtime = createWorkerCompositionRoot({
     placeCacheRepository: placeCache,
-    enableProviders: options.useProviders,
+    explicitEnricherFlags: anyProvider
+      ? {
+          dadata: options.enrichDadata,
+          nominatim: options.enrichNominatim,
+          llm: options.enrichLlm,
+        }
+      : false,
+    pipelineOrder: options.pipelineOrder,
+    llmRuntimeOverride: options.enrichLlm ? { enabled: true } : undefined,
   });
 
   const allRecords: FlatRecord[] = [];

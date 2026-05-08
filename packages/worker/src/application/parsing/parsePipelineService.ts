@@ -1,5 +1,6 @@
 ﻿import type {
   EventLocation,
+  GeoPipelineReport,
   IEventClassifier,
   ParseReport,
   ParsedEvent,
@@ -12,92 +13,8 @@ export type ParsePipelineResult = {
   report: ParseReport;
   parsedEvent?: ParsedEvent;
   locations: EventLocation[];
-  diagnostics: {
-    invoked: boolean;
-    cacheHit: boolean;
-    provider?: "dadata" | "nominatim" | "llm";
-    regionDetected: boolean;
-    localPlacesFound: number;
-  };
+  geoPipeline?: GeoPipelineReport;
 };
-
-function normalizePrecision(locations: EventLocation[]): {
-  precision: "unknown" | "region" | "district" | "locality" | "locality_with_coords";
-  completeness: number;
-} {
-  if (locations.length === 0) {
-    return { precision: "unknown", completeness: 0 };
-  }
-
-  let best = 0;
-  for (const location of locations) {
-    let score = 0.25;
-    if (location.precision === "district") score = 0.5;
-    if (location.precision === "city" || location.precision === "locality") score = 0.75;
-    if (location.lat !== undefined && location.lon !== undefined) score = 1;
-    if (score > best) best = score;
-  }
-
-  if (best >= 1) {
-    return { precision: "locality_with_coords", completeness: 1 };
-  }
-  if (best >= 0.75) {
-    return { precision: "locality", completeness: 0.75 };
-  }
-  if (best >= 0.5) {
-    return { precision: "district", completeness: 0.5 };
-  }
-  return { precision: "region", completeness: 0.25 };
-}
-
-function deriveSource(input: {
-  locations: EventLocation[];
-  provider?: "dadata" | "nominatim" | "llm";
-  cacheHit: boolean;
-}): "local" | "cache" | "dadata" | "nominatim" | "llm" {
-  if (input.cacheHit) {
-    return "cache";
-  }
-  if (input.provider) {
-    return input.provider;
-  }
-  const first = input.locations[0];
-  if (!first) {
-    return "local";
-  }
-  if (first.source === "db") {
-    return "local";
-  }
-  if (first.source === "cache") {
-    return "cache";
-  }
-  return first.source;
-}
-
-function buildGeoRegions(locations: EventLocation[]): Array<{
-  code: string;
-  name: string;
-  fiasId?: string;
-}> {
-  const unique = new Map<string, { code: string; name: string; fiasId?: string }>();
-
-  for (const location of locations) {
-    if (location.precision !== "region") {
-      continue;
-    }
-    const key = `${location.regionCode}:${location.regionFias ?? ""}`;
-    if (unique.has(key)) {
-      continue;
-    }
-    unique.set(key, {
-      code: location.regionCode,
-      name: location.placeName ?? location.regionCode,
-      fiasId: location.regionFias,
-    });
-  }
-
-  return [...unique.values()];
-}
 
 export class ParsePipelineService {
   constructor(
@@ -132,6 +49,7 @@ export class ParsePipelineService {
           reason: classified.reason,
         },
         geo: {
+          regions: [],
           precision: "unknown",
           completeness: 0,
           source: "local",
@@ -149,16 +67,7 @@ export class ParsePipelineService {
           warnings: [],
         },
       });
-      return {
-        report,
-        locations: [],
-        diagnostics: {
-          invoked: false,
-          cacheHit: false,
-          regionDetected: false,
-          localPlacesFound: 0,
-        },
-      };
+      return { report, locations: [], geoPipeline: undefined };
     }
 
     const parsedEvent: ParsedEvent = {
@@ -168,13 +77,24 @@ export class ParsePipelineService {
     };
 
     const resolved = await this.resolution.resolve(input.rawText);
-    const normalized = normalizePrecision(resolved.locations);
-    const source = deriveSource({
-      locations: resolved.locations,
-      provider: resolved.diagnostics.provider,
-      cacheHit: resolved.diagnostics.cacheHit,
-    });
-    const regions = buildGeoRegions(resolved.locations);
+    const finalizer = resolved.artifact.finalizer;
+
+    const precision = finalizer?.precision ?? "unknown";
+    const completeness = finalizer?.completeness ?? 0;
+    const source = finalizer?.source ?? "local";
+
+    const regions = finalizer?.regions ?? [];
+    const places = finalizer?.places ?? [];
+    const invoked = Boolean(
+      resolved.artifact.dadata ?? resolved.artifact.nominatim ?? resolved.artifact.llm,
+    );
+    const providersTried: string[] = [];
+    if (resolved.artifact.dadata) providersTried.push("dadata");
+    if (resolved.artifact.nominatim) providersTried.push("nominatim");
+    if (resolved.artifact.llm) providersTried.push("llm");
+    const cacheHit =
+      (resolved.artifact.dadata?.cacheHit ?? false) ||
+      (resolved.artifact.nominatim?.cacheHit ?? false);
 
     const report = parseReportSchema.parse({
       index: input.index,
@@ -186,9 +106,7 @@ export class ParsePipelineService {
         postedAt: parsedEvent.postedAt,
         rawMessageId: parsedEvent.rawMessageId,
       },
-      classification: {
-        kind: "event",
-      },
+      classification: { kind: "event" },
       event: {
         eventType: parsedEvent.eventType,
         severity: parsedEvent.severity,
@@ -199,44 +117,31 @@ export class ParsePipelineService {
       },
       geo: {
         regions,
-        places: resolved.locations
-          .filter((location) => location.precision !== "region")
-          .map((location) => ({
-          name: location.placeName ?? location.regionCode,
-          kind:
-            location.precision === "district"
-              ? "district"
-              : location.precision === "settlement"
-                ? "settlement"
-                : location.precision === "city"
-                  ? "city"
-                  : "locality",
-          fiasId: location.placeFias,
-          lat: location.lat,
-          lon: location.lon,
-        })),
-        precision: normalized.precision,
-        completeness: normalized.completeness,
+        places,
+        precision,
+        completeness,
         source,
       },
       enrich: {
-        invoked: resolved.diagnostics.invoked,
-        providersTried: resolved.diagnostics.provider ? [resolved.diagnostics.provider] : [],
+        invoked,
+        providersTried,
         hits: resolved.locations.length,
         misses: resolved.locations.length > 0 ? 0 : 1,
-        cacheHit: resolved.diagnostics.cacheHit,
+        cacheHit,
       },
       diagnostics: {
         parserVersion: parsedEvent.parserVersion,
         warnings: [],
       },
+      geoPipeline: resolved.geoPipeline,
+      geoArtifact: resolved.artifact,
     });
 
     return {
       report,
       parsedEvent,
       locations: resolved.locations,
-      diagnostics: resolved.diagnostics,
+      geoPipeline: resolved.geoPipeline,
     };
   }
 }

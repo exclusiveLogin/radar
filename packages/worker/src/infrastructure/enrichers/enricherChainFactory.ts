@@ -1,9 +1,5 @@
-import type { ILocationEnricher } from "@radar/shared";
 import { CompositeEnricher } from "./compositeEnricher.js";
-import { DadataEnricher } from "./dadataEnricher.js";
-import { LlmEnricher } from "./llmEnricher.js";
-import { NominatimEnricher } from "./nominatimEnricher.js";
-import { loadLlmRuntimeConfig, type LlmRuntimeConfig } from "./llmRuntimeConfig.js";
+import { loadLlmRuntimeConfig } from "./llmRuntimeConfig.js";
 
 const truthy = new Set(["1", "true", "yes", "on"]);
 
@@ -12,13 +8,15 @@ function parseBoolean(value: string | undefined, fallback: boolean): boolean {
   return truthy.has(value.trim().toLowerCase());
 }
 
+// ─── Enricher flags ───────────────────────────────────────────────────────
+
 export type ResolvedEnricherFlags = {
   dadata: boolean;
   nominatim: boolean;
   llm: boolean;
 };
 
-/** Флаги из env; LLM включается только когда `RADAR_LLM_GEOCODER_ENABLED` truthy—см. `loadLlmRuntimeConfig`. */
+/** Флаги из env; LLM включается только когда `RADAR_LLM_GEOCODER_ENABLED` truthy. */
 export function resolveEnricherFlagsFromEnv(env = process.env): ResolvedEnricherFlags {
   const llmConfig = loadLlmRuntimeConfig(env);
   return {
@@ -28,19 +26,43 @@ export function resolveEnricherFlagsFromEnv(env = process.env): ResolvedEnricher
   };
 }
 
-/** Собирает список enrichers в порядке fallback (DaData → Nominatim → LLM). */
-export function buildEnricherChain(
-  flags: ResolvedEnricherFlags,
-  llmRuntimeConfig: LlmRuntimeConfig,
-  dadataToken?: string,
-): ILocationEnricher[] {
-  const chain: ILocationEnricher[] = [];
-  if (flags.dadata) chain.push(new DadataEnricher(dadataToken));
-  if (flags.nominatim) chain.push(new NominatimEnricher());
-  if (flags.llm) chain.push(new LlmEnricher(llmRuntimeConfig));
-  return chain;
+// ─── Pipeline order ───────────────────────────────────────────────────────
+
+export type PipelineStepId = "catalog" | "llm" | "dadata" | "nominatim";
+
+/**
+ * Default execution order. `catalog` is cheap and feeds regionCode into later steps.
+ * `FinalizerStep` is always appended last by the runner — not listed here.
+ */
+export const DEFAULT_PIPELINE_ORDER: PipelineStepId[] = [
+  "catalog",
+  "llm",
+  "dadata",
+  "nominatim",
+];
+
+/**
+ * Parses `RADAR_GEO_PIPELINE_ORDER=catalog,llm,dadata,nominatim` env var.
+ * Unknown tokens are silently dropped.
+ */
+export function resolvePipelineOrderFromEnv(env = process.env): PipelineStepId[] | undefined {
+  const raw = env.RADAR_GEO_PIPELINE_ORDER;
+  if (!raw?.trim()) return undefined;
+  const valid = new Set<PipelineStepId>(["catalog", "llm", "dadata", "nominatim"]);
+  const parsed = raw
+    .split(",")
+    .map((s) => s.trim().toLowerCase() as PipelineStepId)
+    .filter((s) => valid.has(s));
+  return parsed.length > 0 ? parsed : undefined;
 }
 
+// ─── Legacy composite (kept for backwards compat) ─────────────────────────
+
+export { CompositeEnricher } from "./compositeEnricher.js";
+
+import type { ILocationEnricher } from "@radar/shared";
+import { CompositeEnricher as _Composite } from "./compositeEnricher.js";
 export function wrapEnricherFallback(chain: ILocationEnricher[]): ILocationEnricher {
-  return new CompositeEnricher(chain);
+  return new _Composite(chain);
 }
+
