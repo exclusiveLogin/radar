@@ -83,7 +83,8 @@ export class CityCatalog {
   }
 
   findInText(rawText: string): CityCatalogEntry[] {
-    const haystack = ` ${normalize(rawText)} `;
+    // Replace punctuation with spaces so "Тольятти," or "Тольятти." still match.
+    const haystack = ` ${normalize(rawText).replace(/[,;:.!?()\[\]]/g, " ").replace(/\s+/g, " ")} `;
     const matches = this.entries.filter((entry) =>
       entry.aliases.some((alias) => haystack.includes(` ${alias} `)),
     );

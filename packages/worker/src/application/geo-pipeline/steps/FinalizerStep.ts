@@ -66,6 +66,13 @@ export class FinalizerStep implements GeoPipelineStep {
         });
       } else {
         existing.sources.push(source);
+        // Prefer better-cased name: if existing is all-lowercase and new starts uppercase → update.
+        if (
+          existing.name[0] === existing.name[0]?.toLowerCase() &&
+          node.name[0] === node.name[0]?.toUpperCase()
+        ) {
+          existing.name = node.name;
+        }
         if (node.lat !== undefined && node.lon !== undefined) {
           existing.lat = node.lat;
           existing.lon = node.lon;

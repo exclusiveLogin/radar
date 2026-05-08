@@ -34,12 +34,20 @@ export class GeoValidationService {
       return { decision: "rejected", location: null };
     }
 
-    const matched = await this.matchPlace(rawQuery, region.id, location.placeFias);
+    if (!location.placeName) {
+      return {
+        decision: "rejected",
+        location: { ...location, regionId: region.id },
+      };
+    }
+
+    const matched = await this.matchPlace(location.placeName, region.id, location.placeFias);
     if (matched) {
+      // Upsert alias by placeName so future events with the same place name hit the cache.
       await this.aliases.upsertAlias({
         targetKind: "place",
         placeId: matched.id,
-        alias: rawQuery,
+        alias: location.placeName,
         source: "auto",
       });
       return {
@@ -50,16 +58,6 @@ export class GeoValidationService {
           placeId: matched.id,
           placeName: matched.name,
           placeFias: matched.fiasId,
-        },
-      };
-    }
-
-    if (!location.placeName) {
-      return {
-        decision: "rejected",
-        location: {
-          ...location,
-          regionId: region.id,
         },
       };
     }
@@ -77,22 +75,18 @@ export class GeoValidationService {
     await this.aliases.upsertAlias({
       targetKind: "place",
       placeId,
-      alias: rawQuery,
+      alias: location.placeName,
       source: "auto",
     });
 
     return {
       decision: "created_new",
-      location: {
-        ...location,
-        regionId: region.id,
-        placeId,
-      },
+      location: { ...location, regionId: region.id, placeId },
     };
   }
 
   private async matchPlace(
-    rawQuery: string,
+    placeName: string,
     regionId: string,
     placeFias?: string,
   ): Promise<PlaceRecord | null> {
@@ -101,13 +95,13 @@ export class GeoValidationService {
       if (byFias) return byFias;
     }
 
-    const aliasMatches = await this.aliases.findByAlias(normalize(rawQuery));
+    const aliasMatches = await this.aliases.findByAlias(normalize(placeName));
     const placeAlias = aliasMatches.find((row) => row.placeId);
     if (placeAlias?.placeId) {
       const place = await this.places.findById(placeAlias.placeId);
       if (place) return place;
     }
 
-    return this.places.findByNameInRegion(rawQuery, regionId);
+    return this.places.findByNameInRegion(placeName, regionId);
   }
 }

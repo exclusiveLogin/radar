@@ -73,9 +73,8 @@ export class GeoCatalog {
     const found: GeoCatalogPlace[] = [];
 
     const districtRegex =
-      /(?:^|[^\p{L}\p{N}_])([а-яёa-z][а-яёa-z\-\s]{1,40}?\sрайон)(?=[^\p{L}\p{N}_]|$)/giu;
-    const text = normalize(rawText);
-    for (const match of text.matchAll(districtRegex)) {
+      /(?:^|[^\p{L}\p{N}_])([а-яёА-ЯЁa-zA-Z][а-яёА-ЯЁa-zA-Z\-\s]{1,40}?\sрайон)(?=[^\p{L}\p{N}_]|$)/giu;
+    for (const match of rawText.matchAll(districtRegex)) {
       const districtName = cleanDistrictName(match[1]?.trim() ?? "");
       if (!districtName) continue;
       found.push({
