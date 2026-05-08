@@ -1,11 +1,13 @@
 ﻿import * as fs from "node:fs";
 import * as path from "node:path";
+import { MONOREPO_ROOT } from "@repo/root";
 import { createWorkerCompositionRoot } from "../application/createWorkerCompositionRoot.js";
 import { splitMessageBlocks } from "../domain/parsing/index.js";
 import {
   JsonPlaceCacheRepository,
   resolveJsonPlaceCachePath,
 } from "../infrastructure/persistence/index.js";
+import { loadRootEnv } from "../infrastructure/config/loadRootEnv.js";
 
 type CliOptions = {
   input: string;
@@ -201,6 +203,7 @@ function writePayload(targetPath: string, format: CliOptions["format"], payload:
 }
 
 async function main(): Promise<void> {
+  loadRootEnv(MONOREPO_ROOT);
   const options = parseArgs(process.argv);
   const inputPath = resolvePath(options.input);
   const outdir = resolvePath(options.outdir);

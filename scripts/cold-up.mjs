@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Холодный старт: Docker (Postgres + pgAdmin), npm install, сборка @radar/shared, миграции.
-// npm run cold:up  |  npm run cold:up -- -Geo -Dev  |  двойной дефис: -- --geo --dev
+// npm run cold:up  |  npm run cold:up -- -Geo -Dev -Llm -LlmUi  |  двойной дефис: -- --geo --dev --llm --llm-ui
 import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
@@ -17,6 +17,14 @@ const argSet = new Set(
 );
 const geo = argSet.has('-geo');
 const dev = argSet.has('-dev');
+const llmFlag = argSet.has('-llm');
+const llmUiFlag = argSet.has('-llm-ui');
+
+function envTruthy(name) {
+  const raw = process.env[name];
+  if (!raw) return false;
+  return ['1', 'true', 'yes', 'on'].includes(raw.trim().toLowerCase());
+}
 
 function dockerOk() {
   const r = spawnSync('docker', ['info'], {
@@ -85,6 +93,35 @@ async function main() {
   console.log('\n\x1b[32m[5/5] миграции TypeORM\x1b[0m');
   run('npm', ['run', 'migration:run']);
 
+  const llm =
+    llmFlag ||
+    llmUiFlag ||
+    envTruthy('RADAR_LLM_GEOCODER_ENABLED') ||
+    envTruthy('COLD_UP_WITH_LLM');
+  if (llm) {
+    const model = (process.env.RADAR_LLM_MODEL || 'qwen2.5:3b').trim();
+    console.log('\n\x1b[32m[llm] docker compose --profile llm up -d\x1b[0m');
+    run('docker', ['compose', '--profile', 'llm', 'up', '-d']);
+    console.log(`\n\x1b[32m[llm] ollama pull ${model}\x1b[0m`);
+    run('docker', [
+      'compose',
+      '--profile',
+      'llm',
+      'exec',
+      '-T',
+      'ollama',
+      'ollama',
+      'pull',
+      model,
+    ]);
+  }
+
+  const llmUi = llmUiFlag || envTruthy('COLD_UP_WITH_LLM_UI');
+  if (llmUi) {
+    console.log('\n\x1b[32m[llm-ui] docker compose --profile llm-ui up -d\x1b[0m');
+    run('docker', ['compose', '--profile', 'llm-ui', 'up', '-d']);
+  }
+
   if (geo) {
     console.log(
       '\n\x1b[33m[geo] vendor → sync → seed → db:apply (может занять время)\x1b[0m',
@@ -106,7 +143,7 @@ async function main() {
   } else {
     console.log('\x1b[33mДальше: npm run dev\x1b[0m');
     console.log(
-      '\x1b[90mФлаги: npm run cold:up -- -Geo -Dev  или  -- --geo --dev\x1b[0m',
+      '\x1b[90mФлаги: npm run cold:up -- -Geo -Dev -Llm -LlmUi  или  -- --geo --dev --llm --llm-ui\x1b[0m',
     );
   }
 }

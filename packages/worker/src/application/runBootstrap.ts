@@ -6,6 +6,7 @@ import { loadChannelManifest } from "../infrastructure/manifest/channelManifestL
 import { loadRootEnv } from "../infrastructure/config/loadRootEnv.js";
 import { createTtyPrompter } from "../infrastructure/io/ttyPrompter.js";
 import { runTelegramUserSessionBootstrap } from "../infrastructure/telegram/userSessionLifecycle.js";
+import { loadLlmRuntimeConfig } from "../infrastructure/enrichers/llmRuntimeConfig.js";
 
 function readTelegramCredentials():
   | { ok: true; apiId: number; apiHash: string }
@@ -23,6 +24,7 @@ function readTelegramCredentials():
  */
 export async function runWorkerBootstrap(): Promise<void> {
   loadRootEnv(MONOREPO_ROOT);
+  await runLlmStartupCheck();
   const runtime = createWorkerCompositionRoot();
 
   const creds = readTelegramCredentials();
@@ -73,5 +75,35 @@ export async function runWorkerBootstrap(): Promise<void> {
     if (ingested.inserted) {
       await runtime.parseRawMessageHandler.handle(demoRaw);
     }
+  }
+}
+
+async function runLlmStartupCheck(): Promise<void> {
+  const config = loadLlmRuntimeConfig();
+  if (!config.enabled) {
+    console.log("LLM enricher: disabled.");
+    return;
+  }
+
+  const healthUrl = new URL("/api/tags", config.baseUrl).toString();
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), Math.min(config.timeoutMs, 5000));
+
+  try {
+    const response = await fetch(healthUrl, {
+      method: "GET",
+      signal: controller.signal,
+    });
+    if (response.ok) {
+      console.log(`LLM enricher: ${config.provider} ready (${config.model}).`);
+      return;
+    }
+    console.warn(
+      `LLM enricher: health check failed (${response.status}), pipeline will fallback.`,
+    );
+  } catch {
+    console.warn("LLM enricher: endpoint unavailable, pipeline will fallback.");
+  } finally {
+    clearTimeout(timer);
   }
 }

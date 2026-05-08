@@ -142,9 +142,40 @@ flowchart LR
      `npm run cold:up -- -Geo`
    - Сразу дев-серверы без отдельного `npm run dev`:  
      `npm run cold:up -- -Dev`
+   - С LLM-контуром (поднимет `ollama` profile и сделает `ollama pull` для модели из `RADAR_LLM_MODEL`):  
+     `npm run cold:up -- -Llm`
+   - С чат-интерфейсом Open WebUI:  
+     `npm run cold:up -- -LlmUi`
+   - LLM включится автоматически в cold-start, если в env задано `RADAR_LLM_GEOCODER_ENABLED=1` или `COLD_UP_WITH_LLM=1`.
+   - Open WebUI включится автоматически в cold-start, если в env задано `COLD_UP_WITH_LLM_UI=1`.
    - Вместе: `npm run cold:up -- -Geo -Dev`
 
 **`npm run up`** — по-прежнему только «Docker + dev» без установки зависимостей и миграций (на каждый день).
+
+Для LLM-контура (Ollama) используйте профиль compose:
+
+```bash
+docker compose --profile llm up -d
+```
+
+Для chat UI поверх Ollama (Open WebUI):
+
+```bash
+docker compose --profile llm-ui up -d
+```
+
+После старта:
+
+- Ollama API: [http://127.0.0.1:11434/api/tags](http://127.0.0.1:11434/api/tags)
+- Open WebUI: [http://127.0.0.1:3001](http://127.0.0.1:3001) (порт настраивается через `OPEN_WEBUI_PORT`)
+
+Промежуточный checkup:
+
+```bash
+docker compose ps
+# PowerShell: Invoke-RestMethod http://127.0.0.1:11434/api/tags
+npm run worker:parse:report -- --input tests --outdir reports --format json --div file --use-providers
+```
 
 ---
 
@@ -202,11 +233,20 @@ flowchart LR
 
 - **Dadata**: основной провайдер точного адресного обогащения (город/село/FIAS/координаты).
 - **Nominatim**: fallback, когда Dadata не дала уверенный матч.
-- **LLM enricher**: текущая заглушка под будущий MCP/LLM сценарий.
+- **LLM enricher**: OpenAI-compatible адаптер (Ollama по умолчанию), работает как fallback и валидирует ответ через Zod.
 - **CompositeEnricher**: цепочка провайдеров по приоритету.
 - **CachingEnricher**: сначала cache (`place_cache`/in-memory), потом внешние вызовы.
 - Базовый сценарий: если регион найден локально, используем словарь; если в тексте есть уточнение — добираем через enrichers.
 - Для карт/time-machine статусы place ведутся отдельными тегами (`place_status_active` + `place_status_history`), а `cleared` вычисляется read-side как отсутствие активных тегов.
+
+### LLM runtime config (env)
+
+- `RADAR_LLM_GEOCODER_ENABLED`: включает/выключает LLM fallback.
+- `RADAR_LLM_PROVIDER`: `ollama` или `openai-compatible`.
+- `RADAR_LLM_BASE_URL`: endpoint OpenAI-compatible API, по умолчанию `http://127.0.0.1:11434/v1`.
+- `RADAR_LLM_MODEL`: имя модели в runtime (`qwen2.5:3b` и т.п.).
+- `RADAR_LLM_TIMEOUT_MS`, `RADAR_LLM_RETRY_COUNT`: сетевые guardrails.
+- `RADAR_LLM_MAX_TOKENS`, `RADAR_LLM_TEMPERATURE`, `RADAR_LLM_JSON_MODE`: режим генерации.
 
 ## Batch parser report
 
@@ -215,6 +255,7 @@ flowchart LR
 - Дефолты: `--input tests --outdir reports --format json --div file`.
 - Поддерживаются форматы: `json|yaml|csv`; режим деления: `file|record`.
 - Флаг `--use-providers` включает enrich-цепочку поверх локального artifacts-first резолва.
+- Для Ollama snap-check: `npm run worker:parse:snap:ollama -- --input tests/snap_001.txt` (проверяет `/api/tags` и запускает parse через LLM-enabled runtime).
 
 ## Worker и Telegram
 
@@ -263,6 +304,9 @@ npm run migration:run
 | `npm run start:api` | прод: `node dist/main.js` у API (**нужен** предварительный `npm run build`) |
 | `npm run db:up`   | `docker compose up -d` (Postgres + **pgAdmin**) |
 | `npm run db:down` | `docker compose down`               |
+| `docker compose --profile llm up -d` | поднять `ollama` вместе с базовыми сервисами |
+| `docker compose --profile llm-ui up -d` | поднять `ollama` + `open-webui` для чат-интерфейса |
+| `docker compose --profile llm exec ollama ollama pull qwen2.5:3b` | pre-pull модели в локальный runtime |
 | `npm run geo:vendor` | shallow clone в `data/geo/vendor` (игнор git) |
 | `npm run geo:vendor:pull` | обновить клоны в `vendor/` |
 | `npm run geo:sync` | копия в **`data/geo/artifacts`** + `manifest.json` (**коммитим**) |
@@ -271,6 +315,7 @@ npm run migration:run
 | `npm run geo:db:plan` | dry-run diff для синка справочников в БД |
 | `npm run geo:db:apply` | применить diff-синк справочников в БД + аудит |
 | `npm run worker:parse:snap -- tests/snap_001.txt` | прогон parser CLI без БД на снапшотах |
+| `npm run worker:parse:snap:ollama -- --input tests/snap_001.txt` | snap-прогон с обязательным Ollama probe и LLM-enricher |
 | `npm run worker:parse:report -- --input tests --outdir reports --format json --div file` | batch-отчет ParsePipelineService по raw-сообщениям |
 | `GET /api/places/status` | активные статус-теги по place (для карты) |
 | `GET /api/places/status/history` | история статус-тегов для time-machine |

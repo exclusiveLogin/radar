@@ -1,4 +1,4 @@
-﻿import type { IPlaceCacheRepository } from "@radar/shared";
+﻿import type { ILocationEnricher, IPlaceCacheRepository } from "@radar/shared";
 import { InProcessEventBus } from "@radar/shared";
 import { ParseAttemptLogger, MetricsAggregator } from "./subscribers/index.js";
 import { IngestRawMessageHandler } from "./handlers/ingestRawMessageHandler.js";
@@ -20,6 +20,7 @@ import {
   LlmEnricher,
   NominatimEnricher,
 } from "../infrastructure/enrichers/index.js";
+import { loadLlmRuntimeConfig } from "../infrastructure/enrichers/llmRuntimeConfig.js";
 import { GeoCatalog } from "../infrastructure/geo-catalog/index.js";
 import { LocationResolutionService } from "./parsing/locationResolutionService.js";
 import { GeoValidationService } from "./parsing/geoValidationService.js";
@@ -49,15 +50,16 @@ export function createWorkerCompositionRoot(options: WorkerCompositionOptions = 
   const placeCache = options.placeCacheRepository ?? new InMemoryPlaceCacheRepository();
   const classifier = new RuleBasedEventClassifier();
   const geoCatalog = options.geoCatalog ?? GeoCatalog.loadFromArtifacts();
+  const llmRuntimeConfig = loadLlmRuntimeConfig();
 
-  const enrichers =
-    options.enableProviders === false
-      ? [new LlmEnricher()]
-      : [
-          new DadataEnricher(process.env.DADATA_TOKEN),
-          new NominatimEnricher(),
-          new LlmEnricher(),
-        ];
+  const enrichers: ILocationEnricher[] = [];
+  if (options.enableProviders !== false) {
+    enrichers.push(
+      new DadataEnricher(process.env.DADATA_TOKEN),
+      new NominatimEnricher(),
+    );
+    enrichers.push(new LlmEnricher(llmRuntimeConfig));
+  }
 
   const compositeEnricher = new CompositeEnricher(enrichers);
   const cachedEnricher = new CachingEnricher(compositeEnricher, placeCache);

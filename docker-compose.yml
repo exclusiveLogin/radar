@@ -48,6 +48,40 @@ services:
       db:
         condition: service_healthy
 
+  ollama:
+    image: ollama/ollama:0.6.8
+    restart: unless-stopped
+    profiles: ["llm", "llm-ui"]
+    ports:
+      - "${OLLAMA_PORT:-11434}:11434"
+    volumes:
+      - radar_ollama_data:/root/.ollama
+    networks:
+      - radar_net
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 25s
+    stop_grace_period: 30s
+
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:main
+    restart: unless-stopped
+    profiles: ["llm-ui"]
+    ports:
+      - "${OPEN_WEBUI_PORT:-3001}:8080"
+    environment:
+      OLLAMA_BASE_URL: http://ollama:11434
+    volumes:
+      - radar_open_webui_data:/app/backend/data
+    networks:
+      - radar_net
+    depends_on:
+      ollama:
+        condition: service_healthy
+
 networks:
   radar_net:
     driver: bridge
@@ -55,3 +89,5 @@ networks:
 volumes:
   radar_pg_data:
   radar_pgadmin_data:
+  radar_ollama_data:
+  radar_open_webui_data:
