@@ -8,8 +8,13 @@ export class LlmStep implements GeoPipelineStep {
   constructor(private readonly enricher: LlmEnricher) {}
 
   async run(ctx: GeoPipelineContext): Promise<void> {
-    const regionCode = ctx.artifact.catalog?.regions[0]?.code;
-    const result = await this.enricher.enrich({ rawText: ctx.rawText, regionCode });
+    const catalogRegions = ctx.artifact.catalog?.regions ?? [];
+    const regionCode = catalogRegions[0]?.code;
+    const result = await this.enricher.enrich({
+      rawText: ctx.rawText,
+      regionCode,
+      catalogRegions: catalogRegions.length > 0 ? catalogRegions : undefined,
+    });
 
     if (!result) {
       ctx.artifact.llm = {
@@ -23,20 +28,35 @@ export class LlmStep implements GeoPipelineStep {
 
     const nodes: GeoNode[] = [];
 
-    if (result.regionCode) {
-      nodes.push({
-        name: result.regionCode,
-        kind: "region",
-        regionCode: result.regionCode,
-      });
-    }
+    const normName = (s: string) => s.toLowerCase().replace(/ё/g, "е").trim();
+    // Match by first word (adjective) — handles "Калужская обл" vs "Калужская область"
+    const firstWord = (s: string) => normName(s).split(/\s+/)[0] ?? "";
+    const lookupRegionCode = (placeName: string): string | undefined =>
+      catalogRegions.find(
+        (r) => normName(r.name) === normName(placeName) || firstWord(r.name) === firstWord(placeName),
+      )?.code;
 
     for (const place of result.places) {
+      const isRegion = place.kind === "region";
+
+      let placeRegionCode: string | undefined;
+      if (isRegion) {
+        // Priority: catalog lookup (exact + first-word) > LLM-provided > hint
+        placeRegionCode =
+          lookupRegionCode(place.placeName)
+          ?? (place.regionCode ?? undefined)
+          ?? result.regionCode
+          ?? regionCode;
+      } else {
+        // Non-region: use LLM-provided regionCode for this place, else top-level hint
+        placeRegionCode = (place.regionCode ?? undefined) ?? result.regionCode ?? regionCode;
+      }
+
       nodes.push({
         name: place.placeName,
-        kind: place.kind === "region" ? "region" : place.kind,
-        regionCode: result.regionCode ?? regionCode,
-        fiasId: place.placeFias,
+        kind: isRegion ? "region" : place.kind,
+        regionCode: placeRegionCode ?? undefined,
+        fiasId: place.placeFias ?? undefined,
       });
     }
 

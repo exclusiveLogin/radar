@@ -9,14 +9,15 @@ const llmPlaceSchema = z.object({
   kind: z
     .enum(["region", "district", "city", "locality", "settlement"])
     .default("locality"),
-  placeFias: z.string().min(1).optional(),
+  regionCode: z.string().min(1).nullable().catch(null).optional(),
+  placeFias: z.string().min(1).nullable().catch(null).optional(),
 });
 
 const llmResponseSchema = z.object({
   places: z.array(llmPlaceSchema).default([]),
-  regionCode: z.string().min(1).nullable().optional(),
+  regionCode: z.string().min(1).nullable().catch(null).optional(),
   confidence: z.number().min(0).max(1).default(0),
-  reason: z.string().max(500).default(""),
+  reason: z.string().max(500).nullable().catch("").transform((v) => v ?? ""),
 });
 
 export type LlmGeoResponse = z.infer<typeof llmResponseSchema>;
@@ -76,6 +77,7 @@ export class LlmEnricher {
   async enrich(input: {
     rawText: string;
     regionCode?: string;
+    catalogRegions?: Array<{ code: string; name: string }>;
   }): Promise<(LlmGeoResponse & { model: string; latencyMs: number }) | null> {
     if (!this.config.enabled) return null;
 
@@ -108,6 +110,7 @@ export class LlmEnricher {
                 content: JSON.stringify({
                   rawText: input.rawText,
                   regionCodeHint: input.regionCode ?? null,
+                  catalogRegions: input.catalogRegions ?? null,
                 }),
               },
             ],
@@ -126,16 +129,20 @@ export class LlmEnricher {
         }
 
         const raw = extractContent(envelope.data.choices[0].message.content);
+        process.stderr.write(`[llm] raw response: ${raw.slice(0, 300)}\n`);
+
         let parsedJson: unknown = null;
         try {
           parsedJson = JSON.parse(unwrapJsonPayload(raw));
-        } catch {
+        } catch (parseErr) {
+          process.stderr.write(`[llm] JSON parse failed: ${String(parseErr)}\n`);
           if (attempt >= attempts) return null;
           continue;
         }
 
         const parsed = llmResponseSchema.safeParse(parsedJson);
         if (!parsed.success) {
+          process.stderr.write(`[llm] schema validation failed: ${JSON.stringify(parsed.error.issues)}\n`);
           if (attempt >= attempts) return null;
           continue;
         }
