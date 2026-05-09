@@ -41,6 +41,20 @@ function parseCsvLine(line: string): string[] {
   return result;
 }
 
+/** Падежи прилагательных («Калужская область» в тексте часто «Калужскую», «Орловской»). */
+function expandRegionalAdjectiveForms(alias: string): string[] {
+  const out = new Set<string>([alias]);
+  const fem = alias.match(/^(.+)(ская)$/);
+  if (fem?.[1]) {
+    const stem = fem[1];
+    out.add(`${stem}скую`);
+    out.add(`${stem}ской`);
+    out.add(`${stem}ские`);
+    out.add(`${stem}ских`);
+  }
+  return [...out];
+}
+
 function buildAliases(name: string, nameWithType?: string): string[] {
   const values = [name, nameWithType].filter(Boolean) as string[];
   const aliases = new Set<string>();
@@ -64,7 +78,13 @@ function buildAliases(name: string, nameWithType?: string): string[] {
 
   }
 
-  return [...aliases].filter(Boolean);
+  const expanded = new Set<string>();
+  for (const a of aliases) {
+    for (const e of expandRegionalAdjectiveForms(a)) {
+      expanded.add(e);
+    }
+  }
+  return [...expanded].filter(Boolean);
 }
 
 type RegionMatch = {
@@ -114,7 +134,11 @@ export class RegionCatalog {
   }
 
   findRegionsInText(rawText: string): RegionCatalogEntry[] {
-    const haystack = ` ${normalize(rawText)} `;
+    // Запятые и прочая пунктуация иначе ломают границы слов: "калужскую, орловскую"
+    const punctStripped = normalize(rawText)
+      .replace(/[,;:.!?()[\]{}«»""''–—−]/g, " ")
+      .replace(/\s+/g, " ");
+    const haystack = ` ${punctStripped} `;
     const matchesByCode = new Map<string, RegionMatch>();
 
     for (const entry of this.entries) {
