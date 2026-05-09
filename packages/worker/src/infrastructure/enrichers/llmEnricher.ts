@@ -90,7 +90,7 @@ export class LlmEnricher {
 
       try {
         process.stderr.write(
-          `[llm] attempt ${attempt}/${attempts} — ${input.rawText.slice(0, 60).replace(/\n/g, " ")}\n`,
+          `[llm] attempt ${attempt}/${attempts} — ${input.rawText.slice(0, 120).replace(/\n/g, " ")}\n model: ${this.config.model}`,
         );
 
         const response = await fetch(`${this.config.baseUrl}/chat/completions`, {
