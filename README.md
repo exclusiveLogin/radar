@@ -248,6 +248,9 @@ npm run worker:parse:report -- --input tests --outdir reports --format json --di
 - `RADAR_LLM_TIMEOUT_MS`, `RADAR_LLM_RETRY_COUNT`: сетевые guardrails.
 - `RADAR_LLM_MAX_TOKENS`, `RADAR_LLM_TEMPERATURE`, `RADAR_LLM_JSON_MODE`: режим генерации.
 
+Подробный гайд по параметрам семплинга, гибридному CPU+GPU режиму и сравнению локальных/облачных моделей:
+- [docs/ollama-sampling-and-model-tuning.md](docs/ollama-sampling-and-model-tuning.md)
+
 ## Batch parser report
 
 - `worker:parse:report` использует тот же production `ParsePipelineService`, что и Telegram write-side.
