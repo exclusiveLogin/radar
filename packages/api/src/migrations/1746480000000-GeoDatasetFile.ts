@@ -1,9 +1,7 @@
 import type { MigrationInterface, QueryRunner } from "typeorm";
 
 export class GeoDatasetFile1746480000000 implements MigrationInterface {
-  name = "GeoDatasetFile1746480000000";
-
-  public async up(queryRunner: QueryRunner): Promise<void> {
+  name = "GeoDatasetFile1746480000000";public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(`
       CREATE TABLE geo_dataset_file (
         id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -21,9 +19,7 @@ export class GeoDatasetFile1746480000000 implements MigrationInterface {
       CREATE INDEX idx_geo_dataset_file_source_id ON geo_dataset_file (source_id);
       CREATE INDEX idx_geo_dataset_file_sha256 ON geo_dataset_file (sha256_hex);
     `);
-  }
-
-  public async down(queryRunner: QueryRunner): Promise<void> {
+  }public async down(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(`DROP TABLE IF EXISTS geo_dataset_file`);
   }
 }

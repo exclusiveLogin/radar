@@ -14,7 +14,6 @@ export type GeoCatalogPlace = {
   lon?: number;
   alias?: string;
 };
-
 function normalize(value: string): string {
   return value
     .toLowerCase()
@@ -23,7 +22,6 @@ function normalize(value: string): string {
     .replace(/\s+/g, " ")
     .trim();
 }
-
 function cleanDistrictName(value: string): string {
   return value
     .replace(
@@ -33,7 +31,6 @@ function cleanDistrictName(value: string): string {
     .replace(/^(?:по|на|в|во|к|из|от)\s+/i, "")
     .trim();
 }
-
 function collectDistricts(rawText: string): GeoCatalogPlace[] {
   const districtRegex =
     /(?:^|[^\p{L}\p{N}_])([а-яёА-ЯЁa-zA-Z][а-яёА-ЯЁa-zA-Z\-\s]{1,40}?\sрайон)(?=[^\p{L}\p{N}_]|$)/giu;
@@ -47,7 +44,6 @@ function collectDistricts(rawText: string): GeoCatalogPlace[] {
 
   return districts;
 }
-
 function collectCityPlaces(cities: CityCatalogEntry[]): GeoCatalogPlace[] {
   return cities.map((city) => ({
     name: city.name,
@@ -56,14 +52,12 @@ function collectCityPlaces(cities: CityCatalogEntry[]): GeoCatalogPlace[] {
     lon: city.lon,
   }));
 }
-
 function collectFallbackCities(rawText: string): GeoCatalogPlace[] {
   return extractFallbackCities(rawText).map((cityName) => ({
     name: cityName,
     kind: "city",
   }));
 }
-
 function deduplicatePlaces(places: GeoCatalogPlace[]): GeoCatalogPlace[] {
   const unique = new Map<string, GeoCatalogPlace>();
   for (const place of places) {
@@ -71,7 +65,6 @@ function deduplicatePlaces(places: GeoCatalogPlace[]): GeoCatalogPlace[] {
   }
   return [...unique.values()];
 }
-
 function collectCandidatePlaces(
   rawText: string,
   cities: CityCatalog,
@@ -88,8 +81,7 @@ export class GeoCatalog {
     private readonly regions: RegionCatalog,
     private readonly cities: CityCatalog,
   ) {}
-
-  static loadFromArtifacts(artifactsRoot = resolveArtifactsRoot()): GeoCatalog {
+static loadFromArtifacts(artifactsRoot = resolveArtifactsRoot()): GeoCatalog {
     const regionCsvPath = path.join(
       artifactsRoot,
       "reference",
@@ -109,24 +101,19 @@ export class GeoCatalog {
       CityCatalog.loadFromDirectory(citiesPath),
     );
   }
-
-  findRegion(rawText: string): RegionCatalogEntry | null {
+findRegion(rawText: string): RegionCatalogEntry | null {
     return this.regions.findRegionInText(rawText);
   }
-
-  findRegions(rawText: string): RegionCatalogEntry[] {
+findRegions(rawText: string): RegionCatalogEntry[] {
     return this.regions.findRegionsInText(rawText);
   }
-
-  findPlacesInRegion(rawText: string, _regionCode?: string): GeoCatalogPlace[] {
+findPlacesInRegion(rawText: string, _regionCode?: string): GeoCatalogPlace[] {
     return deduplicatePlaces(collectCandidatePlaces(rawText, this.cities));
   }
-
-  listCities(): CityCatalogEntry[] {
+listCities(): CityCatalogEntry[] {
     return this.cities.list();
   }
-
-  listRegions(): RegionCatalogEntry[] {
+listRegions(): RegionCatalogEntry[] {
     return this.regions.list();
   }
 }

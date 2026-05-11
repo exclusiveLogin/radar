@@ -19,8 +19,7 @@ export class ParseRawMessageHandler {
     private readonly placeCache: IPlaceCacheRepository,
     private readonly events: IEventPublisher,
   ) {}
-
-  async handle(raw: RawMessage): Promise<void> {
+async handle(raw: RawMessage): Promise<void> {
     const pipelineResult = await this.pipeline.execute({
       rawText: raw.rawText,
       postedAt: raw.postedAt,

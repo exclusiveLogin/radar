@@ -1,8 +1,6 @@
 import { loadLlmRuntimeConfig } from "./llmRuntimeConfig.js";
 
-const truthy = new Set(["1", "true", "yes", "on"]);
-
-function parseBoolean(value: string | undefined, fallback: boolean): boolean {
+const truthy = new Set(["1", "true", "yes", "on"]);function parseBoolean(value: string | undefined, fallback: boolean): boolean {
   if (!value) return fallback;
   return truthy.has(value.trim().toLowerCase());
 }
@@ -65,8 +63,7 @@ export function resolvePipelineOrderFromEnv(env = process.env): PipelineStepId[]
 export { CompositeEnricher } from "./compositeEnricher.js";
 
 import type { ILocationEnricher } from "@radar/shared";
-import { CompositeEnricher as _Composite } from "./compositeEnricher.js";
-export function wrapEnricherFallback(chain: ILocationEnricher[]): ILocationEnricher {
+import { CompositeEnricher as _Composite } from "./compositeEnricher.js";export function wrapEnricherFallback(chain: ILocationEnricher[]): ILocationEnricher {
   return new _Composite(chain);
 }
 

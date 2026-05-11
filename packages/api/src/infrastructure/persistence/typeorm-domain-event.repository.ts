@@ -3,9 +3,7 @@ import type { DataSource } from "typeorm";
 import { DomainEventEntity } from "../../events/entities";
 
 export class TypeOrmDomainEventRepository implements IDomainEventRepository {
-  constructor(private readonly dataSource: DataSource) {}
-
-  async append(events: DomainEvent[]): Promise<void> {
+  constructor(private readonly dataSource: DataSource) {}async append(events: DomainEvent[]): Promise<void> {
     if (events.length === 0) return;
     const repo = this.dataSource.getRepository(DomainEventEntity);
     const rows = repo.create(

@@ -5,9 +5,7 @@ import { ChannelEntity } from "../../ingest/entities";
 import { RawMessageEntity } from "../../ingest/entities";
 
 export class TypeOrmRawMessageRepository implements IRawMessageRepository {
-  constructor(private readonly dataSource: DataSource) {}
-
-  async upsert(raw: RawMessage): Promise<{ inserted: boolean; id: string }> {
+  constructor(private readonly dataSource: DataSource) {}async upsert(raw: RawMessage): Promise<{ inserted: boolean; id: string }> {
     const repo = this.dataSource.getRepository(RawMessageEntity);
     const channels = this.dataSource.getRepository(ChannelEntity);
     const existing = await repo.findOne({ where: { hash: raw.hash } });

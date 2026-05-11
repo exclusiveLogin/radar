@@ -6,9 +6,7 @@ import type { DataSource } from "typeorm";
 import { PlaceStatusActiveEntity } from "../../events/entities";
 
 export class TypeOrmPlaceStatusRepository implements IPlaceStatusRepository {
-  constructor(private readonly dataSource: DataSource) {}
-
-  async upsertActive(input: PlaceStatusActiveRecord): Promise<void> {
+  constructor(private readonly dataSource: DataSource) {}async upsertActive(input: PlaceStatusActiveRecord): Promise<void> {
     const repo = this.dataSource.getRepository(PlaceStatusActiveEntity);
     const existing = await repo.findOne({
       where: { placeId: input.placeId, statusCode: input.statusCode },
@@ -33,9 +31,7 @@ export class TypeOrmPlaceStatusRepository implements IPlaceStatusRepository {
         meta: input.meta ?? {},
       }),
     );
-  }
-
-  async deactivate(
+  }async deactivate(
     placeId: string,
     statusCode: string,
     _atIso: string,
@@ -43,9 +39,7 @@ export class TypeOrmPlaceStatusRepository implements IPlaceStatusRepository {
     await this.dataSource
       .getRepository(PlaceStatusActiveEntity)
       .delete({ placeId, statusCode });
-  }
-
-  async listActive(placeId: string): Promise<PlaceStatusActiveRecord[]> {
+  }async listActive(placeId: string): Promise<PlaceStatusActiveRecord[]> {
     const rows = await this.dataSource.getRepository(PlaceStatusActiveEntity).find({
       where: { placeId },
       order: { updatedAt: "DESC" },

@@ -1,9 +1,7 @@
 import type { MigrationInterface, QueryRunner } from "typeorm";
 
 export class ParsedEvents1746481300000 implements MigrationInterface {
-  name = "ParsedEvents1746481300000";
-
-  public async up(queryRunner: QueryRunner): Promise<void> {
+  name = "ParsedEvents1746481300000";public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(`
       CREATE TABLE parsed_events (
         id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -51,9 +49,7 @@ export class ParsedEvents1746481300000 implements MigrationInterface {
       CREATE INDEX idx_parse_attempts_raw_message ON parse_attempts(raw_message_id);
       CREATE INDEX idx_parse_attempts_status_created ON parse_attempts(status, created_at DESC);
     `);
-  }
-
-  public async down(queryRunner: QueryRunner): Promise<void> {
+  }public async down(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(`DROP INDEX IF EXISTS idx_parse_attempts_status_created`);
     await queryRunner.query(`DROP INDEX IF EXISTS idx_parse_attempts_raw_message`);
     await queryRunner.query(`DROP TABLE IF EXISTS parse_attempts`);

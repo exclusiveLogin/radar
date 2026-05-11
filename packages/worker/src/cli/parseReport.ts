@@ -32,7 +32,6 @@ type CliOptions = {
   enrichLlm: boolean;
   pipelineOrder: PipelineStepId[] | undefined;
 };
-
 function parseArgs(argv: string[]): CliOptions {
   const map = parseLongFlagsMap(argv);
 
@@ -64,7 +63,6 @@ function parseArgs(argv: string[]): CliOptions {
     pipelineOrder,
   };
 }
-
 function resolvePath(input: string): string {
   if (path.isAbsolute(input)) return input;
 
@@ -80,7 +78,6 @@ function resolvePath(input: string): string {
 
   return candidates[0];
 }
-
 function listInputFiles(inputPath: string): string[] {
   const stats = fs.statSync(inputPath);
   if (stats.isFile()) {
@@ -93,14 +90,12 @@ function listInputFiles(inputPath: string): string[] {
     .map((entry) => path.join(inputPath, entry.name))
     .sort((a, b) => a.localeCompare(b));
 }
-
 function ensureCleanOutdir(outdir: string): void {
   if (fs.existsSync(outdir)) {
     fs.rmSync(outdir, { recursive: true, force: true });
   }
   fs.mkdirSync(outdir, { recursive: true });
 }
-
 function buildEnricherFlags(options: CliOptions):
   | { dadata: boolean; nominatim: boolean; llm: boolean }
   | false {
@@ -115,7 +110,6 @@ function buildEnricherFlags(options: CliOptions):
     llm: options.enrichLlm,
   };
 }
-
 async function main(): Promise<void> {
   loadRootEnv(MONOREPO_ROOT);
   const options = parseArgs(process.argv);

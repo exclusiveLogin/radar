@@ -17,9 +17,7 @@ export class DadataEnricher implements ILocationEnricher {
   constructor(
     private readonly token: string | undefined,
     private readonly timeoutMs = 5000,
-  ) {}
-
-  async enrich(input: { rawText: string; regionCode?: string }): Promise<LocationCandidate | null> {
+  ) {}async enrich(input: { rawText: string; regionCode?: string }): Promise<LocationCandidate | null> {
     if (!this.token) return null;
 
     const controller = new AbortController();

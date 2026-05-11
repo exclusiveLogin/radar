@@ -6,6 +6,7 @@ const FOOTER_PATTERNS = [
   /^https?:\/\//i,
 ];
 
+/** Убирает типичный футер поста (брендинг, ссылки, призывы), оставляя текст сигнала для правил. */
 export function stripSignature(input: string): string {
   const rows = input
     .replace(/\r/g, "")

@@ -23,9 +23,7 @@ type Manifest = {
   version: number;
   generatedAt: string;
   files: ManifestFile[];
-};
-
-async function main(): Promise<void> {
+};async function main(): Promise<void> {
   const url = process.env.DATABASE_URL;
   if (!url) {
     console.error("DATABASE_URL не задан (корневой .env).");

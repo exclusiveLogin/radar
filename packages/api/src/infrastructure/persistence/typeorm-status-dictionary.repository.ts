@@ -8,9 +8,7 @@ import { StatusDictionaryEntity } from "../../events/entities";
 export class TypeOrmStatusDictionaryRepository
   implements IStatusDictionaryRepository
 {
-  constructor(private readonly dataSource: DataSource) {}
-
-  async listActive(): Promise<StatusDictionaryRecord[]> {
+  constructor(private readonly dataSource: DataSource) {}async listActive(): Promise<StatusDictionaryRecord[]> {
     const rows = await this.dataSource.getRepository(StatusDictionaryEntity).find({
       where: { isActive: true },
       order: { priority: "ASC", code: "ASC" },
@@ -22,9 +20,7 @@ export class TypeOrmStatusDictionaryRepository
       parserHints: row.parserHints,
       isActive: row.isActive,
     }));
-  }
-
-  async findByCode(code: string): Promise<StatusDictionaryRecord | null> {
+  }async findByCode(code: string): Promise<StatusDictionaryRecord | null> {
     const row = await this.dataSource
       .getRepository(StatusDictionaryEntity)
       .findOne({ where: { code } });

@@ -1,6 +1,7 @@
 import { healthResponseSchema, type HealthResponse } from "@radar/shared";
 import { useEffect, useState } from "react";
 
+/** Запрашивает /api/health и проверяет тело по общей схеме — индикатор доступности бэкенда. */
 async function fetchHealth(): Promise<HealthResponse> {
   const response = await fetch("/api/health");
   if (!response.ok) {
@@ -14,6 +15,7 @@ async function fetchHealth(): Promise<HealthResponse> {
   return parsed.data;
 }
 
+/** Заглушка UI: один раз подгружает health и показывает JSON статуса. */
 export function App() {
   const [health, setHealth] = useState<HealthResponse | null>(null);
   const [error, setError] = useState<string | null>(null);

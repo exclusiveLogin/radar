@@ -27,6 +27,7 @@ const EVENT_HINTS = [
   /внимани/i,
 ];
 
+/** Отделяет сигналы о событиях от донатов, политики и служебного шума канала. */
 export function classifyContentKind(input: string): ContentKind {
   const text = input.trim();
   if (!text) return "noise";

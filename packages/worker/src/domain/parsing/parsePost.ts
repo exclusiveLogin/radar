@@ -8,6 +8,7 @@ import { PARSER_VERSION } from "./version.js";
 
 const UNKNOWN_RAW_MESSAGE_ID = "00000000-0000-0000-0000-000000000000";
 
+/** Грубая оценка остроты для UI и фильтров: от спокойного «инфо» до «критично» по маркерам в тексте. */
 function inferSeverity(
   raw: string,
   eventType: EventType,
@@ -19,6 +20,7 @@ function inferSeverity(
   return "info";
 }
 
+/** Собирает DTO события для пайплайна, если текст классифицирован как тревога/сигнал. Иначе — «шум». */
 export function parsePost(rawPost: string): ClassifiedPost {
   const eventType = extractEventType(rawPost);
   if (!eventType) {

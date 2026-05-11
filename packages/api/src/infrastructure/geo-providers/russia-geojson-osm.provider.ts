@@ -8,9 +8,7 @@ type FeatureCollection = {
   }>;
 };
 
-type PathKind = "countries" | "federal-districts" | "regions" | "cities" | "unknown";
-
-function toName(props: Record<string, unknown>): string | null {
+type PathKind = "countries" | "federal-districts" | "regions" | "cities" | "unknown";function toName(props: Record<string, unknown>): string | null {
   return (
     (typeof props.name === "string" && props.name.trim()) ||
     (typeof props.NAME === "string" && props.NAME.trim()) ||
@@ -21,32 +19,24 @@ function toName(props: Record<string, unknown>): string | null {
       String(props["Federal District"]).trim()) ||
     null
   );
-}
-
-function firstSegmentName(file: string): string {
+}function firstSegmentName(file: string): string {
   const base = file.split("/").at(-1) ?? file;
   const raw = base.replace(/\.geojson$/i, "");
   const left = raw.includes("_") ? raw.split("_")[0] : raw;
   return left.trim();
-}
-
-function resolvePathKind(file: string): PathKind {
+}function resolvePathKind(file: string): PathKind {
   if (file.includes("/Countries/")) return "countries";
   if (file.includes("/Federal Districts/")) return "federal-districts";
   if (file.includes("/Regions/")) return "regions";
   if (file.includes("/Cities/")) return "cities";
   return "unknown";
-}
-
-function readStringProperty(
+}function readStringProperty(
   props: Record<string, unknown>,
   key: string,
 ): string | undefined {
   const value = props[key];
   return typeof value === "string" ? value : undefined;
-}
-
-function appendRegionDraft(options: {
+}function appendRegionDraft(options: {
   file: string;
   featureProps: Record<string, unknown>;
   regions: GeoProviderSnapshot["regions"];
@@ -78,9 +68,7 @@ function appendRegionDraft(options: {
     alias: regionName,
     source: "auto",
   });
-}
-
-function appendPlaceDraft(options: {
+}function appendPlaceDraft(options: {
   file: string;
   featureProps: Record<string, unknown>;
   pathKind: PathKind;
@@ -121,8 +109,7 @@ function appendPlaceDraft(options: {
   });
 }
 
-export class RussiaGeoJsonOsmProvider implements IGeoSourceProvider {
-  async loadSnapshot(): Promise<GeoProviderSnapshot> {
+export class RussiaGeoJsonOsmProvider implements IGeoSourceProvider {async loadSnapshot(): Promise<GeoProviderSnapshot> {
     // Источник: предсобранные artifacts из Russia_geojson_OSM.
     // На текущем этапе используем упрощенный name extraction
     // и создаем place/alias drafts.

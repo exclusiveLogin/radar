@@ -1,9 +1,7 @@
 import type { MigrationInterface, QueryRunner } from "typeorm";
 
 export class GeoRegionsPlaces1746481000000 implements MigrationInterface {
-  name = "GeoRegionsPlaces1746481000000";
-
-  public async up(queryRunner: QueryRunner): Promise<void> {
+  name = "GeoRegionsPlaces1746481000000";public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(`
       CREATE TABLE regions (
         id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -86,9 +84,7 @@ export class GeoRegionsPlaces1746481000000 implements MigrationInterface {
         alias_normalized
       ) WHERE is_active;
     `);
-  }
-
-  public async down(queryRunner: QueryRunner): Promise<void> {
+  }public async down(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(`DROP INDEX IF EXISTS uq_place_aliases_active`);
     await queryRunner.query(`DROP INDEX IF EXISTS idx_place_aliases_alias_normalized`);
     await queryRunner.query(`DROP TABLE IF EXISTS place_aliases`);

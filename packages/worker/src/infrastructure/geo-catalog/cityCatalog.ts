@@ -7,7 +7,6 @@ export type CityCatalogEntry = {
   lat?: number;
   lon?: number;
 };
-
 function normalize(value: string): string {
   return value
     .toLowerCase()
@@ -17,13 +16,11 @@ function normalize(value: string): string {
     .replace(/\s+/g, " ")
     .trim();
 }
-
 function parseNameFromFilename(fileName: string): string {
   const base = fileName.replace(/\.geojson$/i, "");
   const [cyrillic] = base.split("_");
   return cyrillic ?? base;
 }
-
 function collectFirstCoordinate(value: unknown): [number, number] | null {
   if (!Array.isArray(value)) {
     return null;
@@ -46,14 +43,12 @@ function collectFirstCoordinate(value: unknown): [number, number] | null {
 
   return null;
 }
-
 function normalizeHaystack(rawText: string): string {
   const normalized = normalize(rawText)
     .replace(/[,;:.!?()[\]]/g, " ")
     .replace(/\s+/g, " ");
   return ` ${normalized} `;
 }
-
 function deduplicateCities(cities: CityCatalogEntry[]): CityCatalogEntry[] {
   const unique = new Map<string, CityCatalogEntry>();
   for (const city of cities) {
@@ -68,8 +63,7 @@ export class CityCatalog {
   private constructor(entries: CityCatalogEntry[]) {
     this.entries = entries;
   }
-
-  static loadFromDirectory(dirPath: string): CityCatalog {
+static loadFromDirectory(dirPath: string): CityCatalog {
     const entries: CityCatalogEntry[] = [];
     const files = fs
       .readdirSync(dirPath, { withFileTypes: true })
@@ -96,8 +90,7 @@ export class CityCatalog {
 
     return new CityCatalog(entries);
   }
-
-  findInText(rawText: string): CityCatalogEntry[] {
+findInText(rawText: string): CityCatalogEntry[] {
     // Replace punctuation with spaces so "Тольятти," or "Тольятти." still match.
     const haystack = normalizeHaystack(rawText);
     const matches = this.entries.filter((entry) =>
@@ -105,8 +98,7 @@ export class CityCatalog {
     );
     return deduplicateCities(matches);
   }
-
-  list(): CityCatalogEntry[] {
+list(): CityCatalogEntry[] {
     return this.entries;
   }
 }

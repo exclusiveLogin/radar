@@ -12,9 +12,7 @@ export class HealthController {
   constructor(
     @InjectDataSource()
     private readonly dataSource: DataSource,
-  ) {}
-
-  @Get("health")
+  ) {}@Get("health")
   @ApiOperation({ summary: "Liveness без обращения к БД" })
   @ApiOkResponse({ type: HealthResponseDto })
   health(): HealthResponseDto {
@@ -23,9 +21,7 @@ export class HealthController {
       timestamp: new Date().toISOString(),
       service: "radar-api",
     });
-  }
-
-  @Get("ready")
+  }@Get("ready")
   @ApiOperation({ summary: "Readiness: SELECT 1 к PostgreSQL" })
   @ApiOkResponse({ type: ReadyResponseDto })
   async ready(): Promise<ReadyResponseDto> {

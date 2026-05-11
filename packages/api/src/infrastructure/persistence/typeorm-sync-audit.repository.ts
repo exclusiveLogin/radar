@@ -4,9 +4,7 @@ import type { DataSource } from "typeorm";
 import { GeoSyncLogEntity } from "../../geo/entities";
 
 export class TypeOrmSyncAuditRepository implements ISyncAuditRepository {
-  constructor(private readonly dataSource: DataSource) {}
-
-  async start(payload: Record<string, unknown>): Promise<{ id: string }> {
+  constructor(private readonly dataSource: DataSource) {}async start(payload: Record<string, unknown>): Promise<{ id: string }> {
     const id = randomUUID();
     const repo = this.dataSource.getRepository(GeoSyncLogEntity);
     await repo.save(
@@ -22,9 +20,7 @@ export class TypeOrmSyncAuditRepository implements ISyncAuditRepository {
       }),
     );
     return { id };
-  }
-
-  async finish(id: string, payload: Record<string, unknown>): Promise<void> {
+  }async finish(id: string, payload: Record<string, unknown>): Promise<void> {
     const repo = this.dataSource.getRepository(GeoSyncLogEntity);
     const row = await repo.findOne({ where: { id } });
     if (!row) {

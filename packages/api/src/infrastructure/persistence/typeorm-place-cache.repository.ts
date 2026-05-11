@@ -3,9 +3,7 @@ import type { DataSource } from "typeorm";
 import { PlaceCacheEntity } from "../../events/entities";
 
 export class TypeOrmPlaceCacheRepository implements IPlaceCacheRepository {
-  constructor(private readonly dataSource: DataSource) {}
-
-  async get(
+  constructor(private readonly dataSource: DataSource) {}async get(
     queryNorm: string,
     provider?: "dadata" | "nominatim" | "llm",
   ): Promise<
@@ -33,9 +31,7 @@ export class TypeOrmPlaceCacheRepository implements IPlaceCacheRepository {
       validatedAt: row.validatedAt?.toISOString(),
       confidence: row.confidence ? Number(row.confidence) : undefined,
     };
-  }
-
-  async put(
+  }async put(
     queryNorm: string,
     provider: "dadata" | "nominatim" | "llm",
     value: Record<string, unknown>,

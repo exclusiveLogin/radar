@@ -7,9 +7,7 @@ import { ParsedEventEntity } from "../events/entities";
 import { PlaceStatusActiveEntity } from "../events/entities";
 import { PlaceStatusHistoryEntity } from "../events/entities";
 import { GeoSyncLogEntity } from "../geo/entities";
-import { RegionEntity } from "../geo/entities";
-
-function buildStatusWhere(params: {
+import { RegionEntity } from "../geo/entities";function buildStatusWhere(params: {
   placeId?: string;
   statusCode?: string;
 }): { placeId?: string; statusCode?: string } {
@@ -21,44 +19,32 @@ function buildStatusWhere(params: {
 
 @Injectable()
 export class ReadSideQueryService {
-  constructor(@InjectDataSource() private readonly dataSource: DataSource) {}
-
-  async getEvents(limit = 100): Promise<ParsedEventEntity[]> {
+  constructor(@InjectDataSource() private readonly dataSource: DataSource) {}async getEvents(limit = 100): Promise<ParsedEventEntity[]> {
     return this.dataSource.getRepository(ParsedEventEntity).find({
       order: { parsedAt: "DESC" },
       take: limit,
     });
-  }
-
-  async getRegions(limit = 500): Promise<RegionEntity[]> {
+  }async getRegions(limit = 500): Promise<RegionEntity[]> {
     return this.dataSource.getRepository(RegionEntity).find({
       where: { isActive: true },
       order: { name: "ASC" },
       take: limit,
     });
-  }
-
-  async getParseAttempts(limit = 200): Promise<ParseAttemptEntity[]> {
+  }async getParseAttempts(limit = 200): Promise<ParseAttemptEntity[]> {
     return this.dataSource.getRepository(ParseAttemptEntity).find({
       order: { createdAt: "DESC" },
       take: limit,
     });
-  }
-
-  async getGeoSyncHistory(limit = 100): Promise<GeoSyncLogEntity[]> {
+  }async getGeoSyncHistory(limit = 100): Promise<GeoSyncLogEntity[]> {
     return this.dataSource.getRepository(GeoSyncLogEntity).find({
       order: { startedAt: "DESC" },
       take: limit,
     });
-  }
-
-  async getEventLocations(parsedEventId: string): Promise<EventLocationEntity[]> {
+  }async getEventLocations(parsedEventId: string): Promise<EventLocationEntity[]> {
     return this.dataSource.getRepository(EventLocationEntity).find({
       where: { parsedEventId },
     });
-  }
-
-  async getPlaceStatuses(params: {
+  }async getPlaceStatuses(params: {
     placeId?: string;
     statusCode?: string;
     limit: number;
@@ -68,9 +54,7 @@ export class ReadSideQueryService {
       order: { updatedAt: "DESC" },
       take: params.limit,
     });
-  }
-
-  async getPlaceStatusHistory(params: {
+  }async getPlaceStatusHistory(params: {
     placeId?: string;
     statusCode?: string;
     limit: number;

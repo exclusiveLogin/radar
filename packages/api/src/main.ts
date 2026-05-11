@@ -8,9 +8,7 @@ import { AppModule } from "./app.module";
 const rootEnv = path.join(process.cwd(), "../../.env");
 if (fs.existsSync(rootEnv)) {
   dotenv.config({ path: rootEnv });
-}
-
-async function bootstrap() {
+}async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   app.setGlobalPrefix("api");
   app.enableCors({ origin: true });

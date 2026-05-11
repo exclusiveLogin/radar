@@ -1,8 +1,6 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { parseConfigSchema, type ParseConfig } from "@radar/shared";
-
-function readOptionalJsonFile(filePath: string): Record<string, unknown> {
+import { parseConfigSchema, type ParseConfig } from "@radar/shared";function readOptionalJsonFile(filePath: string): Record<string, unknown> {
   if (!fs.existsSync(filePath)) {
     return {};
   }

@@ -4,9 +4,7 @@ import { ReadSideQueryService } from "./read-side-query.service";
 
 @Controller()
 export class ReadSideController {
-  constructor(private readonly readSide: ReadSideQueryService) {}
-
-  @Get("events")
+  constructor(private readonly readSide: ReadSideQueryService) {}@Get("events")
   @ApiQuery({
     name: "limit",
     required: false,
@@ -15,14 +13,10 @@ export class ReadSideController {
   async events(@Query("limit") limit?: string) {
     const take = Number(limit ?? 100);
     return this.readSide.getEvents(Number.isFinite(take) ? take : 100);
-  }
-
-  @Get("events/:id/locations")
+  }@Get("events/:id/locations")
   async eventLocations(@Param("id") parsedEventId: string) {
     return this.readSide.getEventLocations(parsedEventId);
-  }
-
-  @Get("regions")
+  }@Get("regions")
   @ApiQuery({
     name: "limit",
     required: false,
@@ -31,9 +25,7 @@ export class ReadSideController {
   async regions(@Query("limit") limit?: string) {
     const take = Number(limit ?? 500);
     return this.readSide.getRegions(Number.isFinite(take) ? take : 500);
-  }
-
-  @Get("admin/parse-attempts")
+  }@Get("admin/parse-attempts")
   @ApiQuery({
     name: "limit",
     required: false,
@@ -42,9 +34,7 @@ export class ReadSideController {
   async parseAttempts(@Query("limit") limit?: string) {
     const take = Number(limit ?? 200);
     return this.readSide.getParseAttempts(Number.isFinite(take) ? take : 200);
-  }
-
-  @Get("admin/geo-sync")
+  }@Get("admin/geo-sync")
   @ApiQuery({
     name: "limit",
     required: false,
@@ -53,9 +43,7 @@ export class ReadSideController {
   async geoSyncHistory(@Query("limit") limit?: string) {
     const take = Number(limit ?? 100);
     return this.readSide.getGeoSyncHistory(Number.isFinite(take) ? take : 100);
-  }
-
-  @Get("places/status")
+  }@Get("places/status")
   @ApiQuery({
     name: "placeId",
     required: false,
@@ -82,9 +70,7 @@ export class ReadSideController {
       statusCode,
       limit: Number.isFinite(take) ? take : 500,
     });
-  }
-
-  @Get("places/status/history")
+  }@Get("places/status/history")
   @ApiQuery({
     name: "placeId",
     required: false,

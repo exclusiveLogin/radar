@@ -5,9 +5,7 @@ import type { GeoPipelineContext, GeoPipelineStep } from "../GeoPipelineContext.
 export class CatalogStep implements GeoPipelineStep {
   readonly id = "catalog";
 
-  constructor(private readonly geoCatalog: GeoCatalog) {}
-
-  run(ctx: GeoPipelineContext): Promise<void> {
+  constructor(private readonly geoCatalog: GeoCatalog) {}run(ctx: GeoPipelineContext): Promise<void> {
     const regions = this.geoCatalog.findRegions(ctx.rawText);
     const regionSnapshots: GeoEnrichmentCatalog["regions"] = regions.map((r) => ({
       code: r.code,

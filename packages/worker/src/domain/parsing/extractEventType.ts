@@ -24,6 +24,7 @@ const rules: Array<{ regex: RegExp; type: EventType }> = [
   { regex: /ограничения на ивп/i, type: "airspace_restriction" },
 ];
 
+/** Тип воздушной ситуации по ключевым фразам: фиксация, отбой, ПВО, ограничение ИВП и т.п. */
 export function extractEventType(input: string): EventType | null {
   for (const rule of rules) {
     if (rule.regex.test(input)) return rule.type;

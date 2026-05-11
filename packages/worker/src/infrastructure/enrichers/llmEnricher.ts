@@ -51,15 +51,11 @@ const openAiCompatResponseSchema = z.object({
       }),
     )
     .min(1),
-});
-
-function unwrapJsonPayload(value: string): string {
+});function unwrapJsonPayload(value: string): string {
   const trimmed = value.trim();
   if (!trimmed.startsWith("```")) return trimmed;
   return trimmed.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
-}
-
-function extractContent(
+}function extractContent(
   content: string | Array<{ type: string; text?: string }>,
 ): string {
   if (typeof content === "string") return content;
@@ -72,9 +68,7 @@ function extractContent(
 // ─── Enricher ─────────────────────────────────────────────────────────────
 
 export class LlmEnricher {
-  constructor(private readonly config: LlmRuntimeConfig) {}
-
-  async enrich(input: {
+  constructor(private readonly config: LlmRuntimeConfig) {}async enrich(input: {
     rawText: string;
     regionCode?: string;
     catalogRegions?: Array<{ code: string; name: string }>;

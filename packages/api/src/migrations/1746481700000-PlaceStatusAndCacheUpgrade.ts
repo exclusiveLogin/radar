@@ -1,9 +1,7 @@
 import type { MigrationInterface, QueryRunner } from "typeorm";
 
 export class PlaceStatusAndCacheUpgrade1746481700000 implements MigrationInterface {
-  name = "PlaceStatusAndCacheUpgrade1746481700000";
-
-  public async up(queryRunner: QueryRunner): Promise<void> {
+  name = "PlaceStatusAndCacheUpgrade1746481700000";public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(`
       ALTER TABLE place_cache
       ADD COLUMN IF NOT EXISTS validated_at timestamptz,
@@ -65,9 +63,7 @@ export class PlaceStatusAndCacheUpgrade1746481700000 implements MigrationInterfa
       CREATE INDEX IF NOT EXISTS idx_place_status_history_status_time
       ON place_status_history(status_code, event_at DESC);
     `);
-  }
-
-  public async down(queryRunner: QueryRunner): Promise<void> {
+  }public async down(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(`DROP INDEX IF EXISTS idx_place_status_history_status_time`);
     await queryRunner.query(`DROP INDEX IF EXISTS idx_place_status_history_place_time`);
     await queryRunner.query(`DROP TABLE IF EXISTS place_status_history`);

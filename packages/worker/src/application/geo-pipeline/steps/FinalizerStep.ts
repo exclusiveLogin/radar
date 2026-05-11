@@ -11,9 +11,7 @@ import { buildFinalizerResult } from "./finalizerMerge.js";
 export class FinalizerStep implements GeoPipelineStep {
   readonly id = "finalizer";
 
-  constructor(private readonly locations: EventLocation[]) {}
-
-  run(ctx: GeoPipelineContext): Promise<void> {
+  constructor(private readonly locations: EventLocation[]) {}run(ctx: GeoPipelineContext): Promise<void> {
     const { finalizer, locations } = buildFinalizerResult(ctx.artifact);
     ctx.artifact.finalizer = finalizer;
     this.locations.push(...locations);

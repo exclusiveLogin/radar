@@ -9,9 +9,7 @@ type NominatimItem = {
 export class NominatimEnricher implements ILocationEnricher {
   readonly name = "nominatim";
 
-  constructor(private readonly timeoutMs = 5000) {}
-
-  async enrich(input: { rawText: string; regionCode?: string }): Promise<LocationCandidate | null> {
+  constructor(private readonly timeoutMs = 5000) {}async enrich(input: { rawText: string; regionCode?: string }): Promise<LocationCandidate | null> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
     try {

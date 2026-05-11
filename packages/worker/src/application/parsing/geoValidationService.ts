@@ -10,9 +10,7 @@ import { randomUUID } from "node:crypto";
 export type GeoValidationResult = {
   decision: "matched_existing" | "created_new" | "rejected";
   location: EventLocation | null;
-};
-
-function normalize(value: string): string {
+};function normalize(value: string): string {
   return value
     .toLowerCase()
     .replace(/ё/g, "е")
@@ -26,9 +24,7 @@ export class GeoValidationService {
     private readonly regions: IRegionRepository,
     private readonly places: IPlaceRepository,
     private readonly aliases: IPlaceAliasRepository,
-  ) {}
-
-  async validate(rawQuery: string, location: EventLocation): Promise<GeoValidationResult> {
+  ) {}async validate(rawQuery: string, location: EventLocation): Promise<GeoValidationResult> {
     const region = await this.regions.findByCode(location.regionCode);
     if (!region) {
       return { decision: "rejected", location: null };
@@ -83,9 +79,7 @@ export class GeoValidationService {
       decision: "created_new",
       location: { ...location, regionId: region.id, placeId },
     };
-  }
-
-  private async matchPlace(
+  }private async matchPlace(
     placeName: string,
     regionId: string,
     placeFias?: string,

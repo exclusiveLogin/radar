@@ -8,9 +8,7 @@ import type { ILocationEnricher, LocationCandidate } from "@radar/shared";
 export class CompositeEnricher implements ILocationEnricher {
   readonly name = "dadata";
 
-  constructor(private readonly chain: ILocationEnricher[]) {}
-
-  async enrich(input: {
+  constructor(private readonly chain: ILocationEnricher[]) {}async enrich(input: {
     rawText: string;
     regionCode?: string;
   }): Promise<LocationCandidate | null> {

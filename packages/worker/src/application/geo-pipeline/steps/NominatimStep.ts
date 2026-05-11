@@ -8,9 +8,7 @@ export class NominatimStep implements GeoPipelineStep {
   constructor(
     private readonly enricher: NominatimEnricher,
     private readonly cache?: IPlaceCacheRepository,
-  ) {}
-
-  async run(ctx: GeoPipelineContext): Promise<void> {
+  ) {}async run(ctx: GeoPipelineContext): Promise<void> {
     const regionCode = ctx.artifact.catalog?.regions[0]?.code
       ?? ctx.artifact.llm?.nodes.find((n) => n.kind === "region")?.regionCode;
     const queryNorm = ctx.rawText.toLowerCase().trim();

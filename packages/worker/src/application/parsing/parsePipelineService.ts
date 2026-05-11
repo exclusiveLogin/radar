@@ -24,8 +24,7 @@ export class ParsePipelineService {
     private readonly classifier: IEventClassifier,
     private readonly resolution: LocationResolutionService,
   ) {}
-
-  async execute(input: {
+async execute(input: {
     rawText: string;
     postedAt?: string;
     channelKey?: string;

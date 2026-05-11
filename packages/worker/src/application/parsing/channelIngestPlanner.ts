@@ -8,9 +8,7 @@ export type PlannedChannelIngest = {
   channelKey: string;
   telegramTarget: string;
   effectiveConfig: ParseConfig;
-};
-
-function mergeParseConfig(
+};function mergeParseConfig(
   base: ParseConfig,
   overrides: Partial<ParseConfig> | undefined,
 ): ParseConfig {
@@ -18,9 +16,7 @@ function mergeParseConfig(
     return base;
   }
   return parseConfigSchema.parse({ ...base, ...overrides });
-}
-
-function toPlannedIngest(
+}function toPlannedIngest(
   channel: ChannelManifest["channels"][number],
   defaultParseConfig: ParseConfig,
 ): PlannedChannelIngest {

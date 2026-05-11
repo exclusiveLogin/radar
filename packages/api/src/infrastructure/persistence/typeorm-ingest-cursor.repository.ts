@@ -4,9 +4,7 @@ import { ChannelEntity } from "../../ingest/entities";
 import { IngestCursorEntity } from "../../ingest/entities";
 
 export class TypeOrmIngestCursorRepository implements IIngestCursorRepository {
-  constructor(private readonly dataSource: DataSource) {}
-
-  async advance(channelKey: string, messageId: number, postedAt: string): Promise<void> {
+  constructor(private readonly dataSource: DataSource) {}async advance(channelKey: string, messageId: number, postedAt: string): Promise<void> {
     const channels = this.dataSource.getRepository(ChannelEntity);
     const cursors = this.dataSource.getRepository(IngestCursorEntity);
 

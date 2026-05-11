@@ -17,9 +17,7 @@ type CliOptions = {
   storageMode: WorkerStorageMode;
   model?: string;
   baseUrl?: string;
-};
-
-function parseArgs(argv: string[]): CliOptions {
+};function parseArgs(argv: string[]): CliOptions {
   const map = parseLongFlagsMap(argv);
 
   const input = map.get("input");
@@ -38,16 +36,12 @@ function parseArgs(argv: string[]): CliOptions {
         ? String(map.get("base-url"))
         : undefined,
   };
-}
-
-function resolveInputPath(input: string): string {
+}function resolveInputPath(input: string): string {
   if (path.isAbsolute(input)) return input;
   const fromCwd = path.resolve(process.cwd(), input);
   if (fs.existsSync(fromCwd)) return fromCwd;
   return path.resolve(MONOREPO_ROOT, input);
-}
-
-async function probeOllama(baseUrl: string): Promise<{ ok: boolean; status?: number }> {
+}async function probeOllama(baseUrl: string): Promise<{ ok: boolean; status?: number }> {
   const url = new URL("/api/tags", baseUrl).toString();
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 5000);
@@ -59,9 +53,7 @@ async function probeOllama(baseUrl: string): Promise<{ ok: boolean; status?: num
   } finally {
     clearTimeout(timer);
   }
-}
-
-async function main(): Promise<void> {
+}async function main(): Promise<void> {
   loadRootEnv(MONOREPO_ROOT);
   const options = parseArgs(process.argv);
   const filePath = resolveInputPath(options.input);

@@ -20,30 +20,20 @@ const emptyStats = (): DiffStats => ({
   reactivated: 0,
   deactivated: 0,
   noop: 0,
-});
-
-export function normalizeName(value: string): string {
+});export function normalizeName(value: string): string {
   return value
     .toLowerCase()
     .replace(/ё/g, "е")
     .replace(/[^\p{L}\p{N}]+/gu, " ")
     .trim()
     .replace(/\s+/g, " ");
-}
-
-export function regionDraftKey(row: RegionDraft): string {
+}export function regionDraftKey(row: RegionDraft): string {
   return row.fiasId ?? row.iso ?? normalizeName(row.name);
-}
-
-export function placeDraftKey(row: PlaceDraft): string {
+}export function placeDraftKey(row: PlaceDraft): string {
   return row.fiasId ?? `${row.regionCode}:${row.kind}:${normalizeName(row.name)}`;
-}
-
-export function aliasDraftKey(row: AliasDraft): string {
+}export function aliasDraftKey(row: AliasDraft): string {
   return `${row.targetKind}:${row.targetExternalKey}:${normalizeName(row.alias)}`;
-}
-
-export function diffRegions(
+}export function diffRegions(
   current: RegionDraft[],
   expected: RegionDraft[],
 ): DiffReport<RegionDraft> {
@@ -78,9 +68,7 @@ export function diffRegions(
     sample.push({ key, action: "updated" });
   }
   return { stats, toUpsert, sample: sample.slice(0, 20) };
-}
-
-export function diffPlaces(
+}export function diffPlaces(
   current: PlaceDraft[],
   expected: PlaceDraft[],
 ): DiffReport<PlaceDraft> {
@@ -116,9 +104,7 @@ export function diffPlaces(
     sample.push({ key, action: "updated" });
   }
   return { stats, toUpsert, sample: sample.slice(0, 20) };
-}
-
-export function diffAliases(
+}export function diffAliases(
   current: AliasDraft[],
   expected: AliasDraft[],
 ): DiffReport<AliasDraft> {

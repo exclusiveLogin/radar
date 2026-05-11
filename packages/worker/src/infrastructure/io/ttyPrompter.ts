@@ -3,9 +3,7 @@ import * as readline from "node:readline";
 export type TtyPrompter = {
   ask: (question: string) => Promise<string>;
   close: () => void;
-};
-
-export function createTtyPrompter(): TtyPrompter {
+};export function createTtyPrompter(): TtyPrompter {
   const rl = readline.createInterface({
     input: process.stdin,
     output: process.stdout,

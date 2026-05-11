@@ -8,7 +8,6 @@ export type RegionCatalogEntry = {
   federalDistrict?: string;
   aliases: string[];
 };
-
 function normalize(value: string): string {
   return value
     .toLowerCase()
@@ -18,7 +17,6 @@ function normalize(value: string): string {
     .replace(/\s+/g, " ")
     .trim();
 }
-
 function parseCsvLine(line: string): string[] {
   const result: string[] = [];
   let current = "";
@@ -54,7 +52,6 @@ function expandRegionalAdjectiveForms(alias: string): string[] {
   }
   return [...out];
 }
-
 function buildAliases(name: string, nameWithType?: string): string[] {
   const values = [name, nameWithType].filter(Boolean) as string[];
   const aliases = new Set<string>();
@@ -99,8 +96,7 @@ export class RegionCatalog {
   private constructor(entries: RegionCatalogEntry[]) {
     this.entries = entries;
   }
-
-  static loadFromCsv(csvPath: string): RegionCatalog {
+static loadFromCsv(csvPath: string): RegionCatalog {
     const source = fs.readFileSync(csvPath, "utf8");
     const lines = source.split(/\r?\n/).filter(Boolean);
     const rows = lines.slice(1);
@@ -127,13 +123,11 @@ export class RegionCatalog {
 
     return new RegionCatalog(entries);
   }
-
-  getByCode(code: string): RegionCatalogEntry | null {
+getByCode(code: string): RegionCatalogEntry | null {
     const normalized = code.trim();
     return this.entries.find((entry) => entry.code === normalized) ?? null;
   }
-
-  findRegionsInText(rawText: string): RegionCatalogEntry[] {
+findRegionsInText(rawText: string): RegionCatalogEntry[] {
     // Запятые и прочая пунктуация иначе ломают границы слов: "калужскую, орловскую"
     const punctStripped = normalize(rawText)
       .replace(/[,;:.!?()[\]{}«»""''–—−]/g, " ")
@@ -178,16 +172,13 @@ export class RegionCatalog {
       })
       .map((match) => match.entry);
   }
-
-  findRegionInText(rawText: string): RegionCatalogEntry | null {
+findRegionInText(rawText: string): RegionCatalogEntry | null {
     return this.findRegionsInText(rawText)[0] ?? null;
   }
-
-  list(): RegionCatalogEntry[] {
+list(): RegionCatalogEntry[] {
     return this.entries;
   }
 }
-
 export function resolveArtifactsRoot(): string {
   const envPath = process.env.RADAR_GEO_ARTIFACTS_DIR;
   if (envPath) {

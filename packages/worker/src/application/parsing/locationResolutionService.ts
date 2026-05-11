@@ -4,8 +4,7 @@ import { runGeoPipeline } from "../geo-pipeline/runGeoPipeline.js";
 
 export class LocationResolutionService {
   constructor(private readonly steps: GeoPipelineStep[]) {}
-
-  async resolve(rawText: string): Promise<{
+async resolve(rawText: string): Promise<{
     locations: EventLocation[];
     artifact: GeoEnrichmentArtifact;
     geoPipeline: GeoPipelineReport;

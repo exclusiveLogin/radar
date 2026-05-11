@@ -1,9 +1,7 @@
 import type { MigrationInterface, QueryRunner } from "typeorm";
 
 export class GeoSyncLog1746481100000 implements MigrationInterface {
-  name = "GeoSyncLog1746481100000";
-
-  public async up(queryRunner: QueryRunner): Promise<void> {
+  name = "GeoSyncLog1746481100000";public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(`
       CREATE TABLE geo_sync_log (
         id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -21,9 +19,7 @@ export class GeoSyncLog1746481100000 implements MigrationInterface {
       CREATE INDEX idx_geo_sync_log_target_started ON geo_sync_log(target, started_at DESC);
       CREATE INDEX idx_geo_sync_log_status ON geo_sync_log(status);
     `);
-  }
-
-  public async down(queryRunner: QueryRunner): Promise<void> {
+  }public async down(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(`DROP INDEX IF EXISTS idx_geo_sync_log_status`);
     await queryRunner.query(`DROP INDEX IF EXISTS idx_geo_sync_log_target_started`);
     await queryRunner.query(`DROP TABLE IF EXISTS geo_sync_log`);

@@ -6,9 +6,7 @@ import { loadChannelManifest } from "../infrastructure/manifest/channelManifestL
 import { loadRootEnv } from "../infrastructure/config/loadRootEnv.js";
 import { createTtyPrompter } from "../infrastructure/io/ttyPrompter.js";
 import { runTelegramUserSessionBootstrap } from "../infrastructure/telegram/userSessionLifecycle.js";
-import { loadLlmRuntimeConfig } from "../infrastructure/enrichers/llmRuntimeConfig.js";
-
-function readTelegramCredentials():
+import { loadLlmRuntimeConfig } from "../infrastructure/enrichers/llmRuntimeConfig.js";function readTelegramCredentials():
   | { ok: true; apiId: number; apiHash: string }
   | { ok: false } {
   const apiId = Number(process.env.TELEGRAM_API_ID);
@@ -77,9 +75,7 @@ export async function runWorkerBootstrap(): Promise<void> {
       await runtime.parseRawMessageHandler.handle(demoRaw);
     }
   }
-}
-
-async function runLlmStartupCheck(): Promise<void> {
+}async function runLlmStartupCheck(): Promise<void> {
   const config = loadLlmRuntimeConfig();
   if (!config.enabled) {
     console.log("LLM enricher: disabled.");

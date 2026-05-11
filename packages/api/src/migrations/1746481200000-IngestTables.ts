@@ -1,9 +1,7 @@
 import type { MigrationInterface, QueryRunner } from "typeorm";
 
 export class IngestTables1746481200000 implements MigrationInterface {
-  name = "IngestTables1746481200000";
-
-  public async up(queryRunner: QueryRunner): Promise<void> {
+  name = "IngestTables1746481200000";public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(`
       CREATE TABLE channels (
         id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -41,9 +39,7 @@ export class IngestTables1746481200000 implements MigrationInterface {
         updated_at timestamptz NOT NULL DEFAULT now()
       );
     `);
-  }
-
-  public async down(queryRunner: QueryRunner): Promise<void> {
+  }public async down(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(`DROP TABLE IF EXISTS ingest_cursors`);
     await queryRunner.query(`DROP INDEX IF EXISTS idx_raw_messages_channel_posted`);
     await queryRunner.query(`DROP INDEX IF EXISTS idx_raw_messages_channel_msg`);

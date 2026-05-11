@@ -4,9 +4,7 @@ import type { DataSource } from "typeorm";
 import { EventLocationEntity } from "../../events/entities";
 
 export class TypeOrmEventLocationRepository implements IEventLocationRepository {
-  constructor(private readonly dataSource: DataSource) {}
-
-  async replaceForParsedEvent(parsedEventId: string, locations: EventLocation[]): Promise<void> {
+  constructor(private readonly dataSource: DataSource) {}async replaceForParsedEvent(parsedEventId: string, locations: EventLocation[]): Promise<void> {
     const repo = this.dataSource.getRepository(EventLocationEntity);
     await repo.delete({ parsedEventId });
     if (locations.length === 0) {

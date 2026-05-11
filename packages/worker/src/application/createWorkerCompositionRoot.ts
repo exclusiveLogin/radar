@@ -61,7 +61,6 @@ export type WorkerCompositionOptions = {
   /** Поверх `loadLlmRuntimeConfig()` (например `enabled: true` при `--enrich-llm`). */
   llmRuntimeOverride?: Partial<LlmRuntimeConfig>;
 };
-
 export function createWorkerCompositionRoot(options: WorkerCompositionOptions = {}) {
   const storageMode = options.storageMode ?? resolveWorkerStorageModeFromEnv();
   if (storageMode === WorkerStorageMode.Db) {

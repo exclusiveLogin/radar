@@ -17,8 +17,7 @@ type CacheStore = {
 
 export class JsonPlaceCacheRepository implements IPlaceCacheRepository {
   constructor(private readonly filePath: string) {}
-
-  private readStore(): CacheStore {
+private readStore(): CacheStore {
     if (!fs.existsSync(this.filePath)) {
       return { records: [] };
     }
@@ -28,16 +27,14 @@ export class JsonPlaceCacheRepository implements IPlaceCacheRepository {
     }
     return JSON.parse(source) as CacheStore;
   }
-
-  private writeStore(store: CacheStore): void {
+private writeStore(store: CacheStore): void {
     const dir = path.dirname(this.filePath);
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
     }
     fs.writeFileSync(this.filePath, JSON.stringify(store, null, 2), "utf8");
   }
-
-  async get(
+async get(
     queryNorm: string,
     provider?: "dadata" | "nominatim" | "llm",
   ): Promise<
@@ -80,8 +77,7 @@ export class JsonPlaceCacheRepository implements IPlaceCacheRepository {
       confidence: row.confidence,
     };
   }
-
-  async put(
+async put(
     queryNorm: string,
     provider: "dadata" | "nominatim" | "llm",
     value: Record<string, unknown>,
@@ -117,7 +113,6 @@ export class JsonPlaceCacheRepository implements IPlaceCacheRepository {
     this.writeStore(store);
   }
 }
-
 export function resolveJsonPlaceCachePath(customPath?: string): string {
   if (customPath) {
     return path.isAbsolute(customPath)

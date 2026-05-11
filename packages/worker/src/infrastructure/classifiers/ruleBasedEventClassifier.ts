@@ -3,8 +3,7 @@ import { classifyContentKind, parsePost, stripSignature } from "../../domain/par
 
 // Правиловый классификатор сообщений:
 // чистка подписи -> определение типа контента -> парсинг event-полей.
-export class RuleBasedEventClassifier implements IEventClassifier {
-  classify(rawPost: string): ClassifiedPost {
+export class RuleBasedEventClassifier implements IEventClassifier {classify(rawPost: string): ClassifiedPost {
     const cleaned = stripSignature(rawPost);
     const kind = classifyContentKind(cleaned);
     if (kind === "meta") {

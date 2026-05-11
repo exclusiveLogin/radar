@@ -17,15 +17,11 @@ import {
   TypeOrmSyncAuditRepository,
 } from "../../infrastructure/persistence";
 
-type CliMode = "plan" | "apply";
-
-function parseMode(): CliMode {
+type CliMode = "plan" | "apply";function parseMode(): CliMode {
   const command = (process.argv[2] ?? "plan").toLowerCase();
   if (command === "apply") return "apply";
   return "plan";
-}
-
-async function withDataSource<T>(
+}async function withDataSource<T>(
   ds: DataSource,
   fn: () => Promise<T>,
 ): Promise<T> {
@@ -41,9 +37,7 @@ async function withDataSource<T>(
       await ds.destroy();
     }
   }
-}
-
-async function run(): Promise<void> {
+}async function run(): Promise<void> {
   const mode = parseMode();
   await withDataSource(dataSource, async () => {
     // Композитный provider объединяет несколько источников artifacts

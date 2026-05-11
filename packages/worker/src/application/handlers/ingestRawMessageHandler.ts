@@ -5,9 +5,7 @@ export class IngestRawMessageHandler {
   constructor(
     private readonly rawMessages: IRawMessageRepository,
     private readonly events: IEventPublisher,
-  ) {}
-
-  async handle(raw: RawMessage): Promise<{ inserted: boolean; rawMessageId: string }> {
+  ) {}async handle(raw: RawMessage): Promise<{ inserted: boolean; rawMessageId: string }> {
     const result = await this.rawMessages.upsert(raw);
     const event: DomainEvent = {
       id: randomUUID(),

@@ -8,9 +8,7 @@ export class DadataStep implements GeoPipelineStep {
   constructor(
     private readonly enricher: DadataEnricher,
     private readonly cache?: IPlaceCacheRepository,
-  ) {}
-
-  async run(ctx: GeoPipelineContext): Promise<void> {
+  ) {}async run(ctx: GeoPipelineContext): Promise<void> {
     const regionCode = ctx.artifact.catalog?.regions[0]?.code;
     const queryNorm = ctx.rawText.toLowerCase().trim();
 

@@ -4,9 +4,7 @@ import type { DataSource } from "typeorm";
 import { ParsedEventEntity } from "../../events/entities";
 
 export class TypeOrmParsedEventRepository implements IParsedEventRepository {
-  constructor(private readonly dataSource: DataSource) {}
-
-  async upsert(parsed: ParsedEvent): Promise<{ id: string }> {
+  constructor(private readonly dataSource: DataSource) {}async upsert(parsed: ParsedEvent): Promise<{ id: string }> {
     const repo = this.dataSource.getRepository(ParsedEventEntity);
     const existing = await repo.findOne({
       where: {

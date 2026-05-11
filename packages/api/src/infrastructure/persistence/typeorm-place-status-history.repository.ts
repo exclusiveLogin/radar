@@ -8,9 +8,7 @@ import { PlaceStatusHistoryEntity } from "../../events/entities";
 export class TypeOrmPlaceStatusHistoryRepository
   implements IPlaceStatusHistoryRepository
 {
-  constructor(private readonly dataSource: DataSource) {}
-
-  async append(record: PlaceStatusHistoryRecord): Promise<void> {
+  constructor(private readonly dataSource: DataSource) {}async append(record: PlaceStatusHistoryRecord): Promise<void> {
     await this.dataSource.getRepository(PlaceStatusHistoryEntity).save({
       id: record.id,
       placeId: record.placeId,
@@ -20,9 +18,7 @@ export class TypeOrmPlaceStatusHistoryRepository
       eventAt: new Date(record.eventAt),
       meta: record.meta ?? {},
     });
-  }
-
-  async listByPlace(
+  }async listByPlace(
     placeId: string,
     limit: number,
   ): Promise<PlaceStatusHistoryRecord[]> {

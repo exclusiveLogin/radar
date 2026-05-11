@@ -1,9 +1,7 @@
 import type { MigrationInterface, QueryRunner } from "typeorm";
 
 export class PlaceCache1746481400000 implements MigrationInterface {
-  name = "PlaceCache1746481400000";
-
-  public async up(queryRunner: QueryRunner): Promise<void> {
+  name = "PlaceCache1746481400000";public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(`
       CREATE TABLE place_cache (
         query_norm text PRIMARY KEY,
@@ -19,9 +17,7 @@ export class PlaceCache1746481400000 implements MigrationInterface {
       );
       CREATE INDEX idx_place_cache_provider_fetched ON place_cache(provider, fetched_at DESC);
     `);
-  }
-
-  public async down(queryRunner: QueryRunner): Promise<void> {
+  }public async down(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(`DROP INDEX IF EXISTS idx_place_cache_provider_fetched`);
     await queryRunner.query(`DROP TABLE IF EXISTS place_cache`);
   }

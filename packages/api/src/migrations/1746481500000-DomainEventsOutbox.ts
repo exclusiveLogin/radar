@@ -1,9 +1,7 @@
 import type { MigrationInterface, QueryRunner } from "typeorm";
 
 export class DomainEventsOutbox1746481500000 implements MigrationInterface {
-  name = "DomainEventsOutbox1746481500000";
-
-  public async up(queryRunner: QueryRunner): Promise<void> {
+  name = "DomainEventsOutbox1746481500000";public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(`
       CREATE TABLE domain_events (
         id uuid PRIMARY KEY,
@@ -37,9 +35,7 @@ export class DomainEventsOutbox1746481500000 implements MigrationInterface {
       FOR EACH ROW
       EXECUTE FUNCTION notify_domain_events_new();
     `);
-  }
-
-  public async down(queryRunner: QueryRunner): Promise<void> {
+  }public async down(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(`DROP TRIGGER IF EXISTS trg_domain_events_notify ON domain_events`);
     await queryRunner.query(`DROP FUNCTION IF EXISTS notify_domain_events_new`);
     await queryRunner.query(`DROP INDEX IF EXISTS idx_domain_events_aggregate`);

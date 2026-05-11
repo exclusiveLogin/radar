@@ -1,9 +1,7 @@
 import * as fs from "fs";
 import * as path from "path";
 import * as dotenv from "dotenv";
-import { DataSource } from "typeorm";
-
-function loadEnv(): void {
+import { DataSource } from "typeorm";function loadEnv(): void {
   const root = path.resolve(__dirname, "../../..");
   const rootEnv = path.join(root, ".env");
   if (fs.existsSync(rootEnv)) {

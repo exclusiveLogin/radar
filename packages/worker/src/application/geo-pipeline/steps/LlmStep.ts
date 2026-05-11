@@ -5,9 +5,7 @@ import type { GeoPipelineContext, GeoPipelineStep } from "../GeoPipelineContext.
 export class LlmStep implements GeoPipelineStep {
   readonly id = "llm";
 
-  constructor(private readonly enricher: LlmEnricher) {}
-
-  async run(ctx: GeoPipelineContext): Promise<void> {
+  constructor(private readonly enricher: LlmEnricher) {}async run(ctx: GeoPipelineContext): Promise<void> {
     const catalogRegions = ctx.artifact.catalog?.regions ?? [];
     const regionCode = catalogRegions[0]?.code;
     const result = await this.enricher.enrich({
