@@ -2,6 +2,7 @@ import type {
   EventLocation,
   IPlaceAliasRepository,
   IPlaceCacheRepository,
+  PlaceContribution,
   IPlaceEvidenceRepository,
   IPlaceRepository,
   IRegionRepository,
@@ -16,6 +17,7 @@ import type {
   RawMessage,
 } from "@radar/shared";
 import { randomUUID } from "node:crypto";
+import { mergePlaceContribution } from "../parsing/placeContributionMerge.js";
 
 export class InMemoryRawMessageRepository implements IRawMessageRepository {
   private readonly byHash = new Map<string, { id: string; raw: RawMessage }>();
@@ -130,6 +132,17 @@ async upsertMany(places: PlaceRecord[]): Promise<void> {
     for (const row of places) {
       this.rows.set(row.id, row);
     }
+  }
+  async mergeContribution(
+    input: PlaceContribution,
+  ): Promise<{ updated: PlaceRecord; appliedFields: string[] }> {
+    const existing = this.rows.get(input.placeId);
+    if (!existing) {
+      throw new Error(`Place not found for contribution merge: ${input.placeId}`);
+    }
+    const merged = mergePlaceContribution(existing, input);
+    this.rows.set(input.placeId, merged.next);
+    return { updated: merged.next, appliedFields: merged.appliedFields };
   }
 }
 

@@ -31,14 +31,19 @@ export type PlaceRecord = {
   kladrId?: string;
   oktmo?: string;
   geometryArtifactKey?: string;
+  centroidLat?: number;
+  centroidLon?: number;
+  bbox?: Record<string, unknown>;
   sourceMeta?: Record<string, unknown>;
   lastSourceRevision?: string;
   trustState?: "unverified" | "partially_verified" | "verified" | "rejected";
   isTrusted?: boolean;
   trustScore?: number;
   trustUpdatedAt?: string;
-  evidenceProviders?: Array<"catalog" | "dadata" | "nominatim" | "llm" | "operator" | "system">;
+  evidenceProviders?: PlaceProvider[];
 };
+
+export type PlaceProvider = "catalog" | "dadata" | "nominatim" | "llm" | "operator" | "system";
 
 export type PlaceAliasRecord = {
   id: string;
@@ -80,12 +85,39 @@ export type PlaceStatusHistoryRecord = {
 export type PlaceEvidenceRecord = {
   id: string;
   placeId: string;
-  provider: "catalog" | "dadata" | "nominatim" | "llm" | "operator" | "system";
+  provider: PlaceProvider;
   action: "candidate" | "confirm" | "reject" | "enrich";
   confidence?: number;
   payload?: Record<string, unknown>;
   traceId?: string;
   createdAt: string;
+};
+
+export type PlaceContribution = {
+  placeId: string;
+  provider: PlaceProvider;
+  confidence?: number;
+  traceId?: string;
+  trustState: NonNullable<PlaceRecord["trustState"]>;
+  isTrusted: boolean;
+  trustScore: number;
+  fields: Partial<
+    Pick<
+      PlaceRecord,
+      | "name"
+      | "nameWithType"
+      | "kind"
+      | "parentPlaceId"
+      | "fiasId"
+      | "kladrId"
+      | "oktmo"
+      | "geometryArtifactKey"
+      | "centroidLat"
+      | "centroidLon"
+      | "bbox"
+    >
+  >;
+  rawPayload?: Record<string, unknown>;
 };
 
 export interface IRegionRepository {
@@ -100,6 +132,7 @@ export interface IPlaceRepository {
   findByNameInRegion(name: string, regionId: string): Promise<PlaceRecord | null>;
   listActive(): Promise<PlaceRecord[]>;
   upsertMany(places: PlaceRecord[]): Promise<void>;
+  mergeContribution(input: PlaceContribution): Promise<{ updated: PlaceRecord; appliedFields: string[] }>;
 }
 
 export interface IPlaceAliasRepository {

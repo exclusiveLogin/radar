@@ -3,6 +3,8 @@ import type {
   IPlaceAliasRepository,
   IPlaceEvidenceRepository,
   IPlaceRepository,
+  PlaceContribution,
+  PlaceProvider,
   IRegionRepository,
   PlaceRecord,
 } from "@radar/shared";
@@ -14,14 +16,12 @@ export type GeoValidationResult = {
 };
 
 export type GeoValidationContext = {
-  providerHint?: "catalog" | "dadata" | "nominatim" | "llm" | "operator" | "system";
+  providerHint?: PlaceProvider;
   confidence?: number;
   traceId?: string;
 };
 
-type EvidenceProvider = "catalog" | "dadata" | "nominatim" | "llm" | "operator" | "system";
-
-const TRUSTED_PROVIDERS = new Set<EvidenceProvider>([
+const TRUSTED_PROVIDERS = new Set<PlaceProvider>([
   "catalog",
   "dadata",
   "operator",
@@ -37,7 +37,7 @@ function normalize(value: string): string {
     .replace(/\s+/g, " ");
 }
 
-function sourceToProvider(source: EventLocation["source"]): EvidenceProvider {
+function sourceToProvider(source: EventLocation["source"]): PlaceProvider {
   switch (source) {
     case "db":
       return "catalog";
@@ -52,23 +52,15 @@ function sourceToProvider(source: EventLocation["source"]): EvidenceProvider {
   }
 }
 
-function mergeEvidenceProviders(
-  current: PlaceRecord["evidenceProviders"],
-  provider: EvidenceProvider,
-): PlaceRecord["evidenceProviders"] {
-  const merged = new Set<EvidenceProvider>([...(current ?? []), provider]);
-  return [...merged];
-}
-
 function toTrustState(
-  provider: EvidenceProvider,
+  provider: PlaceProvider,
   confidence: number | undefined,
 ): {
   trustState: PlaceRecord["trustState"];
   isTrusted: boolean;
   trustScore: number;
 } {
-  const scoreByProvider: Record<EvidenceProvider, number> = {
+  const scoreByProvider: Record<PlaceProvider, number> = {
     catalog: 1,
     dadata: 0.95,
     nominatim: 0.8,
@@ -93,6 +85,26 @@ export class GeoValidationService {
     private readonly aliases: IPlaceAliasRepository,
     private readonly placeEvidence: IPlaceEvidenceRepository,
   ) {}
+
+  async applyProviderContribution(
+    input: PlaceContribution,
+  ): Promise<{ updated: PlaceRecord; appliedFields: string[] }> {
+    const merged = await this.places.mergeContribution(input);
+    await this.placeEvidence.append({
+      id: randomUUID(),
+      placeId: input.placeId,
+      provider: input.provider,
+      action: merged.appliedFields.length > 0 ? "enrich" : "confirm",
+      confidence: input.confidence,
+      traceId: input.traceId,
+      payload: {
+        ...(input.rawPayload ?? {}),
+        appliedFields: merged.appliedFields,
+      },
+      createdAt: new Date().toISOString(),
+    });
+    return merged;
+  }
 
   async validate(
     rawQuery: string,
@@ -122,30 +134,27 @@ export class GeoValidationService {
         alias: location.placeName,
         source: "auto",
       });
-      await this.placeEvidence.append({
-        id: randomUUID(),
+      const contribution: PlaceContribution = {
         placeId: matched.id,
         provider,
-        action: "confirm",
         confidence: context.confidence,
         traceId: context.traceId,
-        payload: {
+        trustState: trust.trustState ?? "unverified",
+        isTrusted: trust.isTrusted,
+        trustScore: trust.trustScore,
+        fields: {
+          name: location.placeName,
+          fiasId: location.placeFias,
+          centroidLat: location.lat,
+          centroidLon: location.lon,
+        },
+        rawPayload: {
+          reason: "matched_existing",
           rawQuery,
-          matchedBy: "fias_alias_or_name",
           locationSource: location.source,
         },
-        createdAt: new Date().toISOString(),
-      });
-      await this.places.upsertMany([
-        {
-          ...matched,
-          evidenceProviders: mergeEvidenceProviders(matched.evidenceProviders, provider),
-          trustState: trust.trustState ?? matched.trustState,
-          isTrusted: trust.isTrusted || matched.isTrusted === true,
-          trustScore: Math.max(matched.trustScore ?? 0, trust.trustScore),
-          trustUpdatedAt: new Date().toISOString(),
-        },
-      ]);
+      };
+      const merged = await this.applyProviderContribution(contribution);
 
       return {
         decision: "matched_existing",
@@ -153,8 +162,8 @@ export class GeoValidationService {
           ...location,
           regionId: region.id,
           placeId: matched.id,
-          placeName: matched.name,
-          placeFias: matched.fiasId,
+          placeName: merged.updated.name,
+          placeFias: merged.updated.fiasId,
         },
       };
     }
@@ -167,6 +176,8 @@ export class GeoValidationService {
         kind: "locality",
         name: location.placeName,
         fiasId: location.placeFias,
+        centroidLat: location.lat,
+        centroidLon: location.lon,
         trustState: trust.trustState,
         isTrusted: trust.isTrusted,
         trustScore: trust.trustScore,
