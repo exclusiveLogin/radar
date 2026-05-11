@@ -54,6 +54,7 @@ export async function runWorkerBootstrap(): Promise<void> {
   console.log(
     `Конфиг парсинга: batchLimit=${parseConfig.batchLimit}, markAsRead=${parseConfig.markAsRead}.`,
   );
+  console.log(`Режим хранилища worker: ${runtime.storageMode}.`);
   console.log("Write-side handlers и event bus инициализированы.");
 
   const prompter = createTtyPrompter();

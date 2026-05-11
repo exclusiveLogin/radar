@@ -9,6 +9,16 @@ import { PlaceStatusHistoryEntity } from "../events/entities";
 import { GeoSyncLogEntity } from "../geo/entities";
 import { RegionEntity } from "../geo/entities";
 
+function buildStatusWhere(params: {
+  placeId?: string;
+  statusCode?: string;
+}): { placeId?: string; statusCode?: string } {
+  return {
+    ...(params.placeId ? { placeId: params.placeId } : {}),
+    ...(params.statusCode ? { statusCode: params.statusCode } : {}),
+  };
+}
+
 @Injectable()
 export class ReadSideQueryService {
   constructor(@InjectDataSource() private readonly dataSource: DataSource) {}
@@ -54,10 +64,7 @@ export class ReadSideQueryService {
     limit: number;
   }): Promise<PlaceStatusActiveEntity[]> {
     return this.dataSource.getRepository(PlaceStatusActiveEntity).find({
-      where: {
-        ...(params.placeId ? { placeId: params.placeId } : {}),
-        ...(params.statusCode ? { statusCode: params.statusCode } : {}),
-      },
+      where: buildStatusWhere(params),
       order: { updatedAt: "DESC" },
       take: params.limit,
     });
@@ -69,10 +76,7 @@ export class ReadSideQueryService {
     limit: number;
   }): Promise<PlaceStatusHistoryEntity[]> {
     return this.dataSource.getRepository(PlaceStatusHistoryEntity).find({
-      where: {
-        ...(params.placeId ? { placeId: params.placeId } : {}),
-        ...(params.statusCode ? { statusCode: params.statusCode } : {}),
-      },
+      where: buildStatusWhere(params),
       order: { eventAt: "DESC" },
       take: params.limit,
     });

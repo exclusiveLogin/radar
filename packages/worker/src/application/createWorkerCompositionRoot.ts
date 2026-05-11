@@ -38,8 +38,13 @@ import { LlmStep } from "./geo-pipeline/steps/LlmStep.js";
 import { LocationResolutionService } from "./parsing/locationResolutionService.js";
 import { GeoValidationService } from "./parsing/geoValidationService.js";
 import { ParsePipelineService } from "./parsing/parsePipelineService.js";
+import {
+  WorkerStorageMode,
+  resolveWorkerStorageModeFromEnv,
+} from "../infrastructure/persistence/storageMode.js";
 
 export type WorkerCompositionOptions = {
+  storageMode?: WorkerStorageMode;
   placeCacheRepository?: IPlaceCacheRepository;
   geoCatalog?: GeoCatalog;
   /**
@@ -58,6 +63,13 @@ export type WorkerCompositionOptions = {
 };
 
 export function createWorkerCompositionRoot(options: WorkerCompositionOptions = {}) {
+  const storageMode = options.storageMode ?? resolveWorkerStorageModeFromEnv();
+  if (storageMode === WorkerStorageMode.Db) {
+    throw new Error(
+      "RADAR_STORAGE_MODE=db is not implemented in worker runtime yet. Use memory/fs for now.",
+    );
+  }
+
   const bus = new InProcessEventBus();
   const parseAttemptLogger = new ParseAttemptLogger();
   const metricsAggregator = new MetricsAggregator();
@@ -121,6 +133,7 @@ export function createWorkerCompositionRoot(options: WorkerCompositionOptions = 
   );
 
   return {
+    storageMode,
     bus,
     metricsAggregator,
     geoCatalog,

@@ -34,6 +34,44 @@ function cleanDistrictName(value: string): string {
     .trim();
 }
 
+function collectDistricts(rawText: string): GeoCatalogPlace[] {
+  const districtRegex =
+    /(?:^|[^\p{L}\p{N}_])([а-яёА-ЯЁa-zA-Z][а-яёА-ЯЁa-zA-Z\-\s]{1,40}?\sрайон)(?=[^\p{L}\p{N}_]|$)/giu;
+  const districts: GeoCatalogPlace[] = [];
+
+  for (const match of rawText.matchAll(districtRegex)) {
+    const districtName = cleanDistrictName(match[1]?.trim() ?? "");
+    if (!districtName) continue;
+    districts.push({ name: districtName, kind: "district" });
+  }
+
+  return districts;
+}
+
+function collectCityPlaces(cities: CityCatalogEntry[]): GeoCatalogPlace[] {
+  return cities.map((city) => ({
+    name: city.name,
+    kind: "city",
+    lat: city.lat,
+    lon: city.lon,
+  }));
+}
+
+function collectFallbackCities(rawText: string): GeoCatalogPlace[] {
+  return extractFallbackCities(rawText).map((cityName) => ({
+    name: cityName,
+    kind: "city",
+  }));
+}
+
+function deduplicatePlaces(places: GeoCatalogPlace[]): GeoCatalogPlace[] {
+  const unique = new Map<string, GeoCatalogPlace>();
+  for (const place of places) {
+    unique.set(`${place.kind}:${normalize(place.name)}`, place);
+  }
+  return [...unique.values()];
+}
+
 export class GeoCatalog {
   constructor(
     private readonly regions: RegionCatalog,
@@ -70,42 +108,12 @@ export class GeoCatalog {
   }
 
   findPlacesInRegion(rawText: string, _regionCode?: string): GeoCatalogPlace[] {
-    const found: GeoCatalogPlace[] = [];
-
-    const districtRegex =
-      /(?:^|[^\p{L}\p{N}_])([а-яёА-ЯЁa-zA-Z][а-яёА-ЯЁa-zA-Z\-\s]{1,40}?\sрайон)(?=[^\p{L}\p{N}_]|$)/giu;
-    for (const match of rawText.matchAll(districtRegex)) {
-      const districtName = cleanDistrictName(match[1]?.trim() ?? "");
-      if (!districtName) continue;
-      found.push({
-        name: districtName,
-        kind: "district",
-      });
-    }
-
-    const cities = this.cities.findInText(rawText);
-    for (const city of cities) {
-      found.push({
-        name: city.name,
-        kind: "city",
-        lat: city.lat,
-        lon: city.lon,
-      });
-    }
-
-    for (const cityName of extractFallbackCities(rawText)) {
-      found.push({
-        name: cityName,
-        kind: "city",
-      });
-    }
-
-    const unique = new Map<string, GeoCatalogPlace>();
-    for (const place of found) {
-      unique.set(`${place.kind}:${normalize(place.name)}`, place);
-    }
-
-    return [...unique.values()];
+    const found = [
+      ...collectDistricts(rawText),
+      ...collectCityPlaces(this.cities.findInText(rawText)),
+      ...collectFallbackCities(rawText),
+    ];
+    return deduplicatePlaces(found);
   }
 
   listCities(): CityCatalogEntry[] {

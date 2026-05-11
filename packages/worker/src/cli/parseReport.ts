@@ -6,6 +6,8 @@ import type { PipelineStepId } from "../infrastructure/enrichers/enricherChainFa
 import { splitMessageBlocks } from "../domain/parsing/index.js";
 import {
   JsonPlaceCacheRepository,
+  WorkerStorageMode,
+  resolveWorkerStorageMode,
   resolveJsonPlaceCachePath,
 } from "../infrastructure/persistence/index.js";
 import { loadRootEnv } from "../infrastructure/config/loadRootEnv.js";
@@ -15,6 +17,7 @@ type CliOptions = {
   outdir: string;
   format: "json" | "yaml" | "csv";
   div: "file" | "record";
+  storageMode: WorkerStorageMode;
   enrichDadata: boolean;
   enrichNominatim: boolean;
   enrichLlm: boolean;
@@ -78,6 +81,12 @@ function parseArgs(argv: string[]): CliOptions {
     outdir: String(map.get("outdir") ?? "reports"),
     format,
     div,
+    storageMode: resolveWorkerStorageMode(
+      ["storage-mode", "storage"]
+        .map((key) => map.get(key))
+        .find((value): value is string => typeof value === "string"),
+      WorkerStorageMode.Fs,
+    ),
     enrichDadata: map.has("enrich-dadata") || map.has("use-providers"),
     enrichNominatim: map.has("enrich-nominatim") || map.has("use-providers"),
     enrichLlm: map.has("enrich-llm"),
@@ -126,6 +135,21 @@ function escapeCsv(value: string): string {
     return `"${value.replace(/"/g, "\"\"")}"`;
   }
   return value;
+}
+
+function buildEnricherFlags(options: CliOptions):
+  | { dadata: boolean; nominatim: boolean; llm: boolean }
+  | false {
+  const anyProvider =
+    options.enrichDadata || options.enrichNominatim || options.enrichLlm;
+  if (!anyProvider) {
+    return false;
+  }
+  return {
+    dadata: options.enrichDadata,
+    nominatim: options.enrichNominatim,
+    llm: options.enrichLlm,
+  };
 }
 
 function serializeYaml(value: unknown, depth = 0): string {
@@ -241,17 +265,12 @@ async function main(): Promise<void> {
 
   ensureCleanOutdir(outdir);
 
-  const anyProvider = options.enrichDadata || options.enrichNominatim || options.enrichLlm;
+  const explicitEnricherFlags = buildEnricherFlags(options);
   const placeCache = new JsonPlaceCacheRepository(resolveJsonPlaceCachePath());
   const runtime = createWorkerCompositionRoot({
+    storageMode: options.storageMode,
     placeCacheRepository: placeCache,
-    explicitEnricherFlags: anyProvider
-      ? {
-          dadata: options.enrichDadata,
-          nominatim: options.enrichNominatim,
-          llm: options.enrichLlm,
-        }
-      : false,
+    explicitEnricherFlags,
     pipelineOrder: options.pipelineOrder,
     llmRuntimeOverride: options.enrichLlm ? { enabled: true } : undefined,
   });
@@ -318,6 +337,7 @@ async function main(): Promise<void> {
         outdir,
         format: options.format,
         div: options.div,
+        storageMode: options.storageMode,
         files: files.length,
         totalBlocks,
         csvRecords: allRecords.length,

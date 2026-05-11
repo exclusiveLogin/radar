@@ -2,6 +2,25 @@ import type { IRegionRepository, RegionRecord } from "@radar/shared";
 import type { DataSource } from "typeorm";
 import { RegionEntity } from "../../geo/entities";
 
+function toRegionRecord(row: RegionEntity): RegionRecord {
+  return {
+    id: row.id,
+    code: row.fiasId ?? row.iso ?? row.name,
+    fiasId: row.fiasId ?? undefined,
+    kladrId: row.kladrId ?? undefined,
+    iso: row.iso ?? undefined,
+    name: row.name,
+    nameWithType: row.nameWithType ?? undefined,
+    shortName: row.shortName ?? undefined,
+    federalDistrict: row.federalDistrict ?? undefined,
+    geometryArtifactKey: row.geometryArtifactKey ?? undefined,
+    sourceMeta: row.sourceMeta ?? undefined,
+    lastSourceRevision: row.lastSourceRevision ?? undefined,
+    frontRegion: row.frontRegion,
+    borderRegion: row.borderRegion,
+  };
+}
+
 export class TypeOrmRegionRepository implements IRegionRepository {
   constructor(private readonly dataSource: DataSource) {}
 
@@ -12,44 +31,14 @@ export class TypeOrmRegionRepository implements IRegionRepository {
     if (!row) {
       return null;
     }
-    return {
-      id: row.id,
-      code: row.fiasId ?? row.iso ?? row.name,
-      fiasId: row.fiasId ?? undefined,
-      kladrId: row.kladrId ?? undefined,
-      iso: row.iso ?? undefined,
-      name: row.name,
-      nameWithType: row.nameWithType ?? undefined,
-      shortName: row.shortName ?? undefined,
-      federalDistrict: row.federalDistrict ?? undefined,
-      geometryArtifactKey: row.geometryArtifactKey ?? undefined,
-      sourceMeta: row.sourceMeta ?? undefined,
-      lastSourceRevision: row.lastSourceRevision ?? undefined,
-      frontRegion: row.frontRegion,
-      borderRegion: row.borderRegion,
-    };
+    return toRegionRecord(row);
   }
 
   async listActive(): Promise<RegionRecord[]> {
     const rows = await this.dataSource.getRepository(RegionEntity).find({
       where: { isActive: true },
     });
-    return rows.map((row) => ({
-      id: row.id,
-      code: row.fiasId ?? row.iso ?? row.name,
-      fiasId: row.fiasId ?? undefined,
-      kladrId: row.kladrId ?? undefined,
-      iso: row.iso ?? undefined,
-      name: row.name,
-      nameWithType: row.nameWithType ?? undefined,
-      shortName: row.shortName ?? undefined,
-      federalDistrict: row.federalDistrict ?? undefined,
-      geometryArtifactKey: row.geometryArtifactKey ?? undefined,
-      sourceMeta: row.sourceMeta ?? undefined,
-      lastSourceRevision: row.lastSourceRevision ?? undefined,
-      frontRegion: row.frontRegion,
-      borderRegion: row.borderRegion,
-    }));
+    return rows.map(toRegionRecord);
   }
 
   async upsertMany(regions: RegionRecord[]): Promise<void> {

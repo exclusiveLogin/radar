@@ -1,8 +1,15 @@
 ﻿import * as fs from "node:fs";
 import * as path from "node:path";
 import { MONOREPO_ROOT } from "@repo/root";
-import { createWorkerCompositionRoot } from "../application/createWorkerCompositionRoot.js";
+import {
+  createWorkerCompositionRoot,
+  type WorkerCompositionOptions,
+} from "../application/createWorkerCompositionRoot.js";
 import type { PipelineStepId } from "../infrastructure/enrichers/enricherChainFactory.js";
+import {
+  WorkerStorageMode,
+  resolveWorkerStorageMode,
+} from "../infrastructure/persistence/storageMode.js";
 import { GeoValidationService } from "../application/parsing/geoValidationService.js";
 import {
   InMemoryPlaceAliasRepository,
@@ -34,6 +41,7 @@ type ParseSummary = {
 type ParsedCli = {
   filePathArg: string;
   withGeoReport: boolean;
+  storageMode: WorkerStorageMode;
   enrichDadata: boolean;
   enrichNominatim: boolean;
   enrichLlm: boolean;
@@ -44,6 +52,7 @@ function parseParseSnapCli(argv: string[]): ParsedCli {
   const tokens = argv.slice(2);
   let filePathArg = "";
   let withGeoReport = false;
+  let storageMode = WorkerStorageMode.Memory;
   let enrichDadata = false;
   let enrichNominatim = false;
   let enrichLlm = false;
@@ -53,6 +62,20 @@ function parseParseSnapCli(argv: string[]): ParsedCli {
 
   for (const t of tokens) {
     if (t.startsWith("--")) {
+      if (t.startsWith("--storage-mode=")) {
+        storageMode = resolveWorkerStorageMode(
+          t.slice("--storage-mode=".length),
+          WorkerStorageMode.Memory,
+        );
+        continue;
+      }
+      if (t.startsWith("--storage=")) {
+        storageMode = resolveWorkerStorageMode(
+          t.slice("--storage=".length),
+          WorkerStorageMode.Memory,
+        );
+        continue;
+      }
       if (t.startsWith("--pipeline-order=")) {
         const raw = t.slice("--pipeline-order=".length);
         pipelineOrder = raw
@@ -85,7 +108,15 @@ function parseParseSnapCli(argv: string[]): ParsedCli {
     filePathArg = t;
   }
 
-  return { filePathArg, withGeoReport, enrichDadata, enrichNominatim, enrichLlm, pipelineOrder };
+  return {
+    filePathArg,
+    withGeoReport,
+    storageMode,
+    enrichDadata,
+    enrichNominatim,
+    enrichLlm,
+    pipelineOrder,
+  };
 }
 
 function resolveInputPath(arg: string): string {
@@ -110,12 +141,32 @@ function buildSummary(kinds: Array<"event" | "noise" | "meta">): ParseSummary {
   };
 }
 
+function buildRuntimeOptions(cli: ParsedCli): WorkerCompositionOptions {
+  if (!cli.withGeoReport) {
+    return {
+      storageMode: cli.storageMode,
+      explicitEnricherFlags: false,
+    };
+  }
+
+  return {
+    storageMode: cli.storageMode,
+    explicitEnricherFlags: {
+      dadata: cli.enrichDadata,
+      nominatim: cli.enrichNominatim,
+      llm: cli.enrichLlm,
+    },
+    pipelineOrder: cli.pipelineOrder,
+    llmRuntimeOverride: cli.enrichLlm ? { enabled: true } : undefined,
+  };
+}
+
 async function main(): Promise<void> {
   loadRootEnv(MONOREPO_ROOT);
   const cli = parseParseSnapCli(process.argv);
   if (!cli.filePathArg) {
     console.error(
-      "Usage: npm run parse:snap -- <path-to-snap.txt> [--geo-report] [--enrich-dadata] [--enrich-nominatim] [--enrich-llm] [--pipeline-order=catalog,llm,dadata,nominatim]",
+      "Usage: npm run parse:snap -- <path-to-snap.txt> [--geo-report] [--storage-mode=memory|db|fs] [--enrich-dadata] [--enrich-nominatim] [--enrich-llm] [--pipeline-order=catalog,llm,dadata,nominatim]",
     );
     process.exit(1);
   }
@@ -134,19 +185,7 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const runtime = createWorkerCompositionRoot(
-    cli.withGeoReport
-      ? {
-          explicitEnricherFlags: {
-            dadata: cli.enrichDadata,
-            nominatim: cli.enrichNominatim,
-            llm: cli.enrichLlm,
-          },
-          pipelineOrder: cli.pipelineOrder,
-          llmRuntimeOverride: cli.enrichLlm ? { enabled: true } : undefined,
-        }
-      : { explicitEnricherFlags: false },
-  );
+  const runtime = createWorkerCompositionRoot(buildRuntimeOptions(cli));
 
   const source = fs.readFileSync(filePath, "utf8");
   const blocks = splitMessageBlocks(source);
@@ -202,6 +241,7 @@ async function main(): Promise<void> {
     JSON.stringify(
       {
         filePath,
+        storageMode: cli.storageMode,
         summary,
         results: results.map((x) => ({
           index: x.index,

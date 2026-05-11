@@ -13,11 +13,21 @@ import type { EventHandler, IEventPublisher, IEventSubscriber, Unsubscribe } fro
 export class InProcessEventBus implements IEventPublisher, IEventSubscriber {
   private readonly handlers = new Map<string, Set<EventHandler>>();
 
-  subscribe(eventType: string, handler: EventHandler): Unsubscribe {
+  private getOrCreateHandlers(eventType: string): Set<EventHandler> {
     if (!this.handlers.has(eventType)) {
       this.handlers.set(eventType, new Set<EventHandler>());
     }
-    const set = this.handlers.get(eventType)!;
+    return this.handlers.get(eventType)!;
+  }
+
+  private getHandlersForEvent(event: DomainEvent): EventHandler[] {
+    const exact = this.handlers.get(event.type) ?? [];
+    const wildcard = this.handlers.get("*") ?? [];
+    return [...exact, ...wildcard];
+  }
+
+  subscribe(eventType: string, handler: EventHandler): Unsubscribe {
+    const set = this.getOrCreateHandlers(eventType);
     set.add(handler);
     return () => {
       set.delete(handler);
@@ -26,10 +36,7 @@ export class InProcessEventBus implements IEventPublisher, IEventSubscriber {
 
   async publish(events: DomainEvent[]): Promise<void> {
     for (const event of events) {
-      const exact = this.handlers.get(event.type) ?? new Set<EventHandler>();
-      const wildcard = this.handlers.get("*") ?? new Set<EventHandler>();
-      const all = [...exact, ...wildcard];
-      for (const handler of all) {
+      for (const handler of this.getHandlersForEvent(event)) {
         await handler(event);
       }
     }

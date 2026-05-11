@@ -28,6 +28,26 @@ function firstSegmentName(file: string): string {
   return left.trim();
 }
 
+function resolveSourceLayer(options: {
+  inCities: boolean;
+  inRegions: boolean;
+  inFederalDistricts: boolean;
+}): string {
+  const { inCities, inRegions, inFederalDistricts } = options;
+  if (inCities) return "cities";
+  if (inRegions) return "regions";
+  if (inFederalDistricts) return "federal-districts";
+  return "unknown";
+}
+
+function readStringProperty(
+  props: Record<string, unknown>,
+  key: string,
+): string | undefined {
+  const value = props[key];
+  return typeof value === "string" ? value : undefined;
+}
+
 export class RussiaGeoJsonOsmProvider implements IGeoSourceProvider {
   async loadSnapshot(): Promise<GeoProviderSnapshot> {
     // Источник: предсобранные artifacts из Russia_geojson_OSM.
@@ -94,17 +114,15 @@ export class RussiaGeoJsonOsmProvider implements IGeoSourceProvider {
           nameWithType: placeName,
           geometryArtifactKey: file,
           sourceMeta: {
-            sourceLayer: inCities
-              ? "cities"
-              : inRegions
-                ? "regions"
-                : inFederalDistricts
-                  ? "federal-districts"
-                  : "unknown",
-            federalDistrict:
-              typeof feature.properties["Federal District"] === "string"
-                ? feature.properties["Federal District"]
-                : undefined,
+            sourceLayer: resolveSourceLayer({
+              inCities,
+              inRegions,
+              inFederalDistricts,
+            }),
+            federalDistrict: readStringProperty(
+              feature.properties,
+              "Federal District",
+            ),
           },
         });
         aliases.push({

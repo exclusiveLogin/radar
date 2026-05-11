@@ -47,6 +47,21 @@ function collectFirstCoordinate(value: unknown): [number, number] | null {
   return null;
 }
 
+function normalizeHaystack(rawText: string): string {
+  const normalized = normalize(rawText)
+    .replace(/[,;:.!?()\[\]]/g, " ")
+    .replace(/\s+/g, " ");
+  return ` ${normalized} `;
+}
+
+function deduplicateCities(cities: CityCatalogEntry[]): CityCatalogEntry[] {
+  const unique = new Map<string, CityCatalogEntry>();
+  for (const city of cities) {
+    unique.set(city.name.toLowerCase(), city);
+  }
+  return [...unique.values()];
+}
+
 export class CityCatalog {
   private readonly entries: CityCatalogEntry[];
 
@@ -84,17 +99,11 @@ export class CityCatalog {
 
   findInText(rawText: string): CityCatalogEntry[] {
     // Replace punctuation with spaces so "Тольятти," or "Тольятти." still match.
-    const haystack = ` ${normalize(rawText).replace(/[,;:.!?()\[\]]/g, " ").replace(/\s+/g, " ")} `;
+    const haystack = normalizeHaystack(rawText);
     const matches = this.entries.filter((entry) =>
       entry.aliases.some((alias) => haystack.includes(` ${alias} `)),
     );
-
-    const unique = new Map<string, CityCatalogEntry>();
-    for (const match of matches) {
-      unique.set(match.name.toLowerCase(), match);
-    }
-
-    return [...unique.values()];
+    return deduplicateCities(matches);
   }
 
   list(): CityCatalogEntry[] {

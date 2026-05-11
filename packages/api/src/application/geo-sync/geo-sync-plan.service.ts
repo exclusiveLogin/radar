@@ -22,13 +22,8 @@ export class GeoSyncPlanService {
     private readonly aliases: IPlaceAliasRepository,
   ) {}
 
-  async plan(): Promise<GeoSyncPlan> {
-    const snapshot = await this.provider.loadSnapshot();
-    const currentRegionsRaw = await this.regions.listActive();
-    const currentPlacesRaw = await this.places.listActive();
-    const currentAliasesRaw = await this.aliases.listActive();
-
-    const currentRegions: RegionDraft[] = currentRegionsRaw.map((row) => ({
+  private toRegionDrafts(rows: Awaited<ReturnType<IRegionRepository["listActive"]>>): RegionDraft[] {
+    return rows.map((row) => ({
       fiasId: row.fiasId,
       kladrId: row.kladrId,
       iso: row.iso,
@@ -41,8 +36,10 @@ export class GeoSyncPlanService {
       geometryArtifactKey: row.geometryArtifactKey,
       sourceMeta: row.sourceMeta,
     }));
+  }
 
-    const currentPlaces: PlaceDraft[] = currentPlacesRaw.map((row) => ({
+  private toPlaceDrafts(rows: Awaited<ReturnType<IPlaceRepository["listActive"]>>): PlaceDraft[] {
+    return rows.map((row) => ({
       regionCode: row.regionId,
       kind: row.kind,
       name: row.name,
@@ -52,8 +49,10 @@ export class GeoSyncPlanService {
       oktmo: row.oktmo,
       geometryArtifactKey: row.geometryArtifactKey,
     }));
+  }
 
-    const currentAliases: AliasDraft[] = currentAliasesRaw.map((row) => ({
+  private toAliasDrafts(rows: Awaited<ReturnType<IPlaceAliasRepository["listActive"]>>): AliasDraft[] {
+    return rows.map((row) => ({
       targetKind: row.targetKind,
       targetExternalKey:
         row.targetKind === "region"
@@ -62,21 +61,34 @@ export class GeoSyncPlanService {
       alias: row.alias,
       source: row.source ?? "auto",
     }));
+  }
+
+  private toNormalizedPlaceDrafts(rows: Awaited<ReturnType<IPlaceRepository["listActive"]>>): PlaceDraft[] {
+    return rows.map((row) => ({
+      regionCode: row.regionId,
+      kind: row.kind,
+      name: normalizeName(row.name),
+      nameWithType: row.nameWithType,
+      fiasId: row.fiasId,
+      kladrId: row.kladrId,
+      oktmo: row.oktmo,
+      geometryArtifactKey: row.geometryArtifactKey,
+    }));
+  }
+
+  async plan(): Promise<GeoSyncPlan> {
+    const snapshot = await this.provider.loadSnapshot();
+    const currentRegionsRaw = await this.regions.listActive();
+    const currentPlacesRaw = await this.places.listActive();
+    const currentAliasesRaw = await this.aliases.listActive();
+
+    const currentRegions: RegionDraft[] = this.toRegionDrafts(currentRegionsRaw);
+    const currentPlaces: PlaceDraft[] = this.toPlaceDrafts(currentPlacesRaw);
+    const currentAliases: AliasDraft[] = this.toAliasDrafts(currentAliasesRaw);
 
     // Дополнительно учитываем name+region ключи для places,
     // чтобы diff корректно видел существующие записи без FIAS.
-    for (const row of currentPlacesRaw) {
-      currentPlaces.push({
-        regionCode: row.regionId,
-        kind: row.kind,
-        name: normalizeName(row.name),
-        nameWithType: row.nameWithType,
-        fiasId: row.fiasId,
-        kladrId: row.kladrId,
-        oktmo: row.oktmo,
-        geometryArtifactKey: row.geometryArtifactKey,
-      });
-    }
+    currentPlaces.push(...this.toNormalizedPlaceDrafts(currentPlacesRaw));
 
     const regionDiff = diffRegions(currentRegions, snapshot.regions);
     const placeDiff = diffPlaces(currentPlaces, snapshot.places);

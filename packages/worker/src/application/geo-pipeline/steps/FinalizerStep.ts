@@ -5,6 +5,62 @@ function normalize(name: string): string {
   return name.toLowerCase().replace(/ё/g, "е").replace(/\s+/g, " ").trim();
 }
 
+function resolveSourceLabel(options: {
+  hasDadata: boolean;
+  hasNominatim: boolean;
+  hasLlm: boolean;
+}): GeoEnrichmentFinalizer["source"] {
+  const { hasDadata, hasNominatim, hasLlm } = options;
+  const sourceCount = Number(hasDadata) + Number(hasNominatim) + Number(hasLlm);
+  if (sourceCount > 1) return "multi";
+  if (hasDadata) return "dadata";
+  if (hasNominatim) return "nominatim";
+  if (hasLlm) return "llm";
+  return "local";
+}
+
+function resolveFinalizerPrecision(options: {
+  placesCount: number;
+  regionsCount: number;
+  hasCoords: boolean;
+  hasLocality: boolean;
+  hasDistrict: boolean;
+}): GeoEnrichmentFinalizer["precision"] {
+  const { placesCount, regionsCount, hasCoords, hasLocality, hasDistrict } = options;
+  if (placesCount === 0 && regionsCount === 0) return "unknown";
+  if (hasCoords && hasLocality) return "locality_with_coords";
+  if (hasLocality) return "locality";
+  if (hasDistrict) return "district";
+  return "region";
+}
+
+function toEventLocationPrecision(
+  kind: "district" | "city" | "locality" | "settlement",
+): EventLocation["precision"] {
+  switch (kind) {
+    case "district":
+      return "district";
+    case "city":
+      return "city";
+    case "settlement":
+      return "settlement";
+    default:
+      return "locality";
+  }
+}
+
+function resolveEventLocationSource(options: {
+  hasDadata: boolean;
+  hasNominatim: boolean;
+  hasLlm: boolean;
+}): EventLocation["source"] {
+  const { hasDadata, hasNominatim, hasLlm } = options;
+  if (hasDadata) return "dadata";
+  if (hasNominatim) return "nominatim";
+  if (hasLlm) return "llm";
+  return "db";
+}
+
 /**
  * Merges all namespace nodes into a deduplicated flat list of EventLocations,
  * then writes `artifact.finalizer` and populates `ctx.locations`.
@@ -91,17 +147,12 @@ export class FinalizerStep implements GeoPipelineStep {
     const hasDadata = (dadata?.nodes.length ?? 0) > 0;
     const hasNominatim = (nominatim?.nodes.length ?? 0) > 0;
     const hasLlm = (llm?.nodes.length ?? 0) > 0;
-    const sourceSets = [hasDadata && "dadata", hasNominatim && "nominatim", hasLlm && "llm"].filter(Boolean);
-    const sourceLabel: GeoEnrichmentFinalizer["source"] =
-      sourceSets.length > 1
-        ? "multi"
-        : hasDadata
-          ? "dadata"
-          : hasNominatim
-            ? "nominatim"
-            : hasLlm
-              ? "llm"
-              : "local";
+    const sourceLabel = resolveSourceLabel({ hasDadata, hasNominatim, hasLlm });
+    const eventLocationSource = resolveEventLocationSource({
+      hasDadata,
+      hasNominatim,
+      hasLlm,
+    });
 
     const places = [...placesByNorm.values()];
     const regions = [...regionMap.values()];
@@ -110,16 +161,13 @@ export class FinalizerStep implements GeoPipelineStep {
     const hasCoords = places.some((p) => p.lat !== undefined && p.lon !== undefined);
     const hasLocality = places.some((p) => p.kind === "city" || p.kind === "locality");
     const hasDistrict = places.some((p) => p.kind === "district");
-    const precision: GeoEnrichmentFinalizer["precision"] =
-      places.length === 0 && regions.length === 0
-        ? "unknown"
-        : hasCoords && hasLocality
-          ? "locality_with_coords"
-          : hasLocality
-            ? "locality"
-            : hasDistrict
-              ? "district"
-              : "region";
+    const precision = resolveFinalizerPrecision({
+      placesCount: places.length,
+      regionsCount: regions.length,
+      hasCoords,
+      hasLocality,
+      hasDistrict,
+    });
 
     const completeness =
       precision === "locality_with_coords"
@@ -167,8 +215,8 @@ export class FinalizerStep implements GeoPipelineStep {
       this.locations.push({
         regionId: "00000000-0000-0000-0000-000000000000",
         regionCode: p.regionCode ?? primaryRegionCode,
-        precision: p.kind === "district" ? "district" : p.kind === "city" ? "city" : p.kind === "settlement" ? "settlement" : "locality",
-        source: hasDadata ? "dadata" : hasNominatim ? "nominatim" : hasLlm ? "llm" : "db",
+        precision: toEventLocationPrecision(p.kind),
+        source: eventLocationSource,
         placeName: p.name,
         placeFias: p.fiasId,
         lat: p.lat,

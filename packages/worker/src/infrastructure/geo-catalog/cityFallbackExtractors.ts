@@ -4,6 +4,8 @@ type CityPatternExtractor = {
 };
 
 const CITY_TOKEN_PATTERN = /[А-ЯЁ][а-яё-]{2,}/u;
+const NOISE_LINE_PATTERN =
+  /(область|край|республика|ао|район|бпла|пво|опасност|внимани|фиксац|отбой|ограничения|ивп|работа|сбит|угроза|меры|подписаться|обход|радар|@)/iu;
 
 function normalizeCandidate(value: string): string {
   return value.replace(/[.?!;:]/g, "").trim();
@@ -11,6 +13,10 @@ function normalizeCandidate(value: string): string {
 
 function isCityCandidate(value: string): boolean {
   return CITY_TOKEN_PATTERN.test(value);
+}
+
+function shouldSkipLine(value: string): boolean {
+  return NOISE_LINE_PATTERN.test(value);
 }
 
 const airportExtractor: CityPatternExtractor = {
@@ -53,11 +59,7 @@ const plainLineExtractor: CityPatternExtractor = {
       if (!trimmed) {
         continue;
       }
-      if (
-        /(область|край|республика|ао|район|бпла|пво|опасност|внимани|фиксац|отбой|ограничения|ивп|работа|сбит|угроза|меры|подписаться|обход|радар|@)/iu.test(
-          trimmed,
-        )
-      ) {
+      if (shouldSkipLine(trimmed)) {
         continue;
       }
       const chunks = trimmed.split(",");

@@ -4,12 +4,30 @@ import { MONOREPO_ROOT } from "@repo/root";
 import { createWorkerCompositionRoot } from "../application/createWorkerCompositionRoot.js";
 import { splitMessageBlocks } from "../domain/parsing/index.js";
 import { loadRootEnv } from "../infrastructure/config/loadRootEnv.js";
+import {
+  WorkerStorageMode,
+  resolveWorkerStorageMode,
+} from "../infrastructure/persistence/storageMode.js";
 
 type CliOptions = {
   input: string;
+  storageMode: WorkerStorageMode;
   model?: string;
   baseUrl?: string;
 };
+
+function readStringFlag(
+  map: Map<string, string | true>,
+  keys: readonly string[],
+): string | undefined {
+  for (const key of keys) {
+    const value = map.get(key);
+    if (typeof value === "string") {
+      return value;
+    }
+  }
+  return undefined;
+}
 
 function parseArgs(argv: string[]): CliOptions {
   const map = new Map<string, string | true>();
@@ -29,12 +47,16 @@ function parseArgs(argv: string[]): CliOptions {
   const input = map.get("input");
   if (typeof input !== "string" || input.trim() === "") {
     throw new Error(
-      "Usage: npm run parse:snap:ollama -- --input tests/snap_001.txt [--model qwen2.5:3b] [--base-url http://127.0.0.1:11434/v1]",
+      "Usage: npm run parse:snap:ollama -- --input tests/snap_001.txt [--storage-mode=memory|db|fs] [--model qwen2.5:3b] [--base-url http://127.0.0.1:11434/v1]",
     );
   }
 
   return {
     input,
+    storageMode: resolveWorkerStorageMode(
+      readStringFlag(map, ["storage-mode", "storage"]),
+      WorkerStorageMode.Memory,
+    ),
     model: typeof map.get("model") === "string" ? String(map.get("model")) : undefined,
     baseUrl:
       typeof map.get("base-url") === "string"
@@ -87,6 +109,7 @@ async function main(): Promise<void> {
   }
 
   const runtime = createWorkerCompositionRoot({
+    storageMode: options.storageMode,
     llmRuntimeOverride: { enabled: true },
     explicitEnricherFlags: { dadata: false, nominatim: false, llm: true },
   });
@@ -121,6 +144,7 @@ async function main(): Promise<void> {
         baseUrl,
         model,
         totalBlocks: blocks.length,
+        storageMode: options.storageMode,
         llmEnabled: process.env.RADAR_LLM_GEOCODER_ENABLED === "1",
         results,
       },

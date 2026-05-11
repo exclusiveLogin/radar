@@ -241,6 +241,7 @@ npm run worker:parse:report -- --input tests --outdir reports --format json --di
 
 ### LLM runtime config (env)
 
+- `RADAR_STORAGE_MODE`: режим хранилища worker (`memory|db|fs`), по умолчанию `memory`.
 - `RADAR_LLM_GEOCODER_ENABLED`: включает/выключает LLM fallback.
 - `RADAR_LLM_PROVIDER`: `ollama` или `openai-compatible`.
 - `RADAR_LLM_BASE_URL`: endpoint OpenAI-compatible API, по умолчанию `http://127.0.0.1:11434/v1`.
@@ -256,6 +257,7 @@ npm run worker:parse:report -- --input tests --outdir reports --format json --di
 - `worker:parse:report` использует тот же production `ParsePipelineService`, что и Telegram write-side.
 - CLI — это transport-обертка для оффлайн проверки качества парсинга и георезолва.
 - Дефолты: `--input tests --outdir reports --format json --div file`.
+- Для batch-репортов дефолтный режим хранения: `--storage-mode=fs`.
 - Поддерживаются форматы: `json|yaml|csv`; режим деления: `file|record`.
 - Флаг `--use-providers` включает enrich-цепочку поверх локального artifacts-first резолва.
 - Для Ollama snap-check: `npm run worker:parse:snap:ollama -- --input tests/snap_001.txt` (проверяет `/api/tags` и запускает parse через LLM-enabled runtime).
