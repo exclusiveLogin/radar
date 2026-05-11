@@ -7,6 +7,7 @@ import {
   InMemoryEventLocationRepository,
   InMemoryPlaceAliasRepository,
   InMemoryPlaceCacheRepository,
+  InMemoryPlaceEvidenceRepository,
   InMemoryPlaceRepository,
   InMemoryParsedEventRepository,
   InMemoryRegionRepository,
@@ -83,6 +84,7 @@ export function createWorkerCompositionRoot(options: WorkerCompositionOptions = 
   const regions = new InMemoryRegionRepository();
   const places = new InMemoryPlaceRepository();
   const aliases = new InMemoryPlaceAliasRepository();
+  const placeEvidence = new InMemoryPlaceEvidenceRepository();
   const placeCache = options.placeCacheRepository ?? new InMemoryPlaceCacheRepository();
   const classifier = new RuleBasedEventClassifier();
   const geoCatalog = options.geoCatalog ?? GeoCatalog.loadFromArtifacts();
@@ -119,7 +121,7 @@ export function createWorkerCompositionRoot(options: WorkerCompositionOptions = 
 
   const resolution = new LocationResolutionService(steps);
   const pipeline = new ParsePipelineService(classifier, resolution);
-  const validation = new GeoValidationService(regions, places, aliases);
+  const validation = new GeoValidationService(regions, places, aliases, placeEvidence);
 
   const ingestRawMessageHandler = new IngestRawMessageHandler(rawMessages, bus);
   const parseRawMessageHandler = new ParseRawMessageHandler(

@@ -25,8 +25,18 @@
 
 - Назначение: города/районы/локалитеты (`kind`).
 - Ключевые поля: `region_id`, `kind`, `name`, `name_with_type`, `name_normalized`, `fias_id`, `kladr_id`, `oktmo`, `parent_place_id`, `source_meta`, `last_source_revision`.
+- Поля trust/provenance: `trust_state`, `is_trusted`, `trust_score`, `trust_updated_at`, `evidence_providers`.
 - Геометрия также хранится ссылкой через `geometry_artifact_key` -> `geo_dataset_file.artifact_key`.
 - Важно: `place` в проекте = "место" (город, район, населенный пункт и т.п.).
+
+### `place_evidence` (история подтверждений place)
+
+- Назначение: append-only журнал доказательств по месту из realtime/batch enrichment.
+- Ключевые поля: `place_id`, `provider`, `action`, `confidence`, `payload`, `trace_id`, `created_at`.
+- Используется для:
+  - последующего повышения доверия (`unverified -> verified`),
+  - объяснимости в UI/админке (кто и когда подтвердил place),
+  - аудита качества enricher-ов.
 
 ### `place_aliases` (алиасы для матчинга)
 

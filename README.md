@@ -115,6 +115,8 @@ flowchart LR
 - Ответ провайдера матчится с каталогом (`fias -> alias -> name+region`).
 - Если place найден: добавляется alias из сырого текста и дозаполняются missing-поля.
 - Если place не найден, но валидация проходит: place создается и становится searchable для следующих сообщений.
+- Для place хранится trust/provenance: `trust_state`, `is_trusted`, `trust_score`, `evidence_providers`.
+- `place_evidence` хранит append-only историю подтверждений/кандидатов (`candidate|confirm|reject|enrich`) по провайдерам.
 - `place_cache` хранит provider-aware техлог запросов и не заменяет основной каталог `places`.
 
 ## ⚙️ Текущий статус репозитория

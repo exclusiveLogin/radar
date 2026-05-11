@@ -7,8 +7,16 @@
   RawMessage,
 } from "@radar/shared";
 import type { GeoValidationService } from "../parsing/geoValidationService.js";
+import type { GeoValidationContext } from "../parsing/geoValidationService.js";
 import type { ParsePipelineService } from "../parsing/parsePipelineService.js";
 import { buildDomainEvent } from "./domainEventFactory.js";
+
+function toProviderHint(
+  provider: "dadata" | "nominatim" | "llm" | undefined,
+): GeoValidationContext["providerHint"] | undefined {
+  if (!provider) return undefined;
+  return provider;
+}
 
 export class ParseRawMessageHandler {
   constructor(
@@ -41,9 +49,22 @@ async handle(raw: RawMessage): Promise<void> {
       return;
     }
 
+    const enrich = pipelineResult.report.enrich ?? {
+      invoked: false,
+      cacheHit: false,
+      providersTried: [] as string[],
+    };
+    const primaryProvider = enrich.providersTried[0] as
+      | "dadata"
+      | "nominatim"
+      | "llm"
+      | undefined;
+
     const validatedLocations = [];
     for (const location of pipelineResult.locations) {
-      const validated = await this.validation.validate(raw.rawText, location);
+      const validated = await this.validation.validate(raw.rawText, location, {
+        providerHint: toProviderHint(primaryProvider),
+      });
       if (validated.location) {
         validatedLocations.push(validated.location);
       }
@@ -56,8 +77,6 @@ async handle(raw: RawMessage): Promise<void> {
       locations: validatedLocations,
     };
 
-    const enrich = pipelineResult.report.enrich ?? { invoked: false, cacheHit: false, providersTried: [] as string[] };
-    const primaryProvider = enrich.providersTried[0] as "dadata" | "nominatim" | "llm" | undefined;
     const telemetryEvents: DomainEvent[] = [];
 
     if (enrich.invoked) {

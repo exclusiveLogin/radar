@@ -35,6 +35,15 @@ export class TypeOrmPlaceRepository implements IPlaceRepository {
       geometryArtifactKey: row.geometryArtifactKey ?? undefined,
       sourceMeta: undefined,
       lastSourceRevision: row.lastSourceRevision ?? undefined,
+      trustState: row.trustState,
+      isTrusted: row.isTrusted,
+      trustScore: row.trustScore !== null ? Number(row.trustScore) : undefined,
+      trustUpdatedAt: row.trustUpdatedAt?.toISOString(),
+      evidenceProviders:
+        row.evidenceProviders?.filter(
+          (provider): provider is "catalog" | "dadata" | "nominatim" | "llm" | "operator" | "system" =>
+            typeof provider === "string",
+        ) ?? [],
     };
   }
 
@@ -70,6 +79,12 @@ export class TypeOrmPlaceRepository implements IPlaceRepository {
       geometryArtifactKey: place.geometryArtifactKey ?? null,
       lastSyncedAt: new Date(),
       lastSourceRevision: place.lastSourceRevision ?? null,
+      trustState: place.trustState ?? "unverified",
+      isTrusted: place.isTrusted ?? false,
+      trustScore:
+        place.trustScore !== undefined ? place.trustScore.toFixed(3) : null,
+      trustUpdatedAt: place.trustUpdatedAt ? new Date(place.trustUpdatedAt) : null,
+      evidenceProviders: place.evidenceProviders ?? [],
       isActive: true,
     });
   }

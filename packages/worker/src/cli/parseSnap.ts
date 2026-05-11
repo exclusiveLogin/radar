@@ -12,6 +12,7 @@ import {
 import { GeoValidationService } from "../application/parsing/geoValidationService.js";
 import {
   InMemoryPlaceAliasRepository,
+  InMemoryPlaceEvidenceRepository,
   InMemoryPlaceRepository,
   InMemoryRegionRepository,
 } from "../application/handlers/inMemoryRepositories.js";
@@ -52,7 +53,8 @@ type ParsedCli = {
   enrichNominatim: boolean;
   enrichLlm: boolean;
   pipelineOrder: PipelineStepId[] | undefined;
-};function parseParseSnapCli(argv: string[]): ParsedCli {
+};
+function parseParseSnapCli(argv: string[]): ParsedCli {
   const map = parseLongFlagsMap(argv);
   const positionalArgs = parsePositionalArgs(argv);
   const filePathArg = positionalArgs[0] ?? "";
@@ -70,13 +72,15 @@ type ParsedCli = {
         : undefined,
     ),
   };
-}function resolveInputPath(arg: string): string {
+}
+function resolveInputPath(arg: string): string {
   if (path.isAbsolute(arg)) return arg;
   const local = path.resolve(process.cwd(), arg);
   if (fs.existsSync(local)) return local;
   const repoRelative = path.resolve(process.cwd(), "../../", arg);
   return repoRelative;
-}function buildSummary(kinds: Array<"event" | "noise" | "meta">): ParseSummary {
+}
+function buildSummary(kinds: Array<"event" | "noise" | "meta">): ParseSummary {
   const totalBlocks = kinds.length;
   const events = kinds.filter((x) => x === "event").length;
   const noise = kinds.filter((x) => x === "noise").length;
@@ -88,7 +92,8 @@ type ParsedCli = {
     meta,
     eventShare: totalBlocks > 0 ? Number((events / totalBlocks).toFixed(4)) : 0,
   };
-}function buildRuntimeOptions(cli: ParsedCli): WorkerCompositionOptions {
+}
+function buildRuntimeOptions(cli: ParsedCli): WorkerCompositionOptions {
   if (!cli.withGeoReport) {
     return {
       storageMode: cli.storageMode,
@@ -106,7 +111,8 @@ type ParsedCli = {
     pipelineOrder: cli.pipelineOrder,
     llmRuntimeOverride: cli.enrichLlm ? { enabled: true } : undefined,
   };
-}async function main(): Promise<void> {
+}
+async function main(): Promise<void> {
   loadRootEnv(MONOREPO_ROOT);
   const cli = parseParseSnapCli(process.argv);
   if (!cli.filePathArg) {
@@ -152,6 +158,7 @@ type ParsedCli = {
       new InMemoryRegionRepository(),
       new InMemoryPlaceRepository(),
       new InMemoryPlaceAliasRepository(),
+      new InMemoryPlaceEvidenceRepository(),
     );
     let known = 0;
     let created = 0;

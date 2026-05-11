@@ -2,12 +2,14 @@ import type {
   EventLocation,
   IPlaceAliasRepository,
   IPlaceCacheRepository,
+  IPlaceEvidenceRepository,
   IPlaceRepository,
   IRegionRepository,
   IEventLocationRepository,
   IParsedEventRepository,
   IRawMessageRepository,
   PlaceAliasRecord,
+  PlaceEvidenceRecord,
   PlaceRecord,
   ParsedEvent,
   RegionRecord,
@@ -16,7 +18,8 @@ import type {
 import { randomUUID } from "node:crypto";
 
 export class InMemoryRawMessageRepository implements IRawMessageRepository {
-  private readonly byHash = new Map<string, { id: string; raw: RawMessage }>();async upsert(raw: RawMessage): Promise<{ inserted: boolean; id: string }> {
+  private readonly byHash = new Map<string, { id: string; raw: RawMessage }>();
+async upsert(raw: RawMessage): Promise<{ inserted: boolean; id: string }> {
     const existing = this.byHash.get(raw.hash);
     if (existing) return { inserted: false, id: existing.id };
     const id = randomUUID();
@@ -26,7 +29,8 @@ export class InMemoryRawMessageRepository implements IRawMessageRepository {
 }
 
 export class InMemoryParsedEventRepository implements IParsedEventRepository {
-  private readonly rows = new Map<string, ParsedEvent>();async upsert(parsed: ParsedEvent): Promise<{ id: string }> {
+  private readonly rows = new Map<string, ParsedEvent>();
+async upsert(parsed: ParsedEvent): Promise<{ id: string }> {
     const id = randomUUID();
     this.rows.set(id, parsed);
     return { id };
@@ -34,7 +38,8 @@ export class InMemoryParsedEventRepository implements IParsedEventRepository {
 }
 
 export class InMemoryEventLocationRepository implements IEventLocationRepository {
-  private readonly rows = new Map<string, EventLocation[]>();async replaceForParsedEvent(parsedEventId: string, locations: EventLocation[]): Promise<void> {
+  private readonly rows = new Map<string, EventLocation[]>();
+async replaceForParsedEvent(parsedEventId: string, locations: EventLocation[]): Promise<void> {
     this.rows.set(parsedEventId, locations);
   }
 }
@@ -76,11 +81,14 @@ export class InMemoryRegionRepository implements IRegionRepository {
     for (const row of seed) {
       this.rows.set(row.code, row);
     }
-  }async findByCode(code: string): Promise<RegionRecord | null> {
+  }
+async findByCode(code: string): Promise<RegionRecord | null> {
     return this.rows.get(code) ?? null;
-  }async listActive(): Promise<RegionRecord[]> {
+  }
+async listActive(): Promise<RegionRecord[]> {
     return [...this.rows.values()];
-  }async upsertMany(regions: RegionRecord[]): Promise<void> {
+  }
+async upsertMany(regions: RegionRecord[]): Promise<void> {
     for (const row of regions) {
       this.rows.set(row.code, row);
     }
@@ -88,16 +96,19 @@ export class InMemoryRegionRepository implements IRegionRepository {
 }
 
 export class InMemoryPlaceRepository implements IPlaceRepository {
-  private readonly rows = new Map<string, PlaceRecord>();async findById(id: string): Promise<PlaceRecord | null> {
+  private readonly rows = new Map<string, PlaceRecord>();
+async findById(id: string): Promise<PlaceRecord | null> {
     return this.rows.get(id) ?? null;
-  }async findByFias(fiasId: string): Promise<PlaceRecord | null> {
+  }
+async findByFias(fiasId: string): Promise<PlaceRecord | null> {
     for (const row of this.rows.values()) {
       if (row.fiasId === fiasId) {
         return row;
       }
     }
     return null;
-  }async findByNameInRegion(
+  }
+async findByNameInRegion(
     name: string,
     regionId: string,
   ): Promise<PlaceRecord | null> {
@@ -111,9 +122,11 @@ export class InMemoryPlaceRepository implements IPlaceRepository {
       }
     }
     return null;
-  }async listActive(): Promise<PlaceRecord[]> {
+  }
+async listActive(): Promise<PlaceRecord[]> {
     return [...this.rows.values()];
-  }async upsertMany(places: PlaceRecord[]): Promise<void> {
+  }
+async upsertMany(places: PlaceRecord[]): Promise<void> {
     for (const row of places) {
       this.rows.set(row.id, row);
     }
@@ -121,7 +134,8 @@ export class InMemoryPlaceRepository implements IPlaceRepository {
 }
 
 export class InMemoryPlaceAliasRepository implements IPlaceAliasRepository {
-  private readonly rows = new Map<string, PlaceAliasRecord>();async findByAlias(aliasNormalized: string): Promise<PlaceAliasRecord[]> {
+  private readonly rows = new Map<string, PlaceAliasRecord>();
+async findByAlias(aliasNormalized: string): Promise<PlaceAliasRecord[]> {
     const result: PlaceAliasRecord[] = [];
     for (const row of this.rows.values()) {
       if (row.aliasNormalized === aliasNormalized) {
@@ -129,9 +143,11 @@ export class InMemoryPlaceAliasRepository implements IPlaceAliasRepository {
       }
     }
     return result;
-  }async listActive(): Promise<PlaceAliasRecord[]> {
+  }
+async listActive(): Promise<PlaceAliasRecord[]> {
     return [...this.rows.values()];
-  }async upsertAlias(input: {
+  }
+async upsertAlias(input: {
     targetKind: "region" | "place";
     regionId?: string;
     placeId?: string;
@@ -154,7 +170,8 @@ export class InMemoryPlaceAliasRepository implements IPlaceAliasRepository {
       placeId: input.placeId,
       source: input.source,
     });
-  }async upsertMany(aliases: PlaceAliasRecord[]): Promise<void> {
+  }
+async upsertMany(aliases: PlaceAliasRecord[]): Promise<void> {
     for (const row of aliases) {
       const key = `${row.targetKind}:${row.regionId ?? ""}:${row.placeId ?? ""}:${row.aliasNormalized}`;
       this.rows.set(key, row);
@@ -172,7 +189,8 @@ export class InMemoryPlaceCacheRepository implements IPlaceCacheRepository {
       validatedAt?: string;
       confidence?: number;
     }
-  >();async get(
+  >();
+async get(
     queryNorm: string,
     provider?: "dadata" | "nominatim" | "llm",
   ): Promise<
@@ -194,7 +212,8 @@ export class InMemoryPlaceCacheRepository implements IPlaceCacheRepository {
       }
     }
     return null;
-  }async put(
+  }
+async put(
     queryNorm: string,
     provider: "dadata" | "nominatim" | "llm",
     value: Record<string, unknown>,
@@ -212,5 +231,20 @@ export class InMemoryPlaceCacheRepository implements IPlaceCacheRepository {
       validatedAt: meta?.validatedAt,
       confidence: meta?.confidence,
     });
+  }
+}
+
+export class InMemoryPlaceEvidenceRepository implements IPlaceEvidenceRepository {
+  private readonly rows = new Map<string, PlaceEvidenceRecord[]>();
+
+  async append(record: PlaceEvidenceRecord): Promise<void> {
+    const current = this.rows.get(record.placeId) ?? [];
+    current.push(record);
+    this.rows.set(record.placeId, current);
+  }
+
+  async listByPlace(placeId: string, limit: number): Promise<PlaceEvidenceRecord[]> {
+    const rows = this.rows.get(placeId) ?? [];
+    return rows.slice(-limit).reverse();
   }
 }

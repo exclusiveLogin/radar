@@ -5,6 +5,7 @@ export { TypeOrmIngestCursorRepository } from "./typeorm-ingest-cursor.repositor
 export { TypeOrmParsedEventRepository } from "./typeorm-parsed-event.repository";
 export { TypeOrmPlaceAliasRepository } from "./typeorm-place-alias.repository";
 export { TypeOrmPlaceCacheRepository } from "./typeorm-place-cache.repository";
+export { TypeOrmPlaceEvidenceRepository } from "./typeorm-place-evidence.repository";
 export { TypeOrmPlaceRepository } from "./typeorm-place.repository";
 export { TypeOrmPlaceStatusHistoryRepository } from "./typeorm-place-status-history.repository";
 export { TypeOrmPlaceStatusRepository } from "./typeorm-place-status.repository";

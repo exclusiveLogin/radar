@@ -5,4 +5,4 @@ export { PlaceEntity } from "./place.entity";
 export { RegionEntity } from "./region.entity";
 
 // --- type-only exports ---
-export type { PlaceKind } from "./place.entity";
+export type { PlaceKind, PlaceTrustState } from "./place.entity";

@@ -33,6 +33,11 @@ export type PlaceRecord = {
   geometryArtifactKey?: string;
   sourceMeta?: Record<string, unknown>;
   lastSourceRevision?: string;
+  trustState?: "unverified" | "partially_verified" | "verified" | "rejected";
+  isTrusted?: boolean;
+  trustScore?: number;
+  trustUpdatedAt?: string;
+  evidenceProviders?: Array<"catalog" | "dadata" | "nominatim" | "llm" | "operator" | "system">;
 };
 
 export type PlaceAliasRecord = {
@@ -70,6 +75,17 @@ export type PlaceStatusHistoryRecord = {
   source: "parser" | "operator" | "system";
   eventAt: string;
   meta?: Record<string, unknown>;
+};
+
+export type PlaceEvidenceRecord = {
+  id: string;
+  placeId: string;
+  provider: "catalog" | "dadata" | "nominatim" | "llm" | "operator" | "system";
+  action: "candidate" | "confirm" | "reject" | "enrich";
+  confidence?: number;
+  payload?: Record<string, unknown>;
+  traceId?: string;
+  createdAt: string;
 };
 
 export interface IRegionRepository {
@@ -156,6 +172,11 @@ export interface IPlaceStatusRepository {
 export interface IPlaceStatusHistoryRepository {
   append(record: PlaceStatusHistoryRecord): Promise<void>;
   listByPlace(placeId: string, limit: number): Promise<PlaceStatusHistoryRecord[]>;
+}
+
+export interface IPlaceEvidenceRepository {
+  append(record: PlaceEvidenceRecord): Promise<void>;
+  listByPlace(placeId: string, limit: number): Promise<PlaceEvidenceRecord[]>;
 }
 
 export interface ISyncAuditRepository {

@@ -3,6 +3,7 @@ import { PlaceAliasEntity } from "./place-alias.entity";
 import { RegionEntity } from "./region.entity";
 
 export type PlaceKind = "district" | "city" | "locality" | "settlement" | "urban_okrug" | "mo_go";
+export type PlaceTrustState = "unverified" | "partially_verified" | "verified" | "rejected";
 
 @Entity({ name: "places" })
 export class PlaceEntity {
@@ -73,6 +74,21 @@ export class PlaceEntity {
 
   @Column({ name: "last_source_revision", type: "text", nullable: true })
   lastSourceRevision!: string | null;
+
+  @Column({ name: "trust_state", type: "text", default: "unverified" })
+  trustState!: PlaceTrustState;
+
+  @Column({ name: "is_trusted", type: "boolean", default: false })
+  isTrusted!: boolean;
+
+  @Column({ name: "trust_score", type: "numeric", precision: 4, scale: 3, nullable: true })
+  trustScore!: string | null;
+
+  @Column({ name: "trust_updated_at", type: "timestamptz", nullable: true })
+  trustUpdatedAt!: Date | null;
+
+  @Column({ name: "evidence_providers", type: "jsonb", default: () => "'[]'::jsonb" })
+  evidenceProviders!: string[];
 
   @CreateDateColumn({ name: "created_at", type: "timestamptz" })
   createdAt!: Date;
