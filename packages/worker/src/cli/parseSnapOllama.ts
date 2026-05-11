@@ -6,8 +6,11 @@ import { splitMessageBlocks } from "../domain/parsing/index.js";
 import { loadRootEnv } from "../infrastructure/config/loadRootEnv.js";
 import {
   WorkerStorageMode,
-  resolveWorkerStorageMode,
 } from "../infrastructure/persistence/storageMode.js";
+import {
+  parseLongFlagsMap,
+  parseStorageModeFromMap,
+} from "./workerCliArgs.js";
 
 type CliOptions = {
   input: string;
@@ -16,33 +19,8 @@ type CliOptions = {
   baseUrl?: string;
 };
 
-function readStringFlag(
-  map: Map<string, string | true>,
-  keys: readonly string[],
-): string | undefined {
-  for (const key of keys) {
-    const value = map.get(key);
-    if (typeof value === "string") {
-      return value;
-    }
-  }
-  return undefined;
-}
-
 function parseArgs(argv: string[]): CliOptions {
-  const map = new Map<string, string | true>();
-  for (let i = 2; i < argv.length; i += 1) {
-    const token = argv[i];
-    if (!token.startsWith("--")) continue;
-    const key = token.slice(2);
-    const next = argv[i + 1];
-    if (next && !next.startsWith("--")) {
-      map.set(key, next);
-      i += 1;
-    } else {
-      map.set(key, true);
-    }
-  }
+  const map = parseLongFlagsMap(argv);
 
   const input = map.get("input");
   if (typeof input !== "string" || input.trim() === "") {
@@ -53,10 +31,7 @@ function parseArgs(argv: string[]): CliOptions {
 
   return {
     input,
-    storageMode: resolveWorkerStorageMode(
-      readStringFlag(map, ["storage-mode", "storage"]),
-      WorkerStorageMode.Memory,
-    ),
+    storageMode: parseStorageModeFromMap(map, WorkerStorageMode.Memory),
     model: typeof map.get("model") === "string" ? String(map.get("model")) : undefined,
     baseUrl:
       typeof map.get("base-url") === "string"

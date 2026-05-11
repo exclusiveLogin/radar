@@ -2,6 +2,7 @@ import type { IPlaceRepository, PlaceRecord } from "@radar/shared";
 import type { DataSource } from "typeorm";
 import { PlaceEntity } from "../../geo/entities";
 
+/** Normalizes place name for deterministic search/upsert keys. */
 function normalizeName(value: string): string {
   return value
     .toLowerCase()
@@ -14,56 +15,90 @@ function normalizeName(value: string): string {
 export class TypeOrmPlaceRepository implements IPlaceRepository {
   constructor(private readonly dataSource: DataSource) {}
 
+  /** Returns Place repository instance bound to current data source. */
+  private repo() {
+    return this.dataSource.getRepository(PlaceEntity);
+  }
+
+  /** Maps TypeORM place entity into domain place record. */
+  private toRecord(row: PlaceEntity): PlaceRecord {
+    return {
+      id: row.id,
+      regionId: row.regionId,
+      parentPlaceId: row.parentPlaceId ?? undefined,
+      kind: row.kind,
+      name: row.name,
+      nameWithType: row.nameWithType ?? undefined,
+      fiasId: row.fiasId ?? undefined,
+      kladrId: row.kladrId ?? undefined,
+      oktmo: row.oktmo ?? undefined,
+      geometryArtifactKey: row.geometryArtifactKey ?? undefined,
+      sourceMeta: undefined,
+      lastSourceRevision: row.lastSourceRevision ?? undefined,
+    };
+  }
+
+  /** Finds existing place row by FIAS or natural key in region. */
+  private async findExistingPlace(
+    place: PlaceRecord,
+    normalizedName: string,
+  ): Promise<PlaceEntity | null> {
+    return this.repo().findOne({
+      where: place.fiasId
+        ? [{ fiasId: place.fiasId }, { regionId: place.regionId, kind: place.kind, nameNormalized: normalizedName }]
+        : [{ regionId: place.regionId, kind: place.kind, nameNormalized: normalizedName }],
+    });
+  }
+
+  /** Converts place record into TypeORM entity for upsert save. */
+  private toEntity(
+    place: PlaceRecord,
+    normalizedName: string,
+    existingId?: string,
+  ): PlaceEntity {
+    return this.repo().create({
+      id: existingId ?? place.id,
+      regionId: place.regionId,
+      parentPlaceId: place.parentPlaceId ?? null,
+      kind: place.kind,
+      name: place.name,
+      nameWithType: place.nameWithType ?? null,
+      nameNormalized: normalizedName,
+      fiasId: place.fiasId ?? null,
+      kladrId: place.kladrId ?? null,
+      oktmo: place.oktmo ?? null,
+      geometryArtifactKey: place.geometryArtifactKey ?? null,
+      lastSyncedAt: new Date(),
+      lastSourceRevision: place.lastSourceRevision ?? null,
+      isActive: true,
+    });
+  }
+
+  /** Finds place by id. */
   async findById(id: string): Promise<PlaceRecord | null> {
-    const row = await this.dataSource.getRepository(PlaceEntity).findOne({ where: { id } });
+    const row = await this.repo().findOne({ where: { id } });
     if (!row) {
       return null;
     }
-    return {
-      id: row.id,
-      regionId: row.regionId,
-      parentPlaceId: row.parentPlaceId ?? undefined,
-      kind: row.kind,
-      name: row.name,
-      nameWithType: row.nameWithType ?? undefined,
-      fiasId: row.fiasId ?? undefined,
-      kladrId: row.kladrId ?? undefined,
-      oktmo: row.oktmo ?? undefined,
-      geometryArtifactKey: row.geometryArtifactKey ?? undefined,
-      sourceMeta: undefined,
-      lastSourceRevision: row.lastSourceRevision ?? undefined,
-    };
+    return this.toRecord(row);
   }
 
+  /** Finds place by FIAS id. */
   async findByFias(fiasId: string): Promise<PlaceRecord | null> {
-    const row = await this.dataSource
-      .getRepository(PlaceEntity)
-      .findOne({ where: { fiasId } });
+    const row = await this.repo().findOne({ where: { fiasId } });
     if (!row) {
       return null;
     }
-    return {
-      id: row.id,
-      regionId: row.regionId,
-      parentPlaceId: row.parentPlaceId ?? undefined,
-      kind: row.kind,
-      name: row.name,
-      nameWithType: row.nameWithType ?? undefined,
-      fiasId: row.fiasId ?? undefined,
-      kladrId: row.kladrId ?? undefined,
-      oktmo: row.oktmo ?? undefined,
-      geometryArtifactKey: row.geometryArtifactKey ?? undefined,
-      sourceMeta: undefined,
-      lastSourceRevision: row.lastSourceRevision ?? undefined,
-    };
+    return this.toRecord(row);
   }
 
+  /** Finds place by normalized name scoped to region. */
   async findByNameInRegion(
     name: string,
     regionId: string,
   ): Promise<PlaceRecord | null> {
     const normalized = normalizeName(name);
-    const row = await this.dataSource.getRepository(PlaceEntity).findOne({
+    const row = await this.repo().findOne({
       where: {
         regionId,
         nameNormalized: normalized,
@@ -72,69 +107,24 @@ export class TypeOrmPlaceRepository implements IPlaceRepository {
     if (!row) {
       return null;
     }
-    return {
-      id: row.id,
-      regionId: row.regionId,
-      parentPlaceId: row.parentPlaceId ?? undefined,
-      kind: row.kind,
-      name: row.name,
-      nameWithType: row.nameWithType ?? undefined,
-      fiasId: row.fiasId ?? undefined,
-      kladrId: row.kladrId ?? undefined,
-      oktmo: row.oktmo ?? undefined,
-      geometryArtifactKey: row.geometryArtifactKey ?? undefined,
-      sourceMeta: undefined,
-      lastSourceRevision: row.lastSourceRevision ?? undefined,
-    };
+    return this.toRecord(row);
   }
 
+  /** Returns all active places as domain records. */
   async listActive(): Promise<PlaceRecord[]> {
-    const rows = await this.dataSource.getRepository(PlaceEntity).find({
+    const rows = await this.repo().find({
       where: { isActive: true },
     });
-    return rows.map((row) => ({
-      id: row.id,
-      regionId: row.regionId,
-      parentPlaceId: row.parentPlaceId ?? undefined,
-      kind: row.kind,
-      name: row.name,
-      nameWithType: row.nameWithType ?? undefined,
-      fiasId: row.fiasId ?? undefined,
-      kladrId: row.kladrId ?? undefined,
-      oktmo: row.oktmo ?? undefined,
-      geometryArtifactKey: row.geometryArtifactKey ?? undefined,
-      sourceMeta: undefined,
-      lastSourceRevision: row.lastSourceRevision ?? undefined,
-    }));
+    return rows.map((row) => this.toRecord(row));
   }
 
+  /** Upserts batch of places with deterministic identity matching. */
   async upsertMany(places: PlaceRecord[]): Promise<void> {
     if (places.length === 0) return;
-    const repo = this.dataSource.getRepository(PlaceEntity);
-    for (const p of places) {
-      const normalizedName = normalizeName(p.name);
-      const existing = await repo.findOne({
-        where: p.fiasId
-          ? [{ fiasId: p.fiasId }, { regionId: p.regionId, kind: p.kind, nameNormalized: normalizedName }]
-          : [{ regionId: p.regionId, kind: p.kind, nameNormalized: normalizedName }],
-      });
-      const row = repo.create({
-        id: existing?.id ?? p.id,
-        regionId: p.regionId,
-        parentPlaceId: p.parentPlaceId ?? null,
-        kind: p.kind,
-        name: p.name,
-        nameWithType: p.nameWithType ?? null,
-        nameNormalized: normalizedName,
-        fiasId: p.fiasId ?? null,
-        kladrId: p.kladrId ?? null,
-        oktmo: p.oktmo ?? null,
-        geometryArtifactKey: p.geometryArtifactKey ?? null,
-        lastSyncedAt: new Date(),
-        lastSourceRevision: p.lastSourceRevision ?? null,
-        isActive: true,
-      });
-      await repo.save(row);
+    for (const place of places) {
+      const normalizedName = normalizeName(place.name);
+      const existing = await this.findExistingPlace(place, normalizedName);
+      await this.repo().save(this.toEntity(place, normalizedName, existing?.id));
     }
   }
 }

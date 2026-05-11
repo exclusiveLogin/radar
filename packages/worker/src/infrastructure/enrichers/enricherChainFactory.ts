@@ -1,4 +1,3 @@
-import { CompositeEnricher } from "./compositeEnricher.js";
 import { loadLlmRuntimeConfig } from "./llmRuntimeConfig.js";
 
 const truthy = new Set(["1", "true", "yes", "on"]);
@@ -29,6 +28,12 @@ export function resolveEnricherFlagsFromEnv(env = process.env): ResolvedEnricher
 // ─── Pipeline order ───────────────────────────────────────────────────────
 
 export type PipelineStepId = "catalog" | "llm" | "dadata" | "nominatim";
+const pipelineStepIdSet = new Set<PipelineStepId>([
+  "catalog",
+  "llm",
+  "dadata",
+  "nominatim",
+]);
 
 /**
  * Default execution order. `catalog` is cheap and feeds regionCode into later steps.
@@ -48,11 +53,10 @@ export const DEFAULT_PIPELINE_ORDER: PipelineStepId[] = [
 export function resolvePipelineOrderFromEnv(env = process.env): PipelineStepId[] | undefined {
   const raw = env.RADAR_GEO_PIPELINE_ORDER;
   if (!raw?.trim()) return undefined;
-  const valid = new Set<PipelineStepId>(["catalog", "llm", "dadata", "nominatim"]);
   const parsed = raw
     .split(",")
     .map((s) => s.trim().toLowerCase() as PipelineStepId)
-    .filter((s) => valid.has(s));
+    .filter((s) => pipelineStepIdSet.has(s));
   return parsed.length > 0 ? parsed : undefined;
 }
 

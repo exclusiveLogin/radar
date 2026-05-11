@@ -2,6 +2,7 @@ import type { IRegionRepository, RegionRecord } from "@radar/shared";
 import type { DataSource } from "typeorm";
 import { RegionEntity } from "../../geo/entities";
 
+/** Maps TypeORM region entity into domain-level region record. */
 function toRegionRecord(row: RegionEntity): RegionRecord {
   return {
     id: row.id,
@@ -24,8 +25,46 @@ function toRegionRecord(row: RegionEntity): RegionRecord {
 export class TypeOrmRegionRepository implements IRegionRepository {
   constructor(private readonly dataSource: DataSource) {}
 
+  /** Returns Region repository instance bound to current data source. */
+  private repo() {
+    return this.dataSource.getRepository(RegionEntity);
+  }
+
+  /** Finds existing persisted region that matches incoming record identity. */
+  private async findExistingRegion(
+    record: RegionRecord,
+  ): Promise<RegionEntity | null> {
+    return this.repo().findOne({
+      where: record.fiasId
+        ? [{ fiasId: record.fiasId }, { iso: record.iso ?? record.code }, { name: record.name }]
+        : [{ iso: record.iso ?? record.code }, { name: record.name }],
+    });
+  }
+
+  /** Converts region record into TypeORM entity for upsert save. */
+  private toEntity(record: RegionRecord, existingId?: string): RegionEntity {
+    return this.repo().create({
+      id: existingId ?? record.id,
+      fiasId: record.fiasId ?? null,
+      kladrId: record.kladrId ?? null,
+      iso: record.iso ?? record.code ?? null,
+      name: record.name,
+      nameWithType: record.nameWithType ?? null,
+      shortName: record.shortName ?? null,
+      federalDistrict: record.federalDistrict ?? null,
+      geometryArtifactKey: record.geometryArtifactKey ?? null,
+      sourceMeta: record.sourceMeta ?? {},
+      lastSyncedAt: new Date(),
+      lastSourceRevision: record.lastSourceRevision ?? null,
+      isActive: true,
+      frontRegion: record.frontRegion,
+      borderRegion: record.borderRegion,
+    });
+  }
+
+  /** Finds region by business code aliases (FIAS/ISO/name). */
   async findByCode(code: string): Promise<RegionRecord | null> {
-    const row = await this.dataSource.getRepository(RegionEntity).findOne({
+    const row = await this.repo().findOne({
       where: [{ fiasId: code }, { iso: code }, { name: code }],
     });
     if (!row) {
@@ -34,40 +73,20 @@ export class TypeOrmRegionRepository implements IRegionRepository {
     return toRegionRecord(row);
   }
 
+  /** Returns all active regions as domain records. */
   async listActive(): Promise<RegionRecord[]> {
-    const rows = await this.dataSource.getRepository(RegionEntity).find({
+    const rows = await this.repo().find({
       where: { isActive: true },
     });
     return rows.map(toRegionRecord);
   }
 
+  /** Upserts batch of regions one by one with identity matching. */
   async upsertMany(regions: RegionRecord[]): Promise<void> {
     if (regions.length === 0) return;
-    const repo = this.dataSource.getRepository(RegionEntity);
-    for (const r of regions) {
-      const existing = await repo.findOne({
-        where: r.fiasId
-          ? [{ fiasId: r.fiasId }, { iso: r.iso ?? r.code }, { name: r.name }]
-          : [{ iso: r.iso ?? r.code }, { name: r.name }],
-      });
-      const row = repo.create({
-        id: existing?.id ?? r.id,
-        fiasId: r.fiasId ?? null,
-        kladrId: r.kladrId ?? null,
-        iso: r.iso ?? r.code ?? null,
-        name: r.name,
-        nameWithType: r.nameWithType ?? null,
-        shortName: r.shortName ?? null,
-        federalDistrict: r.federalDistrict ?? null,
-        geometryArtifactKey: r.geometryArtifactKey ?? null,
-        sourceMeta: r.sourceMeta ?? {},
-        lastSyncedAt: new Date(),
-        lastSourceRevision: r.lastSourceRevision ?? null,
-        isActive: true,
-        frontRegion: r.frontRegion,
-        borderRegion: r.borderRegion,
-      });
-      await repo.save(row);
+    for (const region of regions) {
+      const existing = await this.findExistingRegion(region);
+      await this.repo().save(this.toEntity(region, existing?.id));
     }
   }
 }

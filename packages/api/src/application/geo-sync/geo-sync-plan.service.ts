@@ -22,6 +22,7 @@ export class GeoSyncPlanService {
     private readonly aliases: IPlaceAliasRepository,
   ) {}
 
+  /** Maps active region rows from storage into draft representation. */
   private toRegionDrafts(rows: Awaited<ReturnType<IRegionRepository["listActive"]>>): RegionDraft[] {
     return rows.map((row) => ({
       fiasId: row.fiasId,
@@ -38,6 +39,7 @@ export class GeoSyncPlanService {
     }));
   }
 
+  /** Maps active place rows from storage into draft representation. */
   private toPlaceDrafts(rows: Awaited<ReturnType<IPlaceRepository["listActive"]>>): PlaceDraft[] {
     return rows.map((row) => ({
       regionCode: row.regionId,
@@ -51,6 +53,7 @@ export class GeoSyncPlanService {
     }));
   }
 
+  /** Maps active alias rows from storage into draft representation. */
   private toAliasDrafts(rows: Awaited<ReturnType<IPlaceAliasRepository["listActive"]>>): AliasDraft[] {
     return rows.map((row) => ({
       targetKind: row.targetKind,
@@ -63,6 +66,7 @@ export class GeoSyncPlanService {
     }));
   }
 
+  /** Adds normalized place-name variants to improve diff for non-FIAS rows. */
   private toNormalizedPlaceDrafts(rows: Awaited<ReturnType<IPlaceRepository["listActive"]>>): PlaceDraft[] {
     return rows.map((row) => ({
       regionCode: row.regionId,
@@ -76,23 +80,36 @@ export class GeoSyncPlanService {
     }));
   }
 
+  /** Loads and prepares current storage state for region/place/alias diffing. */
+  private async loadCurrentDrafts(): Promise<{
+    regions: RegionDraft[];
+    places: PlaceDraft[];
+    aliases: AliasDraft[];
+  }> {
+    const [currentRegionsRaw, currentPlacesRaw, currentAliasesRaw] = await Promise.all([
+      this.regions.listActive(),
+      this.places.listActive(),
+      this.aliases.listActive(),
+    ]);
+
+    const places = this.toPlaceDrafts(currentPlacesRaw);
+    places.push(...this.toNormalizedPlaceDrafts(currentPlacesRaw));
+
+    return {
+      regions: this.toRegionDrafts(currentRegionsRaw),
+      places,
+      aliases: this.toAliasDrafts(currentAliasesRaw),
+    };
+  }
+
+  /** Calculates dry-run sync diff between provider snapshot and current state. */
   async plan(): Promise<GeoSyncPlan> {
     const snapshot = await this.provider.loadSnapshot();
-    const currentRegionsRaw = await this.regions.listActive();
-    const currentPlacesRaw = await this.places.listActive();
-    const currentAliasesRaw = await this.aliases.listActive();
+    const current = await this.loadCurrentDrafts();
 
-    const currentRegions: RegionDraft[] = this.toRegionDrafts(currentRegionsRaw);
-    const currentPlaces: PlaceDraft[] = this.toPlaceDrafts(currentPlacesRaw);
-    const currentAliases: AliasDraft[] = this.toAliasDrafts(currentAliasesRaw);
-
-    // Дополнительно учитываем name+region ключи для places,
-    // чтобы diff корректно видел существующие записи без FIAS.
-    currentPlaces.push(...this.toNormalizedPlaceDrafts(currentPlacesRaw));
-
-    const regionDiff = diffRegions(currentRegions, snapshot.regions);
-    const placeDiff = diffPlaces(currentPlaces, snapshot.places);
-    const aliasDiff = diffAliases(currentAliases, snapshot.aliases);
+    const regionDiff = diffRegions(current.regions, snapshot.regions);
+    const placeDiff = diffPlaces(current.places, snapshot.places);
+    const aliasDiff = diffAliases(current.aliases, snapshot.aliases);
 
     return {
       sourceId: snapshot.sourceId,

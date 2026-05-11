@@ -49,7 +49,7 @@ function collectFirstCoordinate(value: unknown): [number, number] | null {
 
 function normalizeHaystack(rawText: string): string {
   const normalized = normalize(rawText)
-    .replace(/[,;:.!?()\[\]]/g, " ")
+    .replace(/[,;:.!?()[\]]/g, " ")
     .replace(/\s+/g, " ");
   return ` ${normalized} `;
 }

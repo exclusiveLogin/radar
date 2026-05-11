@@ -8,6 +8,8 @@ type FeatureCollection = {
   }>;
 };
 
+type PathKind = "countries" | "federal-districts" | "regions" | "cities" | "unknown";
+
 function toName(props: Record<string, unknown>): string | null {
   return (
     (typeof props.name === "string" && props.name.trim()) ||
@@ -28,15 +30,11 @@ function firstSegmentName(file: string): string {
   return left.trim();
 }
 
-function resolveSourceLayer(options: {
-  inCities: boolean;
-  inRegions: boolean;
-  inFederalDistricts: boolean;
-}): string {
-  const { inCities, inRegions, inFederalDistricts } = options;
-  if (inCities) return "cities";
-  if (inRegions) return "regions";
-  if (inFederalDistricts) return "federal-districts";
+function resolvePathKind(file: string): PathKind {
+  if (file.includes("/Countries/")) return "countries";
+  if (file.includes("/Federal Districts/")) return "federal-districts";
+  if (file.includes("/Regions/")) return "regions";
+  if (file.includes("/Cities/")) return "cities";
   return "unknown";
 }
 
@@ -46,6 +44,81 @@ function readStringProperty(
 ): string | undefined {
   const value = props[key];
   return typeof value === "string" ? value : undefined;
+}
+
+function appendRegionDraft(options: {
+  file: string;
+  featureProps: Record<string, unknown>;
+  regions: GeoProviderSnapshot["regions"];
+  aliases: GeoProviderSnapshot["aliases"];
+}): void {
+  const regionName =
+    typeof options.featureProps.region === "string"
+      ? options.featureProps.region
+      : toName(options.featureProps);
+  if (!regionName) {
+    return;
+  }
+
+  const regionCode = normalizeName(regionName);
+  options.regions.push({
+    iso: regionCode,
+    name: regionName,
+    nameWithType: regionName,
+    geometryArtifactKey: options.file,
+    frontRegion: false,
+    borderRegion: false,
+    sourceMeta: {
+      sourceLayer: "countries",
+    },
+  });
+  options.aliases.push({
+    targetKind: "region",
+    targetExternalKey: regionCode,
+    alias: regionName,
+    source: "auto",
+  });
+}
+
+function appendPlaceDraft(options: {
+  file: string;
+  featureProps: Record<string, unknown>;
+  pathKind: PathKind;
+  regionNameFromFile?: string;
+  places: GeoProviderSnapshot["places"];
+  aliases: GeoProviderSnapshot["aliases"];
+}): void {
+  const placeName =
+    typeof options.featureProps.district === "string"
+      ? options.featureProps.district
+      : toName(options.featureProps);
+  if (!placeName) {
+    return;
+  }
+
+  const regionHint =
+    typeof options.featureProps.region === "string"
+      ? options.featureProps.region
+      : options.regionNameFromFile;
+  const regionCode = regionHint ? normalizeName(regionHint) : "unknown";
+
+  options.places.push({
+    regionCode,
+    kind: "locality",
+    name: placeName,
+    nameWithType: placeName,
+    geometryArtifactKey: options.file,
+    sourceMeta: {
+      sourceLayer: options.pathKind,
+      federalDistrict: readStringProperty(options.featureProps, "Federal District"),
+    },
+  });
+  options.aliases.push({
+    targetKind: "place",
+    targetExternalKey: `${regionCode}:locality:${normalizeName(placeName)}`,
+    alias: placeName,
+    source: "auto",
+  });
 }
 
 export class RussiaGeoJsonOsmProvider implements IGeoSourceProvider {
@@ -62,74 +135,27 @@ export class RussiaGeoJsonOsmProvider implements IGeoSourceProvider {
     for (const file of files.filter((f) => f.endsWith(".geojson"))) {
       const fc = readArtifactsJson<FeatureCollection>(file);
       if (!fc?.features) continue;
-      const inCountries = file.includes("/Countries/");
-      const inFederalDistricts = file.includes("/Federal Districts/");
-      const inRegions = file.includes("/Regions/");
-      const inCities = file.includes("/Cities/");
-      const regionNameFromFile = inRegions ? firstSegmentName(file) : undefined;
+      const pathKind = resolvePathKind(file);
+      const regionNameFromFile = pathKind === "regions" ? firstSegmentName(file) : undefined;
 
       for (const feature of fc.features) {
         if (!feature.properties) continue;
-        if (inCountries) {
-          const regionName =
-            typeof feature.properties.region === "string"
-              ? feature.properties.region
-              : toName(feature.properties);
-          if (!regionName) continue;
-          const regionCode = normalizeName(regionName);
-          regions.push({
-            iso: regionCode,
-            name: regionName,
-            nameWithType: regionName,
-            geometryArtifactKey: file,
-            frontRegion: false,
-            borderRegion: false,
-            sourceMeta: {
-              sourceLayer: "countries",
-            },
-          });
-          aliases.push({
-            targetKind: "region",
-            targetExternalKey: regionCode,
-            alias: regionName,
-            source: "auto",
+        if (pathKind === "countries") {
+          appendRegionDraft({
+            file,
+            featureProps: feature.properties,
+            regions,
+            aliases,
           });
           continue;
         }
-
-        const placeName =
-          typeof feature.properties.district === "string"
-            ? feature.properties.district
-            : toName(feature.properties);
-        if (!placeName) continue;
-        const regionHint =
-          typeof feature.properties.region === "string"
-            ? feature.properties.region
-            : regionNameFromFile;
-        const regionCode = regionHint ? normalizeName(regionHint) : "unknown";
-        places.push({
-          regionCode,
-          kind: "locality",
-          name: placeName,
-          nameWithType: placeName,
-          geometryArtifactKey: file,
-          sourceMeta: {
-            sourceLayer: resolveSourceLayer({
-              inCities,
-              inRegions,
-              inFederalDistricts,
-            }),
-            federalDistrict: readStringProperty(
-              feature.properties,
-              "Federal District",
-            ),
-          },
-        });
-        aliases.push({
-          targetKind: "place",
-          targetExternalKey: `${regionCode}:locality:${normalizeName(placeName)}`,
-          alias: placeName,
-          source: "auto",
+        appendPlaceDraft({
+          file,
+          featureProps: feature.properties,
+          pathKind,
+          regionNameFromFile,
+          places,
+          aliases,
         });
       }
     }

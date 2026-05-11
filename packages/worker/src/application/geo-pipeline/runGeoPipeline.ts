@@ -35,7 +35,7 @@ export async function runGeoPipeline(
         ok: true,
         durationMs: Math.round(performance.now() - t),
       });
-    } catch (err) {
+    } catch {
       stepLog.push({
         id: step.id,
         ok: false,

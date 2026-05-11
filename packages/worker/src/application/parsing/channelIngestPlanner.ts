@@ -20,6 +20,17 @@ function mergeParseConfig(
   return parseConfigSchema.parse({ ...base, ...overrides });
 }
 
+function toPlannedIngest(
+  channel: ChannelManifest["channels"][number],
+  defaultParseConfig: ParseConfig,
+): PlannedChannelIngest {
+  return {
+    channelKey: channel.key,
+    telegramTarget: channel.telegramTarget,
+    effectiveConfig: mergeParseConfig(defaultParseConfig, channel.parseOverrides),
+  };
+}
+
 /**
  * План проходов по каналам (без вызовов Telegram — следующий шаг: хендлеры GramJS + ORM).
  */
@@ -33,13 +44,6 @@ export function planChannelIngests(options: {
   }
 
   return manifest.channels
-    .filter((c) => c.enabled)
-    .map((c) => ({
-      channelKey: c.key,
-      telegramTarget: c.telegramTarget,
-      effectiveConfig: mergeParseConfig(
-        defaultParseConfig,
-        c.parseOverrides,
-      ),
-    }));
+    .filter((channel) => channel.enabled)
+    .map((channel) => toPlannedIngest(channel, defaultParseConfig));
 }

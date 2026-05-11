@@ -19,11 +19,13 @@ type HeaderIndex = {
   geonameName: number;
 };
 
+/** Splits CSV/semicolon line and trims all cells. */
 function parseDelimited(line: string): string[] {
   if (line.includes(";")) return line.split(";").map((x) => x.trim());
   return line.split(",").map((x) => x.trim());
 }
 
+/** Builds indexes for required HFLabs CSV columns. */
 function buildHeaderIndex(header: string[]): HeaderIndex {
   return {
     fias: header.findIndex((h) => h === "fias id"),
@@ -44,12 +46,68 @@ function buildHeaderIndex(header: string[]): HeaderIndex {
   };
 }
 
+/** Returns column value by index, handling missing columns. */
 function getCell(cells: string[], index: number): string | undefined {
   if (index < 0) return undefined;
   return cells[index];
 }
 
+/** Converts one CSV row into region + region aliases drafts. */
+function appendRegionDraft(options: {
+  cells: string[];
+  idx: HeaderIndex;
+  regions: GeoProviderSnapshot["regions"];
+  aliases: GeoProviderSnapshot["aliases"];
+}): void {
+  const name = options.cells[options.idx.name];
+  if (!name) {
+    return;
+  }
+  const fias = getCell(options.cells, options.idx.fias);
+  const nameWithType = getCell(options.cells, options.idx.nameWithType);
+  const shortName = getCell(options.cells, options.idx.shortType);
+
+  options.regions.push({
+    fiasId: fias,
+    kladrId: getCell(options.cells, options.idx.kladr),
+    iso: getCell(options.cells, options.idx.iso),
+    name,
+    nameWithType: nameWithType || name,
+    shortName,
+    federalDistrict: getCell(options.cells, options.idx.federalDistrict),
+    frontRegion: false,
+    borderRegion: false,
+    sourceMeta: {
+      okato: getCell(options.cells, options.idx.okato),
+      oktmo: getCell(options.cells, options.idx.oktmo),
+      taxOffice: getCell(options.cells, options.idx.taxOffice),
+      postalCode: getCell(options.cells, options.idx.postalCode),
+      timezone: getCell(options.cells, options.idx.timezone),
+      geonameCode: getCell(options.cells, options.idx.geonameCode),
+      geonameId: getCell(options.cells, options.idx.geonameId),
+      geonameName: getCell(options.cells, options.idx.geonameName),
+    },
+  });
+
+  const targetExternalKey = fias ?? normalizeName(name);
+  options.aliases.push({
+    targetKind: "region",
+    targetExternalKey,
+    alias: name,
+    source: "auto",
+  });
+  if (nameWithType && normalizeName(nameWithType) !== normalizeName(name)) {
+    options.aliases.push({
+      targetKind: "region",
+      targetExternalKey,
+      alias: nameWithType,
+      source: "auto",
+    });
+  }
+}
+
 export class HflabsRegionProvider implements IGeoSourceProvider {
+  /** Loads region snapshot from HFLabs CSV artifacts. */
   async loadSnapshot(): Promise<GeoProviderSnapshot> {
     const sourceId = "hflabs-region";
     const files = listArtifactKeysByPrefix(sourceId, "reference/hflabs-region");
@@ -68,47 +126,12 @@ export class HflabsRegionProvider implements IGeoSourceProvider {
 
       if (idx.name < 0) continue;
       for (let i = 1; i < lines.length; i += 1) {
-        const cells = parseDelimited(lines[i]);
-        const name = cells[idx.name];
-        if (!name) continue;
-        const fias = getCell(cells, idx.fias);
-        const nameWithType = getCell(cells, idx.nameWithType);
-        const shortName = getCell(cells, idx.shortType);
-        regions.push({
-          fiasId: fias,
-          kladrId: getCell(cells, idx.kladr),
-          iso: getCell(cells, idx.iso),
-          name,
-          nameWithType: nameWithType || name,
-          shortName,
-          federalDistrict: getCell(cells, idx.federalDistrict),
-          frontRegion: false,
-          borderRegion: false,
-          sourceMeta: {
-            okato: getCell(cells, idx.okato),
-            oktmo: getCell(cells, idx.oktmo),
-            taxOffice: getCell(cells, idx.taxOffice),
-            postalCode: getCell(cells, idx.postalCode),
-            timezone: getCell(cells, idx.timezone),
-            geonameCode: getCell(cells, idx.geonameCode),
-            geonameId: getCell(cells, idx.geonameId),
-            geonameName: getCell(cells, idx.geonameName),
-          },
+        appendRegionDraft({
+          cells: parseDelimited(lines[i]),
+          idx,
+          regions,
+          aliases,
         });
-        aliases.push({
-          targetKind: "region",
-          targetExternalKey: fias ?? normalizeName(name),
-          alias: name,
-          source: "auto",
-        });
-        if (nameWithType && normalizeName(nameWithType) !== normalizeName(name)) {
-          aliases.push({
-            targetKind: "region",
-            targetExternalKey: fias ?? normalizeName(name),
-            alias: nameWithType,
-            source: "auto",
-          });
-        }
       }
     }
 

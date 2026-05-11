@@ -7,10 +7,19 @@ import { splitMessageBlocks } from "../domain/parsing/index.js";
 import {
   JsonPlaceCacheRepository,
   WorkerStorageMode,
-  resolveWorkerStorageMode,
   resolveJsonPlaceCachePath,
 } from "../infrastructure/persistence/index.js";
 import { loadRootEnv } from "../infrastructure/config/loadRootEnv.js";
+import {
+  parseLongFlagsMap,
+  parsePipelineOrder,
+  parseStorageModeFromMap,
+} from "./workerCliArgs.js";
+import {
+  type FlatRecord,
+  toFlatRecords,
+  writePayload,
+} from "./reportOutput.js";
 
 type CliOptions = {
   input: string;
@@ -24,37 +33,8 @@ type CliOptions = {
   pipelineOrder: PipelineStepId[] | undefined;
 };
 
-type FlatRecord = {
-  file: string;
-  index: number;
-  kind: string;
-  eventType: string;
-  regionCode: string;
-  placeName: string;
-  precision: string;
-  completeness: number;
-  source: string;
-};
-
 function parseArgs(argv: string[]): CliOptions {
-  const map = new Map<string, string | true>();
-  for (let i = 2; i < argv.length; i += 1) {
-    const token = argv[i];
-    if (!token.startsWith("--")) continue;
-    if (token.includes("=")) {
-      const [key, val] = token.slice(2).split("=", 2);
-      map.set(key, val);
-      continue;
-    }
-    const key = token.slice(2);
-    const next = argv[i + 1];
-    if (next && !next.startsWith("--")) {
-      map.set(key, next);
-      i += 1;
-    } else {
-      map.set(key, true);
-    }
-  }
+  const map = parseLongFlagsMap(argv);
 
   const formatRaw = String(map.get("format") ?? "json").toLowerCase();
   const divRaw = String(map.get("div") ?? "file").toLowerCase();
@@ -66,27 +46,18 @@ function parseArgs(argv: string[]): CliOptions {
     ? (divRaw as CliOptions["div"])
     : "file";
 
-  const validStepIds = new Set<PipelineStepId>(["catalog", "llm", "dadata", "nominatim"]);
-  const orderRaw = map.get("pipeline-order");
-  const pipelineOrder =
-    orderRaw && orderRaw !== true
-      ? (orderRaw as string)
-          .split(",")
-          .map((s) => s.trim().toLowerCase() as PipelineStepId)
-          .filter((s) => validStepIds.has(s))
-      : undefined;
+  const pipelineOrder = parsePipelineOrder(
+    typeof map.get("pipeline-order") === "string"
+      ? String(map.get("pipeline-order"))
+      : undefined,
+  );
 
   return {
     input: String(map.get("input") ?? "tests"),
     outdir: String(map.get("outdir") ?? "reports"),
     format,
     div,
-    storageMode: resolveWorkerStorageMode(
-      ["storage-mode", "storage"]
-        .map((key) => map.get(key))
-        .find((value): value is string => typeof value === "string"),
-      WorkerStorageMode.Fs,
-    ),
+    storageMode: parseStorageModeFromMap(map, WorkerStorageMode.Fs),
     enrichDadata: map.has("enrich-dadata") || map.has("use-providers"),
     enrichNominatim: map.has("enrich-nominatim") || map.has("use-providers"),
     enrichLlm: map.has("enrich-llm"),
@@ -130,13 +101,6 @@ function ensureCleanOutdir(outdir: string): void {
   fs.mkdirSync(outdir, { recursive: true });
 }
 
-function escapeCsv(value: string): string {
-  if (value.includes(",") || value.includes("\"") || value.includes("\n")) {
-    return `"${value.replace(/"/g, "\"\"")}"`;
-  }
-  return value;
-}
-
 function buildEnricherFlags(options: CliOptions):
   | { dadata: boolean; nominatim: boolean; llm: boolean }
   | false {
@@ -150,102 +114,6 @@ function buildEnricherFlags(options: CliOptions):
     nominatim: options.enrichNominatim,
     llm: options.enrichLlm,
   };
-}
-
-function serializeYaml(value: unknown, depth = 0): string {
-  const indent = "  ".repeat(depth);
-
-  if (value === null || value === undefined) {
-    return "null";
-  }
-  if (typeof value === "string") {
-    return JSON.stringify(value);
-  }
-  if (typeof value === "number" || typeof value === "boolean") {
-    return String(value);
-  }
-  if (Array.isArray(value)) {
-    if (value.length === 0) return "[]";
-    return value
-      .map((item) => {
-        if (typeof item === "object" && item !== null) {
-          const nested = serializeYaml(item, depth + 1);
-          return `${indent}-\n${nested}`;
-        }
-        return `${indent}- ${serializeYaml(item, depth + 1)}`;
-      })
-      .join("\n");
-  }
-
-  const entries = Object.entries(value as Record<string, unknown>);
-  if (entries.length === 0) return "{}";
-
-  return entries
-    .map(([key, item]) => {
-      if (typeof item === "object" && item !== null) {
-        return `${indent}${key}:\n${serializeYaml(item, depth + 1)}`;
-      }
-      return `${indent}${key}: ${serializeYaml(item, depth + 1)}`;
-    })
-    .join("\n");
-}
-
-function toFlatRecords(fileName: string, payload: Array<Record<string, unknown>>): FlatRecord[] {
-  return payload.map((row, index) => {
-    const classification = (row.classification as Record<string, unknown>) ?? {};
-    const event = (row.event as Record<string, unknown> | undefined) ?? {};
-    const geo = (row.geo as Record<string, unknown>) ?? {};
-    const regions = (geo.regions as Array<Record<string, unknown>> | undefined) ?? [];
-    const firstRegion = regions[0] ?? {};
-    const places = (geo.places as Array<Record<string, unknown>> | undefined) ?? [];
-    const firstPlace = places[0] ?? {};
-
-    return {
-      file: fileName,
-      index,
-      kind: String(classification.kind ?? "unknown"),
-      eventType: String(event.eventType ?? ""),
-      regionCode: String(firstRegion.code ?? ""),
-      placeName: String(firstPlace.name ?? ""),
-      precision: String(geo.precision ?? "unknown"),
-      completeness: Number(geo.completeness ?? 0),
-      source: String(geo.source ?? "local"),
-    };
-  });
-}
-
-function writePayload(targetPath: string, format: CliOptions["format"], payload: unknown): void {
-  if (format === "json") {
-    fs.writeFileSync(targetPath, JSON.stringify(payload, null, 2), "utf8");
-    return;
-  }
-
-  if (format === "yaml") {
-    fs.writeFileSync(targetPath, `${serializeYaml(payload)}\n`, "utf8");
-    return;
-  }
-
-  const rows = payload as FlatRecord[];
-  const header = "file,index,kind,event_type,region_code,place_name,precision,completeness,source";
-  const body = rows
-    .map((row) =>
-      [
-        row.file,
-        row.index,
-        row.kind,
-        row.eventType,
-        row.regionCode,
-        row.placeName,
-        row.precision,
-        row.completeness,
-        row.source,
-      ]
-        .map((cell) => escapeCsv(String(cell)))
-        .join(","),
-    )
-    .join("\n");
-
-  fs.writeFileSync(targetPath, `${header}\n${body}\n`, "utf8");
 }
 
 async function main(): Promise<void> {

@@ -6,6 +6,7 @@ import type {
   IRegionRepository,
   LocationCandidate,
   PlaceRecord,
+  RegionRecord,
 } from "@radar/shared";
 import { randomUUID } from "node:crypto";
 
@@ -21,6 +22,7 @@ export type GeoValidationResult = {
   placeId?: string;
 };
 
+/** Normalizes alias/query text for consistent search in alias index. */
 function normalizeAlias(value: string): string {
   return value
     .toLowerCase()
@@ -38,45 +40,101 @@ export class GeoValidationService {
     private readonly cache: IPlaceCacheRepository,
   ) {}
 
+  /** Persists provider validation result in place cache. */
+  private async writeProviderCache(
+    queryNorm: string,
+    input: GeoValidationInput,
+    withValidatedAt = false,
+  ): Promise<void> {
+    await this.cache.put(queryNorm, input.candidate.provider, input.candidate.raw, {
+      validator: "provider",
+      validatedAt: withValidatedAt ? new Date().toISOString() : undefined,
+    });
+  }
+
+  /** Converts validated region/place pair into EventLocation DTO. */
+  private toEventLocation(options: {
+    region: Pick<RegionRecord, "id" | "code">;
+    placeId: string;
+    placeName: string;
+    placeFias?: string;
+    candidate: LocationCandidate;
+  }): EventLocation {
+    return {
+      regionId: options.region.id,
+      regionCode: options.region.code,
+      placeId: options.placeId,
+      placeName: options.placeName,
+      placeFias: options.placeFias,
+      precision: "locality",
+      source: options.candidate.provider,
+      lat: options.candidate.lat,
+      lon: options.candidate.lon,
+    };
+  }
+
+  /** Resolves region by candidate region code or fallback region code. */
+  private async resolveRegionForValidation(
+    input: GeoValidationInput,
+  ): Promise<RegionRecord | null> {
+    const regionCode = input.candidate.regionCode ?? input.fallbackRegionCode;
+    return regionCode ? this.regions.findByCode(regionCode) : null;
+  }
+
+  /** Creates new locality record from provider candidate. */
+  private async createPlaceFromCandidate(options: {
+    regionId: string;
+    candidate: LocationCandidate;
+  }): Promise<string> {
+    const placeId = randomUUID();
+    await this.places.upsertMany([
+      {
+        id: placeId,
+        regionId: options.regionId,
+        kind: "locality",
+        name: options.candidate.placeName!,
+        fiasId: options.candidate.placeFias,
+      },
+    ]);
+    return placeId;
+  }
+
+  /** Upserts auto-generated alias for resolved place. */
+  private async upsertAutoAlias(placeId: string, alias: string): Promise<void> {
+    await this.aliases.upsertAlias({
+      targetKind: "place",
+      placeId,
+      alias,
+      source: "auto",
+    });
+  }
+
+  /** Main validation сценарий: match existing place or create new one. */
   async validateAndResolve(
     input: GeoValidationInput,
   ): Promise<GeoValidationResult> {
     const queryNorm = normalizeAlias(input.rawQuery);
-    const regionCode = input.candidate.regionCode ?? input.fallbackRegionCode;
-    const region = regionCode ? await this.regions.findByCode(regionCode) : null;
+    const region = await this.resolveRegionForValidation(input);
 
     if (!region) {
-      await this.cache.put(queryNorm, input.candidate.provider, input.candidate.raw, {
-        validator: "provider",
-      });
+      await this.writeProviderCache(queryNorm, input);
       return { eventLocation: null, decision: "rejected" };
     }
 
     const matched = await this.matchExistingPlace(input.candidate, region.id);
     if (matched) {
-      await this.aliases.upsertAlias({
-        targetKind: "place",
-        placeId: matched.id,
-        alias: input.rawQuery,
-        source: "auto",
-      });
-      await this.cache.put(queryNorm, input.candidate.provider, input.candidate.raw, {
-        validator: "provider",
-      });
+      await this.upsertAutoAlias(matched.id, input.rawQuery);
+      await this.writeProviderCache(queryNorm, input);
       return {
         decision: "matched_existing",
         placeId: matched.id,
-        eventLocation: {
-          regionId: region.id,
-          regionCode: region.code,
+        eventLocation: this.toEventLocation({
+          region,
           placeId: matched.id,
           placeName: matched.name,
           placeFias: matched.fiasId,
-          precision: "locality",
-          source: input.candidate.provider,
-          lat: input.candidate.lat,
-          lon: input.candidate.lon,
-        },
+          candidate: input.candidate,
+        }),
       };
     }
 
@@ -84,44 +142,27 @@ export class GeoValidationService {
       return { eventLocation: null, decision: "rejected" };
     }
 
-    const newPlaceId = randomUUID();
-    await this.places.upsertMany([
-      {
-        id: newPlaceId,
-        regionId: region.id,
-        kind: "locality",
-        name: input.candidate.placeName,
-        fiasId: input.candidate.placeFias,
-      },
-    ]);
-    await this.aliases.upsertAlias({
-      targetKind: "place",
-      placeId: newPlaceId,
-      alias: input.rawQuery,
-      source: "auto",
+    const newPlaceId = await this.createPlaceFromCandidate({
+      regionId: region.id,
+      candidate: input.candidate,
     });
-    await this.cache.put(queryNorm, input.candidate.provider, input.candidate.raw, {
-      validator: "provider",
-      validatedAt: new Date().toISOString(),
-    });
+    await this.upsertAutoAlias(newPlaceId, input.rawQuery);
+    await this.writeProviderCache(queryNorm, input, true);
 
     return {
       decision: "created_new",
       placeId: newPlaceId,
-      eventLocation: {
-        regionId: region.id,
-        regionCode: region.code,
+      eventLocation: this.toEventLocation({
+        region,
         placeId: newPlaceId,
         placeName: input.candidate.placeName,
         placeFias: input.candidate.placeFias,
-        precision: "locality",
-        source: input.candidate.provider,
-        lat: input.candidate.lat,
-        lon: input.candidate.lon,
-      },
+        candidate: input.candidate,
+      }),
     };
   }
 
+  /** Tries to match place by FIAS, alias index, then by name in region. */
   private async matchExistingPlace(
     candidate: LocationCandidate,
     regionId: string,

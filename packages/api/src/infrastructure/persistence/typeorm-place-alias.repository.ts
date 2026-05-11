@@ -5,69 +5,82 @@ import { PlaceAliasEntity } from "../../geo/entities";
 export class TypeOrmPlaceAliasRepository implements IPlaceAliasRepository {
   constructor(private readonly dataSource: DataSource) {}
 
+  /** Returns PlaceAlias repository instance bound to current data source. */
+  private repo() {
+    return this.dataSource.getRepository(PlaceAliasEntity);
+  }
+
+  /** Maps TypeORM alias entity into domain alias record. */
+  private toRecord(row: PlaceAliasEntity): PlaceAliasRecord {
+    return {
+      id: row.id,
+      alias: row.alias,
+      aliasNormalized: row.aliasNormalized,
+      targetKind: row.targetKind,
+      regionId: row.regionId ?? undefined,
+      placeId: row.placeId ?? undefined,
+      source: row.source,
+    };
+  }
+
+  /** Finds existing alias row by target and normalized alias. */
+  private async findExistingAlias(
+    alias: PlaceAliasRecord,
+  ): Promise<PlaceAliasEntity | null> {
+    return this.repo().findOne({
+      where:
+        alias.targetKind === "region"
+          ? {
+              targetKind: "region",
+              regionId: alias.regionId ?? undefined,
+              aliasNormalized: alias.aliasNormalized,
+            }
+          : {
+              targetKind: "place",
+              placeId: alias.placeId ?? undefined,
+              aliasNormalized: alias.aliasNormalized,
+            },
+    });
+  }
+
+  /** Finds active aliases by normalized alias value. */
   async findByAlias(aliasNormalized: string): Promise<PlaceAliasRecord[]> {
-    const rows = await this.dataSource.getRepository(PlaceAliasEntity).find({
+    const rows = await this.repo().find({
       where: { aliasNormalized, isActive: true },
     });
-    return rows.map((r) => ({
-      id: r.id,
-      alias: r.alias,
-      aliasNormalized: r.aliasNormalized,
-      targetKind: r.targetKind,
-      regionId: r.regionId ?? undefined,
-      placeId: r.placeId ?? undefined,
-      source: r.source,
-    }));
+    return rows.map((row) => this.toRecord(row));
   }
 
+  /** Returns all active aliases as domain records. */
   async listActive(): Promise<PlaceAliasRecord[]> {
-    const rows = await this.dataSource.getRepository(PlaceAliasEntity).find({
+    const rows = await this.repo().find({
       where: { isActive: true },
     });
-    return rows.map((r) => ({
-      id: r.id,
-      alias: r.alias,
-      aliasNormalized: r.aliasNormalized,
-      targetKind: r.targetKind,
-      regionId: r.regionId ?? undefined,
-      placeId: r.placeId ?? undefined,
-      source: r.source,
-    }));
+    return rows.map((row) => this.toRecord(row));
   }
 
+  /** Upserts batch of aliases with identity matching by target kind. */
   async upsertMany(aliases: PlaceAliasRecord[]): Promise<void> {
     if (aliases.length === 0) return;
-    const repo = this.dataSource.getRepository(PlaceAliasEntity);
-    for (const a of aliases) {
-      const existing = await repo.findOne({
-        where:
-          a.targetKind === "region"
-            ? {
-                targetKind: "region",
-                regionId: a.regionId ?? undefined,
-                aliasNormalized: a.aliasNormalized,
-              }
-            : {
-                targetKind: "place",
-                placeId: a.placeId ?? undefined,
-                aliasNormalized: a.aliasNormalized,
-              },
-      });
-      const row = repo.create({
-        id: existing?.id ?? a.id,
-        alias: a.alias,
-        aliasNormalized: a.aliasNormalized,
-        targetKind: a.targetKind,
-        regionId: a.regionId ?? null,
-        placeId: a.placeId ?? null,
-        source: a.source ?? "auto",
-        isActive: true,
-        deprecatedAt: null,
-      });
-      await repo.save(row);
+    for (const alias of aliases) {
+      const existing = await this.findExistingAlias(alias);
+      await this.repo().save(
+        this.repo().create({
+          id: existing?.id ?? alias.id,
+          alias: alias.alias,
+          aliasNormalized: alias.aliasNormalized,
+          targetKind: alias.targetKind,
+          regionId: alias.regionId ?? null,
+          placeId: alias.placeId ?? null,
+          source: alias.source ?? "auto",
+          isActive: true,
+          deprecatedAt: null,
+        }),
+      );
     }
   }
 
+  /** Upserts a single alias from external command/use-case. */
   async upsertAlias(input: {
     targetKind: "region" | "place";
     regionId?: string;
@@ -75,7 +88,7 @@ export class TypeOrmPlaceAliasRepository implements IPlaceAliasRepository {
     alias: string;
     source: "auto" | "manual";
   }): Promise<void> {
-    const repo = this.dataSource.getRepository(PlaceAliasEntity);
+    const repo = this.repo();
     const aliasNormalized = input.alias.toLowerCase().trim();
     const existing = await repo.findOne(
       input.targetKind === "region"

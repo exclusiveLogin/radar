@@ -8,7 +8,6 @@ import {
 import type { PipelineStepId } from "../infrastructure/enrichers/enricherChainFactory.js";
 import {
   WorkerStorageMode,
-  resolveWorkerStorageMode,
 } from "../infrastructure/persistence/storageMode.js";
 import { GeoValidationService } from "../application/parsing/geoValidationService.js";
 import {
@@ -19,6 +18,13 @@ import {
 import { RuleBasedEventClassifier } from "../infrastructure/classifiers/ruleBasedEventClassifier.js";
 import { loadRootEnv } from "../infrastructure/config/loadRootEnv.js";
 import { splitMessageBlocks } from "../domain/parsing/index.js";
+import {
+  hasAnyFlag,
+  parseLongFlagsMap,
+  parsePipelineOrder,
+  parsePositionalArgs,
+  parseStorageModeFromMap,
+} from "./workerCliArgs.js";
 
 type ParseSummary = {
   totalBlocks: number;
@@ -49,73 +55,22 @@ type ParsedCli = {
 };
 
 function parseParseSnapCli(argv: string[]): ParsedCli {
-  const tokens = argv.slice(2);
-  let filePathArg = "";
-  let withGeoReport = false;
-  let storageMode = WorkerStorageMode.Memory;
-  let enrichDadata = false;
-  let enrichNominatim = false;
-  let enrichLlm = false;
-  let pipelineOrder: PipelineStepId[] | undefined;
-
-  const validStepIds = new Set<PipelineStepId>(["catalog", "llm", "dadata", "nominatim"]);
-
-  for (const t of tokens) {
-    if (t.startsWith("--")) {
-      if (t.startsWith("--storage-mode=")) {
-        storageMode = resolveWorkerStorageMode(
-          t.slice("--storage-mode=".length),
-          WorkerStorageMode.Memory,
-        );
-        continue;
-      }
-      if (t.startsWith("--storage=")) {
-        storageMode = resolveWorkerStorageMode(
-          t.slice("--storage=".length),
-          WorkerStorageMode.Memory,
-        );
-        continue;
-      }
-      if (t.startsWith("--pipeline-order=")) {
-        const raw = t.slice("--pipeline-order=".length);
-        pipelineOrder = raw
-          .split(",")
-          .map((s) => s.trim().toLowerCase() as PipelineStepId)
-          .filter((s) => validStepIds.has(s));
-        continue;
-      }
-      switch (t) {
-        case "--geo-report":
-          withGeoReport = true;
-          break;
-        case "--dadataEnrich":
-        case "--enrich-dadata":
-          enrichDadata = true;
-          break;
-        case "--nominatimEnrich":
-        case "--enrich-nominatim":
-          enrichNominatim = true;
-          break;
-        case "--llmEnrich":
-        case "--enrich-llm":
-          enrichLlm = true;
-          break;
-        default:
-          break;
-      }
-      continue;
-    }
-    filePathArg = t;
-  }
+  const map = parseLongFlagsMap(argv);
+  const positionalArgs = parsePositionalArgs(argv);
+  const filePathArg = positionalArgs[0] ?? "";
 
   return {
     filePathArg,
-    withGeoReport,
-    storageMode,
-    enrichDadata,
-    enrichNominatim,
-    enrichLlm,
-    pipelineOrder,
+    withGeoReport: map.has("geo-report"),
+    storageMode: parseStorageModeFromMap(map, WorkerStorageMode.Memory),
+    enrichDadata: hasAnyFlag(map, ["dadataEnrich", "enrich-dadata"]),
+    enrichNominatim: hasAnyFlag(map, ["nominatimEnrich", "enrich-nominatim"]),
+    enrichLlm: hasAnyFlag(map, ["llmEnrich", "enrich-llm"]),
+    pipelineOrder: parsePipelineOrder(
+      typeof map.get("pipeline-order") === "string"
+        ? String(map.get("pipeline-order"))
+        : undefined,
+    ),
   };
 }
 

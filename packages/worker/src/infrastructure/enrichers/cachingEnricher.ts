@@ -14,36 +14,61 @@ export class CachingEnricher implements ILocationEnricher {
     private readonly placeCacheRepository?: IPlaceCacheRepository,
   ) {}
 
+  /** Normalizes raw text into cache query key. */
+  private normalizeQuery(rawText: string): string {
+    return rawText.toLowerCase().trim();
+  }
+
+  /** Marks candidate payload with cache-hit source metadata. */
+  private markCacheHit(
+    candidate: LocationCandidate,
+    source: "memory" | "db",
+  ): LocationCandidate {
+    return {
+      ...candidate,
+      raw: {
+        ...candidate.raw,
+        __cacheHit: source,
+      },
+    };
+  }
+
+  /** Attempts to restore cached candidate from persistent cache repository. */
+  private async resolveFromRepository(
+    queryNorm: string,
+  ): Promise<LocationCandidate | null> {
+    if (!this.placeCacheRepository) {
+      return null;
+    }
+    const dbHit = await this.placeCacheRepository.get(queryNorm);
+    if (!dbHit) {
+      return null;
+    }
+    return this.markCacheHit(
+      {
+        provider: dbHit.provider,
+        queryNorm,
+        raw: dbHit.raw,
+      },
+      "db",
+    );
+  }
+
+  /** Resolves location using memory cache -> persistent cache -> next enricher. */
   async enrich(input: {
     rawText: string;
     regionCode?: string;
   }): Promise<LocationCandidate | null> {
-    const queryNorm = input.rawText.toLowerCase().trim();
+    const queryNorm = this.normalizeQuery(input.rawText);
     const memoryHit = this.memory.get(queryNorm);
     if (memoryHit) {
-      return {
-        ...memoryHit,
-        raw: {
-          ...memoryHit.raw,
-          __cacheHit: "memory",
-        },
-      };
+      return this.markCacheHit(memoryHit, "memory");
     }
 
-    if (this.placeCacheRepository) {
-      const dbHit = await this.placeCacheRepository.get(queryNorm);
-      if (dbHit) {
-        const restored: LocationCandidate = {
-          provider: dbHit.provider,
-          queryNorm,
-          raw: {
-            ...dbHit.raw,
-            __cacheHit: "db",
-          },
-        };
-        this.memory.set(queryNorm, restored);
-        return restored;
-      }
+    const dbHit = await this.resolveFromRepository(queryNorm);
+    if (dbHit) {
+      this.memory.set(queryNorm, dbHit);
+      return dbHit;
     }
 
     const resolved = await this.next.enrich(input);

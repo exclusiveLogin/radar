@@ -6,9 +6,9 @@
   IPlaceCacheRepository,
   RawMessage,
 } from "@radar/shared";
-import { randomUUID } from "node:crypto";
 import type { GeoValidationService } from "../parsing/geoValidationService.js";
 import type { ParsePipelineService } from "../parsing/parsePipelineService.js";
+import { buildDomainEvent } from "./domainEventFactory.js";
 
 export class ParseRawMessageHandler {
   constructor(
@@ -29,18 +29,15 @@ export class ParseRawMessageHandler {
     });
 
     if (!pipelineResult.parsedEvent) {
-      const failed: DomainEvent = {
-        id: randomUUID(),
+      const failed = buildDomainEvent({
         type: "MessageParseFailed",
-        version: 1,
-        occurredAt: new Date().toISOString(),
         aggregateType: "raw_message",
         aggregateId: raw.hash,
         payload: {
           reason: pipelineResult.report.classification.reason ?? "not_event",
           channelKey: raw.channelKey,
         },
-      };
+      });
       await this.events.publish([failed]);
       return;
     }
@@ -62,53 +59,49 @@ export class ParseRawMessageHandler {
 
     const enrich = pipelineResult.report.enrich ?? { invoked: false, cacheHit: false, providersTried: [] as string[] };
     const primaryProvider = enrich.providersTried[0] as "dadata" | "nominatim" | "llm" | undefined;
+    const telemetryEvents: DomainEvent[] = [];
 
     if (enrich.invoked) {
-      await this.events.publish([
-        {
-          id: randomUUID(),
+      telemetryEvents.push(
+        buildDomainEvent({
           type: "EnricherInvoked",
-          version: 1,
-          occurredAt: new Date().toISOString(),
           aggregateType: "raw_message",
           aggregateId: raw.hash,
           payload: {
             provider: primaryProvider ?? "unknown",
           },
-        },
-      ]);
+        }),
+      );
     }
 
     if (enrich.cacheHit) {
-      await this.events.publish([
-        {
-          id: randomUUID(),
+      telemetryEvents.push(
+        buildDomainEvent({
           type: "EnricherCacheHit",
-          version: 1,
-          occurredAt: new Date().toISOString(),
           aggregateType: "raw_message",
           aggregateId: raw.hash,
           payload: {
             provider: primaryProvider ?? "unknown",
           },
-        },
-      ]);
+        }),
+      );
     }
 
     if (pipelineResult.locations.length === 0) {
-      await this.events.publish([
-        {
-          id: randomUUID(),
+      telemetryEvents.push(
+        buildDomainEvent({
           type: "EnricherFailed",
-          version: 1,
-          occurredAt: new Date().toISOString(),
           aggregateType: "raw_message",
           aggregateId: raw.hash,
           payload: {
             reason: "no_location_candidates",
           },
-        },
-      ]);
+        }),
+      );
+    }
+
+    if (telemetryEvents.length > 0) {
+      await this.events.publish(telemetryEvents);
     }
 
     if (primaryProvider) {
@@ -129,18 +122,15 @@ export class ParseRawMessageHandler {
     const persisted = await this.parsedEvents.upsert(parsed);
     await this.eventLocations.replaceForParsedEvent(persisted.id, parsed.locations);
 
-    const success: DomainEvent = {
-      id: randomUUID(),
+    const success = buildDomainEvent({
       type: "MessageParsed",
-      version: 1,
-      occurredAt: new Date().toISOString(),
       aggregateType: "parsed_event",
       aggregateId: persisted.id,
       payload: {
         eventType: parsed.eventType,
         severity: parsed.severity,
       },
-    };
+    });
     await this.events.publish([success]);
   }
 }

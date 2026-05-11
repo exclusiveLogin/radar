@@ -7,6 +7,9 @@ type FeatureCollection = {
   }>;
 };
 
+type FeatureProps = Record<string, unknown>;
+
+/** Extracts best-available place/region name from feature properties. */
 function nameFromProperties(props: Record<string, unknown>): string | null {
   const candidates = [
     props.name,
@@ -25,7 +28,115 @@ function nameFromProperties(props: Record<string, unknown>): string | null {
   return null;
 }
 
+/** Appends region draft from subjects layer feature. */
+function appendSubjectRegion(options: {
+  file: string;
+  props: FeatureProps;
+  fallbackName: string;
+  regions: GeoProviderSnapshot["regions"];
+  aliases: GeoProviderSnapshot["aliases"];
+}): void {
+  const regionNameRu =
+    typeof options.props.NL_NAME_1 === "string"
+      ? options.props.NL_NAME_1
+      : options.fallbackName;
+  const regionCode = normalizeName(regionNameRu);
+  options.regions.push({
+    iso: regionCode,
+    name: regionNameRu,
+    nameWithType:
+      typeof options.props.TYPE_1 === "string"
+        ? `${options.props.TYPE_1} ${regionNameRu}`
+        : regionNameRu,
+    geometryArtifactKey: options.file,
+    frontRegion: false,
+    borderRegion: false,
+    sourceMeta: {
+      sourceLayer: "subjects",
+      nameEn:
+        typeof options.props.NAME_1 === "string" ? options.props.NAME_1 : undefined,
+      engType:
+        typeof options.props.ENGTYPE_1 === "string"
+          ? options.props.ENGTYPE_1
+          : undefined,
+    },
+  });
+  options.aliases.push({
+    targetKind: "region",
+    targetExternalKey: regionCode,
+    alias: regionNameRu,
+    source: "auto",
+  });
+  if (typeof options.props.NAME_1 === "string") {
+    options.aliases.push({
+      targetKind: "region",
+      targetExternalKey: regionCode,
+      alias: options.props.NAME_1,
+      source: "auto",
+    });
+  }
+}
+
+/** Appends place draft and aliases from admin-level feature. */
+function appendAdminPlace(options: {
+  file: string;
+  props: FeatureProps;
+  placeName: string;
+  places: GeoProviderSnapshot["places"];
+  aliases: GeoProviderSnapshot["aliases"];
+}): void {
+  const regionHint =
+    typeof options.props["addr:region"] === "string"
+      ? options.props["addr:region"]
+      : undefined;
+  const regionCode = regionHint ? normalizeName(regionHint) : "unknown";
+  const aliasesFromProps = [
+    options.props["name:ru"],
+    options.props["name:en"],
+    options.props["alt_name"],
+    options.props["old_name"],
+    options.props["short_name"],
+    options.props["full_name"],
+  ]
+    .flatMap((value) =>
+      typeof value === "string" ? value.split(";").map((x) => x.trim()) : [],
+    )
+    .filter(Boolean);
+
+  options.places.push({
+    regionCode,
+    kind: "locality",
+    name: options.placeName,
+    nameWithType: options.placeName,
+    geometryArtifactKey: options.file,
+    aliases: aliasesFromProps,
+    sourceMeta: {
+      sourceLayer: "admin_target",
+      adminLevel:
+        typeof options.props.admin_level === "string"
+          ? options.props.admin_level
+          : undefined,
+      place: typeof options.props.place === "string" ? options.props.place : undefined,
+      district:
+        typeof options.props["addr:district"] === "string"
+          ? options.props["addr:district"]
+          : undefined,
+      population:
+        typeof options.props.population === "string"
+          ? options.props.population
+          : undefined,
+    },
+  });
+  options.aliases.push({
+    targetKind: "place",
+    targetExternalKey: `${regionCode}:locality:${normalizeName(options.placeName)}`,
+    alias: options.placeName,
+    source: "auto",
+  });
+}
+
 export class RnekrasovGeoJsonProvider implements IGeoSourceProvider {
+  /** Loads mixed region/place snapshot from rnekrasov geojson artifacts. */
   async loadSnapshot(): Promise<GeoProviderSnapshot> {
     // Источник: rnekrasov geojson artifacts.
     // Текущая версия парсит только базовые name-поля и собирает place/alias drafts.
@@ -46,47 +157,13 @@ export class RnekrasovGeoJsonProvider implements IGeoSourceProvider {
         if (!name) continue;
 
         if (isSubjects) {
-          const regionNameRu =
-            typeof feature.properties.NL_NAME_1 === "string"
-              ? feature.properties.NL_NAME_1
-              : name;
-          const regionCode = normalizeName(regionNameRu);
-          regions.push({
-            iso: regionCode,
-            name: regionNameRu,
-            nameWithType:
-              typeof feature.properties.TYPE_1 === "string"
-                ? `${feature.properties.TYPE_1} ${regionNameRu}`
-                : regionNameRu,
-            geometryArtifactKey: file,
-            frontRegion: false,
-            borderRegion: false,
-            sourceMeta: {
-              sourceLayer: "subjects",
-              nameEn:
-                typeof feature.properties.NAME_1 === "string"
-                  ? feature.properties.NAME_1
-                  : undefined,
-              engType:
-                typeof feature.properties.ENGTYPE_1 === "string"
-                  ? feature.properties.ENGTYPE_1
-                  : undefined,
-            },
+          appendSubjectRegion({
+            file,
+            props: feature.properties,
+            fallbackName: name,
+            regions,
+            aliases,
           });
-          aliases.push({
-            targetKind: "region",
-            targetExternalKey: regionCode,
-            alias: regionNameRu,
-            source: "auto",
-          });
-          if (typeof feature.properties.NAME_1 === "string") {
-            aliases.push({
-              targetKind: "region",
-              targetExternalKey: regionCode,
-              alias: feature.properties.NAME_1,
-              source: "auto",
-            });
-          }
           continue;
         }
 
@@ -94,58 +171,12 @@ export class RnekrasovGeoJsonProvider implements IGeoSourceProvider {
           continue;
         }
 
-        const regionHint =
-          typeof feature.properties["addr:region"] === "string"
-            ? feature.properties["addr:region"]
-            : undefined;
-        const regionCode = regionHint ? normalizeName(regionHint) : "unknown";
-        const aliasesFromProps = [
-          feature.properties["name:ru"],
-          feature.properties["name:en"],
-          feature.properties["alt_name"],
-          feature.properties["old_name"],
-          feature.properties["short_name"],
-          feature.properties["full_name"],
-        ]
-          .flatMap((value) =>
-            typeof value === "string"
-              ? value.split(";").map((x) => x.trim())
-              : [],
-          )
-          .filter(Boolean);
-
-        places.push({
-          regionCode,
-          kind: "locality",
-          name,
-          nameWithType: name,
-          geometryArtifactKey: file,
-          aliases: aliasesFromProps,
-          sourceMeta: {
-            sourceLayer: isTargetAdmin ? "admin_target" : "admin_other",
-            adminLevel:
-              typeof feature.properties.admin_level === "string"
-                ? feature.properties.admin_level
-                : undefined,
-            place:
-              typeof feature.properties.place === "string"
-                ? feature.properties.place
-                : undefined,
-            district:
-              typeof feature.properties["addr:district"] === "string"
-                ? feature.properties["addr:district"]
-                : undefined,
-            population:
-              typeof feature.properties.population === "string"
-                ? feature.properties.population
-                : undefined,
-          },
-        });
-        aliases.push({
-          targetKind: "place",
-          targetExternalKey: `${regionCode}:locality:${normalizeName(name)}`,
-          alias: name,
-          source: "auto",
+        appendAdminPlace({
+          file,
+          props: feature.properties,
+          placeName: name,
+          places,
+          aliases,
         });
       }
     }

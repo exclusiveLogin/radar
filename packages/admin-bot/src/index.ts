@@ -1,4 +1,11 @@
 type BotCommand = "/stats" | "/alerts" | "/errors" | "/sync" | "/health";
+const supportedCommands: BotCommand[] = [
+  "/stats",
+  "/alerts",
+  "/errors",
+  "/sync",
+  "/health",
+];
 
 type HldSkeleton = {
   commands: BotCommand[];
@@ -17,7 +24,7 @@ type HldSkeleton = {
 };
 
 const skeleton: HldSkeleton = {
-  commands: ["/stats", "/alerts", "/errors", "/sync", "/health"],
+  commands: supportedCommands,
   outboxSubscription: {
     mode: "poll",
     table: "domain_events",

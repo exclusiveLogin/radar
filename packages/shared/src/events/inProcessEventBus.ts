@@ -23,7 +23,7 @@ export class InProcessEventBus implements IEventPublisher, IEventSubscriber {
   private getHandlersForEvent(event: DomainEvent): EventHandler[] {
     const exact = this.handlers.get(event.type) ?? [];
     const wildcard = this.handlers.get("*") ?? [];
-    return [...exact, ...wildcard];
+    return [...new Set([...exact, ...wildcard])];
   }
 
   subscribe(eventType: string, handler: EventHandler): Unsubscribe {

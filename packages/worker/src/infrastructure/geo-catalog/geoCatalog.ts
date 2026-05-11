@@ -72,6 +72,17 @@ function deduplicatePlaces(places: GeoCatalogPlace[]): GeoCatalogPlace[] {
   return [...unique.values()];
 }
 
+function collectCandidatePlaces(
+  rawText: string,
+  cities: CityCatalog,
+): GeoCatalogPlace[] {
+  return [
+    ...collectDistricts(rawText),
+    ...collectCityPlaces(cities.findInText(rawText)),
+    ...collectFallbackCities(rawText),
+  ];
+}
+
 export class GeoCatalog {
   constructor(
     private readonly regions: RegionCatalog,
@@ -108,12 +119,7 @@ export class GeoCatalog {
   }
 
   findPlacesInRegion(rawText: string, _regionCode?: string): GeoCatalogPlace[] {
-    const found = [
-      ...collectDistricts(rawText),
-      ...collectCityPlaces(this.cities.findInText(rawText)),
-      ...collectFallbackCities(rawText),
-    ];
-    return deduplicatePlaces(found);
+    return deduplicatePlaces(collectCandidatePlaces(rawText, this.cities));
   }
 
   listCities(): CityCatalogEntry[] {
