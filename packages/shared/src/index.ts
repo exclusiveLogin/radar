@@ -46,6 +46,7 @@ export {
   parseReportSchema,
 } from "./schemas";
 export { InProcessEventBus } from "./events/inProcessEventBus";
+export { mergePlaceContribution, monotonicTrustState } from "./ports/placeContributionMerge";
 
 // --- type-only exports ---
 export type {
