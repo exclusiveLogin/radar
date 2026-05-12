@@ -137,3 +137,64 @@ flowchart LR
 ## Commit message (для тебя, без выполнения git)
 
 `chore: scaffold TS monorepo with Docker DB, TypeORM, dotenv-vault, and GramJS session bootstrap`
+
+---
+
+## Обновление roadmap (2026-05-12)
+
+Контекст: кодовая база прошла рефакторинг в сторону более мелких функций и более прозрачного compose/wiring слоев. План ниже синхронизирован с этим состоянием.
+
+### Итерация 1 — выполнено
+
+- Добавлены trust/provenance поля в `places`.
+- Добавлен append-only журнал `place_evidence`.
+- Realtime validation пишет evidence (`candidate|confirm`) и обновляет trust поля.
+- Документация обновлена по модели trust/provenance.
+
+### Итерация 2 — в работе
+
+Цель: сделать trust/provenance наблюдаемыми для UI и операторов без изменения realtime-алгоритма матчинга.
+
+#### Scope
+
+1. Read-side/API:
+   - отдать `trustState`, `isTrusted`, `trustScore`, `trustUpdatedAt`, `evidenceProviders` в place-related выдаче;
+   - добавить endpoint истории evidence по `placeId` (с параметром `limit`);
+   - добавить derived-поле `needsAttention` для UI.
+
+2. Контракты и совместимость:
+   - additive-only изменения response DTO на первом этапе;
+   - backward compatibility существующих endpoint;
+   - без изменения алгоритма матчинга (FIAS -> alias -> name+region).
+
+3. Документация:
+   - синхронизировать `README.md`, `docs/place-trust-explained.md`, `docs/geo-dataset-schemas.md`;
+   - зафиксировать UI-интерпретацию `needsAttention`.
+
+#### Технические задачи (порядок выполнения)
+
+1. Протянуть `TypeOrmPlaceEvidenceRepository` в read-side wiring.
+2. Расширить read-side query service:
+   - получение place trust summary,
+   - получение evidence history.
+3. Добавить/расширить endpoint:
+   - `GET /api/places/:placeId/evidence?limit=...`.
+4. Добавить `needsAttention` в place DTO/read model.
+5. Обновить Swagger/контракты и docs.
+6. Прогнать quality gates.
+
+#### Definition of Done
+
+- Read-side возвращает trust-поля и `needsAttention` для place.
+- Endpoint evidence history доступен и ограничивает выдачу по `limit`.
+- `npm run typecheck` и `npm run lint` зелёные.
+- Smoke-проверки:
+  - `unverified` -> `needsAttention=true`,
+  - `verified` -> `needsAttention=false`.
+
+### Итерация 3 — после итерации 2
+
+- Вынести Dadata/LLM в batch enrichment orchestration:
+  - provider-agnostic контракты,
+  - rate limits, retry/backoff, idempotency,
+  - promotion policy `unverified -> verified`.

@@ -256,3 +256,17 @@ type RnekrasovPlaceDraft = {
    - files parsed / skipped,
    - features parsed / rejected,
    - completeness полей (`fias`, `kladr`, `region_hint`, geometry).
+
+---
+
+## 7) Trust/provenance decisions (2026-05-12)
+
+- Для `places` применяется модель доверия:
+  - `trust_state`: `unverified|partially_verified|verified|rejected`,
+  - `is_trusted`, `trust_score`, `trust_updated_at`, `evidence_providers`.
+- `place_evidence` является append-only журналом происхождения и подтверждений.
+- В realtime:
+  - при матче существующего place пишется `confirm`;
+  - при создании нового place пишется `candidate`.
+- `active` и `trusted` имеют разную семантику и не должны использоваться как взаимозаменяемые флаги.
+- Источник `llm` не считается автоматически trusted без дополнительных подтверждений policy/провайдерами.

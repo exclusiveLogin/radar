@@ -3,6 +3,7 @@
 **Radar** — продукт для переноса критичных оповещений о **БПЛА** и ракетных угрозах из хаотичных текстовых каналов в **понятный интерфейс принятия решений**: карта, таймлайн, time machine, уведомления, таймеры подлета и аналитика.
 
 Архитектурный и продуктовый план: [docs/plan.md](docs/plan.md).
+Объяснение модели доверия мест (product view): [docs/place-trust-explained.md](docs/place-trust-explained.md).
 
 ## 🎯 Миссия
 
@@ -118,6 +119,15 @@ flowchart LR
 - Для place хранится trust/provenance: `trust_state`, `is_trusted`, `trust_score`, `evidence_providers`.
 - `place_evidence` хранит append-only историю подтверждений/кандидатов (`candidate|confirm|reject|enrich`) по провайдерам.
 - `place_cache` хранит provider-aware техлог запросов и не заменяет основной каталог `places`.
+
+### Place trust policy (runtime)
+
+- `active` и `trusted` разделены: `active` — эксплуатационный флаг, `trusted` — уровень подтвержденности.
+- Realtime правило:
+  - `matched_existing` -> пишется evidence `confirm`, place обновляет trust-поля.
+  - `created_new` -> пишется evidence `candidate`, trust остается на уровне policy-оценки источника.
+- Базовые trust-score источников: `catalog=1.00`, `dadata=0.95`, `nominatim=0.80`, `llm=0.55`, `operator=1.00`, `system=0.70`.
+- Для UI/read-side неподтвержденные места должны помечаться предупреждением (`needsAttention` в итерации 2).
 
 ## ⚙️ Текущий статус репозитория
 
