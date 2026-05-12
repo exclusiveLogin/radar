@@ -22,6 +22,13 @@ function toRegionRecord(row: RegionEntity): RegionRecord {
   };
 }
 
+function toRegionIdentityWhere(record: RegionRecord) {
+  const code = record.iso ?? record.code;
+  return record.fiasId
+    ? [{ fiasId: record.fiasId }, { iso: code }, { name: record.name }]
+    : [{ iso: code }, { name: record.name }];
+}
+
 export class TypeOrmRegionRepository implements IRegionRepository {
   constructor(private readonly dataSource: DataSource) {}
 
@@ -35,9 +42,7 @@ export class TypeOrmRegionRepository implements IRegionRepository {
     record: RegionRecord,
   ): Promise<RegionEntity | null> {
     return this.repo().findOne({
-      where: record.fiasId
-        ? [{ fiasId: record.fiasId }, { iso: record.iso ?? record.code }, { name: record.name }]
-        : [{ iso: record.iso ?? record.code }, { name: record.name }],
+      where: toRegionIdentityWhere(record),
     });
   }
 

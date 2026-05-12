@@ -19,19 +19,22 @@ export type ParsePipelineResult = {
   geoPipeline?: GeoPipelineReport;
 };
 
+export type ParsePipelineInput = {
+  rawText: string;
+  postedAt?: string;
+  channelKey?: string;
+  rawMessageId?: string;
+  file?: string;
+  index?: number;
+};
+
 export class ParsePipelineService {
   constructor(
     private readonly classifier: IEventClassifier,
     private readonly resolution: LocationResolutionService,
   ) {}
-async execute(input: {
-    rawText: string;
-    postedAt?: string;
-    channelKey?: string;
-    rawMessageId?: string;
-    file?: string;
-    index?: number;
-  }): Promise<ParsePipelineResult> {
+
+  async execute(input: ParsePipelineInput): Promise<ParsePipelineResult> {
     const classified = this.classifier.classify(input.rawText);
     const hash = createHash("sha256").update(input.rawText, "utf8").digest("hex");
     const inputMeta = { ...input, hash };
@@ -52,14 +55,12 @@ async execute(input: {
     };
 
     const resolved = await this.resolution.resolve(input.rawText);
-    const report = buildEventReport({
-      input: inputMeta,
-      parsedEvent,
-      resolved,
-    });
-
     return {
-      report,
+      report: buildEventReport({
+        input: inputMeta,
+        parsedEvent,
+        resolved,
+      }),
       parsedEvent,
       locations: resolved.locations,
       geoPipeline: resolved.geoPipeline,

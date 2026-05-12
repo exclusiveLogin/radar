@@ -23,6 +23,28 @@ export class TypeOrmPlaceAliasRepository implements IPlaceAliasRepository {
     };
   }
 
+  private toEntity(input: {
+    id?: string;
+    alias: string;
+    aliasNormalized: string;
+    targetKind: "region" | "place";
+    regionId?: string;
+    placeId?: string;
+    source?: "auto" | "manual";
+  }): PlaceAliasEntity {
+    return this.repo().create({
+      id: input.id,
+      alias: input.alias,
+      aliasNormalized: input.aliasNormalized,
+      targetKind: input.targetKind,
+      regionId: input.regionId ?? null,
+      placeId: input.placeId ?? null,
+      source: input.source ?? "auto",
+      isActive: true,
+      deprecatedAt: null,
+    });
+  }
+
   /** Finds existing alias row by target and normalized alias. */
   private async findExistingAlias(
     alias: PlaceAliasRecord,
@@ -65,16 +87,14 @@ export class TypeOrmPlaceAliasRepository implements IPlaceAliasRepository {
     for (const alias of aliases) {
       const existing = await this.findExistingAlias(alias);
       await this.repo().save(
-        this.repo().create({
+        this.toEntity({
           id: existing?.id ?? alias.id,
           alias: alias.alias,
           aliasNormalized: alias.aliasNormalized,
           targetKind: alias.targetKind,
-          regionId: alias.regionId ?? null,
-          placeId: alias.placeId ?? null,
-          source: alias.source ?? "auto",
-          isActive: true,
-          deprecatedAt: null,
+          regionId: alias.regionId,
+          placeId: alias.placeId,
+          source: alias.source,
         }),
       );
     }
@@ -118,10 +138,10 @@ export class TypeOrmPlaceAliasRepository implements IPlaceAliasRepository {
       return;
     }
     await repo.save(
-      repo.create({
+      this.toEntity({
         targetKind: input.targetKind,
-        regionId: input.regionId ?? null,
-        placeId: input.placeId ?? null,
+        regionId: input.regionId,
+        placeId: input.placeId,
         alias: input.alias,
         aliasNormalized,
         source: input.source,

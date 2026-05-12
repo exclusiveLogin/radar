@@ -1,5 +1,6 @@
 import type { AliasDraft, IGeoSourceProvider, IPlaceAliasRepository, IPlaceRepository, IRegionRepository, PlaceDraft, RegionDraft } from "@radar/shared";
-import { diffAliases, diffPlaces, diffRegions, normalizeName } from "./diff-engine";
+import { normalizeGeoText } from "../geo/normalizeText";
+import { diffAliases, diffPlaces, diffRegions } from "./diff-engine";
 
 export type GeoSyncPlan = {
   sourceId: string;
@@ -71,7 +72,7 @@ export class GeoSyncPlanService {
     return rows.map((row) => ({
       regionCode: row.regionId,
       kind: row.kind,
-      name: normalizeName(row.name),
+      name: normalizeGeoText(row.name),
       nameWithType: row.nameWithType,
       fiasId: row.fiasId,
       kladrId: row.kladrId,

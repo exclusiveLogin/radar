@@ -1,4 +1,5 @@
 import type { AliasDraft, PlaceDraft, RegionDraft } from "@radar/shared";
+import { normalizeGeoText } from "../geo/normalizeText";
 
 export type DiffStats = {
   added: number;
@@ -20,20 +21,25 @@ const emptyStats = (): DiffStats => ({
   reactivated: 0,
   deactivated: 0,
   noop: 0,
-});export function normalizeName(value: string): string {
-  return value
-    .toLowerCase()
-    .replace(/ё/g, "е")
-    .replace(/[^\p{L}\p{N}]+/gu, " ")
-    .trim()
-    .replace(/\s+/g, " ");
-}export function regionDraftKey(row: RegionDraft): string {
-  return row.fiasId ?? row.iso ?? normalizeName(row.name);
-}export function placeDraftKey(row: PlaceDraft): string {
-  return row.fiasId ?? `${row.regionCode}:${row.kind}:${normalizeName(row.name)}`;
-}export function aliasDraftKey(row: AliasDraft): string {
-  return `${row.targetKind}:${row.targetExternalKey}:${normalizeName(row.alias)}`;
-}export function diffRegions(
+});
+
+export function normalizeName(value: string): string {
+  return normalizeGeoText(value);
+}
+
+export function regionDraftKey(row: RegionDraft): string {
+  return row.fiasId ?? row.iso ?? normalizeGeoText(row.name);
+}
+
+export function placeDraftKey(row: PlaceDraft): string {
+  return row.fiasId ?? `${row.regionCode}:${row.kind}:${normalizeGeoText(row.name)}`;
+}
+
+export function aliasDraftKey(row: AliasDraft): string {
+  return `${row.targetKind}:${row.targetExternalKey}:${normalizeGeoText(row.alias)}`;
+}
+
+export function diffRegions(
   current: RegionDraft[],
   expected: RegionDraft[],
 ): DiffReport<RegionDraft> {
@@ -44,6 +50,7 @@ const emptyStats = (): DiffStats => ({
   const stats = emptyStats();
   const toUpsert: RegionDraft[] = [];
   const sample: Array<{ key: string; action: keyof DiffStats }> = [];
+
   for (const row of expected) {
     const key = regionDraftKey(row);
     const currentRow = map.get(key);
@@ -53,6 +60,7 @@ const emptyStats = (): DiffStats => ({
       sample.push({ key, action: "added" });
       continue;
     }
+
     const semanticEqual =
       currentRow.name === row.name &&
       (currentRow.nameWithType ?? "") === (row.nameWithType ?? "") &&
@@ -63,12 +71,16 @@ const emptyStats = (): DiffStats => ({
       stats.noop += 1;
       continue;
     }
+
     stats.updated += 1;
     toUpsert.push(row);
     sample.push({ key, action: "updated" });
   }
+
   return { stats, toUpsert, sample: sample.slice(0, 20) };
-}export function diffPlaces(
+}
+
+export function diffPlaces(
   current: PlaceDraft[],
   expected: PlaceDraft[],
 ): DiffReport<PlaceDraft> {
@@ -79,6 +91,7 @@ const emptyStats = (): DiffStats => ({
   const stats = emptyStats();
   const toUpsert: PlaceDraft[] = [];
   const sample: Array<{ key: string; action: keyof DiffStats }> = [];
+
   for (const row of expected) {
     const key = placeDraftKey(row);
     const currentRow = map.get(key);
@@ -88,6 +101,7 @@ const emptyStats = (): DiffStats => ({
       sample.push({ key, action: "added" });
       continue;
     }
+
     const semanticEqual =
       currentRow.name === row.name &&
       (currentRow.nameWithType ?? "") === (row.nameWithType ?? "") &&
@@ -99,12 +113,16 @@ const emptyStats = (): DiffStats => ({
       stats.noop += 1;
       continue;
     }
+
     stats.updated += 1;
     toUpsert.push(row);
     sample.push({ key, action: "updated" });
   }
+
   return { stats, toUpsert, sample: sample.slice(0, 20) };
-}export function diffAliases(
+}
+
+export function diffAliases(
   current: AliasDraft[],
   expected: AliasDraft[],
 ): DiffReport<AliasDraft> {
@@ -115,6 +133,7 @@ const emptyStats = (): DiffStats => ({
   const stats = emptyStats();
   const toUpsert: AliasDraft[] = [];
   const sample: Array<{ key: string; action: keyof DiffStats }> = [];
+
   for (const row of expected) {
     const key = aliasDraftKey(row);
     const currentRow = map.get(key);
@@ -124,14 +143,17 @@ const emptyStats = (): DiffStats => ({
       sample.push({ key, action: "added" });
       continue;
     }
+
     const semanticEqual = currentRow.source === row.source;
     if (semanticEqual) {
       stats.noop += 1;
       continue;
     }
+
     stats.updated += 1;
     toUpsert.push(row);
     sample.push({ key, action: "updated" });
   }
+
   return { stats, toUpsert, sample: sample.slice(0, 20) };
 }

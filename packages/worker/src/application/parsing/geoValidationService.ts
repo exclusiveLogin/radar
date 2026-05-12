@@ -86,6 +86,37 @@ export class GeoValidationService {
     private readonly placeEvidence: IPlaceEvidenceRepository,
   ) {}
 
+  private buildMatchedContribution(input: {
+    placeId: string;
+    provider: PlaceProvider;
+    context: GeoValidationContext;
+    trust: ReturnType<typeof toTrustState>;
+    location: EventLocation;
+    rawQuery: string;
+  }): PlaceContribution {
+    const { placeId, provider, context, trust, location, rawQuery } = input;
+    return {
+      placeId,
+      provider,
+      confidence: context.confidence,
+      traceId: context.traceId,
+      trustState: trust.trustState ?? "unverified",
+      isTrusted: trust.isTrusted,
+      trustScore: trust.trustScore,
+      fields: {
+        name: location.placeName,
+        fiasId: location.placeFias,
+        centroidLat: location.lat,
+        centroidLon: location.lon,
+      },
+      rawPayload: {
+        reason: "matched_existing",
+        rawQuery,
+        locationSource: location.source,
+      },
+    };
+  }
+
   async applyProviderContribution(
     input: PlaceContribution,
   ): Promise<{ updated: PlaceRecord; appliedFields: string[] }> {
@@ -134,27 +165,16 @@ export class GeoValidationService {
         alias: location.placeName,
         source: "auto",
       });
-      const contribution: PlaceContribution = {
-        placeId: matched.id,
-        provider,
-        confidence: context.confidence,
-        traceId: context.traceId,
-        trustState: trust.trustState ?? "unverified",
-        isTrusted: trust.isTrusted,
-        trustScore: trust.trustScore,
-        fields: {
-          name: location.placeName,
-          fiasId: location.placeFias,
-          centroidLat: location.lat,
-          centroidLon: location.lon,
-        },
-        rawPayload: {
-          reason: "matched_existing",
+      const merged = await this.applyProviderContribution(
+        this.buildMatchedContribution({
+          placeId: matched.id,
+          provider,
+          context,
+          trust,
+          location,
           rawQuery,
-          locationSource: location.source,
-        },
-      };
-      const merged = await this.applyProviderContribution(contribution);
+        }),
+      );
 
       return {
         decision: "matched_existing",

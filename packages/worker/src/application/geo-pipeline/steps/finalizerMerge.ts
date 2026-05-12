@@ -164,6 +164,7 @@ function mergePlace(
   ) {
     existing.name = node.name;
   }
+  // Later providers in collect order may refine coordinates.
   if (node.lat !== undefined && node.lon !== undefined) {
     existing.lat = node.lat;
     existing.lon = node.lon;
@@ -175,6 +176,7 @@ function mergePlace(
 /** Collects and merges place candidates from all enrichment namespaces. */
 function collectPlaces(artifact: GeoEnrichmentArtifact): PlaceCandidate[] {
   const placeMap = new Map<string, PlaceCandidate>();
+  // Merge order is also priority order for conflicting coordinates.
   for (const place of artifact.catalog?.places ?? []) {
     mergePlace(placeMap, place, "catalog");
   }

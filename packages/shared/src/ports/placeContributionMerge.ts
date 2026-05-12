@@ -20,6 +20,7 @@ function tryApplyField<T>(params: {
 }): boolean {
   const { incoming, existing, incomingNotWorse, apply } = params;
   if (incoming === undefined || incoming === null) return false;
+  // Lower-confidence contribution may only backfill missing facts.
   if (!incomingNotWorse && hasValue(existing)) return false;
   if (isDeepStrictEqual(existing, incoming)) return false;
   apply(incoming);
@@ -47,6 +48,7 @@ export function mergePlaceContribution(
 ): { next: PlaceRecord; appliedFields: string[] } {
   const next: PlaceRecord = { ...current };
   const appliedFields: string[] = [];
+  // Non-worse contribution is allowed to overwrite populated fields.
   const incomingNotWorse = contribution.trustScore >= (current.trustScore ?? 0);
 
   if (
@@ -185,6 +187,7 @@ export function mergePlaceContribution(
   }
 
   if (appliedFields.length > 0) {
+    // Updated timestamp only when at least one effective change was applied.
     next.trustUpdatedAt = new Date().toISOString();
     appliedFields.push("trustUpdatedAt");
   }

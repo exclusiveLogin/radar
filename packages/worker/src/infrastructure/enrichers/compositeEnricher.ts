@@ -6,9 +6,12 @@ import type { ILocationEnricher, LocationCandidate } from "@radar/shared";
  * - Первый успешный результат останавливает цепочку.
  */
 export class CompositeEnricher implements ILocationEnricher {
+  // Keep legacy name to satisfy ILocationEnricher discriminant contract.
   readonly name = "dadata";
 
-  constructor(private readonly chain: ILocationEnricher[]) {}async enrich(input: {
+  constructor(private readonly chain: ILocationEnricher[]) {}
+
+  async enrich(input: {
     rawText: string;
     regionCode?: string;
   }): Promise<LocationCandidate | null> {

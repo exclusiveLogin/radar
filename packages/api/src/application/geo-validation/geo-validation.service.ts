@@ -9,6 +9,7 @@ import type {
   RegionRecord,
 } from "@radar/shared";
 import { randomUUID } from "node:crypto";
+import { normalizeGeoText } from "../geo/normalizeText";
 
 export type GeoValidationInput = {
   rawQuery: string;
@@ -21,16 +22,6 @@ export type GeoValidationResult = {
   decision: "matched_existing" | "created_new" | "rejected";
   placeId?: string;
 };
-
-/** Normalizes alias/query text for consistent search in alias index. */
-function normalizeAlias(value: string): string {
-  return value
-    .toLowerCase()
-    .replace(/ё/g, "е")
-    .replace(/[^\p{L}\p{N}]+/gu, " ")
-    .trim()
-    .replace(/\s+/g, " ");
-}
 
 export class GeoValidationService {
   constructor(
@@ -113,7 +104,7 @@ export class GeoValidationService {
   async validateAndResolve(
     input: GeoValidationInput,
   ): Promise<GeoValidationResult> {
-    const queryNorm = normalizeAlias(input.rawQuery);
+    const queryNorm = normalizeGeoText(input.rawQuery);
     const region = await this.resolveRegionForValidation(input);
 
     if (!region) {
@@ -176,7 +167,7 @@ export class GeoValidationService {
 
     if (candidate.queryNorm) {
       const byAlias = await this.aliases.findByAlias(
-        normalizeAlias(candidate.queryNorm),
+        normalizeGeoText(candidate.queryNorm),
       );
       const placeAlias = byAlias.find((row) => row.placeId);
       if (placeAlias?.placeId) {

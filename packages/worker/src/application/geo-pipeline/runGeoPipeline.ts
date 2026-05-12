@@ -27,19 +27,19 @@ export async function runGeoPipeline(
   const ctx: GeoPipelineContext = { rawText, artifact, stepLog };
 
   for (const step of allSteps) {
-    const t = performance.now();
+    const startedAt = performance.now();
     try {
       await step.run(ctx);
       stepLog.push({
         id: step.id,
         ok: true,
-        durationMs: Math.round(performance.now() - t),
+        durationMs: Math.round(performance.now() - startedAt),
       });
     } catch {
       stepLog.push({
         id: step.id,
         ok: false,
-        durationMs: Math.round(performance.now() - t),
+        durationMs: Math.round(performance.now() - startedAt),
       });
     }
   }

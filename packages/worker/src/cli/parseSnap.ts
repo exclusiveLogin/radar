@@ -6,9 +6,7 @@ import {
   type WorkerCompositionOptions,
 } from "../application/createWorkerCompositionRoot.js";
 import type { PipelineStepId } from "../infrastructure/enrichers/enricherChainFactory.js";
-import {
-  WorkerStorageMode,
-} from "../infrastructure/persistence/storageMode.js";
+import { WorkerStorageMode } from "../infrastructure/persistence/storageMode.js";
 import { GeoValidationService } from "../application/parsing/geoValidationService.js";
 import {
   InMemoryPlaceAliasRepository,
@@ -54,6 +52,7 @@ type ParsedCli = {
   enrichLlm: boolean;
   pipelineOrder: PipelineStepId[] | undefined;
 };
+
 function parseParseSnapCli(argv: string[]): ParsedCli {
   const map = parseLongFlagsMap(argv);
   const positionalArgs = parsePositionalArgs(argv);
@@ -73,18 +72,19 @@ function parseParseSnapCli(argv: string[]): ParsedCli {
     ),
   };
 }
+
 function resolveInputPath(arg: string): string {
   if (path.isAbsolute(arg)) return arg;
   const local = path.resolve(process.cwd(), arg);
   if (fs.existsSync(local)) return local;
-  const repoRelative = path.resolve(process.cwd(), "../../", arg);
-  return repoRelative;
+  return path.resolve(process.cwd(), "../../", arg);
 }
+
 function buildSummary(kinds: Array<"event" | "noise" | "meta">): ParseSummary {
   const totalBlocks = kinds.length;
-  const events = kinds.filter((x) => x === "event").length;
-  const noise = kinds.filter((x) => x === "noise").length;
-  const meta = kinds.filter((x) => x === "meta").length;
+  const events = kinds.filter((kind) => kind === "event").length;
+  const noise = kinds.filter((kind) => kind === "noise").length;
+  const meta = kinds.filter((kind) => kind === "meta").length;
   return {
     totalBlocks,
     events,
@@ -93,12 +93,10 @@ function buildSummary(kinds: Array<"event" | "noise" | "meta">): ParseSummary {
     eventShare: totalBlocks > 0 ? Number((events / totalBlocks).toFixed(4)) : 0,
   };
 }
+
 function buildRuntimeOptions(cli: ParsedCli): WorkerCompositionOptions {
   if (!cli.withGeoReport) {
-    return {
-      storageMode: cli.storageMode,
-      explicitEnricherFlags: false,
-    };
+    return { storageMode: cli.storageMode, explicitEnricherFlags: false };
   }
 
   return {
@@ -112,6 +110,7 @@ function buildRuntimeOptions(cli: ParsedCli): WorkerCompositionOptions {
     llmRuntimeOverride: cli.enrichLlm ? { enabled: true } : undefined,
   };
 }
+
 async function main(): Promise<void> {
   loadRootEnv(MONOREPO_ROOT);
   const cli = parseParseSnapCli(process.argv);
@@ -122,8 +121,7 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const wantsEnrichers =
-    cli.enrichDadata || cli.enrichNominatim || cli.enrichLlm;
+  const wantsEnrichers = cli.enrichDadata || cli.enrichNominatim || cli.enrichLlm;
   if (wantsEnrichers && !cli.withGeoReport) {
     console.warn(
       "parse:snap: флаги enrichers действуют только вместе с --geo-report, игнорируются.",
@@ -137,7 +135,6 @@ async function main(): Promise<void> {
   }
 
   const runtime = createWorkerCompositionRoot(buildRuntimeOptions(cli));
-
   const source = fs.readFileSync(filePath, "utf8");
   const blocks = splitMessageBlocks(source);
   const classifier = new RuleBasedEventClassifier();
@@ -146,7 +143,7 @@ async function main(): Promise<void> {
     block,
     result: classifier.classify(block),
   }));
-  const summary = buildSummary(results.map((x) => x.result.kind));
+  const summary = buildSummary(results.map((row) => row.result.kind));
 
   if (cli.withGeoReport) {
     summary.geoEnrichers = {
@@ -171,6 +168,7 @@ async function main(): Promise<void> {
         rejected += 1;
         continue;
       }
+
       let hasAccepted = false;
       for (const location of resolved.locations) {
         const decision = await validation.validate(row.block, location);
@@ -195,11 +193,11 @@ async function main(): Promise<void> {
         filePath,
         storageMode: cli.storageMode,
         summary,
-        results: results.map((x) => ({
-          index: x.index,
-          kind: x.result.kind,
-          reason: "reason" in x.result ? x.result.reason : undefined,
-          event: "event" in x.result ? x.result.event : undefined,
+        results: results.map((row) => ({
+          index: row.index,
+          kind: row.result.kind,
+          reason: "reason" in row.result ? row.result.reason : undefined,
+          event: "event" in row.result ? row.result.event : undefined,
         })),
       },
       null,

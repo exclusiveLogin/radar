@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { PlaceContribution, PlaceRecord } from "@radar/shared";
-import { mergePlaceContribution, monotonicTrustState } from "./placeContributionMerge.js";
+import { mergePlaceContribution, monotonicTrustState } from "@radar/shared";
 
 function basePlace(overrides: Partial<PlaceRecord> = {}): PlaceRecord {
   return {

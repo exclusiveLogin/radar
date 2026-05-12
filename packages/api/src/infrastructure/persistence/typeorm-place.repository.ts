@@ -1,5 +1,5 @@
 import { mergePlaceContribution } from "@radar/shared";
-import type { IPlaceRepository, PlaceContribution, PlaceRecord } from "@radar/shared";
+import type { IPlaceRepository, PlaceContribution, PlaceProvider, PlaceRecord } from "@radar/shared";
 import type { DataSource } from "typeorm";
 import { PlaceEntity } from "../../geo/entities";
 
@@ -11,6 +11,18 @@ function normalizeName(value: string): string {
     .replace(/[^\p{L}\p{N}]+/gu, " ")
     .trim()
     .replace(/\s+/g, " ");
+}
+
+function toPlaceProviders(value: unknown[]): PlaceProvider[] {
+  return value.filter(
+    (provider): provider is PlaceProvider =>
+      provider === "catalog" ||
+      provider === "dadata" ||
+      provider === "nominatim" ||
+      provider === "llm" ||
+      provider === "operator" ||
+      provider === "system",
+  );
 }
 
 
@@ -44,11 +56,7 @@ export class TypeOrmPlaceRepository implements IPlaceRepository {
       isTrusted: row.isTrusted,
       trustScore: row.trustScore !== null ? Number(row.trustScore) : undefined,
       trustUpdatedAt: row.trustUpdatedAt?.toISOString(),
-      evidenceProviders:
-        row.evidenceProviders?.filter(
-          (provider): provider is "catalog" | "dadata" | "nominatim" | "llm" | "operator" | "system" =>
-            typeof provider === "string",
-        ) ?? [],
+      evidenceProviders: toPlaceProviders(row.evidenceProviders ?? []),
     };
   }
 
@@ -156,6 +164,7 @@ export class TypeOrmPlaceRepository implements IPlaceRepository {
   ): Promise<{ updated: PlaceRecord; appliedFields: string[] }> {
     return this.dataSource.transaction(async (manager) => {
       const txRepo = manager.getRepository(PlaceEntity);
+      // Lock target row to preserve deterministic merge semantics under concurrency.
       const current = await txRepo
         .createQueryBuilder("place")
         .where("place.id = :id", { id: input.placeId })

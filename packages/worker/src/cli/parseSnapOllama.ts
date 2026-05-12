@@ -4,20 +4,17 @@ import { MONOREPO_ROOT } from "@repo/root";
 import { createWorkerCompositionRoot } from "../application/createWorkerCompositionRoot.js";
 import { splitMessageBlocks } from "../domain/parsing/index.js";
 import { loadRootEnv } from "../infrastructure/config/loadRootEnv.js";
-import {
-  WorkerStorageMode,
-} from "../infrastructure/persistence/storageMode.js";
-import {
-  parseLongFlagsMap,
-  parseStorageModeFromMap,
-} from "./workerCliArgs.js";
+import { WorkerStorageMode } from "../infrastructure/persistence/storageMode.js";
+import { parseLongFlagsMap, parseStorageModeFromMap } from "./workerCliArgs.js";
 
 type CliOptions = {
   input: string;
   storageMode: WorkerStorageMode;
   model?: string;
   baseUrl?: string;
-};function parseArgs(argv: string[]): CliOptions {
+};
+
+function parseArgs(argv: string[]): CliOptions {
   const map = parseLongFlagsMap(argv);
 
   const input = map.get("input");
@@ -36,12 +33,16 @@ type CliOptions = {
         ? String(map.get("base-url"))
         : undefined,
   };
-}function resolveInputPath(input: string): string {
+}
+
+function resolveInputPath(input: string): string {
   if (path.isAbsolute(input)) return input;
   const fromCwd = path.resolve(process.cwd(), input);
   if (fs.existsSync(fromCwd)) return fromCwd;
   return path.resolve(MONOREPO_ROOT, input);
-}async function probeOllama(baseUrl: string): Promise<{ ok: boolean; status?: number }> {
+}
+
+async function probeOllama(baseUrl: string): Promise<{ ok: boolean; status?: number }> {
   const url = new URL("/api/tags", baseUrl).toString();
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 5000);
@@ -53,7 +54,21 @@ type CliOptions = {
   } finally {
     clearTimeout(timer);
   }
-}async function main(): Promise<void> {
+}
+
+function applyLlmEnv(options: CliOptions): { baseUrl: string; model: string } {
+  process.env.RADAR_LLM_GEOCODER_ENABLED = "1";
+  process.env.RADAR_LLM_PROVIDER = process.env.RADAR_LLM_PROVIDER || "ollama";
+  if (options.baseUrl) process.env.RADAR_LLM_BASE_URL = options.baseUrl;
+  if (options.model) process.env.RADAR_LLM_MODEL = options.model;
+
+  return {
+    baseUrl: process.env.RADAR_LLM_BASE_URL || "http://127.0.0.1:11434/v1",
+    model: process.env.RADAR_LLM_MODEL || "qwen2.5:3b",
+  };
+}
+
+async function main(): Promise<void> {
   loadRootEnv(MONOREPO_ROOT);
   const options = parseArgs(process.argv);
   const filePath = resolveInputPath(options.input);
@@ -61,13 +76,7 @@ type CliOptions = {
     throw new Error(`File not found: ${filePath}`);
   }
 
-  process.env.RADAR_LLM_GEOCODER_ENABLED = "1";
-  process.env.RADAR_LLM_PROVIDER = process.env.RADAR_LLM_PROVIDER || "ollama";
-  if (options.baseUrl) process.env.RADAR_LLM_BASE_URL = options.baseUrl;
-  if (options.model) process.env.RADAR_LLM_MODEL = options.model;
-
-  const baseUrl = process.env.RADAR_LLM_BASE_URL || "http://127.0.0.1:11434/v1";
-  const model = process.env.RADAR_LLM_MODEL || "qwen2.5:3b";
+  const { baseUrl, model } = applyLlmEnv(options);
   const probe = await probeOllama(baseUrl);
   if (!probe.ok) {
     throw new Error(

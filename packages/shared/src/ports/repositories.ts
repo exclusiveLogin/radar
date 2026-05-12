@@ -44,6 +44,7 @@ export type PlaceRecord = {
 };
 
 export type PlaceProvider = "catalog" | "dadata" | "nominatim" | "llm" | "operator" | "system";
+export type PlaceCacheProvider = "dadata" | "nominatim" | "llm";
 
 export type PlaceAliasRecord = {
   id: string;
@@ -120,6 +121,21 @@ export type PlaceContribution = {
   rawPayload?: Record<string, unknown>;
 };
 
+export type PlaceCacheHit = {
+  provider: PlaceCacheProvider;
+  raw: Record<string, unknown>;
+  fetchedAt?: string;
+  validatedAt?: string;
+  confidence?: number;
+};
+
+export type PlaceCachePutMeta = {
+  confidence?: number;
+  validator?: "rule" | "human" | "provider";
+  expiresAt?: string;
+  validatedAt?: string;
+};
+
 export interface IRegionRepository {
   findByCode(code: string): Promise<RegionRecord | null>;
   listActive(): Promise<RegionRecord[]>;
@@ -167,27 +183,13 @@ export interface IIngestCursorRepository {
 export interface IPlaceCacheRepository {
   get(
     queryNorm: string,
-    provider?: "dadata" | "nominatim" | "llm",
-  ): Promise<
-    | {
-        provider: "dadata" | "nominatim" | "llm";
-        raw: Record<string, unknown>;
-        fetchedAt?: string;
-        validatedAt?: string;
-        confidence?: number;
-      }
-    | null
-  >;
+    provider?: PlaceCacheProvider,
+  ): Promise<PlaceCacheHit | null>;
   put(
     queryNorm: string,
-    provider: "dadata" | "nominatim" | "llm",
+    provider: PlaceCacheProvider,
     value: Record<string, unknown>,
-    meta?: {
-      confidence?: number;
-      validator?: "rule" | "human" | "provider";
-      expiresAt?: string;
-      validatedAt?: string;
-    },
+    meta?: PlaceCachePutMeta,
   ): Promise<void>;
 }
 

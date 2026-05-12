@@ -62,6 +62,41 @@ export type WorkerCompositionOptions = {
   /** Поверх `loadLlmRuntimeConfig()` (например `enabled: true` при `--enrich-llm`). */
   llmRuntimeOverride?: Partial<LlmRuntimeConfig>;
 };
+
+function resolveEnricherFlags(
+  explicit: WorkerCompositionOptions["explicitEnricherFlags"],
+): ResolvedEnricherFlags {
+  if (explicit === false) {
+    return { dadata: false, nominatim: false, llm: false };
+  }
+  return explicit ?? resolveEnricherFlagsFromEnv();
+}
+
+function resolvePipelineOrder(
+  override: WorkerCompositionOptions["pipelineOrder"],
+): PipelineStepId[] {
+  return override ?? resolvePipelineOrderFromEnv() ?? DEFAULT_PIPELINE_ORDER;
+}
+
+function createStepFactories(params: {
+  geoCatalog: GeoCatalog;
+  flags: ResolvedEnricherFlags;
+  llmRuntimeConfig: LlmRuntimeConfig;
+  placeCache: IPlaceCacheRepository;
+}): Record<PipelineStepId, () => GeoPipelineStep | null> {
+  const { geoCatalog, flags, llmRuntimeConfig, placeCache } = params;
+  return {
+    catalog: () => new CatalogStep(geoCatalog),
+    llm: () => (flags.llm ? new LlmStep(new LlmEnricher(llmRuntimeConfig)) : null),
+    dadata: () =>
+      flags.dadata
+        ? new DadataStep(new DadataEnricher(process.env.DADATA_TOKEN), placeCache)
+        : null,
+    nominatim: () =>
+      flags.nominatim ? new NominatimStep(new NominatimEnricher(), placeCache) : null,
+  };
+}
+
 export function createWorkerCompositionRoot(options: WorkerCompositionOptions = {}) {
   const storageMode = options.storageMode ?? resolveWorkerStorageModeFromEnv();
   if (storageMode === WorkerStorageMode.Db) {
@@ -93,26 +128,14 @@ export function createWorkerCompositionRoot(options: WorkerCompositionOptions = 
     ...loadLlmRuntimeConfig(),
     ...(options.llmRuntimeOverride ?? {}),
   };
-
-  const flags: ResolvedEnricherFlags =
-    options.explicitEnricherFlags === false
-      ? { dadata: false, nominatim: false, llm: false }
-      : (options.explicitEnricherFlags ?? resolveEnricherFlagsFromEnv());
-
-  // ── Resolve execution order: options → env → default ──────────────────
-  const order: PipelineStepId[] =
-    options.pipelineOrder ??
-    resolvePipelineOrderFromEnv() ??
-    DEFAULT_PIPELINE_ORDER;
-
-  // ── Step factory map ───────────────────────────────────────────────────
-  const stepFactories: Record<PipelineStepId, () => GeoPipelineStep | null> = {
-    catalog: () => new CatalogStep(geoCatalog),
-    llm: () => (flags.llm ? new LlmStep(new LlmEnricher(llmRuntimeConfig)) : null),
-    dadata: () =>
-      flags.dadata ? new DadataStep(new DadataEnricher(process.env.DADATA_TOKEN), placeCache) : null,
-    nominatim: () => (flags.nominatim ? new NominatimStep(new NominatimEnricher(), placeCache) : null),
-  };
+  const flags = resolveEnricherFlags(options.explicitEnricherFlags);
+  const order = resolvePipelineOrder(options.pipelineOrder);
+  const stepFactories = createStepFactories({
+    geoCatalog,
+    flags,
+    llmRuntimeConfig,
+    placeCache,
+  });
 
   const steps: GeoPipelineStep[] = order
     .map((id) => stepFactories[id]())

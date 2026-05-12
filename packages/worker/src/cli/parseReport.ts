@@ -32,18 +32,26 @@ type CliOptions = {
   enrichLlm: boolean;
   pipelineOrder: PipelineStepId[] | undefined;
 };
+
+type EnricherFlags = { dadata: boolean; nominatim: boolean; llm: boolean };
+
+function parseEnum<T extends string>(raw: string, values: readonly T[], fallback: T): T {
+  return values.includes(raw as T) ? (raw as T) : fallback;
+}
+
 function parseArgs(argv: string[]): CliOptions {
   const map = parseLongFlagsMap(argv);
 
-  const formatRaw = String(map.get("format") ?? "json").toLowerCase();
-  const divRaw = String(map.get("div") ?? "file").toLowerCase();
-
-  const format = ["json", "yaml", "csv"].includes(formatRaw)
-    ? (formatRaw as CliOptions["format"])
-    : "json";
-  const div = ["file", "record"].includes(divRaw)
-    ? (divRaw as CliOptions["div"])
-    : "file";
+  const format = parseEnum(
+    String(map.get("format") ?? "json").toLowerCase(),
+    ["json", "yaml", "csv"] as const,
+    "json",
+  );
+  const div = parseEnum(
+    String(map.get("div") ?? "file").toLowerCase(),
+    ["file", "record"] as const,
+    "file",
+  );
 
   const pipelineOrder = parsePipelineOrder(
     typeof map.get("pipeline-order") === "string"
@@ -97,7 +105,7 @@ function ensureCleanOutdir(outdir: string): void {
   fs.mkdirSync(outdir, { recursive: true });
 }
 function buildEnricherFlags(options: CliOptions):
-  | { dadata: boolean; nominatim: boolean; llm: boolean }
+  | EnricherFlags
   | false {
   const anyProvider =
     options.enrichDadata || options.enrichNominatim || options.enrichLlm;
@@ -109,6 +117,29 @@ function buildEnricherFlags(options: CliOptions):
     nominatim: options.enrichNominatim,
     llm: options.enrichLlm,
   };
+}
+
+async function parseFileBlocks(options: {
+  filePath: string;
+  parse: ReturnType<typeof createWorkerCompositionRoot>["parsePipelineService"]["execute"];
+}): Promise<{ payload: Array<Record<string, unknown>>; blocksCount: number }> {
+  const source = fs.readFileSync(options.filePath, "utf8");
+  const blocks = splitMessageBlocks(source);
+  const payload: Array<Record<string, unknown>> = [];
+
+  for (let index = 0; index < blocks.length; index += 1) {
+    const block = blocks[index];
+    const result = await options.parse({
+      rawText: block,
+      postedAt: new Date().toISOString(),
+      channelKey: path.basename(options.filePath, path.extname(options.filePath)),
+      file: path.basename(options.filePath),
+      index,
+    });
+    payload.push(result.report as unknown as Record<string, unknown>);
+  }
+
+  return { payload, blocksCount: blocks.length };
 }
 async function main(): Promise<void> {
   loadRootEnv(MONOREPO_ROOT);
@@ -141,23 +172,11 @@ async function main(): Promise<void> {
   let totalBlocks = 0;
 
   for (const file of files) {
-    const source = fs.readFileSync(file, "utf8");
-    const blocks = splitMessageBlocks(source);
-    totalBlocks += blocks.length;
-
-    const payload = [] as Array<Record<string, unknown>>;
-
-    for (let index = 0; index < blocks.length; index += 1) {
-      const block = blocks[index];
-      const result = await runtime.parsePipelineService.execute({
-        rawText: block,
-        postedAt: new Date().toISOString(),
-        channelKey: path.basename(file, path.extname(file)),
-        file: path.basename(file),
-        index,
-      });
-      payload.push(result.report as unknown as Record<string, unknown>);
-    }
+    const { payload, blocksCount } = await parseFileBlocks({
+      filePath: file,
+      parse: runtime.parsePipelineService.execute.bind(runtime.parsePipelineService),
+    });
+    totalBlocks += blocksCount;
 
     if (options.div === "file") {
       const ext = options.format === "yaml" ? "yaml" : options.format;

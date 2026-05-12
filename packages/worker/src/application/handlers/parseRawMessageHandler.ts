@@ -1,5 +1,6 @@
 ﻿import type {
   DomainEvent,
+  EventLocation,
   IEventLocationRepository,
   IEventPublisher,
   IParsedEventRepository,
@@ -11,11 +12,66 @@ import type { GeoValidationContext } from "../parsing/geoValidationService.js";
 import type { ParsePipelineService } from "../parsing/parsePipelineService.js";
 import { buildDomainEvent } from "./domainEventFactory.js";
 
+type EnricherProvider = "dadata" | "nominatim" | "llm";
+
 function toProviderHint(
-  provider: "dadata" | "nominatim" | "llm" | undefined,
+  provider: EnricherProvider | undefined,
 ): GeoValidationContext["providerHint"] | undefined {
   if (!provider) return undefined;
   return provider;
+}
+
+function toPrimaryProvider(providersTried: string[]): EnricherProvider | undefined {
+  const provider = providersTried[0];
+  if (provider === "dadata" || provider === "nominatim" || provider === "llm") {
+    return provider;
+  }
+  return undefined;
+}
+
+function buildEnricherTelemetry(
+  rawMessageId: string,
+  enrich: { invoked: boolean; cacheHit: boolean },
+  primaryProvider: EnricherProvider | undefined,
+  hasLocationCandidates: boolean,
+): DomainEvent[] {
+  const events: DomainEvent[] = [];
+  const provider = primaryProvider ?? "unknown";
+
+  if (enrich.invoked) {
+    events.push(
+      buildDomainEvent({
+        type: "EnricherInvoked",
+        aggregateType: "raw_message",
+        aggregateId: rawMessageId,
+        payload: { provider },
+      }),
+    );
+  }
+
+  if (enrich.cacheHit) {
+    events.push(
+      buildDomainEvent({
+        type: "EnricherCacheHit",
+        aggregateType: "raw_message",
+        aggregateId: rawMessageId,
+        payload: { provider },
+      }),
+    );
+  }
+
+  if (!hasLocationCandidates) {
+    events.push(
+      buildDomainEvent({
+        type: "EnricherFailed",
+        aggregateType: "raw_message",
+        aggregateId: rawMessageId,
+        payload: { reason: "no_location_candidates" },
+      }),
+    );
+  }
+
+  return events;
 }
 
 export class ParseRawMessageHandler {
@@ -27,7 +83,25 @@ export class ParseRawMessageHandler {
     private readonly placeCache: IPlaceCacheRepository,
     private readonly events: IEventPublisher,
   ) {}
-async handle(raw: RawMessage): Promise<void> {
+
+  private async validateLocations(
+    rawText: string,
+    locations: EventLocation[],
+    primaryProvider: EnricherProvider | undefined,
+  ) {
+    const validatedLocations = [];
+    for (const location of locations) {
+      const validated = await this.validation.validate(rawText, location, {
+        providerHint: toProviderHint(primaryProvider),
+      });
+      if (validated.location) {
+        validatedLocations.push(validated.location);
+      }
+    }
+    return validatedLocations;
+  }
+
+  async handle(raw: RawMessage): Promise<void> {
     const pipelineResult = await this.pipeline.execute({
       rawText: raw.rawText,
       postedAt: raw.postedAt,
@@ -54,21 +128,12 @@ async handle(raw: RawMessage): Promise<void> {
       cacheHit: false,
       providersTried: [] as string[],
     };
-    const primaryProvider = enrich.providersTried[0] as
-      | "dadata"
-      | "nominatim"
-      | "llm"
-      | undefined;
-
-    const validatedLocations = [];
-    for (const location of pipelineResult.locations) {
-      const validated = await this.validation.validate(raw.rawText, location, {
-        providerHint: toProviderHint(primaryProvider),
-      });
-      if (validated.location) {
-        validatedLocations.push(validated.location);
-      }
-    }
+    const primaryProvider = toPrimaryProvider(enrich.providersTried);
+    const validatedLocations = await this.validateLocations(
+      raw.rawText,
+      pipelineResult.locations,
+      primaryProvider,
+    );
 
     const parsed = {
       ...pipelineResult.parsedEvent,
@@ -77,47 +142,12 @@ async handle(raw: RawMessage): Promise<void> {
       locations: validatedLocations,
     };
 
-    const telemetryEvents: DomainEvent[] = [];
-
-    if (enrich.invoked) {
-      telemetryEvents.push(
-        buildDomainEvent({
-          type: "EnricherInvoked",
-          aggregateType: "raw_message",
-          aggregateId: raw.hash,
-          payload: {
-            provider: primaryProvider ?? "unknown",
-          },
-        }),
-      );
-    }
-
-    if (enrich.cacheHit) {
-      telemetryEvents.push(
-        buildDomainEvent({
-          type: "EnricherCacheHit",
-          aggregateType: "raw_message",
-          aggregateId: raw.hash,
-          payload: {
-            provider: primaryProvider ?? "unknown",
-          },
-        }),
-      );
-    }
-
-    if (pipelineResult.locations.length === 0) {
-      telemetryEvents.push(
-        buildDomainEvent({
-          type: "EnricherFailed",
-          aggregateType: "raw_message",
-          aggregateId: raw.hash,
-          payload: {
-            reason: "no_location_candidates",
-          },
-        }),
-      );
-    }
-
+    const telemetryEvents = buildEnricherTelemetry(
+      raw.hash,
+      enrich,
+      primaryProvider,
+      pipelineResult.locations.length > 0,
+    );
     if (telemetryEvents.length > 0) {
       await this.events.publish(telemetryEvents);
     }
