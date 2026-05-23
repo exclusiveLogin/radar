@@ -1,0 +1,102 @@
+# Лог проекта Radar
+
+Журнал выполненных шагов. Новые записи добавляем **сверху** (после блока «Текущий статус»).
+
+Связанные документы: [plan.md](./plan.md) · [README.md](../README.md) · [place-trust-explained.md](./place-trust-explained.md)
+
+---
+
+## Текущий статус (2026-05-24)
+
+| Фаза | Состояние |
+|------|-----------|
+| Каркас монорепо, Docker, API/worker/web | ✅ готово |
+| Geo-пайплайн (vendor → artifacts → seed → db:apply) | ✅ готово |
+| Парсинг БПЛА + write-side pipeline (C01–C16) | ✅ готово |
+| Runtime geo enrichers (cache → dadata → nominatim → llm) | ✅ готово |
+| Trust/provenance в runtime (places + place_evidence) | ✅ итерация 1 |
+| **Trust/provenance на read-side для UI** | 🔄 **итерация 2 — в работе** |
+| Batch enrichment orchestration (Dadata/LLM) | ⏳ итерация 3 |
+| Web UI (карта, time machine, алерты) | ⏳ не начато |
+
+### Итерация 2 — чеклист
+
+| # | Задача | Статус |
+|---|--------|--------|
+| 1 | Протянуть `TypeOrmPlaceEvidenceRepository` в read-side wiring | ❌ |
+| 2 | Read-side: trust summary + evidence history | ❌ |
+| 3 | `GET /api/places/:placeId/evidence?limit=...` | ❌ |
+| 4 | `needsAttention` в place DTO/read model | ❌ |
+| 5 | Swagger + docs sync | 🟡 частично (docs есть, API — нет) |
+| 6 | Quality gates (`typecheck`, `lint`, smoke) | ❓ не прогоняли в рамках ит.2 |
+
+**Следующий шаг:** wiring evidence repo в read-side → endpoint evidence history → trust-поля и `needsAttention` в выдаче places.
+
+---
+
+## Записи
+
+### 2026-05-12 — Trust/provenance: итерация 1 закрыта
+
+- `feat(geo)`: trust/provenance tracking для places (`6f2012b`)
+- `feat(geo)`: monotonic place contribution merge (`504b1bb`)
+- `refactor`: shared utility для merge вместо дублирования в api/worker (`547bf38`, `930c3aa`)
+- `docs`: README + geo-dataset-schemas + place-trust model (`01c01fc`)
+- `chore(cursor)`: Context7 & lean-ctx MCP, project skills (`76ba214`)
+- `refactor`: декларативные flows api/worker, комментарии domain/parsing (`bc7fd8e`, `57ab14d`)
+- Roadmap обновлён в `docs/plan.md` — итерация 2 зафиксирована
+
+### 2026-05-11 — Рефакторинг и отчёты парсера
+
+- `refactor(worker-cli)`: упрощение storage mode flag resolution (`434ab3d`)
+- README: ссылка на гайд sampling parameters; snap_004 без LLM-шума (`dc706be`)
+
+### 2026-05-09 — LLM geocoder: стабилизация
+
+- `fix(worker)`: LLM возвращает массив places, dedup в finalizer (`d2d6f7f`)
+- `fix(worker)`: dedup places, catalog casing, city punctuation (`8e2463e`)
+- `refactor(worker)`: LlmStep / LlmEnricher для geo extraction (`70428df`)
+- `fix(worker)`: prompt noise filters, regionCode lookup (`c530048`)
+- `fix(worker)`: русские регионы в косвенном падеже и после запятых (`a4aa9bf`)
+- `docs`: llm model log (`c276825`)
+
+### 2026-05-08 — Multi-region + LLM enricher
+
+- `fix(worker-parser)`: Cyrillic matching, убран `\b` false negative (`9a41c8f`)
+- `feat(worker)`: multi-region geo resolution (`d779187`, `0cf31ff`, `54c3452`)
+- `feat(worker)`: Ollama-backed LLM enricher + local LLM stack (`ad43393`)
+- `feat(worker)`: granular enricher toggles (env + parse:snap CLI) (`02a4ba4`)
+- `feat(shared)`: `geoArtifact` в ParseReport для отладки pipeline (`a268dde`)
+- `feat(worker)`: district name cleaning, fallback city extraction (`f1060ff`)
+- `docs(tests)`: aggregated report command; удалён устаревший snap_002 (`a250543`, `13ba452`)
+
+### 2026-05-07 — Geo sync + place status + read-side fix
+
+- `fix(api)`: восстановлены read-side routes, barrel imports entities (`454e991`)
+- `feat(geo)`: place status management, place_cache, validation metadata (`ac122db`)
+- `feat(geo)`: normalization, key generation, semantic diff, source metadata (`5debcd2`)
+- `feat(geo)`: `geo:init`, `geo:update` scripts, storage models docs (`0c6ce87`)
+
+### 2026-05-05 — Полный pipeline + cold start
+
+- `feat(radar)`: UAV parsing + DB linkage C01–C16 — shared contracts, events bus, geo providers/sync, worker parsing, write-side, admin-bot HLD (`f771091`)
+- `feat(platform)`: Node cold-start scripts, geo snapshot pipeline, pgAdmin, product README (`b11caef`)
+- `feat(dev)`: Docker radar network, pgAdmin, geo pipeline, `cold:up`, test snapshots (`e8b0a59`)
+
+### 2026-05-04 — Старт репозитория
+
+- `Initial commit` (`503d54b`)
+- `chore`: scaffold TS monorepo — api/worker/web/shared, Docker Postgres, Nest+TypeORM+Swagger, Vite+React, GramJS, Zod, `docs/plan.md` (`4e0923f`)
+- `chore`: worker build process, radar env vars, shared schemas (`057b272`)
+
+---
+
+## Шаблон новой записи
+
+```markdown
+### YYYY-MM-DD — Краткий заголовок
+
+- что сделано (1–3 пункта)
+- ссылка на commit / PR (если есть)
+- блокеры или next step (если есть)
+```

@@ -31,6 +31,8 @@ isProject: true
 
 Файл лежит в репозитории: **`docs/plan.md`** — можно добавлять в контекст чата Cursor (@-mention или drag-and-drop).
 
+Журнал выполненных шагов: **[docs/project-log.md](./project-log.md)**.
+
 ## Контекст
 
 - **Каркас первого этапа** уже в репозитории (см. [README.md](../README.md)): monorepo, Docker Postgres, NestJS+TypeORM+Swagger, worker GramJS, Vite+React.
