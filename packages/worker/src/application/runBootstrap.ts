@@ -4,9 +4,11 @@ import { planChannelIngests } from "./parsing/channelIngestPlanner.js";
 import { createWorkerCompositionRoot } from "./createWorkerCompositionRoot.js";
 import { loadChannelManifest } from "../infrastructure/manifest/channelManifestLoader.js";
 import { loadRootEnv } from "../infrastructure/config/loadRootEnv.js";
-import { createTtyPrompter } from "../infrastructure/io/ttyPrompter.js";
-import { runTelegramUserSessionBootstrap } from "../infrastructure/telegram/userSessionLifecycle.js";
-import { loadLlmRuntimeConfig } from "../infrastructure/enrichers/llmRuntimeConfig.js";function readTelegramCredentials():
+import { loadLlmRuntimeConfig } from "../infrastructure/enrichers/llmRuntimeConfig.js";
+import { WorkerStorageMode } from "../infrastructure/persistence/storageMode.js";
+import { ingestMessageHash } from "@radar/shared";
+
+function readTelegramCredentials():
   | { ok: true; apiId: number; apiHash: string }
   | { ok: false } {
   const apiId = Number(process.env.TELEGRAM_API_ID);
@@ -18,20 +20,12 @@ import { loadLlmRuntimeConfig } from "../infrastructure/enrichers/llmRuntimeConf
 }
 
 /**
- * Точка входа use-case: env → манифест/конфиг (лог) → MTProto bootstrap.
+ * Точка входа use-case: env → runtime (db orchestrator или memory demo).
  */
 export async function runWorkerBootstrap(): Promise<void> {
   loadRootEnv(MONOREPO_ROOT);
   await runLlmStartupCheck();
-  const runtime = createWorkerCompositionRoot();
-
-  const creds = readTelegramCredentials();
-  if (!creds.ok) {
-    console.error(
-      "Нужны TELEGRAM_API_ID и TELEGRAM_API_HASH (см. .env.example; значения с https://my.telegram.org).",
-    );
-    process.exit(1);
-  }
+  const runtime = await createWorkerCompositionRoot();
 
   const parseConfig = loadParseRuntimeConfig(MONOREPO_ROOT);
   const manifest = loadChannelManifest(MONOREPO_ROOT);
@@ -42,7 +36,7 @@ export async function runWorkerBootstrap(): Promise<void> {
 
   if (manifest) {
     console.log(
-      `Манифест: ${manifest.channels.length} канал(ов), к парсингу: ${planned.length}.`,
+      `Манифест каналов: ${manifest.channels.length} канал(ов), к парсингу: ${planned.length}.`,
     );
   } else {
     console.log(
@@ -55,27 +49,67 @@ export async function runWorkerBootstrap(): Promise<void> {
   console.log(`Режим хранилища worker: ${runtime.storageMode}.`);
   console.log("Write-side handlers и event bus инициализированы.");
 
-  const prompter = createTtyPrompter();
-  await runTelegramUserSessionBootstrap({
-    repoRoot: MONOREPO_ROOT,
-    credentials: { apiId: creds.apiId, apiHash: creds.apiHash },
-    prompter,
-  });
+  if (runtime.storageMode === WorkerStorageMode.Db) {
+    if (!runtime.ingestOrchestrator) {
+      throw new Error("Ingest orchestrator не инициализирован в db mode.");
+    }
+    const creds = readTelegramCredentials();
+    if (!creds.ok) {
+      console.warn(
+        "TELEGRAM_API_ID/HASH не заданы — telegram adapters могут не стартовать.",
+      );
+    }
+    console.log("Запуск IngestOrchestrator (active providers из БД)...");
+    await runtime.ingestOrchestrator.start();
+
+    const shutdown = async () => {
+      console.log("Остановка worker...");
+      await runtime.shutdown?.();
+      process.exit(0);
+    };
+    process.on("SIGINT", () => void shutdown());
+    process.on("SIGTERM", () => void shutdown());
+    return;
+  }
+
+  const creds = readTelegramCredentials();
+  if (!creds.ok) {
+    console.error(
+      "Нужны TELEGRAM_API_ID и TELEGRAM_API_HASH (см. .env.example; значения с https://my.telegram.org).",
+    );
+    process.exit(1);
+  }
 
   if (process.env.RADAR_BOOTSTRAP_DEMO_PARSE === "1") {
+    const postedAt = new Date().toISOString();
     const demoRaw = {
       channelKey: "demo",
-      telegramMessageId: 1,
-      hash: "demo-hash",
-      postedAt: new Date().toISOString(),
+      providerKey: "demo",
+      sourceKind: "manual" as const,
+      externalMessageId: "demo-1",
+      revisionKey: null,
+      postedAt,
+      ingestMode: "manual" as const,
       rawText: "Внимание по БПЛА в Белгородской области",
+      hash: ingestMessageHash({
+        channelKey: "demo",
+        providerKey: "demo",
+        sourceKind: "manual",
+        externalMessageId: "demo-1",
+        revisionKey: null,
+        postedAt,
+        rawText: "Внимание по БПЛА в Белгородской области",
+      }),
     };
     const ingested = await runtime.ingestRawMessageHandler.handle(demoRaw);
     if (ingested.inserted) {
-      await runtime.parseRawMessageHandler.handle(demoRaw);
+      const withId = { ...demoRaw, id: ingested.rawMessageId };
+      await runtime.parseRawMessageHandler.handle(withId);
     }
   }
-}async function runLlmStartupCheck(): Promise<void> {
+}
+
+async function runLlmStartupCheck(): Promise<void> {
   const config = loadLlmRuntimeConfig();
   if (!config.enabled) {
     console.log("LLM enricher: disabled.");

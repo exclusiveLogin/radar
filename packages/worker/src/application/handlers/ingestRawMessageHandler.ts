@@ -1,12 +1,55 @@
-import type { DomainEvent, IEventPublisher, IRawMessageRepository, RawMessage } from "@radar/shared";
+import type {
+  DomainEvent,
+  IEventPublisher,
+  IIngestCursorRepository,
+  IRawMessageRepository,
+  RawMessage,
+  RawMessageTelegramExtension,
+} from "@radar/shared";
+import { ingestMessageHash } from "@radar/shared";
 import { randomUUID } from "node:crypto";
 
+/**
+ * Use case: upsert сырого сообщения, duplicate-safe events, live cursor advance.
+ */
 export class IngestRawMessageHandler {
   constructor(
     private readonly rawMessages: IRawMessageRepository,
     private readonly events: IEventPublisher,
-  ) {}async handle(raw: RawMessage): Promise<{ inserted: boolean; rawMessageId: string }> {
-    const result = await this.rawMessages.upsert(raw);
+    private readonly cursors?: IIngestCursorRepository,
+  ) {}
+
+  async handle(
+    raw: RawMessage,
+    extension?: RawMessageTelegramExtension,
+  ): Promise<{ inserted: boolean; rawMessageId: string }> {
+    const hash =
+      raw.hash ||
+      ingestMessageHash({
+        channelKey: raw.channelKey,
+        providerKey: raw.providerKey,
+        sourceKind: raw.sourceKind,
+        externalMessageId: raw.externalMessageId,
+        revisionKey: raw.revisionKey ?? null,
+        postedAt: raw.postedAt,
+        rawText: raw.rawText,
+        rawPayload: raw.rawPayload,
+      });
+
+    const normalized: RawMessage = { ...raw, hash };
+    const result = await this.rawMessages.upsert(normalized, extension);
+
+    if (result.inserted && this.cursors && normalized.ingestMode === "live") {
+      await this.cursors.advanceLive({
+        channelKey: normalized.channelKey,
+        providerKey: normalized.providerKey,
+        externalMessageId: normalized.externalMessageId,
+        postedAt: normalized.postedAt,
+        sourceSequence: normalized.sourceSequence ?? null,
+        ingestMode: "live",
+      });
+    }
+
     const event: DomainEvent = {
       id: randomUUID(),
       type: result.inserted ? "RawMessageIngested" : "RawMessageDuplicate",
@@ -15,9 +58,11 @@ export class IngestRawMessageHandler {
       aggregateType: "raw_message",
       aggregateId: result.id,
       payload: {
-        channelKey: raw.channelKey,
-        telegramMessageId: raw.telegramMessageId,
-        hash: raw.hash,
+        channelKey: normalized.channelKey,
+        providerKey: normalized.providerKey,
+        externalMessageId: normalized.externalMessageId,
+        hash: normalized.hash,
+        ingestMode: normalized.ingestMode,
       },
     };
     await this.events.publish([event]);

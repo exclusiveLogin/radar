@@ -11,12 +11,21 @@
     "build": "tsc -p tsconfig.json && tsc-alias -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint \"src/**/*.ts\" --max-warnings 0",
-    "parse:report": "tsx src/cli/parseReport.ts"
+    "parse:report": "tsx src/cli/parseReport.ts",
+    "worker:session:deploy": "tsx src/cli/sessionCli.ts deploy",
+    "worker:session:probe": "tsx src/cli/sessionCli.ts probe",
+    "worker:session:invalidate": "tsx src/cli/sessionCli.ts invalidate",
+    "ingest:manifest:import": "tsx src/cli/ingestManifestCli.ts import",
+    "ingest:manifest:export": "tsx src/cli/ingestManifestCli.ts export",
+    "worker:ingest:backfill": "tsx src/cli/ingestBackfillCli.ts"
   },
   "dependencies": {
     "@radar/shared": "*",
     "dotenv": "^16.4.7",
-    "telegram": "^2.26.22"
+    "pg": "^8.13.1",
+    "reflect-metadata": "^0.2.2",
+    "telegram": "^2.26.22",
+    "typeorm": "^0.3.20"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",

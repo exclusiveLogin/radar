@@ -1,0 +1,48 @@
+import type { IngestAdapterKind, IngestMode, SourceKind } from "../schemas/ingest/ingest-domain";
+import type { IngestBindingRecord, IngestProviderRecord } from "../schemas/ingest/ingest-provider";
+import type { RawMessage } from "../schemas/ingest/raw-message";
+
+/** Нормализованное сообщение от adapter ACL → RawMessage. */
+export type IngestNormalizedMessage = Omit<RawMessage, "hash" | "id"> & {
+  hash?: string;
+  telegramExtension?: {
+    chatId: string;
+    messageId: string;
+    editDate: string | null;
+    peerType?: "channel" | "group" | "supergroup" | "user";
+  };
+};
+
+export type IngestAdapterHealth = {
+  ok: boolean;
+  detail?: string;
+};
+
+export type IngestAdapterContext = {
+  provider: IngestProviderRecord;
+  resolveSessionSecret(slotKey: string): Promise<string>;
+  resolveMtproxy?(): { ip: string; port: number; secret: string } | null;
+};
+
+export type IngestMessageSink = (msg: IngestNormalizedMessage) => Promise<void>;
+
+export interface IRawIngestAdapter {
+  readonly kind: IngestAdapterKind;
+  connect(ctx: IngestAdapterContext): Promise<void>;
+  startDuty(bindings: IngestBindingRecord[], sink: IngestMessageSink): Promise<void>;
+  stop(): Promise<void>;
+  health(): Promise<IngestAdapterHealth>;
+  fetchHistoryBatch?(
+    binding: IngestBindingRecord,
+    params: {
+      fromPostedAt?: string;
+      toPostedAt?: string;
+      fromExternalId?: string;
+      toExternalId?: string;
+      batchSize: number;
+    },
+    sink: IngestMessageSink,
+  ): Promise<{ inserted: number; duplicates: number }>;
+}
+
+export type { IngestMode, SourceKind };

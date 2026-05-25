@@ -33,7 +33,13 @@
     "worker:parse:snap": "npm run parse:snap -w @radar/worker --",
     "worker:parse:snap:ollama": "npm run parse:snap:ollama -w @radar/worker --",
     "start:api": "npm run start -w @radar/api",
-    "worker:parse:report": "npm run parse:report -w @radar/worker --"
+    "worker:parse:report": "npm run parse:report -w @radar/worker --",
+    "worker:session:deploy": "npm run worker:session:deploy -w @radar/worker --",
+    "worker:session:probe": "npm run worker:session:probe -w @radar/worker --",
+    "worker:session:invalidate": "npm run worker:session:invalidate -w @radar/worker --",
+    "ingest:manifest:import": "npm run ingest:manifest:import -w @radar/worker",
+    "ingest:manifest:export": "npm run ingest:manifest:export -w @radar/worker",
+    "worker:ingest:backfill": "npm run worker:ingest:backfill -w @radar/worker --"
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",

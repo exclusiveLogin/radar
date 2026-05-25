@@ -134,7 +134,7 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const runtime = createWorkerCompositionRoot(buildRuntimeOptions(cli));
+  const runtime = await createWorkerCompositionRoot(buildRuntimeOptions(cli));
   const source = fs.readFileSync(filePath, "utf8");
   const blocks = splitMessageBlocks(source);
   const classifier = new RuleBasedEventClassifier();

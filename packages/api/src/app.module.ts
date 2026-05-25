@@ -3,6 +3,7 @@ import { ConfigModule, ConfigService } from "@nestjs/config";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import * as path from "path";
 import { HealthModule } from "./health/health.module";
+import { IngestAdminModule } from "./ingest-admin/ingest-admin.module";
 import { ReadSideModule } from "./read-side/read-side.module";
 
 @Module({
@@ -25,6 +26,7 @@ import { ReadSideModule } from "./read-side/read-side.module";
       inject: [ConfigService],
     }),
     HealthModule,
+    IngestAdminModule,
     ReadSideModule,
   ],
 })

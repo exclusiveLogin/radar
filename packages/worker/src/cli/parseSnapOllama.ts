@@ -84,7 +84,7 @@ async function main(): Promise<void> {
     );
   }
 
-  const runtime = createWorkerCompositionRoot({
+  const runtime = await createWorkerCompositionRoot({
     storageMode: options.storageMode,
     llmRuntimeOverride: { enabled: true },
     explicitEnricherFlags: { dadata: false, nominatim: false, llm: true },

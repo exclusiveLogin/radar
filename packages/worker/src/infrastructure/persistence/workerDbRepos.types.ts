@@ -1,0 +1,56 @@
+import type { DataSource } from "typeorm";
+import type { IEventPublisher } from "@radar/shared";
+import type {
+  IChannelRepository,
+  IEventLocationRepository,
+  IIngestBindingRepository,
+  IIngestCursorRepository,
+  IIngestProviderRepository,
+  IParsedEventRepository,
+  IPlaceAliasRepository,
+  IPlaceEvidenceRepository,
+  IPlaceRepository,
+  IRawMessageRepository,
+  IRegionRepository,
+} from "@radar/shared";
+
+export type WorkerDbRepositories = {
+  rawMessages: IRawMessageRepository;
+  parsedEvents: IParsedEventRepository;
+  eventLocations: IEventLocationRepository;
+  regions: IRegionRepository;
+  places: IPlaceRepository;
+  aliases: IPlaceAliasRepository;
+  placeEvidence: IPlaceEvidenceRepository;
+  cursors: IIngestCursorRepository;
+  ingestProviders: IIngestProviderRepository;
+  ingestBindings: IIngestBindingRepository;
+  channels: IChannelRepository;
+};
+
+/** Structural typing для runtime import API persistence (без компиляции api в worker). */
+export type ApiPersistenceModule = {
+  TypeOrmRawMessageRepository: new (dataSource: DataSource) => IRawMessageRepository;
+  TypeOrmParsedEventRepository: new (dataSource: DataSource) => IParsedEventRepository;
+  TypeOrmEventLocationRepository: new (dataSource: DataSource) => IEventLocationRepository;
+  TypeOrmRegionRepository: new (dataSource: DataSource) => IRegionRepository;
+  TypeOrmPlaceRepository: new (dataSource: DataSource) => IPlaceRepository;
+  TypeOrmPlaceAliasRepository: new (dataSource: DataSource) => IPlaceAliasRepository;
+  TypeOrmPlaceEvidenceRepository: new (dataSource: DataSource) => IPlaceEvidenceRepository;
+  TypeOrmIngestCursorRepository: new (dataSource: DataSource) => IIngestCursorRepository;
+  TypeOrmIngestProviderRepository: new (dataSource: DataSource) => IIngestProviderRepository;
+  TypeOrmIngestBindingRepository: new (dataSource: DataSource) => IIngestBindingRepository;
+  TypeOrmChannelRepository: new (dataSource: DataSource) => IChannelRepository;
+};
+
+export type ApiOutboxModule = {
+  OutboxRelay: new (
+    dataSource: DataSource,
+    bus: IEventPublisher,
+    pollMs?: number,
+  ) => {
+    start(): void;
+    stop(): void;
+    tick(): Promise<void>;
+  };
+};

@@ -7,9 +7,30 @@ export type { ILocationEnricher, LocationCandidate } from "./enrichers";
 export type { IEventClassifier, ClassifiedPost } from "./classifiers";
 export type { EventHandler, IEventPublisher, IEventSubscriber, Unsubscribe } from "./events";
 export type {
+  ISourceUniquenessContributor,
+} from "./source-uniqueness";
+export { SourceUniquenessRegistry } from "./source-uniqueness";
+export type {
+  IngestNormalizedMessage,
+  IngestAdapterHealth,
+  IngestAdapterContext,
+  IngestMessageSink,
+  IRawIngestAdapter,
+} from "./ingest-adapters";
+export type {
+  ISessionRuntimeStore,
+  ISessionBootstrapService,
+} from "./session-store";
+export type {
   IDomainEventRepository,
+  IDomainEventOutbox,
   IEventLocationRepository,
   IIngestCursorRepository,
+  IIngestProviderRepository,
+  IIngestBindingRepository,
+  IIngestBackfillJobRepository,
+  IRawMessageTelegramExtensionRepository,
+  IChannelRepository,
   IParsedEventRepository,
   IPlaceAliasRepository,
   IPlaceCacheRepository,
@@ -21,6 +42,7 @@ export type {
   IRegionRepository,
   IStatusDictionaryRepository,
   ISyncAuditRepository,
+  ChannelRecord,
   PlaceStatusActiveRecord,
   PlaceStatusHistoryRecord,
   PlaceAliasRecord,

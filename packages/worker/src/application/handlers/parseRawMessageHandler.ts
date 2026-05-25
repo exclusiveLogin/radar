@@ -74,6 +74,10 @@ function buildEnricherTelemetry(
   return events;
 }
 
+/**
+ * Use case: сырой текст → classify/geo pipeline → parsed_event.
+ * Инвариант: `rawMessageId` — uuid строки в БД (не content hash).
+ */
 export class ParseRawMessageHandler {
   constructor(
     private readonly pipeline: ParsePipelineService,
@@ -102,18 +106,22 @@ export class ParseRawMessageHandler {
   }
 
   async handle(raw: RawMessage): Promise<void> {
+    if (!raw.id) {
+      throw new Error("ParseRawMessageHandler: raw.id (uuid) обязателен");
+    }
+    const rawMessageId = raw.id;
     const pipelineResult = await this.pipeline.execute({
       rawText: raw.rawText,
       postedAt: raw.postedAt,
       channelKey: raw.channelKey,
-      rawMessageId: raw.hash,
+      rawMessageId,
     });
 
     if (!pipelineResult.parsedEvent) {
       const failed = buildDomainEvent({
         type: "MessageParseFailed",
         aggregateType: "raw_message",
-        aggregateId: raw.hash,
+        aggregateId: rawMessageId,
         payload: {
           reason: pipelineResult.report.classification.reason ?? "not_event",
           channelKey: raw.channelKey,
@@ -137,13 +145,13 @@ export class ParseRawMessageHandler {
 
     const parsed = {
       ...pipelineResult.parsedEvent,
-      rawMessageId: raw.hash,
+      rawMessageId,
       postedAt: raw.postedAt,
       locations: validatedLocations,
     };
 
     const telemetryEvents = buildEnricherTelemetry(
-      raw.hash,
+      rawMessageId,
       enrich,
       primaryProvider,
       pipelineResult.locations.length > 0,

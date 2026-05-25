@@ -13,8 +13,23 @@ export class RawMessageEntity {
   @JoinColumn({ name: "channel_id" })
   channel!: ChannelEntity;
 
-  @Column({ name: "telegram_message_id", type: "bigint" })
-  telegramMessageId!: string;
+  @Column({ name: "provider_key", type: "text" })
+  providerKey!: string;
+
+  @Column({ name: "source_kind", type: "text" })
+  sourceKind!: string;
+
+  @Column({ name: "external_message_id", type: "text" })
+  externalMessageId!: string;
+
+  @Column({ name: "revision_key", type: "text", nullable: true })
+  revisionKey!: string | null;
+
+  @Column({ name: "source_sequence", type: "text", nullable: true })
+  sourceSequence!: string | null;
+
+  @Column({ name: "ingest_mode", type: "text", default: "live" })
+  ingestMode!: string;
 
   @Column({ name: "hash", type: "text", unique: true })
   hash!: string;
@@ -27,9 +42,6 @@ export class RawMessageEntity {
 
   @Column({ name: "raw_payload", type: "jsonb", default: () => "'{}'::jsonb" })
   rawPayload!: Record<string, unknown>;
-
-  @Column({ name: "edit_date", type: "timestamptz", nullable: true })
-  editDate!: Date | null;
 
   @Column({ name: "fetched_at", type: "timestamptz", default: () => "now()" })
   fetchedAt!: Date;

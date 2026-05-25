@@ -18,6 +18,8 @@ import type {
   ParsedEvent,
   RegionRecord,
   RawMessage,
+  RawMessageTelegramExtension,
+  TimelineQuery,
 } from "@radar/shared";
 import { mergePlaceContribution } from "@radar/shared";
 import { randomUUID } from "node:crypto";
@@ -25,12 +27,35 @@ import { randomUUID } from "node:crypto";
 export class InMemoryRawMessageRepository implements IRawMessageRepository {
   private readonly byHash = new Map<string, { id: string; raw: RawMessage }>();
 
-  async upsert(raw: RawMessage): Promise<{ inserted: boolean; id: string }> {
+  async upsert(
+    raw: RawMessage,
+    _extension?: RawMessageTelegramExtension,
+  ): Promise<{ inserted: boolean; id: string }> {
     const existing = this.byHash.get(raw.hash);
     if (existing) return { inserted: false, id: existing.id };
     const id = randomUUID();
-    this.byHash.set(raw.hash, { id, raw });
+    this.byHash.set(raw.hash, { id, raw: { ...raw, id } });
     return { inserted: true, id };
+  }
+
+  async findById(id: string): Promise<RawMessage | null> {
+    for (const row of this.byHash.values()) {
+      if (row.id === id) return row.raw;
+    }
+    return null;
+  }
+
+  async findByHash(hash: string): Promise<{ id: string; raw: RawMessage } | null> {
+    return this.byHash.get(hash) ?? null;
+  }
+
+  async listTimeline(query: TimelineQuery) {
+    const items = [...this.byHash.values()]
+      .map((r) => r.raw)
+      .filter((r) => r.channelKey === query.channelKey)
+      .sort((a, b) => a.postedAt.localeCompare(b.postedAt));
+    const ordered = query.order === "desc" ? items.reverse() : items;
+    return { items: ordered.slice(0, query.limit), nextAnchor: null };
   }
 }
 

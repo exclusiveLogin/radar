@@ -20,6 +20,15 @@ export class ChannelEntity {
   @Column({ name: "parse_overrides", type: "jsonb", default: () => "'{}'::jsonb" })
   parseOverrides!: Record<string, unknown>;
 
+  @Column({ name: "provider_id", type: "uuid", nullable: true })
+  providerId!: string | null;
+
+  @Column({ name: "binding_id", type: "uuid", nullable: true })
+  bindingId!: string | null;
+
+  @Column({ name: "source_kind", type: "text", default: "telegram" })
+  sourceKind!: string;
+
   @CreateDateColumn({ name: "created_at", type: "timestamptz" })
   createdAt!: Date;
 }

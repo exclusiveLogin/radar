@@ -1,6 +1,21 @@
-﻿import type { IPlaceCacheRepository } from "@radar/shared";
+﻿import type { DataSource } from "typeorm";
+import type {
+  IChannelRepository,
+  IEventLocationRepository,
+  IIngestBindingRepository,
+  IIngestCursorRepository,
+  IIngestProviderRepository,
+  IParsedEventRepository,
+  IPlaceAliasRepository,
+  IPlaceCacheRepository,
+  IPlaceEvidenceRepository,
+  IPlaceRepository,
+  IRawMessageRepository,
+  IRegionRepository,
+} from "@radar/shared";
 import { InProcessEventBus } from "@radar/shared";
 import { ParseAttemptLogger, MetricsAggregator } from "./subscribers/index.js";
+import { createRawMessageIngestedHandler } from "./subscribers/rawMessageIngestedSubscriber.js";
 import { IngestRawMessageHandler } from "./handlers/ingestRawMessageHandler.js";
 import { ParseRawMessageHandler } from "./handlers/parseRawMessageHandler.js";
 import {
@@ -43,6 +58,11 @@ import {
   WorkerStorageMode,
   resolveWorkerStorageModeFromEnv,
 } from "../infrastructure/persistence/storageMode.js";
+import { createWorkerDataSource } from "../infrastructure/persistence/createWorkerDataSource.js";
+import { createWorkerDbRepositories } from "../infrastructure/persistence/workerDbRepos.js";
+import type { ApiOutboxModule } from "../infrastructure/persistence/workerDbRepos.types.js";
+import { IngestOrchestrator } from "./ingest/ingestOrchestrator.js";
+import { SessionResolver } from "./sessions/sessionResolver.js";
 
 export type WorkerCompositionOptions = {
   storageMode?: WorkerStorageMode;
@@ -97,13 +117,10 @@ function createStepFactories(params: {
   };
 }
 
-export function createWorkerCompositionRoot(options: WorkerCompositionOptions = {}) {
+export async function createWorkerCompositionRoot(
+  options: WorkerCompositionOptions = {},
+) {
   const storageMode = options.storageMode ?? resolveWorkerStorageModeFromEnv();
-  if (storageMode === WorkerStorageMode.Db) {
-    throw new Error(
-      "RADAR_STORAGE_MODE=db is not implemented in worker runtime yet. Use memory/fs for now.",
-    );
-  }
 
   const bus = new InProcessEventBus();
   const parseAttemptLogger = new ParseAttemptLogger();
@@ -113,13 +130,55 @@ export function createWorkerCompositionRoot(options: WorkerCompositionOptions = 
   bus.subscribe("MessageParseFailed", parseAttemptLogger.handler);
   bus.subscribe("*", metricsAggregator.handler);
 
-  const rawMessages = new InMemoryRawMessageRepository();
-  const parsedEvents = new InMemoryParsedEventRepository();
-  const eventLocations = new InMemoryEventLocationRepository();
-  const regions = new InMemoryRegionRepository();
-  const places = new InMemoryPlaceRepository();
-  const aliases = new InMemoryPlaceAliasRepository();
-  const placeEvidence = new InMemoryPlaceEvidenceRepository();
+  let dataSource: DataSource | undefined;
+  let outboxRelay: { start: () => void; stop: () => void } | undefined;
+  let ingestOrchestrator: IngestOrchestrator | undefined;
+  let shutdown: (() => Promise<void>) | undefined;
+
+  let rawMessages: IRawMessageRepository = new InMemoryRawMessageRepository();
+  let parsedEvents: IParsedEventRepository = new InMemoryParsedEventRepository();
+  let eventLocations: IEventLocationRepository = new InMemoryEventLocationRepository();
+  let regions: IRegionRepository = new InMemoryRegionRepository();
+  let places: IPlaceRepository = new InMemoryPlaceRepository();
+  let aliases: IPlaceAliasRepository = new InMemoryPlaceAliasRepository();
+  let placeEvidence: IPlaceEvidenceRepository = new InMemoryPlaceEvidenceRepository();
+  let cursors: IIngestCursorRepository | undefined;
+  let ingestProviders: IIngestProviderRepository | undefined;
+  let ingestBindings: IIngestBindingRepository | undefined;
+  let channels: IChannelRepository | undefined;
+
+  if (storageMode === WorkerStorageMode.Db) {
+    dataSource = await createWorkerDataSource();
+    const repos = await createWorkerDbRepositories(dataSource);
+    const outboxPath = ["..", "..", "..", "api", "src", "infrastructure", "events", "outboxRelay.js"].join(
+      "/",
+    );
+    const { OutboxRelay } = (await import(outboxPath)) as ApiOutboxModule;
+
+    rawMessages = repos.rawMessages;
+    parsedEvents = repos.parsedEvents;
+    eventLocations = repos.eventLocations;
+    regions = repos.regions;
+    places = repos.places;
+    aliases = repos.aliases;
+    placeEvidence = repos.placeEvidence;
+    cursors = repos.cursors;
+    ingestProviders = repos.ingestProviders;
+    ingestBindings = repos.ingestBindings;
+    channels = repos.channels;
+
+    outboxRelay = new OutboxRelay(dataSource, bus);
+    outboxRelay.start();
+
+    shutdown = async () => {
+      outboxRelay?.stop();
+      await ingestOrchestrator?.stop();
+      if (dataSource?.isInitialized) {
+        await dataSource.destroy();
+      }
+    };
+  }
+
   const placeCache = options.placeCacheRepository ?? new InMemoryPlaceCacheRepository();
   const classifier = new RuleBasedEventClassifier();
   const geoCatalog = options.geoCatalog ?? GeoCatalog.loadFromArtifacts();
@@ -140,13 +199,16 @@ export function createWorkerCompositionRoot(options: WorkerCompositionOptions = 
   const steps: GeoPipelineStep[] = order
     .map((id) => stepFactories[id]())
     .filter((s): s is GeoPipelineStep => s !== null);
-  // FinalizerStep is always appended inside runGeoPipeline
 
   const resolution = new LocationResolutionService(steps);
   const pipeline = new ParsePipelineService(classifier, resolution);
   const validation = new GeoValidationService(regions, places, aliases, placeEvidence);
 
-  const ingestRawMessageHandler = new IngestRawMessageHandler(rawMessages, bus);
+  const ingestRawMessageHandler = new IngestRawMessageHandler(
+    rawMessages,
+    bus,
+    cursors,
+  );
   const parseRawMessageHandler = new ParseRawMessageHandler(
     pipeline,
     parsedEvents,
@@ -155,6 +217,31 @@ export function createWorkerCompositionRoot(options: WorkerCompositionOptions = 
     placeCache,
     bus,
   );
+
+  bus.subscribe(
+    "RawMessageIngested",
+    createRawMessageIngestedHandler({
+      rawMessages,
+      parseHandler: parseRawMessageHandler,
+    }),
+  );
+
+  if (
+    storageMode === WorkerStorageMode.Db &&
+    ingestProviders &&
+    ingestBindings &&
+    channels
+  ) {
+    const sessionResolver = new SessionResolver();
+    ingestOrchestrator = new IngestOrchestrator(
+      ingestProviders,
+      ingestBindings,
+      channels,
+      ingestRawMessageHandler,
+      bus,
+      sessionResolver,
+    );
+  }
 
   return {
     storageMode,
@@ -165,5 +252,9 @@ export function createWorkerCompositionRoot(options: WorkerCompositionOptions = 
     parsePipelineService: pipeline,
     ingestRawMessageHandler,
     parseRawMessageHandler,
+    ingestOrchestrator,
+    outboxRelay,
+    dataSource,
+    shutdown,
   };
 }

@@ -1,7 +1,19 @@
 import type { DomainEvent } from "../schemas/events/domain-event";
 import type { EventLocation } from "../schemas/ingest/event-location";
+import type {
+  CreateIngestBinding,
+  CreateIngestProvider,
+  IngestBindingRecord,
+  IngestProviderRecord,
+  UpdateIngestProvider,
+} from "../schemas/ingest/ingest-provider";
+import type { BackfillJobRecord, CreateBackfillJob } from "../schemas/ingest/ingest-timeline";
 import type { ParsedEvent } from "../schemas/ingest/parsed-event";
-import type { RawMessage } from "../schemas/ingest/raw-message";
+import type {
+  RawMessage,
+  RawMessageTelegramExtension,
+} from "../schemas/ingest/raw-message";
+import type { TimelineQuery } from "../schemas/ingest/ingest-timeline";
 
 export type RegionRecord = {
   id: string;
@@ -164,8 +176,47 @@ export interface IPlaceAliasRepository {
   upsertMany(aliases: PlaceAliasRecord[]): Promise<void>;
 }
 
+export type ChannelRecord = {
+  id: string;
+  key: string;
+  telegramTarget: string;
+  title?: string | null;
+  enabled: boolean;
+  parseOverrides: Record<string, unknown>;
+  providerId?: string | null;
+  bindingId?: string | null;
+  sourceKind?: string;
+};
+
+export interface IChannelRepository {
+  findByKey(key: string): Promise<ChannelRecord | null>;
+  findById(id: string): Promise<ChannelRecord | null>;
+  upsert(input: {
+    key: string;
+    telegramTarget: string;
+    title?: string | null;
+    enabled?: boolean;
+    parseOverrides?: Record<string, unknown>;
+    providerId?: string | null;
+    bindingId?: string | null;
+    sourceKind?: string;
+  }): Promise<ChannelRecord>;
+}
+
 export interface IRawMessageRepository {
-  upsert(raw: RawMessage): Promise<{ inserted: boolean; id: string }>;
+  upsert(
+    raw: RawMessage,
+    extension?: RawMessageTelegramExtension,
+  ): Promise<{ inserted: boolean; id: string }>;
+  findById(id: string): Promise<RawMessage | null>;
+  findByHash(hash: string): Promise<{ id: string; raw: RawMessage } | null>;
+  listTimeline(query: TimelineQuery): Promise<{ items: RawMessage[]; nextAnchor: null | {
+    channelKey: string;
+    postedAtUtc: string;
+    tieBreaker: string;
+    direction: "before" | "after";
+    limit: number;
+  } }>;
 }
 
 export interface IParsedEventRepository {
@@ -177,7 +228,55 @@ export interface IEventLocationRepository {
 }
 
 export interface IIngestCursorRepository {
-  advance(channelKey: string, messageId: number, postedAt: string): Promise<void>;
+  advanceLive(input: {
+    channelKey: string;
+    providerKey: string;
+    externalMessageId: string;
+    postedAt: string;
+    sourceSequence?: string | null;
+    ingestMode: "live" | "backfill" | "manual";
+  }): Promise<void>;
+  updateBackfillState(channelKey: string, providerKey: string, state: Record<string, unknown>): Promise<void>;
+  get(channelKey: string, providerKey: string): Promise<{
+    liveLastExternalId: string | null;
+    liveLastPostedAt: string | null;
+    liveLastSourceSequence: string | null;
+    backfillState: Record<string, unknown>;
+    externalCursor: Record<string, unknown>;
+  } | null>;
+}
+
+export interface IIngestProviderRepository {
+  listActive(): Promise<IngestProviderRecord[]>;
+  listAll(): Promise<IngestProviderRecord[]>;
+  findByKey(key: string): Promise<IngestProviderRecord | null>;
+  findById(id: string): Promise<IngestProviderRecord | null>;
+  create(input: CreateIngestProvider): Promise<IngestProviderRecord>;
+  update(id: string, input: UpdateIngestProvider): Promise<IngestProviderRecord>;
+  updateStatus(id: string, status: IngestProviderRecord["status"], lastError?: string | null): Promise<void>;
+  touchHeartbeat(id: string): Promise<void>;
+}
+
+export interface IIngestBindingRepository {
+  listByProvider(providerId: string): Promise<IngestBindingRecord[]>;
+  listEnabled(): Promise<IngestBindingRecord[]>;
+  findById(id: string): Promise<IngestBindingRecord | null>;
+  create(providerId: string, input: CreateIngestBinding): Promise<IngestBindingRecord>;
+  updateEnabled(id: string, enabled: boolean): Promise<void>;
+}
+
+export interface IIngestBackfillJobRepository {
+  create(input: CreateBackfillJob & { providerId: string }): Promise<BackfillJobRecord>;
+  findById(id: string): Promise<BackfillJobRecord | null>;
+  updateStatus(id: string, status: BackfillJobRecord["status"], stats?: BackfillJobRecord["stats"]): Promise<void>;
+}
+
+export interface IRawMessageTelegramExtensionRepository {
+  findDuplicate(chatId: string, messageId: string, editDate: string | null): Promise<string | null>;
+}
+
+export interface IDomainEventOutbox {
+  append(events: DomainEvent[]): Promise<void>;
 }
 
 export interface IPlaceCacheRepository {

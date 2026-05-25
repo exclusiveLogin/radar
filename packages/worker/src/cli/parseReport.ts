@@ -121,7 +121,7 @@ function buildEnricherFlags(options: CliOptions):
 
 async function parseFileBlocks(options: {
   filePath: string;
-  parse: ReturnType<typeof createWorkerCompositionRoot>["parsePipelineService"]["execute"];
+  parse: Awaited<ReturnType<typeof createWorkerCompositionRoot>>["parsePipelineService"]["execute"];
 }): Promise<{ payload: Array<Record<string, unknown>>; blocksCount: number }> {
   const source = fs.readFileSync(options.filePath, "utf8");
   const blocks = splitMessageBlocks(source);
@@ -160,7 +160,7 @@ async function main(): Promise<void> {
 
   const explicitEnricherFlags = buildEnricherFlags(options);
   const placeCache = new JsonPlaceCacheRepository(resolveJsonPlaceCachePath());
-  const runtime = createWorkerCompositionRoot({
+  const runtime = await createWorkerCompositionRoot({
     storageMode: options.storageMode,
     placeCacheRepository: placeCache,
     explicitEnricherFlags,
