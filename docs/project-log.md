@@ -36,6 +36,27 @@
 
 ## Записи
 
+### 2026-05-25 — Ingest: ревью архитектуры, документация manifest v2
+
+- Расширена документация [ingest-providers.md](./ingest-providers.md):
+  - manifest v2: описание всех полей с примерами для каждого `bindingMode`
+  - схема «provider → ЧЕМ, channel → ЧТО, binding → КАК»
+  - примеры entry для DM, группы, hybrid, канала
+  - описание поведения import (insert-only для provider/binding, upsert для channel)
+- Зафиксированы архитектурные решения в [plan.md](./plan.md):
+  - `ingestMode` (live/backfill/manual): сейчас влияет только на курсор, закладка на будущее
+  - Холодный запуск: нет истории, только новые сообщения с момента старта
+  - `rawPayload` (JSONB) — полный оригинал; O2O `raw_message_telegram` — индексная выжимка для dedup
+- Backlog: gap recovery / frontfill (отдельный сервис с retry/backoff/checkpoint), auth admin API, auto-backfill, webhook/rss adapters
+
+### 2026-05-14 — Raw Ingest Providers (итерация закрыта)
+
+- `ingest_providers` + `ingest_bindings` + `raw_message_telegram` + session runtime store
+- Telegram adapter (user/bot/hybrid), admin `POST /api/admin/ingest/messages`, timeline/backfill API
+- Worker `RADAR_STORAGE_MODE=db`: OutboxRelay → parse по uuid
+- Validation: `typecheck` ✓ (api/worker/shared), `lint` ✓
+- Docs: [ingest-providers.md](./ingest-providers.md), README, `.env.example`
+
 ### 2026-05-12 — Trust/provenance: итерация 1 закрыта
 
 - `feat(geo)`: trust/provenance tracking для places (`6f2012b`)

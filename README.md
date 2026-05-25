@@ -287,6 +287,15 @@ npm run worker:parse:report -- --input tests --outdir reports --format json --di
 
 - После успешного входа в консоль выводится строка сессии для сохранения в vault / `TELEGRAM_STRING_SESSION`.
 
+### Raw Ingest Providers (db mode)
+
+- **`RADAR_STORAGE_MODE=db`** — провайдеры и bindings в PostgreSQL, `IngestOrchestrator` + live Telegram adapters.
+- Session slots на volume: **`RADAR_SESSIONS_DIR`** (см. [docs/ingest-providers.md](./docs/ingest-providers.md)).
+- Admin: **`POST /api/admin/ingest/messages`** — ручной ingest; Swagger: `/api/docs` → `admin-ingest`.
+- CLI (все параметры): **[docs/ingest-providers.md](./docs/ingest-providers.md#cli--справочник-команд)** — session, manifest, backfill.
+- CLI: `npm run worker:session:deploy`, `npm run ingest:manifest:import`, `npm run worker:ingest:backfill`.
+- Docker worker (profile): `docker compose --profile worker up -d worker`.
+
 ## Секреты и dotenv-vault
 
 - Пакет **`dotenv-vault` на npm** — это в основном **CLI** (`npx dotenv-vault`), а не замена `dotenv.config()` для расшифровки в рантайме.

@@ -194,6 +194,29 @@ flowchart LR
   - `unverified` -> `needsAttention=true`,
   - `verified` -> `needsAttention=false`.
 
+### Raw Ingest Providers — выполнено (2026-05-14)
+
+- Provider-agnostic ingest: adapters, migrations, session slots, admin API
+- Документация: [ingest-providers.md](./ingest-providers.md)
+
+#### Архитектурные решения (зафиксировано 2026-05-25)
+
+1. **Хранение raw-данных:** `raw_messages.rawPayload` (JSONB) — полный оригинал от источника; O2O `raw_message_telegram` — только индексная выжимка для dedup.
+2. **`ingestMode` (`live` | `backfill` | `manual`):** пишется в каждое сообщение; сейчас единственный эффект — live двигает курсор, остальные нет. Закладка на: фильтрацию timeline, приоритизацию обработки, мониторинг.
+3. **Live-курсор:** `ingest_cursors` хранит прогресс по `(channelId, providerKey)`. При холодном запуске курсора нет → adapter слушает **только новые** сообщения (не качает историю с начала).
+4. **Admin API — только REST** (NestJS + Swagger), без UI. Управление через Swagger UI `/api/docs`, CLI, curl.
+
+#### Нереализованные задачи (backlog, обсуждены)
+
+| Задача | Суть | Приоритет |
+|--------|------|-----------|
+| **Gap recovery / frontfill** | Отдельный сервис: при рестарте прочитать курсор → дочитать пропущенное до live. Нужны: batch size, retry с backoff (FLOOD_WAIT), checkpoint, throttle, приоритет live > gap. `runBackfillChunk` покрывает ~80% логики, нужна обёртка с циклом и retry policy. | высокий |
+| **Автоматический backfill** | Worker сам определяет необходимость backfill (gap detection); сейчас — только CLI `ingest:backfill`. | средний |
+| **Разная обработка по `ingestMode`** | live → сразу алерт/карта; backfill → фоновый парсинг без алертов; manual → пометка оператора. | средний |
+| **Auth на admin endpoints** | Guard / API key / JWT на `/api/admin/ingest/*`. | высокий |
+| **Admin UI panel** | Фронт (React) поверх admin API: управление providers, bindings, timeline, backfill. | низкий |
+| **webhook / rss adapters** | Реализовать `IRawIngestAdapter` для webhook и RSS. | средний |
+
 ### Итерация 3 — после итерации 2
 
 - Вынести Dadata/LLM в batch enrichment orchestration:
