@@ -1,8 +1,5 @@
 import { MONOREPO_ROOT } from "@repo/root";
-import { loadParseRuntimeConfig } from "./parseRuntimeConfig.js";
-import { planChannelIngests } from "./parsing/channelIngestPlanner.js";
 import { createWorkerCompositionRoot } from "./createWorkerCompositionRoot.js";
-import { loadChannelManifest } from "../infrastructure/manifest/channelManifestLoader.js";
 import { loadRootEnv } from "../infrastructure/config/loadRootEnv.js";
 import { loadLlmRuntimeConfig } from "../infrastructure/enrichers/llmRuntimeConfig.js";
 import { WorkerStorageMode } from "../infrastructure/persistence/storageMode.js";
@@ -27,25 +24,6 @@ export async function runWorkerBootstrap(): Promise<void> {
   await runLlmStartupCheck();
   const runtime = await createWorkerCompositionRoot();
 
-  const parseConfig = loadParseRuntimeConfig(MONOREPO_ROOT);
-  const manifest = loadChannelManifest(MONOREPO_ROOT);
-  const planned = planChannelIngests({
-    manifest,
-    defaultParseConfig: parseConfig,
-  });
-
-  if (manifest) {
-    console.log(
-      `Манифест каналов: ${manifest.channels.length} канал(ов), к парсингу: ${planned.length}.`,
-    );
-  } else {
-    console.log(
-      "Манифест каналов не найден (см. RADAR_CHANNEL_MANIFEST или `.radar/channels.manifest.json`).",
-    );
-  }
-  console.log(
-    `Конфиг парсинга: batchLimit=${parseConfig.batchLimit}, markAsRead=${parseConfig.markAsRead}.`,
-  );
   console.log(`Режим хранилища worker: ${runtime.storageMode}.`);
   console.log("Write-side handlers и event bus инициализированы.");
 

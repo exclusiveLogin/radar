@@ -9,7 +9,8 @@ async function main(): Promise<void> {
   const map = parseLongFlagsMap(process.argv);
   const providerId = readStringFlag(map, ["provider-id", "providerId"]);
   const bindingId = readStringFlag(map, ["binding-id", "bindingId"]);
-  const batchSize = Number(readStringFlag(map, ["batch-size", "batchSize"]) ?? "200");
+  const batchSizeStr = readStringFlag(map, ["batch-size", "batchSize"]);
+  const batchSize = batchSizeStr ? Number(batchSizeStr) : undefined;
 
   if (!providerId || !bindingId) {
     console.error(

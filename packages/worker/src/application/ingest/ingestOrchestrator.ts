@@ -178,7 +178,7 @@ export class IngestOrchestrator {
   async runBackfillChunk(input: {
     providerId: string;
     bindingId: string;
-    batchSize: number;
+    batchSize?: number;
     fromPostedAt?: string;
     toPostedAt?: string;
     fromExternalId?: string;
@@ -199,6 +199,10 @@ export class IngestOrchestrator {
     if ("setChannelKeyMap" in adapter && typeof adapter.setChannelKeyMap === "function") {
       adapter.setChannelKeyMap(new Map([[binding.id, channel.key]]));
     }
+
+    // Читаем historyBatchSize из adapterConfig, если не передан явно
+    const config = provider.adapterConfig as any;
+    const effectiveBatchSize = input.batchSize ?? config.historyBatchSize ?? 200;
 
     await adapter.connect({
       provider,
@@ -226,7 +230,7 @@ export class IngestOrchestrator {
       totals = await adapter.fetchHistoryBatch(
         binding,
         {
-          batchSize: input.batchSize,
+          batchSize: effectiveBatchSize,
           fromPostedAt: input.fromPostedAt,
           toPostedAt: input.toPostedAt,
           fromExternalId: input.fromExternalId,
