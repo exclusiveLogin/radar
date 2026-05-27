@@ -22,6 +22,7 @@ export async function createWorkerDbRepositories(
     ingestProviders: new persistence.TypeOrmIngestProviderRepository(dataSource),
     ingestBindings: new persistence.TypeOrmIngestBindingRepository(dataSource),
     channels: new persistence.TypeOrmChannelRepository(dataSource),
+    backfillJobs: new persistence.TypeOrmIngestBackfillJobRepository(dataSource),
   };
 }
 

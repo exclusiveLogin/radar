@@ -7,6 +7,7 @@
 | Документ | Когда читать |
 |----------|----------------|
 | [how-it-works.md](./how-it-works.md) | Нужен сквозной поток: ingest → parse → outbox |
+| [../backfill-v2-pipeline.md](../backfill-v2-pipeline.md) | Докачка архива (Backfill V2): демон, чекпоинты, схемы |
 | [model-style.md](./model-style.md) | Путаете ORM entity с доменом, ищете UoW / `mergeObjectContext` |
 | [aggregates.md](./aggregates.md) | Нужен каталог `aggregateType` и кто задаёт `aggregateId` |
 | [validation-report.md](./validation-report.md) | Аудит: что совпадает с кодом, что — gap |
@@ -45,6 +46,7 @@ docs/domain/
 
 - [docs/plan.md](../plan.md) — продукт и стек
 - [docs/ingest-providers.md](../ingest-providers.md) — ingest: агрегаты, dedup, CLI (детально)
+- [docs/backfill-v2-pipeline.md](../backfill-v2-pipeline.md) — Backfill V2: демон, чекпоинты, mermaid-схемы
 - [docs/place-trust-explained.md](../place-trust-explained.md) — доверие к `place`
 - [docs/geo-dataset-schemas.md](../geo-dataset-schemas.md) — geo-таблицы и артефакты
 

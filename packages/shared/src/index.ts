@@ -180,6 +180,7 @@ export type {
   IngestAdapterContext,
   IngestMessageSink,
   IRawIngestAdapter,
+  StreamHistoryParams,
   ISessionRuntimeStore,
   ISessionBootstrapService,
   IDomainEventRepository,

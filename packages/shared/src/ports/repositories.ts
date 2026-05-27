@@ -268,7 +268,13 @@ export interface IIngestBindingRepository {
 export interface IIngestBackfillJobRepository {
   create(input: CreateBackfillJob & { providerId: string }): Promise<BackfillJobRecord>;
   findById(id: string): Promise<BackfillJobRecord | null>;
+  /** Следующая задача pending или running (resume после рестарта). */
+  findRunnable(): Promise<BackfillJobRecord | null>;
   updateStatus(id: string, status: BackfillJobRecord["status"], stats?: BackfillJobRecord["stats"]): Promise<void>;
+  updateProgress(
+    id: string,
+    patch: { stats?: BackfillJobRecord["stats"]; params?: Record<string, unknown> },
+  ): Promise<void>;
 }
 
 export interface IRawMessageTelegramExtensionRepository {

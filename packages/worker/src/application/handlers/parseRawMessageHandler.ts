@@ -10,6 +10,7 @@
 import type { GeoValidationService } from "../parsing/geoValidationService.js";
 import type { GeoValidationContext } from "../parsing/geoValidationService.js";
 import type { ParsePipelineService } from "../parsing/parsePipelineService.js";
+import type { ParseWorkerPool } from "../parsing/parseWorkerPool.js";
 import { buildDomainEvent } from "./domainEventFactory.js";
 
 type EnricherProvider = "dadata" | "nominatim" | "llm";
@@ -89,7 +90,21 @@ export class ParseRawMessageHandler {
     private readonly validation: GeoValidationService,
     private readonly placeCache: IPlaceCacheRepository,
     private readonly events: IEventPublisher,
+    /** Опционально: classify/geo в worker_threads (не блокирует event loop). */
+    private readonly parseWorkerPool?: ParseWorkerPool,
   ) {}
+
+  private async runPipeline(input: {
+    rawText: string;
+    postedAt: string;
+    channelKey: string;
+    rawMessageId: string;
+  }) {
+    if (this.parseWorkerPool) {
+      return this.parseWorkerPool.execute(input);
+    }
+    return this.pipeline.execute(input);
+  }
 
   private async validateLocations(
     rawText: string,
@@ -113,7 +128,7 @@ export class ParseRawMessageHandler {
       throw new Error("ParseRawMessageHandler: raw.id (uuid) обязателен");
     }
     const rawMessageId = raw.id;
-    const pipelineResult = await this.pipeline.execute({
+    const pipelineResult = await this.runPipeline({
       rawText: raw.rawText,
       postedAt: raw.postedAt,
       channelKey: raw.channelKey,

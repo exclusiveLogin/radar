@@ -31,6 +31,29 @@ export class TypeOrmIngestBackfillJobRepository implements IIngestBackfillJobRep
     return row ? toBackfillJobRecord(row) : null;
   }
 
+  async findRunnable(): Promise<BackfillJobRecord | null> {
+    const row = await this.dataSource.getRepository(IngestBackfillJobEntity).findOne({
+      where: [{ status: "pending" }, { status: "running" }],
+      order: { createdAt: "ASC" },
+    });
+    return row ? toBackfillJobRecord(row) : null;
+  }
+
+  async updateProgress(
+    id: string,
+    patch: { stats?: BackfillJobRecord["stats"]; params?: Record<string, unknown> },
+  ): Promise<void> {
+    if (!patch.stats && !patch.params) return;
+
+    const repo = this.dataSource.getRepository(IngestBackfillJobEntity);
+    const row = await repo.findOne({ where: { id } });
+    if (!row) return;
+
+    if (patch.stats) row.stats = patch.stats;
+    if (patch.params) row.params = patch.params;
+    await repo.save(row);
+  }
+
   async updateStatus(
     id: string,
     status: BackfillJobRecord["status"],

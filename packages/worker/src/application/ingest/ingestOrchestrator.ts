@@ -4,15 +4,13 @@ import type {
   IIngestBindingRepository,
   IIngestProviderRepository,
   IngestNormalizedMessage,
-  RawMessage,
-  RawMessageTelegramExtension,
 } from "@radar/shared";
-import { ingestMessageHash } from "@radar/shared";
 import { randomUUID } from "node:crypto";
 import { buildDomainEvent } from "../handlers/domainEventFactory.js";
 import type { IngestRawMessageHandler } from "../handlers/ingestRawMessageHandler.js";
 import { createRawIngestAdapter } from "../../infrastructure/ingest-adapters/adapterRegistry.js";
 import type { SessionResolver } from "../sessions/sessionResolver.js";
+import { ingestNormalizedToRaw } from "./ingestMessageMapper.js";
 
 function resolveMtproxyFromEnv(): { ip: string; port: number; secret: string } | null {
   const ip = process.env.TELEGRAM_MTPROXY_HOST?.trim();
@@ -20,51 +18,6 @@ function resolveMtproxyFromEnv(): { ip: string; port: number; secret: string } |
   const secret = process.env.TELEGRAM_MTPROXY_SECRET?.trim();
   if (!ip || !port || !secret) return null;
   return { ip, port, secret };
-}
-
-function toRawMessage(normalized: IngestNormalizedMessage): {
-  raw: RawMessage;
-  extension?: RawMessageTelegramExtension;
-} {
-  const hash =
-    normalized.hash ??
-    ingestMessageHash({
-      channelKey: normalized.channelKey,
-      providerKey: normalized.providerKey,
-      sourceKind: normalized.sourceKind,
-      externalMessageId: normalized.externalMessageId,
-      revisionKey: normalized.revisionKey ?? null,
-      postedAt: normalized.postedAt,
-      rawText: normalized.rawText,
-      rawPayload: normalized.rawPayload,
-    });
-
-  const raw: RawMessage = {
-    channelKey: normalized.channelKey,
-    providerKey: normalized.providerKey,
-    sourceKind: normalized.sourceKind,
-    externalMessageId: normalized.externalMessageId,
-    revisionKey: normalized.revisionKey ?? null,
-    sourceSequence: normalized.sourceSequence ?? null,
-    postedAt: normalized.postedAt,
-    ingestMode: normalized.ingestMode ?? "live",
-    rawText: normalized.rawText,
-    rawPayload: normalized.rawPayload,
-    hash,
-    fetchedAt: new Date().toISOString(),
-  };
-
-  const extension = normalized.telegramExtension
-    ? {
-        rawMessageId: "",
-        chatId: normalized.telegramExtension.chatId,
-        messageId: normalized.telegramExtension.messageId,
-        editDate: normalized.telegramExtension.editDate,
-        peerType: normalized.telegramExtension.peerType,
-      }
-    : undefined;
-
-  return { raw, extension };
 }
 
 /**
@@ -132,7 +85,7 @@ export class IngestOrchestrator {
         });
 
         const sink = async (normalized: IngestNormalizedMessage) => {
-          const { raw, extension } = toRawMessage(normalized);
+          const { raw, extension } = ingestNormalizedToRaw(normalized);
           await this.ingestHandler.handle(raw, extension);
         };
 
@@ -220,10 +173,7 @@ export class IngestOrchestrator {
       }
 
       const sink = async (normalized: IngestNormalizedMessage) => {
-        const { raw, extension } = toRawMessage({
-          ...normalized,
-          ingestMode: "backfill",
-        });
+        const { raw, extension } = ingestNormalizedToRaw(normalized, "backfill");
         await this.ingestHandler.handle(raw, extension);
       };
 

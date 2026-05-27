@@ -38,7 +38,7 @@ Duplicate → `RawMessageDuplicate`, parse не вызывается.
 | POST | `/providers/:id/start` | `status=active` |
 | POST | `/messages` | ручной ingest |
 | GET | `/messages?channelKey=&anchorPostedAt=&anchorTieBreaker=&direction=` | timeline |
-| POST | `/backfill-jobs` | задача backfill |
+| POST | `/backfill-jobs` | задача backfill (выполняет worker **BackfillDaemon**, см. [backfill-v2-pipeline.md](./backfill-v2-pipeline.md)) |
 
 Swagger: `/api/docs` → tag `admin-ingest`.
 
@@ -563,13 +563,27 @@ npm run ingest:manifest:export
 
 ## 3. Backfill — докачка истории
 
-### `npm run worker:ingest:backfill`
+> **Полная документация V2 (схемы, бизнес, эксплуатация):** [docs/backfill-v2-pipeline.md](./backfill-v2-pipeline.md)
 
-**Что делает:** за **один запуск** выкачивает пачку старых сообщений из Telegram и кладёт в `raw_messages` с `ingest_mode=backfill`.
+### Backfill V2 — автоматический (рекомендуется)
 
-**Зачем:** наполнить архив до live-дежурства; сообщения в timeline встают по **дате поста**, не по моменту ingest.
+**Что делает:** оператор создаёт задачу через Admin API; worker **BackfillDaemon** в фоне стримит историю (`iterMessages`), после каждого сообщения пишет чекпоинт, parse идёт в `worker_threads`.
 
-**Не путать с:** `POST /api/admin/ingest/backfill-jobs` — там только **запись задачи** в БД; CLI **сразу качает** chunk.
+| Шаг | Действие |
+|-----|----------|
+| 1 | `POST /api/admin/ingest/backfill-jobs` — `strategy`: `full_history` / `all` / `by_date_range` / `by_external_id_range` |
+| 2 | Worker в `RADAR_STORAGE_MODE=db` (демон включён по умолчанию) |
+| 3 | Статус в `ingest_backfill_jobs`: `pending` → `running` → `completed` \| `failed` |
+
+**Стратегия «вся история»:** `{ "bindingId": "<uuid>", "strategy": "all", "params": {} }`.
+
+### `npm run worker:ingest:backfill` — разовый chunk (CLI)
+
+**Что делает:** за **один запуск** выкачивает **одну пачку** старых сообщений (`fetchHistoryBatch`) и кладёт в `raw_messages` с `ingest_mode=backfill`.
+
+**Зачем:** отладка, ручной догон без записи job; повторные запуски — вручную.
+
+**Не путать с V2:** API **не качает** сам — только ставит задачу; качает демон worker.
 
 | Параметр | Обяз. | Default | За что отвечает |
 |----------|-------|---------|----------------|
@@ -696,7 +710,7 @@ RADAR_STORAGE_MODE=db npm run worker:dev
 | Ограничение | Последствие | Будущее решение |
 |-------------|-------------|-----------------|
 | **Нет gap recovery при рестарте** | При перезапуске worker начинает слушать новые сообщения; пропущенные за время простоя **теряются** | Сервис `IngestGapRecoveryService`: читает курсор → дочитывает до live (batch + retry + checkpoint) |
-| **Backfill только через CLI** | Нет автоматического обнаружения пробелов | Worker auto-detect gap → запуск backfill в фоне |
+| **Gap recovery live** | Пропуск за время простоя worker не дочитывается автоматически | `IngestGapRecoveryService` (отдельно от Backfill V2) |
 | **`ingestMode` не влияет на обработку** | live/backfill/manual → одинаковый pipeline | Приоритизация: live → алерт; backfill → фоновый парсинг без уведомлений |
 | **Admin API без auth** | Любой может управлять providers | Guard / API key / JWT на `/api/admin/ingest/*` |
 | **Нет admin UI** | Только Swagger / curl / CLI | React-панель поверх admin API |

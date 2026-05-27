@@ -38,7 +38,12 @@ Admin manual ingest: `outbox.append` → позже relay → bus.
 
 - `IngestOrchestrator.start` — live adapters → `ingestHandler.handle` на каждое сообщение.
 - Ошибка duty → `IngestSourceUnavailable`, `aggregateType: ingest_provider`.
-- `runBackfillChunk` → `IngestBackfillChunkCompleted` на `ingest_binding`.
+- `runBackfillChunk` — **CLI chunk** (одна пачка); событие `IngestBackfillChunkCompleted` на `ingest_binding`.
+
+## Backfill V2 (демон)
+
+- `BackfillDaemonService` — poll `ingest_backfill_jobs`, `adapter.streamHistory`, чекпоинт после каждого сообщения.
+- Схемы и runbook: **[docs/backfill-v2-pipeline.md](../../backfill-v2-pipeline.md)**.
 
 ## Где в коде
 

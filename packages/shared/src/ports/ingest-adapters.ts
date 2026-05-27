@@ -43,6 +43,21 @@ export interface IRawIngestAdapter {
     },
     sink: IngestMessageSink,
   ): Promise<{ inserted: number; duplicates: number }>;
+  /** Потоковая выкачка истории (iterMessages) с retry при FloodWait. */
+  streamHistory?(
+    binding: IngestBindingRecord,
+    params: StreamHistoryParams,
+    sink: IngestMessageSink,
+  ): Promise<{ inserted: number; duplicates: number }>;
 }
+
+export type StreamHistoryParams = {
+  fromPostedAt?: string;
+  toPostedAt?: string;
+  fromExternalId?: string;
+  toExternalId?: string;
+  /** Resume: Telegram message id последнего обработанного сообщения. */
+  offsetId?: number;
+};
 
 export type { IngestMode, SourceKind };

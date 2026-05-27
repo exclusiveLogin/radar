@@ -3,6 +3,7 @@ import type { IEventPublisher } from "@radar/shared";
 import type {
   IChannelRepository,
   IEventLocationRepository,
+  IIngestBackfillJobRepository,
   IIngestBindingRepository,
   IIngestCursorRepository,
   IIngestProviderRepository,
@@ -26,6 +27,7 @@ export type WorkerDbRepositories = {
   ingestProviders: IIngestProviderRepository;
   ingestBindings: IIngestBindingRepository;
   channels: IChannelRepository;
+  backfillJobs: IIngestBackfillJobRepository;
 };
 
 /** Structural typing для runtime import API persistence (без компиляции api в worker). */
@@ -41,6 +43,7 @@ export type ApiPersistenceModule = {
   TypeOrmIngestProviderRepository: new (dataSource: DataSource) => IIngestProviderRepository;
   TypeOrmIngestBindingRepository: new (dataSource: DataSource) => IIngestBindingRepository;
   TypeOrmChannelRepository: new (dataSource: DataSource) => IChannelRepository;
+  TypeOrmIngestBackfillJobRepository: new (dataSource: DataSource) => IIngestBackfillJobRepository;
 };
 
 export type ApiOutboxModule = {

@@ -5,6 +5,7 @@ import type {
   IngestBindingRecord,
   IngestMessageSink,
   IngestNormalizedMessage,
+  StreamHistoryParams,
   TelegramAdapterConfig,
 } from "@radar/shared";
 import { TelegramClient } from "telegram";
@@ -12,6 +13,7 @@ import { StringSession } from "telegram/sessions/StringSession.js";
 import { NewMessage } from "telegram/events/NewMessage.js";
 import type { SessionResolver } from "../../../application/sessions/sessionResolver.js";
 import { mapTelegramBotUpdate, mapTelegramMessage } from "./toRawMessage.js";
+import { getFloodWaitSeconds, sleep } from "./telegramFloodWait.js";
 
 type MtprotoClientState = {
   client: TelegramClient;
@@ -306,12 +308,123 @@ export class TelegramRawIngestAdapter implements IRawIngestAdapter {
     return { inserted, duplicates };
   }
 
+  /**
+   * Потоковая выкачка истории: iterMessages (reverse) + автоматический sleep при FloodWait.
+   */
+  async streamHistory(
+    binding: IngestBindingRecord,
+    params: StreamHistoryParams,
+    sink: IngestMessageSink,
+  ): Promise<{ inserted: number; duplicates: number }> {
+    if (!this.mtproto || !this.ctx) {
+      throw new Error("MTProto client required for streamHistory");
+    }
+
+    const channelKey = this.channelKeys.get(binding.id);
+    if (!channelKey) {
+      throw new Error(`Channel key not resolved for binding ${binding.id}`);
+    }
+
+    const iterOptions: { reverse: boolean; offsetId?: number } = { reverse: true };
+    if (params.offsetId) {
+      iterOptions.offsetId = params.offsetId;
+    }
+
+    let inserted = 0;
+    let duplicates = 0;
+
+    for await (const msg of this.iterMessagesWithFloodRetry(
+      binding.externalTarget,
+      iterOptions,
+    )) {
+      const normalized = mapTelegramMessage({
+        msg: msg as Parameters<typeof mapTelegramMessage>[0]["msg"],
+        channelKey,
+        providerKey: this.ctx.provider.key,
+        ingestMode: "backfill",
+      });
+      if (!normalized) continue;
+
+      if (!this.matchesStreamFilters(normalized, params)) {
+        if (this.shouldStopStream(normalized, params)) break;
+        continue;
+      }
+
+      const key = dedupKey(normalized);
+      if (this.hybridSeen.has(key)) {
+        duplicates += 1;
+        continue;
+      }
+      this.hybridSeen.add(key);
+      await sink(normalized);
+      inserted += 1;
+    }
+
+    return { inserted, duplicates };
+  }
+
+  private matchesStreamFilters(
+    normalized: IngestNormalizedMessage,
+    params: StreamHistoryParams,
+  ): boolean {
+    if (params.fromPostedAt && normalized.postedAt < params.fromPostedAt) return false;
+    if (params.toPostedAt && normalized.postedAt > params.toPostedAt) return false;
+    if (params.fromExternalId) {
+      const fromId = Number(params.fromExternalId);
+      if (Number.isFinite(fromId) && Number(normalized.externalMessageId) > fromId) return false;
+    }
+    if (params.toExternalId) {
+      const toId = Number(params.toExternalId);
+      if (Number.isFinite(toId) && Number(normalized.externalMessageId) < toId) return false;
+    }
+    return true;
+  }
+
+  /** При reverse-итерации: вышли за нижнюю границу диапазона дат — дальше только старее. */
+  private shouldStopStream(
+    normalized: IngestNormalizedMessage,
+    params: StreamHistoryParams,
+  ): boolean {
+    if (params.fromPostedAt && normalized.postedAt < params.fromPostedAt) {
+      return true;
+    }
+    if (params.toExternalId) {
+      const toId = Number(params.toExternalId);
+      if (Number.isFinite(toId) && Number(normalized.externalMessageId) < toId) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private async *iterMessagesWithFloodRetry(
+    peer: string,
+    options: { reverse: boolean; offsetId?: number },
+  ): AsyncGenerator<unknown> {
+    if (!this.mtproto) {
+      throw new Error("MTProto client not connected");
+    }
+
+    while (true) {
+      try {
+        for await (const msg of this.mtproto.client.iterMessages(peer, options)) {
+          yield msg;
+        }
+        return;
+      } catch (err) {
+        const seconds = getFloodWaitSeconds(err);
+        if (seconds != null) {
+          console.warn(`Telegram FloodWait: sleep ${seconds}s`);
+          await sleep(seconds * 1000);
+          continue;
+        }
+        throw err;
+      }
+    }
+  }
+
   /** Orchestrator передаёт map bindingId → channelKey перед startDuty. */
   setChannelKeyMap(map: Map<string, string>): void {
     this.channelKeys = map;
   }
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }

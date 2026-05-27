@@ -16,6 +16,7 @@ export type {
   IngestAdapterContext,
   IngestMessageSink,
   IRawIngestAdapter,
+  StreamHistoryParams,
 } from "./ingest-adapters";
 export type {
   ISessionRuntimeStore,

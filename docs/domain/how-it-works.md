@@ -77,6 +77,28 @@ sequenceDiagram
 
 ---
 
+## Backfill-flow (V2) {#backfill-flow}
+
+**Цель:** выкачать архив канала по задаче в БД, не ломая live-курсор; пережить рестарт worker.
+
+Кратко: Admin API создаёт `ingest_backfill_jobs` → **BackfillDaemonService** стримит Telegram (`streamHistory`) → тот же **IngestRawMessageHandler** + **Parse** (classify/geo в `worker_threads`).
+
+```mermaid
+flowchart LR
+  API[POST backfill-jobs] --> Jobs[(ingest_backfill_jobs)]
+  Jobs --> Daemon[BackfillDaemonService]
+  Daemon --> Stream[Telegram streamHistory]
+  Stream --> Ingest[IngestRawMessageHandler]
+  Ingest --> Jobs
+  Ingest --> Cursor[(backfill_state)]
+  Ingest --> Bus[InProcessEventBus]
+  Bus --> Parse[ParseRawMessageHandler]
+```
+
+Полные sequence/state/ER-диаграммы, стратегии и env: **[docs/backfill-v2-pipeline.md](../backfill-v2-pipeline.md)**.
+
+---
+
 ## Parse-flow {#parse-flow}
 
 **Цель:** из `raw_messages` получить `parsed_events` + геопривязку.
@@ -84,7 +106,7 @@ sequenceDiagram
 ### Шаги
 
 1. **Подписчик** — получает только `raw.id` из базы, загружает текст и вызывает `ParseRawMessageHandler.handle(...)`.
-2. **Хэндлер** — передаёт сырой текст в `ParsePipelineService.execute`.
+2. **Хэндлер** — передаёт сырой текст в `ParsePipelineService.execute` (в db mode часто через **ParseWorkerPool** в отдельном потоке).
 3. **Пайплайн (Классификация + Geo)** — прогоняет текст через классификатор (угроза/спам) и энричеры (DaData, Nominatim, LLM) для поиска локаций.
 4. **Отказ** — если это не событие (спам), хэндлер кидает `MessageParseFailed` в шину и выходит.
 5. **Валидация (Trust)** — если событие, хэндлер передаёт найденные гео-кандидаты в `GeoValidationService.validate`. Тот проверяет базу: если место уже есть — обновляет статус доверия, вызывает `mergeContribution` (со своей БД транзакцией) и пишет журнал `place_evidence`.

@@ -22,6 +22,8 @@ export const backfillStrategySchema = z.enum([
   "by_date_range",
   "by_external_id_range",
   "full_history",
+  /** Алиас пресета full_history (admin/скрипты). */
+  "all",
 ]);
 
 export const backfillJobStatusSchema = z.enum([

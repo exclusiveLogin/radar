@@ -40,6 +40,11 @@ export async function runWorkerBootstrap(): Promise<void> {
     console.log("Запуск IngestOrchestrator (active providers из БД)...");
     await runtime.ingestOrchestrator.start();
 
+    if (runtime.backfillDaemon) {
+      runtime.backfillDaemon.start();
+      console.log("BackfillDaemon запущен (ingest_backfill_jobs).");
+    }
+
     const shutdown = async () => {
       console.log("Остановка worker...");
       await runtime.shutdown?.();

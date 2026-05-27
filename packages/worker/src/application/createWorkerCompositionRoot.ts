@@ -9,6 +9,7 @@ import type { DataSource } from "typeorm";
 import type {
   IChannelRepository,
   IEventLocationRepository,
+  IIngestBackfillJobRepository,
   IIngestBindingRepository,
   IIngestCursorRepository,
   IIngestProviderRepository,
@@ -35,10 +36,6 @@ import {
   InMemoryRegionRepository,
   InMemoryRawMessageRepository,
 } from "./handlers/inMemoryRepositories.js";
-import { RuleBasedEventClassifier } from "../infrastructure/classifiers/ruleBasedEventClassifier.js";
-import { DadataEnricher } from "../infrastructure/enrichers/dadataEnricher.js";
-import { LlmEnricher } from "../infrastructure/enrichers/llmEnricher.js";
-import { NominatimEnricher } from "../infrastructure/enrichers/nominatimEnricher.js";
 import {
   loadLlmRuntimeConfig,
   type LlmRuntimeConfig,
@@ -53,14 +50,13 @@ import type {
   ResolvedEnricherFlags,
 } from "../infrastructure/enrichers/enricherChainFactory.js";
 import { GeoCatalog } from "../infrastructure/geo-catalog/index.js";
-import type { GeoPipelineStep } from "./geo-pipeline/GeoPipelineContext.js";
-import { CatalogStep } from "./geo-pipeline/steps/CatalogStep.js";
-import { DadataStep } from "./geo-pipeline/steps/DadataStep.js";
-import { NominatimStep } from "./geo-pipeline/steps/NominatimStep.js";
-import { LlmStep } from "./geo-pipeline/steps/LlmStep.js";
-import { LocationResolutionService } from "./parsing/locationResolutionService.js";
 import { GeoValidationService } from "./parsing/geoValidationService.js";
-import { ParsePipelineService } from "./parsing/parsePipelineService.js";
+import { createParsePipeline } from "./parsing/createParsePipeline.js";
+import { isParseWorkerPoolEnabled, ParseWorkerPool } from "./parsing/parseWorkerPool.js";
+import {
+  BackfillDaemonService,
+  isBackfillDaemonEnabled,
+} from "./ingest/backfillDaemonService.js";
 import {
   WorkerStorageMode,
   resolveWorkerStorageModeFromEnv,
@@ -105,25 +101,6 @@ function resolvePipelineOrder(
   return override ?? resolvePipelineOrderFromEnv() ?? DEFAULT_PIPELINE_ORDER;
 }
 
-function createStepFactories(params: {
-  geoCatalog: GeoCatalog;
-  flags: ResolvedEnricherFlags;
-  llmRuntimeConfig: LlmRuntimeConfig;
-  placeCache: IPlaceCacheRepository;
-}): Record<PipelineStepId, () => GeoPipelineStep | null> {
-  const { geoCatalog, flags, llmRuntimeConfig, placeCache } = params;
-  return {
-    catalog: () => new CatalogStep(geoCatalog),
-    llm: () => (flags.llm ? new LlmStep(new LlmEnricher(llmRuntimeConfig)) : null),
-    dadata: () =>
-      flags.dadata
-        ? new DadataStep(new DadataEnricher(process.env.DADATA_TOKEN), placeCache)
-        : null,
-    nominatim: () =>
-      flags.nominatim ? new NominatimStep(new NominatimEnricher(), placeCache) : null,
-  };
-}
-
 export async function createWorkerCompositionRoot(
   options: WorkerCompositionOptions = {},
 ) {
@@ -140,6 +117,8 @@ export async function createWorkerCompositionRoot(
   let dataSource: DataSource | undefined;
   let outboxRelay: { start: () => void; stop: () => void } | undefined;
   let ingestOrchestrator: IngestOrchestrator | undefined;
+  let backfillDaemon: BackfillDaemonService | undefined;
+  let parseWorkerPool: ParseWorkerPool | undefined;
   let shutdown: (() => Promise<void>) | undefined;
 
   let rawMessages: IRawMessageRepository = new InMemoryRawMessageRepository();
@@ -153,6 +132,7 @@ export async function createWorkerCompositionRoot(
   let ingestProviders: IIngestProviderRepository | undefined;
   let ingestBindings: IIngestBindingRepository | undefined;
   let channels: IChannelRepository | undefined;
+  let backfillJobs: IIngestBackfillJobRepository | undefined;
 
   if (storageMode === WorkerStorageMode.Db) {
     dataSource = await createWorkerDataSource();
@@ -173,12 +153,15 @@ export async function createWorkerCompositionRoot(
     ingestProviders = repos.ingestProviders;
     ingestBindings = repos.ingestBindings;
     channels = repos.channels;
+    backfillJobs = repos.backfillJobs;
 
     outboxRelay = new OutboxRelay(dataSource, bus);
     outboxRelay.start();
 
     shutdown = async () => {
       outboxRelay?.stop();
+      await backfillDaemon?.stop();
+      await parseWorkerPool?.shutdown();
       await ingestOrchestrator?.stop();
       if (dataSource?.isInitialized) {
         await dataSource.destroy();
@@ -187,7 +170,6 @@ export async function createWorkerCompositionRoot(
   }
 
   const placeCache = options.placeCacheRepository ?? new InMemoryPlaceCacheRepository();
-  const classifier = new RuleBasedEventClassifier();
   const geoCatalog = options.geoCatalog ?? GeoCatalog.loadFromArtifacts();
 
   const llmRuntimeConfig = {
@@ -196,20 +178,17 @@ export async function createWorkerCompositionRoot(
   };
   const flags = resolveEnricherFlags(options.explicitEnricherFlags);
   const order = resolvePipelineOrder(options.pipelineOrder);
-  const stepFactories = createStepFactories({
-    geoCatalog,
-    flags,
+  const pipelineConfig = {
+    enricherFlags: flags,
+    pipelineOrder: order,
     llmRuntimeConfig,
-    placeCache,
-  });
-
-  const steps: GeoPipelineStep[] = order
-    .map((id) => stepFactories[id]())
-    .filter((s): s is GeoPipelineStep => s !== null);
-
-  const resolution = new LocationResolutionService(steps);
-  const pipeline = new ParsePipelineService(classifier, resolution);
+  };
+  const { pipeline, resolution } = createParsePipeline(pipelineConfig, placeCache);
   const validation = new GeoValidationService(regions, places, aliases, placeEvidence);
+
+  if (storageMode === WorkerStorageMode.Db && isParseWorkerPoolEnabled()) {
+    parseWorkerPool = new ParseWorkerPool(pipelineConfig);
+  }
 
   const ingestRawMessageHandler = new IngestRawMessageHandler(
     rawMessages,
@@ -223,6 +202,7 @@ export async function createWorkerCompositionRoot(
     validation,
     placeCache,
     bus,
+    parseWorkerPool,
   );
 
   bus.subscribe(
@@ -248,6 +228,18 @@ export async function createWorkerCompositionRoot(
       bus,
       sessionResolver,
     );
+
+    if (backfillJobs && cursors && isBackfillDaemonEnabled()) {
+      backfillDaemon = new BackfillDaemonService(
+        backfillJobs,
+        ingestProviders,
+        ingestBindings,
+        channels,
+        cursors,
+        ingestRawMessageHandler,
+        sessionResolver,
+      );
+    }
   }
 
   return {
@@ -257,9 +249,11 @@ export async function createWorkerCompositionRoot(
     geoCatalog,
     locationResolutionService: resolution,
     parsePipelineService: pipeline,
+    parseWorkerPool,
     ingestRawMessageHandler,
     parseRawMessageHandler,
     ingestOrchestrator,
+    backfillDaemon,
     outboxRelay,
     dataSource,
     shutdown,
