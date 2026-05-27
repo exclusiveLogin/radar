@@ -1,5 +1,7 @@
 # Place trust: объяснение идеи
 
+Реализация в коде (merge, evidence, parse): **[docs/domain/contexts/geo-place.md](./domain/contexts/geo-place.md)**.
+
 Дата: 2026-05-12
 
 ## Зачем это нужно

@@ -3,7 +3,9 @@
  * layer: api
  * kind: entity
  * table: event_locations
- * purpose: Связь parsed_event с регионом/местом и точностью геопривязки.
+ * purpose: Где на карте показать событие: ссылка на region/place + координаты/точность; один parsed_event может иметь несколько кандидатов локации.
+ * @see ../../../../../docs/domain/persistence-map.md#EventLocationEntity
+ * @see ../../../../../docs/domain/how-it-works.md#parse-flow
  * ---
  */
 import { Column, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from "typeorm";

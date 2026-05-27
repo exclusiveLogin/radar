@@ -3,7 +3,9 @@
  * layer: api
  * kind: entity
  * table: domain_events
- * purpose: Outbox-персистенс доменных событий для relay и внешних подписчиков.
+ * purpose: Журнал «что произошло» для интеграций: API пишет сюда, OutboxRelay доставляет в bus; не заменяет таблицы состояния (raw/parsed).
+ * @see ../../../../../docs/domain/persistence-map.md#DomainEventEntity
+ * @see ../../../../../docs/domain/domain-events-and-outbox.md
  * ---
  */
 import { Column, Entity, PrimaryColumn } from "typeorm";

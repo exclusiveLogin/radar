@@ -1,3 +1,9 @@
+/**
+ * Сохранённый ответ внешнего гео-enricher на нормализованный текст — чтобы не дергать API на одинаковых формулировках.
+ * Ускоряет parse и снижает rate limit; доверие к месту всё равно проходит через `places` + evidence, не через кэш напрямую.
+ * @see ../../../../../docs/domain/persistence-map.md#PlaceCacheEntity
+ * @see ../../../../../docs/domain/how-it-works.md#parse-flow
+ */
 import { Column, Entity, PrimaryColumn } from "typeorm";
 
 @Entity({ name: "place_cache" })

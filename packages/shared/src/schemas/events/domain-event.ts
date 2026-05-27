@@ -5,6 +5,8 @@
  * domain: events
  * tooling: zod
  * purpose: Единый формат доменных событий для outbox/event-bus.
+ * @see ../../../../../docs/domain/domain-events-and-outbox.md
+ * @see ../../../../../docs/domain/aggregates.md
  * ---
  */
 import { z } from "zod";

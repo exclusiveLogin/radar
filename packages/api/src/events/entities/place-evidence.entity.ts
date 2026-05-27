@@ -1,3 +1,10 @@
+/**
+ * Почему у place такой trust: кто (dadata/llm/operator) и с какой уверенностью подтвердил или обогатил поля.
+ * Позволяет объяснить оператору расхождение с текстом канала; сами координаты живут в `places`, не здесь.
+ * @see ../../../../../docs/domain/persistence-map.md#PlaceEvidenceEntity
+ * @see ../../../../../docs/domain/contexts/geo-place.md
+ * @see ../../../../../docs/place-trust-explained.md
+ */
 import { Column, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from "typeorm";
 import { PlaceEntity } from "../../geo/entities";
 

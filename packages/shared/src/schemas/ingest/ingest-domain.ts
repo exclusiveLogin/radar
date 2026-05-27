@@ -1,5 +1,7 @@
 /**
  * Глоссарий домена Ingest Acquisition: ключи агрегатов и enum-константы.
+ * @see ../../../../../docs/domain/contexts/ingest.md
+ * @see ../../../../../docs/ingest-providers.md
  */
 import { z } from "zod";
 

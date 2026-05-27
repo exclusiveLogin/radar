@@ -1,3 +1,8 @@
+/**
+ * Append-only лента смен статуса по place для time machine и аналитики («когда был отбой»).
+ * Не заменяет `parsed_events` — агрегированный срез по месту, а не по сообщению канала.
+ * @see ../../../../../docs/domain/persistence-map.md#PlaceStatusHistoryEntity
+ */
 import { Column, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from "typeorm";
 import { PlaceEntity } from "../../geo/entities";
 import { StatusDictionaryEntity } from "./status-dictionary.entity";

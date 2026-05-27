@@ -33,6 +33,8 @@ isProject: true
 
 Журнал выполненных шагов: **[docs/project-log.md](./project-log.md)**.
 
+Доменная модель (как работают агрегаты-потоки, события, транзакции, карта ORM): **[docs/domain/README.md](./domain/README.md)**.
+
 ## Контекст
 
 - **Каркас первого этапа** уже в репозитории (см. [README.md](../README.md)): monorepo, Docker Postgres, NestJS+TypeORM+Swagger, worker GramJS, Vite+React.

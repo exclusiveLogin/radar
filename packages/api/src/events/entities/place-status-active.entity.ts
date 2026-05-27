@@ -1,3 +1,8 @@
+/**
+ * Какие коды угрозы сейчас «горят» на населённом пункте для карты (срез на момент времени).
+ * Обновляется при появлении новых parsed_events; история смен — в `place_status_history`.
+ * @see ../../../../../docs/domain/persistence-map.md#PlaceStatusActiveEntity
+ */
 import { Column, Entity, JoinColumn, ManyToOne, PrimaryColumn } from "typeorm";
 import { PlaceEntity } from "../../geo/entities";
 import { StatusDictionaryEntity } from "./status-dictionary.entity";

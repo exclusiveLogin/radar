@@ -3,7 +3,8 @@
  * layer: api
  * kind: entity
  * table: event_subscriptions
- * purpose: Чекпоинты и статус внешних подписчиков (bot/relay/интеграции).
+ * purpose: Состояние внешнего потребителя событий (бот, webhook): до какого offset дочитал, чтобы не слать повторно при сбое.
+ * @see ../../../../../docs/domain/persistence-map.md#EventSubscriptionEntity
  * ---
  */
 import { Column, CreateDateColumn, Entity, PrimaryGeneratedColumn, UpdateDateColumn } from "typeorm";

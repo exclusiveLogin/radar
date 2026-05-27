@@ -1,3 +1,9 @@
+/**
+ * Какой канал слушает конкретный провайдер и в каком режиме (live MTProto, bot, backfill-only).
+ * Отдельно от provider: один провайдер может иметь несколько bindings; backfill-статистика — события на `ingest_binding`.
+ * @see ../../../../../docs/domain/persistence-map.md#IngestBindingEntity
+ * @see ../../../../../docs/domain/contexts/ingest.md
+ */
 import {
   Column,
   CreateDateColumn,

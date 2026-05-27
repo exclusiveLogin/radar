@@ -77,6 +77,9 @@ function buildEnricherTelemetry(
 /**
  * Use case: сырой текст → classify/geo pipeline → parsed_event.
  * Инвариант: `rawMessageId` — uuid строки в БД (не content hash).
+ * @see ../../../../../docs/domain/how-it-works.md#parse-flow
+ * @see ../../../../../docs/domain/aggregates.md
+ * @see ../../../../../docs/domain/contexts/geo-place.md
  */
 export class ParseRawMessageHandler {
   constructor(

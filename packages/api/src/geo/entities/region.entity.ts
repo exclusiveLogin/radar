@@ -1,3 +1,9 @@
+/**
+ * Административный регион (область/ФО) для фильтров карты и привязки places; границы — через артефакты, не в этой строке.
+ * Загружается bulk geo-sync и используется при parse, чтобы не создавать place вне известного региона.
+ * @see ../../../../../docs/domain/persistence-map.md#RegionEntity
+ * @see ../../../../../docs/geo-dataset-schemas.md
+ */
 import { Column, CreateDateColumn, Entity, OneToMany, PrimaryGeneratedColumn, UpdateDateColumn } from "typeorm";
 import { PlaceEntity } from "./place.entity";
 

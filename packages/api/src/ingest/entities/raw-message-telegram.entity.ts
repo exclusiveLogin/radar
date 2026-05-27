@@ -1,3 +1,9 @@
+/**
+ * Дополнительный ключ дедупликации для MTProto: одно логическое сообщение Telegram = одна строка raw.
+ * Нужен потому что identity в `raw_messages` не всегда совпадает с парой chat/message при правках и re-ingest.
+ * @see ../../../../../docs/domain/persistence-map.md#RawMessageTelegramEntity
+ * @see ../../../../../docs/domain/contexts/ingest.md
+ */
 import { Column, Entity, JoinColumn, OneToOne, PrimaryColumn } from "typeorm";
 import { RawMessageEntity } from "./raw-message.entity";
 

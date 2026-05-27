@@ -1,3 +1,10 @@
+/**
+ * Каноническое населённое место на карте: координаты, FIAS/OKTMO, trust — результат merge вкладов из parse и geo-sync.
+ * Не равно строке из сообщения: одно place собирается из catalog/dadata/LLM; правила слияния — `mergePlaceContribution` в shared.
+ * @see ../../../../../docs/domain/persistence-map.md#PlaceEntity
+ * @see ../../../../../docs/domain/contexts/geo-place.md
+ * @see ../../../../../docs/place-trust-explained.md
+ */
 import { Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, OneToMany, PrimaryGeneratedColumn, UpdateDateColumn } from "typeorm";
 import { PlaceAliasEntity } from "./place-alias.entity";
 import { RegionEntity } from "./region.entity";

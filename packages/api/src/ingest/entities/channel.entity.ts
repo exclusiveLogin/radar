@@ -1,3 +1,9 @@
+/**
+ * Стабильный идентификатор источника сигналов (Telegram-чат, manual и т.д.) для таймлайна и dedup.
+ * Один `key` на весь продукт: все `raw_messages` ссылаются сюда, чтобы не дублировать метаданные канала в каждой строке.
+ * @see ../../../../../docs/domain/persistence-map.md#ChannelEntity
+ * @see ../../../../../docs/domain/contexts/ingest.md
+ */
 import { Column, CreateDateColumn, Entity, PrimaryGeneratedColumn } from "typeorm";
 
 @Entity({ name: "channels" })

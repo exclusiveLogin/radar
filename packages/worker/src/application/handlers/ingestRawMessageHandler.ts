@@ -11,6 +11,10 @@ import { randomUUID } from "node:crypto";
 
 /**
  * Use case: upsert сырого сообщения, duplicate-safe events, live cursor advance.
+ * Публикует в IEventPublisher (worker: InProcessEventBus, не outbox).
+ * @see ../../../../../docs/domain/how-it-works.md#ingest-flow
+ * @see ../../../../../docs/domain/contexts/ingest.md
+ * @see ../../../../../docs/domain/aggregates.md
  */
 export class IngestRawMessageHandler {
   constructor(

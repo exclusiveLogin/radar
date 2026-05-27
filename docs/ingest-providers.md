@@ -13,6 +13,8 @@
 
 ## Агрегаты и инварианты
 
+Каталог всех `aggregateType` в коде и связь с событиями: **[docs/domain/aggregates.md](./domain/aggregates.md)**. Сквозной поток ingest: **[docs/domain/how-it-works.md#ingest-flow](./domain/how-it-works.md#ingest-flow)**.
+
 | Aggregate | Инварианты |
 |-----------|------------|
 | `IngestProvider` | `active` только при enabled bindings; `binding_key` уникален в provider |
@@ -178,7 +180,7 @@ npm run worker:session:deploy -- --slot tg-user-1 --kind mtproto_user
 |--------|-----------|----------------|
 | — | `persist: false` → **пропуск** целиком | — |
 | **provider** | `findByKey(key)` → insert если нет | Есть → **не обновляет**, берёт существующий `id` |
-| **channel** | **upsert** по `key` (создаёт или **обновляет** title, enabled, parseOverrides) | Обновляет |
+| **channel** | **upsert** по `key` (создаёт или **обновляет** title, enabled) | Обновляет |
 | **binding** | `findByBindingKey` у provider → insert если нет | Есть → **пропуск** |
 
 **Инварианты:**
@@ -279,7 +281,6 @@ entry
 | `telegramTarget` | string | **да** | Идентификатор в Telegram: `@username`, `t.me/invite_link` или числовой peer id строкой. | `"@belgorod_alert_channel"` |
 | `title` | string | нет | Человекочитаемое название для UI. | `"БПЛА Белгород"` |
 | `enabled` | boolean | нет | `true` (default) — активен; `false` — пропускается worker-ом. | `true` |
-| `parseOverrides` | object | нет | Переопределение конфига парсера для этого канала. | `{ "batchLimit": 10 }` |
 
 ---
 
@@ -294,7 +295,6 @@ entry
 | `externalTarget` | string | **да** | Идентификатор для adapter: `@username`, числовой id, URL. Может совпадать с `telegramTarget`. | `"@belgorod_alert_channel"` |
 | `bindingMode` | enum | **да** | Режим подключения (см. таблицу ниже). | `"user_mtproto_channel"` |
 | `enabled` | boolean | нет | `true` (default) — worker обрабатывает; `false` — пропускает. | `true` |
-| `parseOverrides` | object | нет | Переопределение парсера для этой привязки (поверх channel). | `{}` |
 | `adapterBinding` | object | нет | Доп. настройки для adapter (зависят от `bindingMode`). | `{}` |
 
 **`bindingMode` — что выбрать:**

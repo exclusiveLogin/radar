@@ -13,6 +13,11 @@ import { ChannelEntity, RawMessageEntity } from "../../ingest/entities";
 import { toRawMessage } from "./ingest-mappers";
 import { TypeOrmRawMessageTelegramExtensionRepository } from "./typeorm-raw-message-telegram.repository";
 
+/**
+ * Persistence raw_messages. Insert-ветка — `dataSource.transaction` (raw + telegram).
+ * @see ../../../../../docs/domain/contexts/ingest.md
+ * @see ../../../../../docs/domain/unit-of-work-and-transactions.md
+ */
 export class TypeOrmRawMessageRepository implements IRawMessageRepository {
   private readonly telegramExt: TypeOrmRawMessageTelegramExtensionRepository;
 

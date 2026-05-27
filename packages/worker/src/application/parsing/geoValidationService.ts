@@ -1,3 +1,8 @@
+/**
+ * Валидация геокандидатов при parse: match/create place, merge, evidence.
+ * @see ../../../../../docs/domain/contexts/geo-place.md
+ * @see ../../../../../docs/domain/how-it-works.md#place-trust-flow
+ */
 import type {
   EventLocation,
   IPlaceAliasRepository,

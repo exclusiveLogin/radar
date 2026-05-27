@@ -1,3 +1,9 @@
+/**
+ * Чистая доменная логика слияния вклада в place (trust, поля). Без ORM.
+ * @see ../../../../docs/domain/contexts/geo-place.md
+ * @see ../../../../docs/place-trust-explained.md
+ * @see ../../../../docs/domain/model-style.md
+ */
 import { isDeepStrictEqual } from "node:util";
 import type { PlaceContribution, PlaceRecord } from "./repositories";
 

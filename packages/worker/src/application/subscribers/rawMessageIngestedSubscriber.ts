@@ -3,6 +3,9 @@ import type { ParseRawMessageHandler } from "../handlers/parseRawMessageHandler.
 
 /**
  * RawMessageIngested → загрузка raw по uuid → parse pipeline.
+ * Связка агрегатов через event.aggregateId, не через ORM-граф.
+ * @see ../../../../../docs/domain/how-it-works.md#ingest-flow
+ * @see ../../../../../docs/domain/domain-events-and-outbox.md
  */
 export function createRawMessageIngestedHandler(deps: {
   rawMessages: IRawMessageRepository;

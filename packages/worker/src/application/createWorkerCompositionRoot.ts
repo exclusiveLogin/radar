@@ -1,4 +1,11 @@
-﻿import type { DataSource } from "typeorm";
+﻿/**
+ * Composition root worker: DataSource, repos, InProcessEventBus, OutboxRelay (db mode).
+ * Это wiring зависимостей, не Unit of Work — см. docs.
+ * @see ../../../../docs/domain/how-it-works.md#composition-root-flow
+ * @see ../../../../docs/domain/unit-of-work-and-transactions.md
+ * @see ../../../../docs/domain/domain-events-and-outbox.md
+ */
+import type { DataSource } from "typeorm";
 import type {
   IChannelRepository,
   IEventLocationRepository,

@@ -159,6 +159,11 @@ export class TypeOrmPlaceRepository implements IPlaceRepository {
     }
   }
 
+  /**
+   * TX + pessimistic lock; доменные правила — mergePlaceContribution в @radar/shared.
+   * @see ../../../../../docs/domain/unit-of-work-and-transactions.md
+   * @see ../../../../../docs/domain/contexts/geo-place.md
+   */
   async mergeContribution(
     input: PlaceContribution,
   ): Promise<{ updated: PlaceRecord; appliedFields: string[] }> {

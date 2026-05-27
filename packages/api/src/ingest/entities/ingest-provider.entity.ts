@@ -1,3 +1,10 @@
+/**
+ * Конфигурация способа получения сырья (Telegram adapter, manual, …): credentials, status, heartbeat.
+ * Worker поднимает duty по active-провайдеру; ошибки источника публикуются в поток `ingest_provider`, не в raw_message.
+ * @see ../../../../../docs/domain/persistence-map.md#IngestProviderEntity
+ * @see ../../../../../docs/domain/contexts/ingest.md
+ * @see ../../../../../docs/ingest-providers.md
+ */
 import {
   Column,
   CreateDateColumn,
