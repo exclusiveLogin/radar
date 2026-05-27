@@ -8,24 +8,18 @@ import type {
   IIngestProviderRepository,
   IngestNormalizedMessage,
   StreamHistoryParams,
+  TelegramMtprotoAppCredentials,
 } from "@radar/shared";
 import { createRawIngestAdapter } from "../../infrastructure/ingest-adapters/adapterRegistry.js";
 import type { IngestRawMessageHandler } from "../handlers/ingestRawMessageHandler.js";
 import type { SessionResolver } from "../sessions/sessionResolver.js";
+import { buildIngestAdapterConnectContext } from "./buildIngestAdapterConnectContext.js";
 import { ingestNormalizedToRaw } from "./ingestMessageMapper.js";
 
 type BackfillCheckpoint = {
   offsetId: string;
   postedAt: string;
 };
-
-function resolveMtproxyFromEnv(): { ip: string; port: number; secret: string } | null {
-  const ip = process.env.TELEGRAM_MTPROXY_HOST?.trim();
-  const port = Number(process.env.TELEGRAM_MTPROXY_PORT);
-  const secret = process.env.TELEGRAM_MTPROXY_SECRET?.trim();
-  if (!ip || !port || !secret) return null;
-  return { ip, port, secret };
-}
 
 function normalizeStrategy(strategy: string): BackfillStrategy {
   if (strategy === "all") return "full_history";
@@ -81,6 +75,7 @@ export class BackfillDaemonService {
     private readonly cursors: IIngestCursorRepository,
     private readonly ingestHandler: IngestRawMessageHandler,
     private readonly sessionResolver: SessionResolver,
+    private readonly telegramMtprotoApp: TelegramMtprotoAppCredentials,
     private readonly pollMs = Number(process.env.RADAR_BACKFILL_POLL_MS ?? "15000"),
   ) {}
 
@@ -152,14 +147,13 @@ export class BackfillDaemonService {
     const streamParams = buildStreamParams(currentJob, checkpoint);
 
     try {
-      await adapter.connect({
-        provider,
-        resolveSessionSecret: async (slotKey) => {
-          const material = await this.sessionResolver.resolveMaterial(slotKey, "mtproto_user");
-          return material.secret;
-        },
-        resolveMtproxy: resolveMtproxyFromEnv,
-      });
+      await adapter.connect(
+        buildIngestAdapterConnectContext({
+          provider,
+          sessionResolver: this.sessionResolver,
+          telegramMtprotoApp: this.telegramMtprotoApp,
+        }),
+      );
 
       const sink = async (normalized: IngestNormalizedMessage) => {
         const { raw, extension } = ingestNormalizedToRaw(normalized, "backfill");

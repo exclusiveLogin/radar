@@ -5,16 +5,21 @@ import type {
   SessionDeployRequest,
   SessionKind,
   SessionMaterial,
+  TelegramMtprotoAppCredentials,
 } from "@radar/shared";
 import { TelegramClient } from "telegram";
 import { StringSession } from "telegram/sessions/StringSession.js";
 import type { TtyPrompter } from "../../infrastructure/io/ttyPrompter.js";
 import type { SessionResolver } from "./sessionResolver.js";
+import type { TelegramAppCredentials } from "../../infrastructure/telegram/telegramAppCredentials.js";
+import { wrapTelegramApiIdInvalid } from "../../infrastructure/telegram/telegramAuthErrors.js";
 
 export type SessionBootstrapDeps = {
   store: ISessionRuntimeStore;
   resolver: SessionResolver;
-  credentials: { apiId: number; apiHash: string };
+  credentials: TelegramMtprotoAppCredentials;
+  /** Для подсказки при API_ID_INVALID. */
+  credentialsSource: TelegramAppCredentials["source"];
   prompter: TtyPrompter;
 };
 
@@ -53,15 +58,15 @@ export class SessionBootstrapService implements ISessionBootstrapService {
         : artifact;
     }
 
-    const envSeed = process.env.TELEGRAM_STRING_SESSION?.trim() ?? "";
     const existing = await store.readSecret(input.slotKey);
-    const session = new StringSession(existing ?? envSeed);
+    const session = new StringSession(existing ?? "");
     const client = new TelegramClient(session, credentials.apiId, credentials.apiHash, {
       connectionRetries: 5,
     });
 
-    await client.connect();
+    const { credentialsSource } = this.deps;
     try {
+      await client.connect();
       if (!(await client.isUserAuthorized())) {
         console.log("Интерактивный MTProto login (TTY).");
         await client.start({
@@ -86,6 +91,8 @@ export class SessionBootstrapService implements ISessionBootstrapService {
       });
       console.log(`Слот ${input.slotKey} развёрнут (${artifact.accountHint ?? "ok"}).`);
       return artifact;
+    } catch (err) {
+      throw wrapTelegramApiIdInvalid(err, credentialsSource);
     } finally {
       close();
       await client.disconnect();
@@ -95,12 +102,12 @@ export class SessionBootstrapService implements ISessionBootstrapService {
   async ensureSlot(
     slotKey: string,
     kind: SessionKind,
-    credentials: { apiId: number; apiHash: string },
+    credentials: TelegramMtprotoAppCredentials,
   ): Promise<SessionMaterial> {
     const { store, resolver } = this.deps;
 
     try {
-      const material = await resolver.resolveMaterial(slotKey, kind, credentials);
+      const material = await resolver.resolveMaterial(slotKey, kind);
       const probe = await store.probe(slotKey, credentials);
       if (probe.ok) {
         return material;

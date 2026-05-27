@@ -5,13 +5,14 @@ import type {
   SessionProbeResult,
   SessionWriteInput,
 } from "../schemas/ingest/session-artifact";
+import type { TelegramMtprotoAppCredentials } from "./ingest-adapters";
 
 export interface ISessionRuntimeStore {
   read(slotKey: string): Promise<SessionArtifact | null>;
   readSecret(slotKey: string): Promise<string | null>;
   write(slotKey: string, payload: SessionWriteInput): Promise<SessionArtifact>;
   invalidate(slotKey: string): Promise<void>;
-  probe(slotKey: string, credentials: { apiId: number; apiHash: string }): Promise<SessionProbeResult>;
+  probe(slotKey: string, credentials: TelegramMtprotoAppCredentials): Promise<SessionProbeResult>;
 }
 
 export interface ISessionBootstrapService {
@@ -21,6 +22,6 @@ export interface ISessionBootstrapService {
   ensureSlot(
     slotKey: string,
     kind: SessionDeployRequest["kind"],
-    credentials: { apiId: number; apiHash: string },
+    credentials: TelegramMtprotoAppCredentials,
   ): Promise<SessionMaterial>;
 }

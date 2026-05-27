@@ -4,21 +4,15 @@ import type {
   IIngestBindingRepository,
   IIngestProviderRepository,
   IngestNormalizedMessage,
+  TelegramMtprotoAppCredentials,
 } from "@radar/shared";
 import { randomUUID } from "node:crypto";
 import { buildDomainEvent } from "../handlers/domainEventFactory.js";
 import type { IngestRawMessageHandler } from "../handlers/ingestRawMessageHandler.js";
 import { createRawIngestAdapter } from "../../infrastructure/ingest-adapters/adapterRegistry.js";
 import type { SessionResolver } from "../sessions/sessionResolver.js";
+import { buildIngestAdapterConnectContext } from "./buildIngestAdapterConnectContext.js";
 import { ingestNormalizedToRaw } from "./ingestMessageMapper.js";
-
-function resolveMtproxyFromEnv(): { ip: string; port: number; secret: string } | null {
-  const ip = process.env.TELEGRAM_MTPROXY_HOST?.trim();
-  const port = Number(process.env.TELEGRAM_MTPROXY_PORT);
-  const secret = process.env.TELEGRAM_MTPROXY_SECRET?.trim();
-  if (!ip || !port || !secret) return null;
-  return { ip, port, secret };
-}
 
 /**
  * Use case: загрузить active providers, подключить adapters, sink → IngestRawMessageHandler.
@@ -34,6 +28,7 @@ export class IngestOrchestrator {
     private readonly ingestHandler: IngestRawMessageHandler,
     private readonly events: IEventPublisher,
     private readonly sessionResolver: SessionResolver,
+    private readonly telegramMtprotoApp: TelegramMtprotoAppCredentials,
   ) {}
 
   async start(): Promise<void> {
@@ -72,17 +67,13 @@ export class IngestOrchestrator {
           adapter.setChannelKeyMap(channelKeyByBinding);
         }
 
-        await adapter.connect({
-          provider,
-          resolveSessionSecret: async (slotKey) => {
-            const material = await this.sessionResolver.resolveMaterial(
-              slotKey,
-              slotKey.includes("bot") ? "bot_token" : "mtproto_user",
-            );
-            return material.secret;
-          },
-          resolveMtproxy: resolveMtproxyFromEnv,
-        });
+        await adapter.connect(
+          buildIngestAdapterConnectContext({
+            provider,
+            sessionResolver: this.sessionResolver,
+            telegramMtprotoApp: this.telegramMtprotoApp,
+          }),
+        );
 
         const sink = async (normalized: IngestNormalizedMessage) => {
           const { raw, extension } = ingestNormalizedToRaw(normalized);
@@ -157,14 +148,13 @@ export class IngestOrchestrator {
     const config = provider.adapterConfig as any;
     const effectiveBatchSize = input.batchSize ?? config.historyBatchSize ?? 200;
 
-    await adapter.connect({
-      provider,
-      resolveSessionSecret: async (slotKey) => {
-        const material = await this.sessionResolver.resolveMaterial(slotKey, "mtproto_user");
-        return material.secret;
-      },
-      resolveMtproxy: resolveMtproxyFromEnv,
-    });
+    await adapter.connect(
+      buildIngestAdapterConnectContext({
+        provider,
+        sessionResolver: this.sessionResolver,
+        telegramMtprotoApp: this.telegramMtprotoApp,
+      }),
+    );
 
     let totals = { inserted: 0, duplicates: 0 };
     try {

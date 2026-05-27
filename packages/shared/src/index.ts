@@ -181,6 +181,7 @@ export type {
   IngestMessageSink,
   IRawIngestAdapter,
   StreamHistoryParams,
+  TelegramMtprotoAppCredentials,
   ISessionRuntimeStore,
   ISessionBootstrapService,
   IDomainEventRepository,

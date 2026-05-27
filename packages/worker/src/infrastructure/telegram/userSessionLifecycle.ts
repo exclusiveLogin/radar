@@ -10,22 +10,14 @@ export type TelegramCredentials = {
   apiHash: string;
 };
 
-/** Resolves seed string session from env first, then from local session file. */
-function resolveSeedSession(sessionFile: string): {
-  sessionData: string;
-  fromEnv: boolean;
-} {
-  const envString = process.env.TELEGRAM_STRING_SESSION?.trim();
-  if (envString) {
-    console.log("Используется TELEGRAM_STRING_SESSION из окружения.");
-    return { sessionData: envString, fromEnv: true };
-  }
+/** Seed из локального файла (legacy dev-путь; прод — `worker:session:deploy` в слот). */
+function resolveSeedSession(sessionFile: string): { sessionData: string } {
   if (fs.existsSync(sessionFile)) {
     const sessionData = fs.readFileSync(sessionFile, "utf8").trim();
     console.log(`Используется файловая сессия: ${sessionFile}`);
-    return { sessionData, fromEnv: false };
+    return { sessionData };
   }
-  return { sessionData: "", fromEnv: false };
+  return { sessionData: "" };
 }
 
 /** Ensures user authorization, falling back to interactive login flow. */
@@ -51,7 +43,6 @@ async function ensureAuthorization(
 function printAndPersistSession(options: {
   client: TelegramClient;
   sessionFile: string;
-  fromEnv: boolean;
 }): void {
   const saved = options.client.session.save();
   if (typeof saved !== "string") {
@@ -59,12 +50,10 @@ function printAndPersistSession(options: {
     return;
   }
 
-  if (!options.fromEnv) {
-    fs.mkdirSync(path.dirname(options.sessionFile), { recursive: true });
-    fs.writeFileSync(options.sessionFile, saved, "utf8");
-    console.log(`Файл сессии обновлён: ${options.sessionFile}`);
-  }
-  console.log("\n--- TELEGRAM_STRING_SESSION для vault ---\n");
+  fs.mkdirSync(path.dirname(options.sessionFile), { recursive: true });
+  fs.writeFileSync(options.sessionFile, saved, "utf8");
+  console.log(`Файл сессии обновлён: ${options.sessionFile}`);
+  console.log("\nДля ingest используйте: npm run worker:session:deploy -- --slot <имя>\n");
   console.log(saved);
   console.log("\n----------------------------------------\n");
 }
@@ -102,11 +91,7 @@ export async function runTelegramUserSessionBootstrap(options: {
       me.username ? `@${me.username}` : me.id.toString(),
     );
 
-    printAndPersistSession({
-      client,
-      sessionFile,
-      fromEnv: seedSession.fromEnv,
-    });
+    printAndPersistSession({ client, sessionFile });
   } finally {
     close();
     await client.disconnect();

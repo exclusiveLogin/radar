@@ -5,6 +5,159 @@
 
 ---
 
+## Инструкция по запуску (Backfill V2)
+
+Полный цикл: **подготовка → worker в db mode → задача в БД → демон качает историю**.
+
+### Предусловия
+
+| # | Что нужно | Зачем |
+|---|-----------|--------|
+| 1 | PostgreSQL, `DATABASE_URL` в `.env` | Задачи, `raw_messages`, parse |
+| 2 | `npm run migration:run` (из корня репо) | Таблица `ingest_backfill_jobs` и остальное |
+| 3 | `TELEGRAM_API_ID`, `TELEGRAM_API_HASH` | MTProto (история **не** через bot token) |
+| 4 | User-сессия на диске | `npm run worker:session:deploy` → слот совпадает с `credentialRefs.mtprotoSessionSlot` |
+| 5 | Provider + binding в БД | Manifest import или Admin API; binding с **user MTProto** (`user_mtproto_channel` / `group`) |
+| 6 | Provider `status = active` (для live; backfill job — отдельно) | Live опционален; backfill идёт по job |
+
+**Не подходит для V2 backfill:** provider только с `botTokenSlot` и `bot_api_dm` / `bot_api_group` — архив через Bot API не качается (см. раздел про бота ниже в [ingest-providers.md](./ingest-providers.md)).
+
+### Переменные `.env` (минимум для V2)
+
+```env
+DATABASE_URL=postgresql://...
+RADAR_STORAGE_MODE=db
+TELEGRAM_API_ID=...
+TELEGRAM_API_HASH=...
+# опционально:
+# RADAR_SESSIONS_DIR=.radar/sessions
+# RADAR_BACKFILL_POLL_MS=15000
+# RADAR_BACKFILL_DAEMON_ENABLED=1
+```
+
+### Шаг 1 — сессия (один раз)
+
+Из **корня репозитория** (PowerShell):
+
+```powershell
+npm run worker:session:deploy -- --slot tg-user-1 --kind mtproto_user
+npm run worker:session:probe -- --slot tg-user-1
+```
+
+В provider в БД должно быть: `"credentialRefs": { "mtprotoSessionSlot": "tg-user-1" }`.
+
+Подробнее: [ingest-providers.md § Session](./ingest-providers.md#1-session--логин-в-telegram).
+
+### Шаг 2 — конфиг ingest в БД
+
+Либо manifest import, либо Admin API — как в [ingest-providers.md § Manifest](./ingest-providers.md#2-manifest--провайдеры-и-bindings).
+
+Узнать UUID для backfill:
+
+```sql
+SELECT p.id AS provider_id, p.key, b.id AS binding_id, b.binding_key, b.binding_mode, c.key AS channel_key
+FROM ingest_bindings b
+JOIN ingest_providers p ON p.id = b.provider_id
+LEFT JOIN channels c ON c.id = b.channel_id
+WHERE b.enabled = true;
+```
+
+Для backfill V2 бери binding с **`user_mtproto_*`** (не чистый `bot_api_*`).
+
+### Шаг 3 — запустить worker
+
+Из корня репо (должен быть `RADAR_STORAGE_MODE=db`):
+
+```powershell
+npm run worker:dev
+```
+
+В логах ожидается:
+
+```text
+Режим хранилища worker: db.
+Запуск IngestOrchestrator ...
+BackfillDaemon запущен (ingest_backfill_jobs).
+```
+
+Без этих строк задача останется в `pending`.
+
+**API для создания job** (опционально, если не вставляешь SQL вручную):
+
+```powershell
+npm run api:dev
+```
+
+Swagger: `http://localhost:3000/api/docs` → `admin-ingest` → `POST /api/admin/ingest/backfill-jobs`.
+
+### Шаг 4 — создать задачу backfill
+
+**Вариант A — HTTP** (API должен быть запущен):
+
+```powershell
+$body = @{
+  bindingId = "11111111-2222-3333-4444-555555555555"
+  strategy  = "all"
+  params    = @{}
+} | ConvertTo-Json
+
+Invoke-RestMethod `
+  -Method Post `
+  -Uri "http://localhost:3000/api/admin/ingest/backfill-jobs" `
+  -ContentType "application/json" `
+  -Body $body
+```
+
+`strategy`: `all` / `full_history` — вся доступная история; `by_date_range` — см. примеры ниже в [Admin API](#admin-api).
+
+**Вариант B — только worker + SQL** (без API): вставка в `ingest_backfill_jobs` не описана в схеме миграции как публичный контракт — **рекомендуется API**.
+
+### Шаг 5 — наблюдать прогресс
+
+```sql
+SELECT id, status, strategy, stats, params->'checkpoint' AS checkpoint, updated_at
+FROM ingest_backfill_jobs
+ORDER BY created_at DESC
+LIMIT 5;
+```
+
+| status | Значение |
+|--------|----------|
+| `pending` | Worker ещё не взял (нет worker / демон выключен) |
+| `running` | Идёт выкачка, растут `stats.inserted` / `duplicates` |
+| `completed` | История по стратегии пройдена |
+| `failed` | Смотреть лог worker (session, FloodWait, binding) |
+
+Проверка сырых сообщений:
+
+```sql
+SELECT count(*) FROM raw_messages WHERE ingest_mode = 'backfill';
+```
+
+### Альтернатива — CLI (одна пачка, без демона)
+
+Разовый chunk, **не** V2 job:
+
+```powershell
+npm run worker:ingest:backfill -- `
+  --provider-id="<uuid>" `
+  --binding-id="<uuid>" `
+  --batch-size=200
+```
+
+См. [ingest-providers.md § CLI backfill](./ingest-providers.md#3-backfill--докачка-истории).
+
+### Чеклист «не работает»
+
+1. `RADAR_STORAGE_MODE=db`?
+2. Worker запущен, в логе есть `BackfillDaemon запущен`?
+3. `RADAR_BACKFILL_DAEMON_ENABLED` не `0`?
+4. У provider есть `mtprotoSessionSlot`, слот задеплоен?
+5. `binding_mode` — user MTProto, не только bot?
+6. Задача не `failed` — если да, лог worker в момент `running`.
+
+---
+
 ## Кратко для бизнеса
 
 | Вопрос | Ответ |
@@ -416,14 +569,4 @@ erDiagram
 
 ## Быстрый старт (оператор)
 
-1. Миграции, session, manifest, provider `active` — как в [ingest-providers.md](./ingest-providers.md).  
-2. `npm run worker:dev` (или production worker) с `RADAR_STORAGE_MODE=db`.  
-3. `POST /api/admin/ingest/backfill-jobs` с `strategy: "all"`.  
-4. Наблюдать `ingest_backfill_jobs.stats` и логи worker до `completed`.
-
-```sql
-SELECT id, status, strategy, stats, params->'checkpoint' AS checkpoint, updated_at
-FROM ingest_backfill_jobs
-ORDER BY created_at DESC
-LIMIT 5;
-```
+См. **[Инструкция по запуску](#инструкция-по-запуску-backfill-v2)** в начале документа (шаги 1–5, PowerShell, SQL).

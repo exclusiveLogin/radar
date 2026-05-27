@@ -66,6 +66,10 @@ import { createWorkerDbRepositories } from "../infrastructure/persistence/worker
 import type { ApiOutboxModule } from "../infrastructure/persistence/workerDbRepos.types.js";
 import { IngestOrchestrator } from "./ingest/ingestOrchestrator.js";
 import { SessionResolver } from "./sessions/sessionResolver.js";
+import {
+  resolveTelegramAppCredentials,
+  toTelegramMtprotoAppCredentials,
+} from "../infrastructure/telegram/telegramAppCredentials.js";
 
 export type WorkerCompositionOptions = {
   storageMode?: WorkerStorageMode;
@@ -220,6 +224,9 @@ export async function createWorkerCompositionRoot(
     channels
   ) {
     const sessionResolver = new SessionResolver();
+    const telegramMtprotoApp = toTelegramMtprotoAppCredentials(
+      resolveTelegramAppCredentials(),
+    );
     ingestOrchestrator = new IngestOrchestrator(
       ingestProviders,
       ingestBindings,
@@ -227,6 +234,7 @@ export async function createWorkerCompositionRoot(
       ingestRawMessageHandler,
       bus,
       sessionResolver,
+      telegramMtprotoApp,
     );
 
     if (backfillJobs && cursors && isBackfillDaemonEnabled()) {
@@ -238,6 +246,7 @@ export async function createWorkerCompositionRoot(
         cursors,
         ingestRawMessageHandler,
         sessionResolver,
+        telegramMtprotoApp,
       );
     }
   }

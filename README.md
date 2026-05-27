@@ -2,8 +2,10 @@
 
 **Radar** — продукт для переноса критичных оповещений о **БПЛА** и ракетных угрозах из хаотичных текстовых каналов в **понятный интерфейс принятия решений**: карта, таймлайн, time machine, уведомления, таймеры подлета и аналитика.
 
-Архитектурный и продуктовый план: [docs/plan.md](docs/plan.md).
-Доменная модель (агрегаты-потоки, события, UoW, карта сущностей): [docs/domain/README.md](docs/domain/README.md).
+**Запуск всего продукта локально (API, web, worker, БД, ingest):** [docs/getting-started.md](docs/getting-started.md).  
+Индекс документации: [docs/README.md](docs/README.md).  
+Архитектурный и продуктовый план: [docs/plan.md](docs/plan.md).  
+Доменная модель (агрегаты-потоки, события, UoW, карта сущностей): [docs/domain/README.md](docs/domain/README.md).  
 Объяснение модели доверия мест (product view): [docs/place-trust-explained.md](docs/place-trust-explained.md).
 
 ## 🎯 Миссия
@@ -147,6 +149,8 @@ flowchart LR
 
 ## Быстрый старт (Windows)
 
+> Пошагово для всего контура (режимы, ingest, проверка URL): **[docs/getting-started.md](docs/getting-started.md)**.
+
 ### Холодный старт (новая машина / чистый клон)
 
 1. Скопировать **`.env.example` → `.env`** (в корне).
@@ -277,16 +281,14 @@ npm run worker:parse:report -- --input tests --outdir reports --format json --di
 
 ## Worker и Telegram
 
-- В **корне** клона по умолчанию используется файл `.telegram/session` (каталог в `.gitignore`).
-- Если задана **`TELEGRAM_STRING_SESSION`** в `.env`, она имеет приоритет над файлом (удобно для деплоя).
-- Нужны **`TELEGRAM_API_ID`** и **`TELEGRAM_API_HASH`** с [my.telegram.org](https://my.telegram.org).
-- Первый вход — интерактивный (телефон, код, при необходимости 2FA); удобно запускать **на хосте** с TTY:
+- Сессии **не в `.env`**: только volume-слоты **`RADAR_SESSIONS_DIR`** (см. `worker:session:deploy`).
+- **`TELEGRAM_API_ID` / `TELEGRAM_API_HASH`** — опционально; без них TEST ONLY `api_id` из доки tdesktop (ограничен). Свои — с [my.telegram.org](https://my.telegram.org).
+- Первый вход — интерактивный deploy (TTY):
 
   ```bash
-  npm run worker:dev
+  npm run worker:session:deploy -- --slot tg-user-1 --kind mtproto_user
+  npm run worker:session:probe -- --slot tg-user-1
   ```
-
-- После успешного входа в консоль выводится строка сессии для сохранения в vault / `TELEGRAM_STRING_SESSION`.
 
 ### Raw Ingest Providers (db mode)
 

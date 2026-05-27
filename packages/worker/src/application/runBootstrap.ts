@@ -3,21 +3,9 @@ import { createWorkerCompositionRoot } from "./createWorkerCompositionRoot.js";
 import { loadRootEnv } from "../infrastructure/config/loadRootEnv.js";
 import { loadLlmRuntimeConfig } from "../infrastructure/enrichers/llmRuntimeConfig.js";
 import { WorkerStorageMode } from "../infrastructure/persistence/storageMode.js";
-import { ingestMessageHash } from "@radar/shared";
-
-function readTelegramCredentials():
-  | { ok: true; apiId: number; apiHash: string }
-  | { ok: false } {
-  const apiId = Number(process.env.TELEGRAM_API_ID);
-  const apiHash = process.env.TELEGRAM_API_HASH?.trim() ?? "";
-  if (!apiId || !apiHash) {
-    return { ok: false };
-  }
-  return { ok: true, apiId, apiHash };
-}
-
 /**
- * Точка входа use-case: env → runtime (db orchestrator или memory demo).
+ * Точка входа worker: env → composition root → ingest orchestrator (db) или idle (memory).
+ * Проверка парсера — отдельно: `npm run parse:snap`, `npm run parse:report` (не в bootstrap).
  */
 export async function runWorkerBootstrap(): Promise<void> {
   loadRootEnv(MONOREPO_ROOT);
@@ -30,12 +18,6 @@ export async function runWorkerBootstrap(): Promise<void> {
   if (runtime.storageMode === WorkerStorageMode.Db) {
     if (!runtime.ingestOrchestrator) {
       throw new Error("Ingest orchestrator не инициализирован в db mode.");
-    }
-    const creds = readTelegramCredentials();
-    if (!creds.ok) {
-      console.warn(
-        "TELEGRAM_API_ID/HASH не заданы — telegram adapters могут не стартовать.",
-      );
     }
     console.log("Запуск IngestOrchestrator (active providers из БД)...");
     await runtime.ingestOrchestrator.start();
@@ -55,41 +37,9 @@ export async function runWorkerBootstrap(): Promise<void> {
     return;
   }
 
-  const creds = readTelegramCredentials();
-  if (!creds.ok) {
-    console.error(
-      "Нужны TELEGRAM_API_ID и TELEGRAM_API_HASH (см. .env.example; значения с https://my.telegram.org).",
-    );
-    process.exit(1);
-  }
-
-  if (process.env.RADAR_BOOTSTRAP_DEMO_PARSE === "1") {
-    const postedAt = new Date().toISOString();
-    const demoRaw = {
-      channelKey: "demo",
-      providerKey: "demo",
-      sourceKind: "manual" as const,
-      externalMessageId: "demo-1",
-      revisionKey: null,
-      postedAt,
-      ingestMode: "manual" as const,
-      rawText: "Внимание по БПЛА в Белгородской области",
-      hash: ingestMessageHash({
-        channelKey: "demo",
-        providerKey: "demo",
-        sourceKind: "manual",
-        externalMessageId: "demo-1",
-        revisionKey: null,
-        postedAt,
-        rawText: "Внимание по БПЛА в Белгородской области",
-      }),
-    };
-    const ingested = await runtime.ingestRawMessageHandler.handle(demoRaw);
-    if (ingested.inserted) {
-      const withId = { ...demoRaw, id: ingested.rawMessageId };
-      await runtime.parseRawMessageHandler.handle(withId);
-    }
-  }
+  console.log(
+    "Memory mode: долгоживущий ingest не запускается. Для parse — parse:snap / parse:report; для продукта — RADAR_STORAGE_MODE=db.",
+  );
 }
 
 async function runLlmStartupCheck(): Promise<void> {

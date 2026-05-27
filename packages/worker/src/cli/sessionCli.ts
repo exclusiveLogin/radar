@@ -5,21 +5,15 @@ import { FileSessionRuntimeStore } from "../infrastructure/sessions/fileSessionR
 import { SessionBootstrapService } from "../application/sessions/sessionBootstrapService.js";
 import { SessionResolver } from "../application/sessions/sessionResolver.js";
 import {
+  resolveTelegramAppCredentials,
+  toTelegramMtprotoAppCredentials,
+} from "../infrastructure/telegram/telegramAppCredentials.js";
+import { isTelegramApiIdInvalidError } from "../infrastructure/telegram/telegramAuthErrors.js";
+import {
   parseLongFlagsMap,
   parsePositionalArgs,
   readStringFlag,
 } from "./workerCliArgs.js";
-
-function readTelegramCredentials():
-  | { ok: true; apiId: number; apiHash: string }
-  | { ok: false } {
-  const apiId = Number(process.env.TELEGRAM_API_ID);
-  const apiHash = process.env.TELEGRAM_API_HASH?.trim() ?? "";
-  if (!apiId || !apiHash) {
-    return { ok: false };
-  }
-  return { ok: true, apiId, apiHash };
-}
 
 async function main(): Promise<void> {
   loadRootEnv(MONOREPO_ROOT);
@@ -30,8 +24,10 @@ async function main(): Promise<void> {
   const kind = kindRaw === "bot_token" ? "bot_token" : "mtproto_user";
 
   const store = new FileSessionRuntimeStore();
-  const resolver = new SessionResolver(store, MONOREPO_ROOT);
-  const creds = readTelegramCredentials();
+  const resolver = new SessionResolver(store);
+  const resolved = resolveTelegramAppCredentials();
+  console.log(`Telegram API: api_id=${resolved.apiId} (${resolved.source})`);
+  const creds = toTelegramMtprotoAppCredentials(resolved);
 
   if (command === "invalidate") {
     await store.invalidate(slotKey);
@@ -40,24 +36,17 @@ async function main(): Promise<void> {
   }
 
   if (command === "probe") {
-    if (!creds.ok) {
-      console.error("Нужны TELEGRAM_API_ID и TELEGRAM_API_HASH.");
-      process.exit(1);
-    }
     const result = await store.probe(slotKey, creds);
     console.log(JSON.stringify(result, null, 2));
     process.exit(result.ok ? 0 : 1);
   }
 
   if (command === "deploy") {
-    if (!creds.ok) {
-      console.error("Нужны TELEGRAM_API_ID и TELEGRAM_API_HASH.");
-      process.exit(1);
-    }
     const bootstrap = new SessionBootstrapService({
       store,
       resolver,
       credentials: creds,
+      credentialsSource: resolved.source,
       prompter: createTtyPrompter(),
     });
     const artifact = await bootstrap.deploySlot({
@@ -74,6 +63,10 @@ async function main(): Promise<void> {
 }
 
 main().catch((err) => {
-  console.error(err);
+  if (isTelegramApiIdInvalidError(err)) {
+    console.error(err.message);
+  } else {
+    console.error(err);
+  }
   process.exit(1);
 });

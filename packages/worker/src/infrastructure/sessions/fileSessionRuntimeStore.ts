@@ -1,6 +1,7 @@
 /**
  * Runtime Credentials: артефакты MTProto/bot на volume (не в git, не в БД).
  */
+import { MONOREPO_ROOT } from "@repo/root";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import type {
@@ -8,6 +9,7 @@ import type {
   SessionArtifact,
   SessionProbeResult,
   SessionWriteInput,
+  TelegramMtprotoAppCredentials,
 } from "@radar/shared";
 import { sessionArtifactSchema } from "@radar/shared";
 import { TelegramClient } from "telegram";
@@ -16,12 +18,13 @@ import { StringSession } from "telegram/sessions/StringSession.js";
 const ARTIFACT_FILE = "artifact.json";
 const SECRET_FILE = "secret";
 
+/** Корень слотов — всегда от MONOREPO_ROOT, не от cwd пакета worker. */
 function resolveSessionsRoot(): string {
   const fromEnv = process.env.RADAR_SESSIONS_DIR?.trim();
   if (fromEnv) {
-    return path.isAbsolute(fromEnv) ? fromEnv : path.resolve(process.cwd(), fromEnv);
+    return path.isAbsolute(fromEnv) ? fromEnv : path.resolve(MONOREPO_ROOT, fromEnv);
   }
-  return path.resolve(process.cwd(), ".radar/sessions");
+  return path.resolve(MONOREPO_ROOT, ".radar/sessions");
 }
 
 function slotDir(root: string, slotKey: string): string {
@@ -99,7 +102,7 @@ export class FileSessionRuntimeStore implements ISessionRuntimeStore {
 
   async probe(
     slotKey: string,
-    credentials: { apiId: number; apiHash: string },
+    credentials: TelegramMtprotoAppCredentials,
   ): Promise<SessionProbeResult> {
     const artifact = await this.read(slotKey);
     const secret = await this.readSecret(slotKey);

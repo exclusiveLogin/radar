@@ -65,18 +65,19 @@ export class TelegramRawIngestAdapter implements IRawIngestAdapter {
   async connect(ctx: IngestAdapterContext): Promise<void> {
     this.ctx = ctx;
     const creds = ctx.provider.credentialRefs;
-    const apiId = Number(process.env.TELEGRAM_API_ID);
-    const apiHash = process.env.TELEGRAM_API_HASH?.trim() ?? "";
-    if (!apiId || !apiHash) {
-      throw new Error("TELEGRAM_API_ID / TELEGRAM_API_HASH required for telegram adapter");
+    const app = ctx.telegramMtprotoApp;
+    if (!app?.apiId || !app.apiHash) {
+      throw new Error(
+        "IngestAdapterContext.telegramMtprotoApp не задан (ожидается из composition root)",
+      );
     }
+    const { apiId, apiHash } = app;
 
     const needsMtproto = true;
     if (needsMtproto && creds.mtprotoSessionSlot) {
       const material = await this.sessionResolver.resolveMaterial(
         creds.mtprotoSessionSlot,
         "mtproto_user",
-        { apiId, apiHash },
       );
       const proxy = ctx.resolveMtproxy?.() ?? null;
       const client = new TelegramClient(

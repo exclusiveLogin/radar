@@ -1,0 +1,33 @@
+{
+  "version": 2,
+  "entries": [
+    {
+      "persist": true,
+      "provider": {
+        "key": "tg-default",
+        "title": "User MTProto (tg-default-user)",
+        "adapterKind": "telegram",
+        "adapterConfig": {
+          "kind": "telegram",
+          "historyBatchSize": 200
+        },
+        "credentialRefs": {
+          "mtprotoSessionSlot": "tg-default-user"
+        }
+      },
+      "channel": {
+        "key": "my-alerts",
+        "telegramTarget": "@your_channel_username",
+        "title": "Замените на свой канал",
+        "enabled": true
+      },
+      "binding": {
+        "bindingKey": "my-alerts-live",
+        "channelKey": "my-alerts",
+        "externalTarget": "@your_channel_username",
+        "bindingMode": "user_mtproto_channel",
+        "enabled": true
+      }
+    }
+  ]
+}

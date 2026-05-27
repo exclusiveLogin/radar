@@ -18,10 +18,18 @@ export type IngestAdapterHealth = {
   detail?: string;
 };
 
+/** MTProto api_id/api_hash процесса worker (не слоты — они в provider.credentialRefs). */
+export type TelegramMtprotoAppCredentials = {
+  apiId: number;
+  apiHash: string;
+};
+
 export type IngestAdapterContext = {
   provider: IngestProviderRecord;
   resolveSessionSecret(slotKey: string): Promise<string>;
   resolveMtproxy?(): { ip: string; port: number; secret: string } | null;
+  /** Обязателен для telegram-адаптера; задаётся в composition root. */
+  telegramMtprotoApp?: TelegramMtprotoAppCredentials;
 };
 
 export type IngestMessageSink = (msg: IngestNormalizedMessage) => Promise<void>;

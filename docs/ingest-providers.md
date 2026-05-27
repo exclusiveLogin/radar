@@ -563,7 +563,8 @@ npm run ingest:manifest:export
 
 ## 3. Backfill — докачка истории
 
-> **Полная документация V2 (схемы, бизнес, эксплуатация):** [docs/backfill-v2-pipeline.md](./backfill-v2-pipeline.md)
+> **Полная документация V2 (схемы, бизнес, эксплуатация):** [docs/backfill-v2-pipeline.md](./backfill-v2-pipeline.md)  
+> **Пошаговый запуск (PowerShell, env, API, SQL):** [backfill-v2-pipeline.md § Инструкция по запуску](./backfill-v2-pipeline.md#инструкция-по-запуску-backfill-v2)
 
 ### Backfill V2 — автоматический (рекомендуется)
 

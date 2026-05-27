@@ -19,8 +19,5 @@ const workerStorageModeSet = new Set<string>(Object.values(WorkerStorageMode));
   }
   return fallback;
 }export function resolveWorkerStorageModeFromEnv(): WorkerStorageMode {
-  return resolveWorkerStorageMode(
-    process.env.RADAR_STORAGE_MODE ?? process.env.RADAR_PERSISTENCE_MODE,
-    WorkerStorageMode.Memory,
-  );
+  return resolveWorkerStorageMode(process.env.RADAR_STORAGE_MODE, WorkerStorageMode.Memory);
 }
