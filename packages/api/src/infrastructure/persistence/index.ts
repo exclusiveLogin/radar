@@ -17,6 +17,7 @@ export { TypeOrmPlaceStatusHistoryRepository } from "./typeorm-place-status-hist
 export { TypeOrmPlaceStatusRepository } from "./typeorm-place-status.repository";
 export { TypeOrmRawMessageRepository } from "./typeorm-raw-message.repository";
 export { TypeOrmRegionRepository } from "./typeorm-region.repository";
+export { TypeOrmRegionStateRepository } from "./typeorm-region-state.repository";
 export { TypeOrmStatusDictionaryRepository } from "./typeorm-status-dictionary.repository";
 export { TypeOrmSyncAuditRepository } from "./typeorm-sync-audit.repository";
 

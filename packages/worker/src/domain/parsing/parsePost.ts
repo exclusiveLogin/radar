@@ -14,6 +14,7 @@ function inferSeverity(
   eventType: EventType,
 ): "info" | "attention" | "danger" | "critical" {
   if (eventType === "cleared") return "info";
+  if (eventType === "rocket_threat") return "critical";
   if (/сбит|реактив/i.test(raw)) return "critical";
   if (/опасност|тревог/i.test(raw)) return "danger";
   if (/внимани/i.test(raw)) return "attention";

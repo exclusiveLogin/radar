@@ -3,15 +3,19 @@ import * as path from "path";
 import * as dotenv from "dotenv";
 import { NestFactory } from "@nestjs/core";
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
+import { WsAdapter } from "@nestjs/platform-ws";
 import { AppModule } from "./app.module";
 
 const rootEnv = path.join(process.cwd(), "../../.env");
 if (fs.existsSync(rootEnv)) {
   dotenv.config({ path: rootEnv });
-}async function bootstrap() {
+}
+async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   app.setGlobalPrefix("api");
   app.enableCors({ origin: true });
+  // WebSocket-карта на нативном ws (MapGateway, path /ws).
+  app.useWebSocketAdapter(new WsAdapter(app));
 
   const swaggerConfig = new DocumentBuilder()
     .setTitle("Radar API")

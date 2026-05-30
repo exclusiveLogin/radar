@@ -15,6 +15,9 @@ function toRegionRecord(row: RegionEntity): RegionRecord {
     shortName: row.shortName ?? undefined,
     federalDistrict: row.federalDistrict ?? undefined,
     geometryArtifactKey: row.geometryArtifactKey ?? undefined,
+    centroidLat: row.centroidLat !== null ? Number(row.centroidLat) : undefined,
+    centroidLon: row.centroidLon !== null ? Number(row.centroidLon) : undefined,
+    bbox: row.bbox ?? undefined,
     sourceMeta: row.sourceMeta ?? undefined,
     lastSourceRevision: row.lastSourceRevision ?? undefined,
     frontRegion: row.frontRegion,
@@ -58,6 +61,11 @@ export class TypeOrmRegionRepository implements IRegionRepository {
       shortName: record.shortName ?? null,
       federalDistrict: record.federalDistrict ?? null,
       geometryArtifactKey: record.geometryArtifactKey ?? null,
+      centroidLat:
+        record.centroidLat !== undefined ? record.centroidLat.toFixed(6) : null,
+      centroidLon:
+        record.centroidLon !== undefined ? record.centroidLon.toFixed(6) : null,
+      bbox: record.bbox ?? null,
       sourceMeta: record.sourceMeta ?? {},
       lastSyncedAt: new Date(),
       lastSourceRevision: record.lastSourceRevision ?? null,

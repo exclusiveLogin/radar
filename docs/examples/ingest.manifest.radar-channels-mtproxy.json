@@ -1,0 +1,121 @@
+{
+  "version": 2,
+  "entries": [
+    {
+      "persist": true,
+      "provider": {
+        "key": "tg-default",
+        "title": "User MTProto + MTProxy (env)",
+        "adapterKind": "telegram",
+        "adapterConfig": {
+          "kind": "telegram",
+          "historyBatchSize": 200
+        },
+        "credentialRefs": {
+          "mtprotoSessionSlot": "tg-default-user",
+          "mtproxyProfile": "default"
+        }
+      },
+      "channel": {
+        "key": "radar-pf",
+        "telegramTarget": "@Radarpf",
+        "title": "Radar PF",
+        "enabled": true
+      },
+      "binding": {
+        "bindingKey": "radar-pf-mtproto",
+        "channelKey": "radar-pf",
+        "externalTarget": "@Radarpf",
+        "bindingMode": "user_mtproto_channel",
+        "enabled": true
+      }
+    },
+    {
+      "persist": true,
+      "provider": {
+        "key": "tg-default",
+        "title": "User MTProto + MTProxy (env)",
+        "adapterKind": "telegram",
+        "adapterConfig": {
+          "kind": "telegram",
+          "historyBatchSize": 200
+        },
+        "credentialRefs": {
+          "mtprotoSessionSlot": "tg-default-user",
+          "mtproxyProfile": "default"
+        }
+      },
+      "channel": {
+        "key": "radar-russia",
+        "telegramTarget": "@radarrussiia",
+        "title": "Radar Russia",
+        "enabled": true
+      },
+      "binding": {
+        "bindingKey": "radar-russia-mtproto",
+        "channelKey": "radar-russia",
+        "externalTarget": "@radarrussiia",
+        "bindingMode": "user_mtproto_channel",
+        "enabled": true
+      }
+    },
+    {
+      "persist": true,
+      "provider": {
+        "key": "tg-default",
+        "title": "User MTProto + MTProxy (env)",
+        "adapterKind": "telegram",
+        "adapterConfig": {
+          "kind": "telegram",
+          "historyBatchSize": 200
+        },
+        "credentialRefs": {
+          "mtprotoSessionSlot": "tg-default-user",
+          "mtproxyProfile": "default"
+        }
+      },
+      "channel": {
+        "key": "radar-rvk",
+        "telegramTarget": "@radar_rvk",
+        "title": "Radar RVK",
+        "enabled": true
+      },
+      "binding": {
+        "bindingKey": "radar-rvk-mtproto",
+        "channelKey": "radar-rvk",
+        "externalTarget": "@radar_rvk",
+        "bindingMode": "user_mtproto_channel",
+        "enabled": true
+      }
+    },
+    {
+      "persist": true,
+      "provider": {
+        "key": "tg-default",
+        "title": "User MTProto + MTProxy (env)",
+        "adapterKind": "telegram",
+        "adapterConfig": {
+          "kind": "telegram",
+          "historyBatchSize": 200
+        },
+        "credentialRefs": {
+          "mtprotoSessionSlot": "tg-default-user",
+          "mtproxyProfile": "default"
+        }
+      },
+      "channel": {
+        "key": "radar-rrpfo",
+        "telegramTarget": "@RRPFO",
+        "title": "RRPFO",
+        "enabled": true
+      },
+      "binding": {
+        "bindingKey": "radar-rrpfo-mtproto",
+        "channelKey": "radar-rrpfo",
+        "externalTarget": "@RRPFO",
+        "bindingMode": "user_mtproto_channel",
+        "enabled": true
+      }
+    }
+  ]
+}

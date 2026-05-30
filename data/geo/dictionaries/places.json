@@ -1,0 +1,92 @@
+[
+  {
+    "regionCode": "RU-DON",
+    "kind": "city",
+    "name": "Донецк",
+    "nameWithType": "г. Донецк",
+    "centroidLat": 48.0159,
+    "centroidLon": 37.8029,
+    "aliases": ["Донецк"]
+  },
+  {
+    "regionCode": "RU-DON",
+    "kind": "city",
+    "name": "Мариуполь",
+    "nameWithType": "г. Мариуполь",
+    "centroidLat": 47.0971,
+    "centroidLon": 37.5434,
+    "aliases": ["Мариуполь"]
+  },
+  {
+    "regionCode": "RU-DON",
+    "kind": "city",
+    "name": "Горловка",
+    "nameWithType": "г. Горловка",
+    "centroidLat": 48.3336,
+    "centroidLon": 38.0925,
+    "aliases": ["Горловка"]
+  },
+  {
+    "regionCode": "RU-LUG",
+    "kind": "city",
+    "name": "Луганск",
+    "nameWithType": "г. Луганск",
+    "centroidLat": 48.5740,
+    "centroidLon": 39.3078,
+    "aliases": ["Луганск"]
+  },
+  {
+    "regionCode": "RU-LUG",
+    "kind": "city",
+    "name": "Северодонецк",
+    "nameWithType": "г. Северодонецк",
+    "centroidLat": 48.9482,
+    "centroidLon": 38.4975,
+    "aliases": ["Северодонецк"]
+  },
+  {
+    "regionCode": "RU-ZP",
+    "kind": "city",
+    "name": "Мелитополь",
+    "nameWithType": "г. Мелитополь",
+    "centroidLat": 46.8489,
+    "centroidLon": 35.3650,
+    "aliases": ["Мелитополь"]
+  },
+  {
+    "regionCode": "RU-ZP",
+    "kind": "city",
+    "name": "Бердянск",
+    "nameWithType": "г. Бердянск",
+    "centroidLat": 46.7592,
+    "centroidLon": 36.7896,
+    "aliases": ["Бердянск"]
+  },
+  {
+    "regionCode": "RU-ZP",
+    "kind": "city",
+    "name": "Энергодар",
+    "nameWithType": "г. Энергодар",
+    "centroidLat": 47.4986,
+    "centroidLon": 34.6586,
+    "aliases": ["Энергодар"]
+  },
+  {
+    "regionCode": "RU-KHE",
+    "kind": "city",
+    "name": "Геническ",
+    "nameWithType": "г. Геническ",
+    "centroidLat": 46.1745,
+    "centroidLon": 34.8094,
+    "aliases": ["Геническ"]
+  },
+  {
+    "regionCode": "RU-KHE",
+    "kind": "city",
+    "name": "Скадовск",
+    "nameWithType": "г. Скадовск",
+    "centroidLat": 46.1186,
+    "centroidLon": 32.9089,
+    "aliases": ["Скадовск"]
+  }
+]

@@ -5,12 +5,16 @@ import { defineConfig } from "vite";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+const repoRoot = path.resolve(__dirname, "../..");
+
 export default defineConfig({
+  /** VITE_* из корневого `.env` монорепы. */
+  envDir: repoRoot,
   plugins: [react()],
   resolve: {
     alias: {
-      // Бандлим исходный TS shared, чтобы не зависеть от interop CJS↔ESM в проде Vite
-      "@radar/shared": path.resolve(__dirname, "../shared/src/index.ts"),
+      // Только zod-схемы: главный barrel тянет node:crypto/node:util и ломает браузер.
+      "@radar/shared": path.resolve(__dirname, "../shared/src/schemas/index.ts"),
     },
   },
   server: {
@@ -18,6 +22,11 @@ export default defineConfig({
     proxy: {
       "/api": {
         target: "http://127.0.0.1:3000",
+        changeOrigin: true,
+      },
+      "/ws": {
+        target: "ws://127.0.0.1:3000",
+        ws: true,
         changeOrigin: true,
       },
     },

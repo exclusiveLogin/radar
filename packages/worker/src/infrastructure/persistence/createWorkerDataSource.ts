@@ -6,7 +6,18 @@ import * as dotenv from "dotenv";
 import { DataSource } from "typeorm";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const apiSrc = path.resolve(here, "../../../../api/src");
+const apiRoot = path.resolve(here, "../../../../api");
+const apiDist = path.join(apiRoot, "dist");
+const apiSrc = path.join(apiRoot, "src");
+
+/** Скомпилированные entity (Nest build) — без поломки декораторов в tsx на .ts. */
+function resolveEntityGlob(): string {
+  const distGlob = path.join(apiDist, "**", "*.entity.js");
+  if (fs.existsSync(apiDist)) {
+    return distGlob;
+  }
+  return path.join(apiSrc, "**", "*.entity.{ts,js}");
+}
 
 function loadEnv(): void {
   const root = path.resolve(here, "../../../../../");
@@ -32,7 +43,7 @@ export async function createWorkerDataSource(): Promise<DataSource> {
   const dataSource = new DataSource({
     type: "postgres",
     url: databaseUrl,
-    entities: [path.join(apiSrc, "**/*.entity.{ts,js}")],
+    entities: [resolveEntityGlob()],
     synchronize: false,
   });
 

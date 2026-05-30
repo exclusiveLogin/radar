@@ -111,9 +111,25 @@ function buildRuntimeOptions(cli: ParsedCli): WorkerCompositionOptions {
   };
 }
 
-async function main(): Promise<void> {
-  loadRootEnv(MONOREPO_ROOT);
-  const cli = parseParseSnapCli(process.argv);
+/** Опции переопределения контракта для прокси-обёрток (например, `:ollama`). */
+export type RunParseSnapOptions = {
+  /** Принудительно включает LLM-обогащение + гео-отчёт (для `parse:snap:ollama`). */
+  forceLlm?: boolean;
+};
+
+/**
+ * Ядро `parse:snap`: разбор аргументов, классификация и опциональный гео-отчёт.
+ * Не загружает .env — это ответственность вызывающего `main`/прокси.
+ */
+export async function runParseSnap(
+  argv: string[],
+  options: RunParseSnapOptions = {},
+): Promise<void> {
+  const cli = parseParseSnapCli(argv);
+  if (options.forceLlm) {
+    cli.enrichLlm = true;
+    cli.withGeoReport = true;
+  }
   if (!cli.filePathArg) {
     console.error(
       "Usage: npm run parse:snap -- <path-to-snap.txt> [--geo-report] [--storage-mode=memory|db|fs] [--enrich-dadata] [--enrich-nominatim] [--enrich-llm] [--pipeline-order=catalog,llm,dadata,nominatim]",
@@ -200,10 +216,15 @@ async function main(): Promise<void> {
           event: "event" in row.result ? row.result.event : undefined,
         })),
       },
-      null,
-      2,
-    ),
-  );
+        null,
+        2,
+      ),
+    );
+}
+
+async function main(): Promise<void> {
+  loadRootEnv(MONOREPO_ROOT);
+  await runParseSnap(process.argv);
 }
 
 main().catch((error) => {

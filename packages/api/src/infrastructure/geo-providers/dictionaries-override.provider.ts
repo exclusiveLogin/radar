@@ -1,6 +1,7 @@
 import type { AliasDraft, GeoProviderSnapshot, IGeoSourceProvider, PlaceDraft, RegionDraft } from "@radar/shared";
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { repoDataPath } from "../../monorepo-root";
 
 /** Loads optional JSON array from file; returns empty array when missing. */
 function loadJsonArray<T>(filePath: string): T[] {
@@ -11,7 +12,7 @@ function loadJsonArray<T>(filePath: string): T[] {
 export class DictionariesOverrideProvider implements IGeoSourceProvider {
   /** Resolves local dictionaries directory path. */
   private resolveDictionariesRoot(): string {
-    return path.resolve(process.cwd(), "../../data/geo/dictionaries");
+    return repoDataPath("geo", "dictionaries");
   }
 
   /** Reads all override dictionaries from target folder. */

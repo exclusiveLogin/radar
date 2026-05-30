@@ -16,6 +16,13 @@ const META_PATTERNS = [
   /украин/i,
 ];
 
+// Статистические сводки (итоги за период) — не оперативное событие, а справка.
+const SUMMARY_PATTERNS = [
+  /за\s+(ночь|сутки|день|неделю)/i,
+  /с\s+\d{1,2}[:.]\d{2}\s+до\s+\d{1,2}[:.]\d{2}/i,
+  /уничтожен[оы]?\s+\d+\s+бпла/i,
+];
+
 const EVENT_HINTS = [
   /бпла/i,
   /пво/i,
@@ -34,6 +41,7 @@ export function classifyContentKind(input: string): ContentKind {
 
   if (NOISE_PATTERNS.some((x) => x.test(text))) return "noise";
   if (META_PATTERNS.some((x) => x.test(text))) return "meta";
+  if (SUMMARY_PATTERNS.some((x) => x.test(text))) return "meta";
   if (EVENT_HINTS.some((x) => x.test(text))) return "event";
   return "noise";
 }

@@ -1,0 +1,12 @@
+[
+  { "targetKind": "region", "targetExternalKey": "RU-DON", "alias": "ДНР", "source": "manual" },
+  { "targetKind": "region", "targetExternalKey": "RU-DON", "alias": "Донецкая область", "source": "manual" },
+  { "targetKind": "region", "targetExternalKey": "RU-DON", "alias": "Донецкая народная республика", "source": "manual" },
+  { "targetKind": "region", "targetExternalKey": "RU-LUG", "alias": "ЛНР", "source": "manual" },
+  { "targetKind": "region", "targetExternalKey": "RU-LUG", "alias": "Луганская область", "source": "manual" },
+  { "targetKind": "region", "targetExternalKey": "RU-LUG", "alias": "Луганская народная республика", "source": "manual" },
+  { "targetKind": "region", "targetExternalKey": "RU-ZP", "alias": "Запорожье", "source": "manual" },
+  { "targetKind": "region", "targetExternalKey": "RU-ZP", "alias": "Запорожская обл", "source": "manual" },
+  { "targetKind": "region", "targetExternalKey": "RU-KHE", "alias": "Херсон", "source": "manual" },
+  { "targetKind": "region", "targetExternalKey": "RU-KHE", "alias": "Херсонская обл", "source": "manual" }
+]

@@ -19,6 +19,9 @@ export class StatusDictionaryEntity {
   @Column({ name: "parser_hints", type: "text", array: true, default: () => "ARRAY[]::text[]" })
   parserHints!: string[];
 
+  @Column({ name: "state_level", type: "text", default: "grey" })
+  stateLevel!: "grey" | "green" | "yellow" | "orange" | "red";
+
   @Column({ name: "is_active", type: "boolean", default: true })
   isActive!: boolean;
 

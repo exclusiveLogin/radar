@@ -1,10 +1,13 @@
 import { z } from "zod";
+import { stateLevelSchema } from "./state-level";
 
 export const statusDictionaryEntrySchema = z.object({
   code: z.string().min(1),
   title: z.string().min(1),
   includeOnMap: z.boolean().default(true),
   parserHints: z.array(z.string()).default([]),
+  // Уровень состояния региона, который привносит этот статус (SSOT маппинга event->level).
+  stateLevel: stateLevelSchema.default("grey"),
   isActive: z.boolean().default(true),
   priority: z.number().int().min(0).default(100),
 });

@@ -1,3 +1,4 @@
+import "reflect-metadata";
 import { MONOREPO_ROOT } from "@repo/root";
 import { loadRootEnv } from "../infrastructure/config/loadRootEnv.js";
 import { createWorkerDataSource } from "../infrastructure/persistence/createWorkerDataSource.js";

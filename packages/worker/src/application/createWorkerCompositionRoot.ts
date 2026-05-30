@@ -50,6 +50,8 @@ import type {
   ResolvedEnricherFlags,
 } from "../infrastructure/enrichers/enricherChainFactory.js";
 import { GeoCatalog } from "../infrastructure/geo-catalog/index.js";
+import { loadRegionAdjacency } from "../infrastructure/geo-catalog/adjacencyLoader.js";
+import { RegionStateProjection } from "./subscribers/regionStateProjection.js";
 import { GeoValidationService } from "./parsing/geoValidationService.js";
 import { createParsePipeline } from "./parsing/createParsePipeline.js";
 import { isParseWorkerPoolEnabled, ParseWorkerPool } from "./parsing/parseWorkerPool.js";
@@ -158,6 +160,16 @@ export async function createWorkerCompositionRoot(
     ingestBindings = repos.ingestBindings;
     channels = repos.channels;
     backfillJobs = repos.backfillJobs;
+
+    // Проекция операционного состояния регионов: MessageParsed -> place_status + region_state.
+    const regionStateProjection = new RegionStateProjection({
+      regionState: repos.regionState,
+      placeStatus: repos.placeStatus,
+      statusDictionary: repos.statusDictionary,
+      regions: repos.regions,
+      adjacency: loadRegionAdjacency(),
+    });
+    bus.subscribe("MessageParsed", regionStateProjection.handler);
 
     outboxRelay = new OutboxRelay(dataSource, bus);
     outboxRelay.start();

@@ -41,3 +41,33 @@ node scripts/build-parser-gap-analysis.mjs
 - `eventUnknownGeo` — события без гео-привязки;
 - `multiRegionCollapsed` — сообщения с несколькими регионами, сведенные к одному;
 - `eventTypeNotDetected` — текст похож на событие, но не классифицирован.
+
+> Примечание: `worker:parse:report` очищает `--outdir` на каждом запуске
+> (`ensureCleanOutdir`), поэтому `reports/` — времянка. Прогоняйте `parse:report`
+> и `build-parser-gap-analysis.mjs` подряд, не рассчитывая на сохранение прошлых отчётов.
+
+## Точки расширения парсинга
+
+### Типы событий и классификация
+- Тип события: правила в
+  `packages/worker/src/domain/parsing/extractEventType.ts` (порядок важен:
+  «отбой» → cleared раньше rocket_threat/danger; опасность/внимание распознаются
+  и без слова «бпла»).
+- Контент-фильтр (event / noise / meta): паттерны в
+  `packages/worker/src/domain/parsing/classifyContentKind.ts`
+  (`SUMMARY_PATTERNS` отсекает статистические сводки в `meta`).
+
+### Привязка к местам (place-parsing)
+Гео-обогащение собрано как последовательный конвейер шагов
+`GeoPipelineStep` (см. `application/geo-pipeline/runGeoPipeline.ts`,
+`FinalizerStep` всегда добавляется последним). Новый источник топонимов
+добавляется одним из двух способов:
+
+1. **Новый шаг** — класс, реализующий интерфейс `GeoPipelineStep`
+   (`{ id, run(ctx) }`) по образцу
+   `application/geo-pipeline/steps/CatalogStep.ts`: пишет в свой namespace
+   `ctx.artifact.<id>`, читает уже заполненные. Регистрируется в порядке
+   пайплайна (`enricherChainFactory` / `RADAR_GEO_PIPELINE_ORDER`).
+2. **Расширение каталога** — словари/алиасы в `GeoCatalog`
+   (`infrastructure/geo-catalog/`), если новый источник статичен и не требует
+   отдельного шага.

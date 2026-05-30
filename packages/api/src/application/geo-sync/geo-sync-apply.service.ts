@@ -45,6 +45,8 @@ export class GeoSyncApplyService {
       shortName: draft.shortName,
       federalDistrict: draft.federalDistrict,
       geometryArtifactKey: draft.geometryArtifactKey,
+      centroidLat: draft.centroidLat,
+      centroidLon: draft.centroidLon,
       sourceMeta: draft.sourceMeta,
       lastSourceRevision: sourceRevision,
       frontRegion: draft.frontRegion,
@@ -94,6 +96,8 @@ export class GeoSyncApplyService {
       kladrId: draft.kladrId,
       oktmo: draft.oktmo,
       geometryArtifactKey: draft.geometryArtifactKey,
+      centroidLat: draft.centroidLat,
+      centroidLon: draft.centroidLon,
       sourceMeta: draft.sourceMeta,
       lastSourceRevision: sourceRevision,
     };

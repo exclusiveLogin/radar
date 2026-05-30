@@ -26,6 +26,9 @@ export type RegionRecord = {
   shortName?: string;
   federalDistrict?: string;
   geometryArtifactKey?: string;
+  centroidLat?: number;
+  centroidLon?: number;
+  bbox?: Record<string, unknown>;
   sourceMeta?: Record<string, unknown>;
   lastSourceRevision?: string;
   frontRegion: boolean;
@@ -73,7 +76,9 @@ export type StatusDictionaryRecord = {
   title: string;
   includeOnMap: boolean;
   parserHints?: string[];
+  stateLevel: "grey" | "green" | "yellow" | "orange" | "red";
   isActive: boolean;
+  priority?: number;
 };
 
 export type PlaceStatusActiveRecord = {
@@ -93,6 +98,18 @@ export type PlaceStatusHistoryRecord = {
   source: "parser" | "operator" | "system";
   eventAt: string;
   meta?: Record<string, unknown>;
+};
+
+export type RegionStateActiveRecord = {
+  regionId: string;
+  regionCode: string;
+  /** Эффективный уровень (с учётом соседей) — то, что показывает карта. */
+  stateLevel: "grey" | "green" | "yellow" | "orange" | "red";
+  /** Собственный уровень региона по его событиям (база для пересчёта propagation). */
+  selfLevel: "grey" | "green" | "yellow" | "orange" | "red";
+  activity: number;
+  reason?: string;
+  updatedAt: string;
 };
 
 export type PlaceEvidenceRecord = {
@@ -307,6 +324,22 @@ export interface IPlaceStatusRepository {
   upsertActive(input: PlaceStatusActiveRecord): Promise<void>;
   deactivate(placeId: string, statusCode: string, atIso: string): Promise<void>;
   listActive(placeId: string): Promise<PlaceStatusActiveRecord[]>;
+}
+
+export interface IRegionStateRepository {
+  /** Записывает текущий срез состояния региона (проекция region_state_active). */
+  upsert(input: RegionStateActiveRecord): Promise<void>;
+  get(regionId: string): Promise<RegionStateActiveRecord | null>;
+  listAll(): Promise<RegionStateActiveRecord[]>;
+  /** Добавляет запись в историю смен region_state_history. */
+  appendHistory(input: {
+    regionId: string;
+    regionCode: string;
+    stateLevel: "grey" | "green" | "yellow" | "orange" | "red";
+    previousLevel: "grey" | "green" | "yellow" | "orange" | "red";
+    reason?: string;
+    changedAt: string;
+  }): Promise<void>;
 }
 
 export interface IPlaceStatusHistoryRepository {

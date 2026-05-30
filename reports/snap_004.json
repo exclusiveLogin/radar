@@ -6,7 +6,7 @@
       "text": "Радар по всей России | БПЛА, [08.05.2026 21:46]\nЗаокский район \nТульская область \nФиксация групп БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "a658c4392cdeefd3250ba5f60d30082a059ec5a5c33dfc50f740d951ea69bc51",
       "channelKey": "snap_004",
-      "postedAt": "2026-05-09T20:15:17.035Z",
+      "postedAt": "2026-05-30T14:53:05.267Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -33,11 +33,13 @@
       ],
       "precision": "district",
       "completeness": 0.5,
-      "source": "local"
+      "source": "llm"
     },
     "enrich": {
-      "invoked": false,
-      "providersTried": [],
+      "invoked": true,
+      "providersTried": [
+        "llm"
+      ],
       "hits": 2,
       "misses": 0,
       "cacheHit": false
@@ -51,7 +53,12 @@
         {
           "id": "catalog",
           "ok": true,
-          "durationMs": 4
+          "durationMs": 0
+        },
+        {
+          "id": "llm",
+          "ok": true,
+          "durationMs": 3720
         },
         {
           "id": "finalizer",
@@ -78,6 +85,23 @@
           }
         ]
       },
+      "llm": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "name": "Заокский район",
+            "kind": "district",
+            "regionCode": "71"
+          },
+          {
+            "name": "Тульская область",
+            "kind": "region",
+            "regionCode": "71"
+          }
+        ],
+        "confidence": 1,
+        "reason": "В тексте указаны конкретные географические объекты."
+      },
       "finalizer": {
         "schemaVersion": 1,
         "regions": [
@@ -95,7 +119,7 @@
         ],
         "precision": "district",
         "completeness": 0.5,
-        "source": "local"
+        "source": "llm"
       }
     }
   },
@@ -106,7 +130,7 @@
       "text": "Радар по всей России | БПЛА, [08.05.2026 21:46]\nГО Серпухов \nГО Ступино \nМосковская область \nФиксация групп БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "e19fc8835687945a181964bbf0396763bdf360dfb30ef3096a1adb3b4eba42f9",
       "channelKey": "snap_004",
-      "postedAt": "2026-05-09T20:15:17.045Z",
+      "postedAt": "2026-05-30T14:53:08.988Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -133,16 +157,26 @@
         {
           "name": "ГО Ступино",
           "kind": "city"
+        },
+        {
+          "name": "Серпухов",
+          "kind": "city"
+        },
+        {
+          "name": "Ступино",
+          "kind": "city"
         }
       ],
       "precision": "locality",
       "completeness": 0.75,
-      "source": "local"
+      "source": "llm"
     },
     "enrich": {
-      "invoked": false,
-      "providersTried": [],
-      "hits": 3,
+      "invoked": true,
+      "providersTried": [
+        "llm"
+      ],
+      "hits": 5,
       "misses": 0,
       "cacheHit": false
     },
@@ -156,6 +190,11 @@
           "id": "catalog",
           "ok": true,
           "durationMs": 0
+        },
+        {
+          "id": "llm",
+          "ok": true,
+          "durationMs": 4899
         },
         {
           "id": "finalizer",
@@ -187,6 +226,28 @@
           }
         ]
       },
+      "llm": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "name": "Серпухов",
+            "kind": "city",
+            "regionCode": "50"
+          },
+          {
+            "name": "Ступино",
+            "kind": "city",
+            "regionCode": "50"
+          },
+          {
+            "name": "Московская область",
+            "kind": "region",
+            "regionCode": "50"
+          }
+        ],
+        "confidence": 1,
+        "reason": "Все упомянутые географические объекты найдены и сопоставлены."
+      },
       "finalizer": {
         "schemaVersion": 1,
         "regions": [
@@ -204,11 +265,19 @@
           {
             "name": "ГО Ступино",
             "kind": "city"
+          },
+          {
+            "name": "Серпухов",
+            "kind": "city"
+          },
+          {
+            "name": "Ступино",
+            "kind": "city"
           }
         ],
         "precision": "locality",
         "completeness": 0.75,
-        "source": "local"
+        "source": "llm"
       }
     }
   },
@@ -219,7 +288,7 @@
       "text": "Радар по всей России | БПЛА, [08.05.2026 21:47]\nГО Коломна \nГО Воскресенск \nМО Шатура \nМосковская область \nФиксация БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "fcf2e3f37499b16911310b3cee6d89d779a5ce2ba98caf547bf25fb254de2e9b",
       "channelKey": "snap_004",
-      "postedAt": "2026-05-09T20:15:17.046Z",
+      "postedAt": "2026-05-30T14:53:13.888Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -250,16 +319,30 @@
         {
           "name": "МО Шатура",
           "kind": "city"
+        },
+        {
+          "name": "Коломна",
+          "kind": "city"
+        },
+        {
+          "name": "Воскресенск",
+          "kind": "city"
+        },
+        {
+          "name": "Шатура",
+          "kind": "city"
         }
       ],
       "precision": "locality",
       "completeness": 0.75,
-      "source": "local"
+      "source": "llm"
     },
     "enrich": {
-      "invoked": false,
-      "providersTried": [],
-      "hits": 4,
+      "invoked": true,
+      "providersTried": [
+        "llm"
+      ],
+      "hits": 7,
       "misses": 0,
       "cacheHit": false
     },
@@ -273,6 +356,11 @@
           "id": "catalog",
           "ok": true,
           "durationMs": 0
+        },
+        {
+          "id": "llm",
+          "ok": true,
+          "durationMs": 5893
         },
         {
           "id": "finalizer",
@@ -309,6 +397,33 @@
           }
         ]
       },
+      "llm": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "name": "Коломна",
+            "kind": "city",
+            "regionCode": "50"
+          },
+          {
+            "name": "Воскресенск",
+            "kind": "city",
+            "regionCode": "50"
+          },
+          {
+            "name": "Шатура",
+            "kind": "city",
+            "regionCode": "50"
+          },
+          {
+            "name": "Московская область",
+            "kind": "region",
+            "regionCode": "50"
+          }
+        ],
+        "confidence": 1,
+        "reason": "Все упомянутые географические объекты найдены и сопоставлены."
+      },
       "finalizer": {
         "schemaVersion": 1,
         "regions": [
@@ -330,11 +445,23 @@
           {
             "name": "МО Шатура",
             "kind": "city"
+          },
+          {
+            "name": "Коломна",
+            "kind": "city"
+          },
+          {
+            "name": "Воскресенск",
+            "kind": "city"
+          },
+          {
+            "name": "Шатура",
+            "kind": "city"
           }
         ],
         "precision": "locality",
         "completeness": 0.75,
-        "source": "local"
+        "source": "llm"
       }
     }
   },
@@ -345,7 +472,7 @@
       "text": "Радар по всей России | БПЛА, [08.05.2026 21:47]\nКалуга \nКалужская область \nФиксация БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "0969613a51ee605205f1cef0447c0e529de5c520946969a3778a9b2e1b315bd8",
       "channelKey": "snap_004",
-      "postedAt": "2026-05-09T20:15:17.047Z",
+      "postedAt": "2026-05-30T14:53:19.782Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -372,11 +499,13 @@
       ],
       "precision": "locality",
       "completeness": 0.75,
-      "source": "local"
+      "source": "llm"
     },
     "enrich": {
-      "invoked": false,
-      "providersTried": [],
+      "invoked": true,
+      "providersTried": [
+        "llm"
+      ],
       "hits": 2,
       "misses": 0,
       "cacheHit": false
@@ -391,6 +520,11 @@
           "id": "catalog",
           "ok": true,
           "durationMs": 0
+        },
+        {
+          "id": "llm",
+          "ok": true,
+          "durationMs": 3875
         },
         {
           "id": "finalizer",
@@ -417,6 +551,23 @@
           }
         ]
       },
+      "llm": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "name": "Калуга",
+            "kind": "city",
+            "regionCode": "40"
+          },
+          {
+            "name": "Калужская область",
+            "kind": "region",
+            "regionCode": "40"
+          }
+        ],
+        "confidence": 1,
+        "reason": "Текст содержит упоминания Калуги и Калужской области."
+      },
       "finalizer": {
         "schemaVersion": 1,
         "regions": [
@@ -434,7 +585,7 @@
         ],
         "precision": "locality",
         "completeness": 0.75,
-        "source": "local"
+        "source": "llm"
       }
     }
   },
@@ -445,7 +596,7 @@
       "text": "Радар по всей России | БПЛА, [08.05.2026 21:47]\nМедынский район \nМалоярославецкий район \nЖуковский район \nКалужская область \nФиксация групп БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "512546b1f7a7774b3b3947bd6a0a5c507015d47e976bde44673ec56ff8ffcd27",
       "channelKey": "snap_004",
-      "postedAt": "2026-05-09T20:15:17.047Z",
+      "postedAt": "2026-05-30T14:53:23.657Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -480,11 +631,13 @@
       ],
       "precision": "district",
       "completeness": 0.5,
-      "source": "local"
+      "source": "llm"
     },
     "enrich": {
-      "invoked": false,
-      "providersTried": [],
+      "invoked": true,
+      "providersTried": [
+        "llm"
+      ],
       "hits": 4,
       "misses": 0,
       "cacheHit": false
@@ -499,6 +652,11 @@
           "id": "catalog",
           "ok": true,
           "durationMs": 0
+        },
+        {
+          "id": "llm",
+          "ok": true,
+          "durationMs": 6138
         },
         {
           "id": "finalizer",
@@ -535,6 +693,33 @@
           }
         ]
       },
+      "llm": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "name": "Медынский район",
+            "kind": "district",
+            "regionCode": "40"
+          },
+          {
+            "name": "Малоярославецкий район",
+            "kind": "district",
+            "regionCode": "40"
+          },
+          {
+            "name": "Жуковский район",
+            "kind": "district",
+            "regionCode": "40"
+          },
+          {
+            "name": "Калужская область",
+            "kind": "region",
+            "regionCode": "40"
+          }
+        ],
+        "confidence": 1,
+        "reason": "Все упомянутые географические объекты найдены и сопоставлены."
+      },
       "finalizer": {
         "schemaVersion": 1,
         "regions": [
@@ -560,7 +745,7 @@
         ],
         "precision": "district",
         "completeness": 0.5,
-        "source": "local"
+        "source": "llm"
       }
     }
   },
@@ -571,7 +756,7 @@
       "text": "Радар по всей России | БПЛА, [08.05.2026 21:50]\nТемкинский район \nВяземский район \nСмоленская область \nФиксации БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "b4fe648dd2819be928e6ab1ef90a03c11fce2ee95d3b4137acbb1141379b9d81",
       "channelKey": "snap_004",
-      "postedAt": "2026-05-09T20:15:17.048Z",
+      "postedAt": "2026-05-30T14:53:29.795Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -602,11 +787,13 @@
       ],
       "precision": "district",
       "completeness": 0.5,
-      "source": "local"
+      "source": "llm"
     },
     "enrich": {
-      "invoked": false,
-      "providersTried": [],
+      "invoked": true,
+      "providersTried": [
+        "llm"
+      ],
       "hits": 3,
       "misses": 0,
       "cacheHit": false
@@ -621,6 +808,11 @@
           "id": "catalog",
           "ok": true,
           "durationMs": 0
+        },
+        {
+          "id": "llm",
+          "ok": true,
+          "durationMs": 5054
         },
         {
           "id": "finalizer",
@@ -652,6 +844,28 @@
           }
         ]
       },
+      "llm": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "name": "Темкинский район",
+            "kind": "district",
+            "regionCode": "67"
+          },
+          {
+            "name": "Вяземский район",
+            "kind": "district",
+            "regionCode": "67"
+          },
+          {
+            "name": "Смоленская область",
+            "kind": "region",
+            "regionCode": "67"
+          }
+        ],
+        "confidence": 1,
+        "reason": "Все упомянутые географические объекты найдены и сопоставлены."
+      },
       "finalizer": {
         "schemaVersion": 1,
         "regions": [
@@ -673,7 +887,7 @@
         ],
         "precision": "district",
         "completeness": 0.5,
-        "source": "local"
+        "source": "llm"
       }
     }
   },
@@ -684,7 +898,7 @@
       "text": "Радар по всей России | БПЛА, [08.05.2026 21:50]\nБарятинский район \nКалужская область \nФиксация БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "d2b7dd5f3ff72a893ee17282301562ee9027f21dff56a4cd1cfdd455f11b3583",
       "channelKey": "snap_004",
-      "postedAt": "2026-05-09T20:15:17.048Z",
+      "postedAt": "2026-05-30T14:53:34.850Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -711,11 +925,13 @@
       ],
       "precision": "district",
       "completeness": 0.5,
-      "source": "local"
+      "source": "llm"
     },
     "enrich": {
-      "invoked": false,
-      "providersTried": [],
+      "invoked": true,
+      "providersTried": [
+        "llm"
+      ],
       "hits": 2,
       "misses": 0,
       "cacheHit": false
@@ -730,6 +946,11 @@
           "id": "catalog",
           "ok": true,
           "durationMs": 0
+        },
+        {
+          "id": "llm",
+          "ok": true,
+          "durationMs": 3707
         },
         {
           "id": "finalizer",
@@ -756,6 +977,23 @@
           }
         ]
       },
+      "llm": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "name": "Барятинский район",
+            "kind": "district",
+            "regionCode": "40"
+          },
+          {
+            "name": "Калужская область",
+            "kind": "region",
+            "regionCode": "40"
+          }
+        ],
+        "confidence": 1,
+        "reason": "В тексте указаны конкретные географические объекты."
+      },
       "finalizer": {
         "schemaVersion": 1,
         "regions": [
@@ -773,7 +1011,7 @@
         ],
         "precision": "district",
         "completeness": 0.5,
-        "source": "local"
+        "source": "llm"
       }
     }
   },
@@ -784,7 +1022,7 @@
       "text": "Радар по всей России | БПЛА, [08.05.2026 21:51]\nКораблинский район \nРязанская область \nФиксация БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "29b05856ed015abd56d7b85dba5bef2e8e6e353149f3b676c6296dc665c1b4d6",
       "channelKey": "snap_004",
-      "postedAt": "2026-05-09T20:15:17.049Z",
+      "postedAt": "2026-05-30T14:53:38.558Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -811,11 +1049,13 @@
       ],
       "precision": "district",
       "completeness": 0.5,
-      "source": "local"
+      "source": "llm"
     },
     "enrich": {
-      "invoked": false,
-      "providersTried": [],
+      "invoked": true,
+      "providersTried": [
+        "llm"
+      ],
       "hits": 2,
       "misses": 0,
       "cacheHit": false
@@ -830,6 +1070,11 @@
           "id": "catalog",
           "ok": true,
           "durationMs": 0
+        },
+        {
+          "id": "llm",
+          "ok": true,
+          "durationMs": 3777
         },
         {
           "id": "finalizer",
@@ -856,6 +1101,23 @@
           }
         ]
       },
+      "llm": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "name": "Кораблинский район",
+            "kind": "district",
+            "regionCode": "62"
+          },
+          {
+            "name": "Рязанская область",
+            "kind": "region",
+            "regionCode": "62"
+          }
+        ],
+        "confidence": 1,
+        "reason": "В тексте указаны конкретные географические объекты."
+      },
       "finalizer": {
         "schemaVersion": 1,
         "regions": [
@@ -873,7 +1135,7 @@
         ],
         "precision": "district",
         "completeness": 0.5,
-        "source": "local"
+        "source": "llm"
       }
     }
   },
@@ -884,7 +1146,7 @@
       "text": "Радар по всей России | БПЛА, [08.05.2026 21:51]\nМихайловский район \nРязанская область \nФиксация БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "6895f3ebab5ca7c1fc19a78e27b83d5288e97ee4ed639a31b5a2879b41dd0c36",
       "channelKey": "snap_004",
-      "postedAt": "2026-05-09T20:15:17.049Z",
+      "postedAt": "2026-05-30T14:53:42.335Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -911,11 +1173,13 @@
       ],
       "precision": "district",
       "completeness": 0.5,
-      "source": "local"
+      "source": "llm"
     },
     "enrich": {
-      "invoked": false,
-      "providersTried": [],
+      "invoked": true,
+      "providersTried": [
+        "llm"
+      ],
       "hits": 2,
       "misses": 0,
       "cacheHit": false
@@ -930,6 +1194,11 @@
           "id": "catalog",
           "ok": true,
           "durationMs": 0
+        },
+        {
+          "id": "llm",
+          "ok": true,
+          "durationMs": 3724
         },
         {
           "id": "finalizer",
@@ -956,6 +1225,23 @@
           }
         ]
       },
+      "llm": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "name": "Михайловский район",
+            "kind": "district",
+            "regionCode": "62"
+          },
+          {
+            "name": "Рязанская область",
+            "kind": "region",
+            "regionCode": "62"
+          }
+        ],
+        "confidence": 1,
+        "reason": "В тексте указаны конкретные географические объекты."
+      },
       "finalizer": {
         "schemaVersion": 1,
         "regions": [
@@ -973,7 +1259,7 @@
         ],
         "precision": "district",
         "completeness": 0.5,
-        "source": "local"
+        "source": "llm"
       }
     }
   },
@@ -984,7 +1270,7 @@
       "text": "Радар по всей России | БПЛА, [08.05.2026 21:52]\nРязань \nРязанская область \nФиксации БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "2d8a9746bf77108bedc7e812e59e58909c0e89a3b13430d79b6171c9201889aa",
       "channelKey": "snap_004",
-      "postedAt": "2026-05-09T20:15:17.050Z",
+      "postedAt": "2026-05-30T14:53:46.060Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -1011,11 +1297,13 @@
       ],
       "precision": "locality",
       "completeness": 0.75,
-      "source": "local"
+      "source": "llm"
     },
     "enrich": {
-      "invoked": false,
-      "providersTried": [],
+      "invoked": true,
+      "providersTried": [
+        "llm"
+      ],
       "hits": 2,
       "misses": 0,
       "cacheHit": false
@@ -1030,6 +1318,11 @@
           "id": "catalog",
           "ok": true,
           "durationMs": 0
+        },
+        {
+          "id": "llm",
+          "ok": true,
+          "durationMs": 4220
         },
         {
           "id": "finalizer",
@@ -1056,6 +1349,23 @@
           }
         ]
       },
+      "llm": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "name": "Рязань",
+            "kind": "city",
+            "regionCode": "62"
+          },
+          {
+            "name": "Рязанская область",
+            "kind": "region",
+            "regionCode": "62"
+          }
+        ],
+        "confidence": 1,
+        "reason": "В тексте указаны конкретные географические объекты: город Рязань и субъект РФ Рязанская область."
+      },
       "finalizer": {
         "schemaVersion": 1,
         "regions": [
@@ -1073,7 +1383,7 @@
         ],
         "precision": "locality",
         "completeness": 0.75,
-        "source": "local"
+        "source": "llm"
       }
     }
   },
@@ -1084,7 +1394,7 @@
       "text": "Радар по всей России | БПЛА, [08.05.2026 21:52]\nРыбновский район \nРязанская область \nФиксация БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "4cc0c7d007d6d706b6990fd6cf09c70029f543b8dfeda9b0d66f79138f61ecac",
       "channelKey": "snap_004",
-      "postedAt": "2026-05-09T20:15:17.050Z",
+      "postedAt": "2026-05-30T14:53:50.280Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -1111,11 +1421,13 @@
       ],
       "precision": "district",
       "completeness": 0.5,
-      "source": "local"
+      "source": "llm"
     },
     "enrich": {
-      "invoked": false,
-      "providersTried": [],
+      "invoked": true,
+      "providersTried": [
+        "llm"
+      ],
       "hits": 2,
       "misses": 0,
       "cacheHit": false
@@ -1130,6 +1442,11 @@
           "id": "catalog",
           "ok": true,
           "durationMs": 0
+        },
+        {
+          "id": "llm",
+          "ok": true,
+          "durationMs": 3699
         },
         {
           "id": "finalizer",
@@ -1156,6 +1473,23 @@
           }
         ]
       },
+      "llm": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "name": "Рыбновский район",
+            "kind": "district",
+            "regionCode": "62"
+          },
+          {
+            "name": "Рязанская область",
+            "kind": "region",
+            "regionCode": "62"
+          }
+        ],
+        "confidence": 1,
+        "reason": "В тексте указаны конкретные географические объекты."
+      },
       "finalizer": {
         "schemaVersion": 1,
         "regions": [
@@ -1173,7 +1507,7 @@
         ],
         "precision": "district",
         "completeness": 0.5,
-        "source": "local"
+        "source": "llm"
       }
     }
   },
@@ -1184,7 +1518,7 @@
       "text": "Радар по всей России | БПЛА, [08.05.2026 21:53]\nЕлецкий район \nЛипецкая область \nФиксация БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "34779216b6d7ba466716cdc8526f254cf45abcbbd6e21873761a32eca3c9cf98",
       "channelKey": "snap_004",
-      "postedAt": "2026-05-09T20:15:17.051Z",
+      "postedAt": "2026-05-30T14:53:53.980Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -1211,11 +1545,13 @@
       ],
       "precision": "district",
       "completeness": 0.5,
-      "source": "local"
+      "source": "llm"
     },
     "enrich": {
-      "invoked": false,
-      "providersTried": [],
+      "invoked": true,
+      "providersTried": [
+        "llm"
+      ],
       "hits": 2,
       "misses": 0,
       "cacheHit": false
@@ -1230,6 +1566,11 @@
           "id": "catalog",
           "ok": true,
           "durationMs": 0
+        },
+        {
+          "id": "llm",
+          "ok": true,
+          "durationMs": 3780
         },
         {
           "id": "finalizer",
@@ -1256,6 +1597,23 @@
           }
         ]
       },
+      "llm": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "name": "Елецкий район",
+            "kind": "district",
+            "regionCode": "48"
+          },
+          {
+            "name": "Липецкая область",
+            "kind": "region",
+            "regionCode": "48"
+          }
+        ],
+        "confidence": 1,
+        "reason": "Успешно распознаны регион и район из текста"
+      },
       "finalizer": {
         "schemaVersion": 1,
         "regions": [
@@ -1273,7 +1631,7 @@
         ],
         "precision": "district",
         "completeness": 0.5,
-        "source": "local"
+        "source": "llm"
       }
     }
   },
@@ -1284,7 +1642,7 @@
       "text": "Радар по всей России | БПЛА, [08.05.2026 21:53]\nМахачкала, Каспийск, Избербаш, Порт Каспийск, Республика Дагестан - угроза атаки БПЛА со стороны Каспийского моря\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "ed6af9efda27c984ebfaf5daf3914acb693fa683dfd18bc25e7c4e24cfb721d7",
       "channelKey": "snap_004",
-      "postedAt": "2026-05-09T20:15:17.051Z",
+      "postedAt": "2026-05-30T14:53:57.760Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -1303,15 +1661,34 @@
           "fiasId": "0bb7fa19-736d-49cf-ad0e-9774c4dae09b"
         }
       ],
-      "places": [],
-      "precision": "region",
-      "completeness": 0.25,
-      "source": "local"
+      "places": [
+        {
+          "name": "Махачкала",
+          "kind": "city"
+        },
+        {
+          "name": "Каспийск",
+          "kind": "city"
+        },
+        {
+          "name": "Избербаш",
+          "kind": "locality"
+        },
+        {
+          "name": "Порт Каспийск",
+          "kind": "settlement"
+        }
+      ],
+      "precision": "locality",
+      "completeness": 0.75,
+      "source": "llm"
     },
     "enrich": {
-      "invoked": false,
-      "providersTried": [],
-      "hits": 1,
+      "invoked": true,
+      "providersTried": [
+        "llm"
+      ],
+      "hits": 5,
       "misses": 0,
       "cacheHit": false
     },
@@ -1325,6 +1702,11 @@
           "id": "catalog",
           "ok": true,
           "durationMs": 0
+        },
+        {
+          "id": "llm",
+          "ok": true,
+          "durationMs": 7675
         },
         {
           "id": "finalizer",
@@ -1345,6 +1727,38 @@
         ],
         "places": []
       },
+      "llm": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "name": "Махачкала",
+            "kind": "city",
+            "regionCode": "05"
+          },
+          {
+            "name": "Каспийск",
+            "kind": "city",
+            "regionCode": "05"
+          },
+          {
+            "name": "Избербаш",
+            "kind": "locality",
+            "regionCode": "05"
+          },
+          {
+            "name": "Порт Каспийск",
+            "kind": "settlement",
+            "regionCode": "05"
+          },
+          {
+            "name": "Республика Дагестан",
+            "kind": "region",
+            "regionCode": "05"
+          }
+        ],
+        "confidence": 1,
+        "reason": "Все упомянутые географические объекты найдены в тексте и сопоставлены с каталогом регионов."
+      },
       "finalizer": {
         "schemaVersion": 1,
         "regions": [
@@ -1354,10 +1768,27 @@
             "fiasId": "0bb7fa19-736d-49cf-ad0e-9774c4dae09b"
           }
         ],
-        "places": [],
-        "precision": "region",
-        "completeness": 0.25,
-        "source": "local"
+        "places": [
+          {
+            "name": "Махачкала",
+            "kind": "city"
+          },
+          {
+            "name": "Каспийск",
+            "kind": "city"
+          },
+          {
+            "name": "Избербаш",
+            "kind": "locality"
+          },
+          {
+            "name": "Порт Каспийск",
+            "kind": "settlement"
+          }
+        ],
+        "precision": "locality",
+        "completeness": 0.75,
+        "source": "llm"
       }
     }
   },
@@ -1368,7 +1799,7 @@
       "text": "Радар по всей России | БПЛА, [08.05.2026 21:54]\nНижегородская область\nОпасность по БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "b27ea6a3fd716c91c43bded6d32ca37018250e78d7bfea6b4a93372f60cba528",
       "channelKey": "snap_004",
-      "postedAt": "2026-05-09T20:15:17.052Z",
+      "postedAt": "2026-05-30T14:54:05.436Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -1390,11 +1821,13 @@
       "places": [],
       "precision": "region",
       "completeness": 0.25,
-      "source": "local"
+      "source": "llm"
     },
     "enrich": {
-      "invoked": false,
-      "providersTried": [],
+      "invoked": true,
+      "providersTried": [
+        "llm"
+      ],
       "hits": 1,
       "misses": 0,
       "cacheHit": false
@@ -1409,6 +1842,11 @@
           "id": "catalog",
           "ok": true,
           "durationMs": 0
+        },
+        {
+          "id": "llm",
+          "ok": true,
+          "durationMs": 2553
         },
         {
           "id": "finalizer",
@@ -1429,6 +1867,18 @@
         ],
         "places": []
       },
+      "llm": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "name": "Нижегородская область",
+            "kind": "region",
+            "regionCode": "52"
+          }
+        ],
+        "confidence": 1,
+        "reason": "Указан конкретный регион из каталога"
+      },
       "finalizer": {
         "schemaVersion": 1,
         "regions": [
@@ -1441,7 +1891,7 @@
         "places": [],
         "precision": "region",
         "completeness": 0.25,
-        "source": "local"
+        "source": "llm"
       }
     }
   },
@@ -1452,7 +1902,7 @@
       "text": "Радар по всей России | БПЛА, [08.05.2026 22:03]\nШиловский район \nРязанская область \nФиксации БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "a6c8f50fa956b56c593900e256db8d8cfc3ee6f7e7452b921e9ac9130eafad19",
       "channelKey": "snap_004",
-      "postedAt": "2026-05-09T20:15:17.053Z",
+      "postedAt": "2026-05-30T14:54:07.989Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -1479,11 +1929,13 @@
       ],
       "precision": "district",
       "completeness": 0.5,
-      "source": "local"
+      "source": "llm"
     },
     "enrich": {
-      "invoked": false,
-      "providersTried": [],
+      "invoked": true,
+      "providersTried": [
+        "llm"
+      ],
       "hits": 2,
       "misses": 0,
       "cacheHit": false
@@ -1498,6 +1950,11 @@
           "id": "catalog",
           "ok": true,
           "durationMs": 0
+        },
+        {
+          "id": "llm",
+          "ok": true,
+          "durationMs": 3612
         },
         {
           "id": "finalizer",
@@ -1524,6 +1981,23 @@
           }
         ]
       },
+      "llm": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "name": "Шиловский район",
+            "kind": "district",
+            "regionCode": "62"
+          },
+          {
+            "name": "Рязанская область",
+            "kind": "region",
+            "regionCode": "62"
+          }
+        ],
+        "confidence": 1,
+        "reason": "В тексте указаны конкретные географические объекты."
+      },
       "finalizer": {
         "schemaVersion": 1,
         "regions": [
@@ -1541,7 +2015,7 @@
         ],
         "precision": "district",
         "completeness": 0.5,
-        "source": "local"
+        "source": "llm"
       }
     }
   },
@@ -1552,7 +2026,7 @@
       "text": "Радар по всей России | БПЛА, [08.05.2026 22:09]\nШаблыкино и близлежащие \nТревога по БПЛА \nОрловская область\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "bea6c5052af6cec86b6b896e30ba33e40e375a6b38da97709d890d8c60bbbde4",
       "channelKey": "snap_004",
-      "postedAt": "2026-05-09T20:15:17.054Z",
+      "postedAt": "2026-05-30T14:54:11.603Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -1575,16 +2049,22 @@
         {
           "name": "Шаблыкино и близлежащие",
           "kind": "city"
+        },
+        {
+          "name": "Шаблыкино",
+          "kind": "locality"
         }
       ],
       "precision": "locality",
       "completeness": 0.75,
-      "source": "local"
+      "source": "llm"
     },
     "enrich": {
-      "invoked": false,
-      "providersTried": [],
-      "hits": 2,
+      "invoked": true,
+      "providersTried": [
+        "llm"
+      ],
+      "hits": 3,
       "misses": 0,
       "cacheHit": false
     },
@@ -1598,6 +2078,11 @@
           "id": "catalog",
           "ok": true,
           "durationMs": 0
+        },
+        {
+          "id": "llm",
+          "ok": true,
+          "durationMs": 3582
         },
         {
           "id": "finalizer",
@@ -1624,6 +2109,23 @@
           }
         ]
       },
+      "llm": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "name": "Шаблыкино",
+            "kind": "locality",
+            "regionCode": "57"
+          },
+          {
+            "name": "Орловская область",
+            "kind": "region",
+            "regionCode": "57"
+          }
+        ],
+        "confidence": 1,
+        "reason": "Упоминание конкретных мест и региона в тексте"
+      },
       "finalizer": {
         "schemaVersion": 1,
         "regions": [
@@ -1637,11 +2139,15 @@
           {
             "name": "Шаблыкино и близлежащие",
             "kind": "city"
+          },
+          {
+            "name": "Шаблыкино",
+            "kind": "locality"
           }
         ],
         "precision": "locality",
         "completeness": 0.75,
-        "source": "local"
+        "source": "llm"
       }
     }
   },
@@ -1652,7 +2158,7 @@
       "text": "Радар по всей России | БПЛА, [08.05.2026 22:11]\nВоронеж \nВоронежская область \nОпасность по БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "f76dcaaabaf03e94f7319e66c6dc0f2b3902b801f8b182d2bb515a59ca8d5f4a",
       "channelKey": "snap_004",
-      "postedAt": "2026-05-09T20:15:17.054Z",
+      "postedAt": "2026-05-30T14:54:15.185Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -1679,11 +2185,13 @@
       ],
       "precision": "locality",
       "completeness": 0.75,
-      "source": "local"
+      "source": "llm"
     },
     "enrich": {
-      "invoked": false,
-      "providersTried": [],
+      "invoked": true,
+      "providersTried": [
+        "llm"
+      ],
       "hits": 2,
       "misses": 0,
       "cacheHit": false
@@ -1698,6 +2206,11 @@
           "id": "catalog",
           "ok": true,
           "durationMs": 0
+        },
+        {
+          "id": "llm",
+          "ok": true,
+          "durationMs": 3991
         },
         {
           "id": "finalizer",
@@ -1724,6 +2237,23 @@
           }
         ]
       },
+      "llm": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "name": "Воронеж",
+            "kind": "city",
+            "regionCode": "36"
+          },
+          {
+            "name": "Воронежская область",
+            "kind": "region",
+            "regionCode": "36"
+          }
+        ],
+        "confidence": 1,
+        "reason": "Указанные географические объекты точно идентифицированы в тексте."
+      },
       "finalizer": {
         "schemaVersion": 1,
         "regions": [
@@ -1741,7 +2271,7 @@
         ],
         "precision": "locality",
         "completeness": 0.75,
-        "source": "local"
+        "source": "llm"
       }
     }
   },
@@ -1752,7 +2282,7 @@
       "text": "Радар по всей России | БПЛА, [08.05.2026 22:14]\nРязанский район \nРязанская область \nРабота ПВО по БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "a8c4217c539f70afe77f273309027522df5a8548092c6989ae53279b594aba48",
       "channelKey": "snap_004",
-      "postedAt": "2026-05-09T20:15:17.055Z",
+      "postedAt": "2026-05-30T14:54:19.176Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -1779,11 +2309,13 @@
       ],
       "precision": "district",
       "completeness": 0.5,
-      "source": "local"
+      "source": "llm"
     },
     "enrich": {
-      "invoked": false,
-      "providersTried": [],
+      "invoked": true,
+      "providersTried": [
+        "llm"
+      ],
       "hits": 2,
       "misses": 0,
       "cacheHit": false
@@ -1798,6 +2330,11 @@
           "id": "catalog",
           "ok": true,
           "durationMs": 0
+        },
+        {
+          "id": "llm",
+          "ok": true,
+          "durationMs": 3641
         },
         {
           "id": "finalizer",
@@ -1824,6 +2361,23 @@
           }
         ]
       },
+      "llm": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "name": "Рязанский район",
+            "kind": "district",
+            "regionCode": "62"
+          },
+          {
+            "name": "Рязанская область",
+            "kind": "region",
+            "regionCode": "62"
+          }
+        ],
+        "confidence": 1,
+        "reason": "В тексте указаны конкретные географические объекты."
+      },
       "finalizer": {
         "schemaVersion": 1,
         "regions": [
@@ -1841,7 +2395,7 @@
         ],
         "precision": "district",
         "completeness": 0.5,
-        "source": "local"
+        "source": "llm"
       }
     }
   },
@@ -1852,7 +2406,7 @@
       "text": "Радар по всей России | БПЛА, [08.05.2026 22:27]\nСаратовская область \nОтбой опасности по БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "2324fac13cd136b3df2c77dadd46ecc5f89842c7b881be7e24492bce3d35dc06",
       "channelKey": "snap_004",
-      "postedAt": "2026-05-09T20:15:17.055Z",
+      "postedAt": "2026-05-30T14:54:22.818Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -1874,11 +2428,13 @@
       "places": [],
       "precision": "region",
       "completeness": 0.25,
-      "source": "local"
+      "source": "llm"
     },
     "enrich": {
-      "invoked": false,
-      "providersTried": [],
+      "invoked": true,
+      "providersTried": [
+        "llm"
+      ],
       "hits": 1,
       "misses": 0,
       "cacheHit": false
@@ -1893,6 +2449,11 @@
           "id": "catalog",
           "ok": true,
           "durationMs": 0
+        },
+        {
+          "id": "llm",
+          "ok": true,
+          "durationMs": 2433
         },
         {
           "id": "finalizer",
@@ -1913,6 +2474,18 @@
         ],
         "places": []
       },
+      "llm": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "name": "Саратовская область",
+            "kind": "region",
+            "regionCode": "64"
+          }
+        ],
+        "confidence": 1,
+        "reason": "В тексте указано конкретное название региона."
+      },
       "finalizer": {
         "schemaVersion": 1,
         "regions": [
@@ -1925,7 +2498,7 @@
         "places": [],
         "precision": "region",
         "completeness": 0.25,
-        "source": "local"
+        "source": "llm"
       }
     }
   },
@@ -1936,7 +2509,7 @@
       "text": "Радар по всей России | БПЛА, [08.05.2026 22:50]\nЧаплыгинский район \nКраснинский район \nЕлецкий район \nЛипецкая область \nФиксация БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "42587ae6f14de8b5a24c99e5d610f0f2ada5f099398624502268470a68e5be5b",
       "channelKey": "snap_004",
-      "postedAt": "2026-05-09T20:15:17.055Z",
+      "postedAt": "2026-05-30T14:54:25.251Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -1971,11 +2544,13 @@
       ],
       "precision": "district",
       "completeness": 0.5,
-      "source": "local"
+      "source": "llm"
     },
     "enrich": {
-      "invoked": false,
-      "providersTried": [],
+      "invoked": true,
+      "providersTried": [
+        "llm"
+      ],
       "hits": 4,
       "misses": 0,
       "cacheHit": false
@@ -1990,6 +2565,11 @@
           "id": "catalog",
           "ok": true,
           "durationMs": 0
+        },
+        {
+          "id": "llm",
+          "ok": true,
+          "durationMs": 6064
         },
         {
           "id": "finalizer",
@@ -2026,6 +2606,33 @@
           }
         ]
       },
+      "llm": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "name": "Чаплыгинский район",
+            "kind": "district",
+            "regionCode": "48"
+          },
+          {
+            "name": "Краснинский район",
+            "kind": "district",
+            "regionCode": "48"
+          },
+          {
+            "name": "Елецкий район",
+            "kind": "district",
+            "regionCode": "48"
+          },
+          {
+            "name": "Липецкая область",
+            "kind": "region",
+            "regionCode": "48"
+          }
+        ],
+        "confidence": 1,
+        "reason": "Все упомянутые географические объекты найдены и сопоставлены."
+      },
       "finalizer": {
         "schemaVersion": 1,
         "regions": [
@@ -2051,7 +2658,7 @@
         ],
         "precision": "district",
         "completeness": 0.5,
-        "source": "local"
+        "source": "llm"
       }
     }
   },
@@ -2062,7 +2669,7 @@
       "text": "Радар по всей России | БПЛА, [08.05.2026 22:51]\nХохольский район \nВоронежская область \nФиксации БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "e942f45a1920f444c24e44a0497ca0b44bb13851725e4688c3a2e40099d4ded0",
       "channelKey": "snap_004",
-      "postedAt": "2026-05-09T20:15:17.056Z",
+      "postedAt": "2026-05-30T14:54:31.316Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -2089,11 +2696,13 @@
       ],
       "precision": "district",
       "completeness": 0.5,
-      "source": "local"
+      "source": "llm"
     },
     "enrich": {
-      "invoked": false,
-      "providersTried": [],
+      "invoked": true,
+      "providersTried": [
+        "llm"
+      ],
       "hits": 2,
       "misses": 0,
       "cacheHit": false
@@ -2108,6 +2717,11 @@
           "id": "catalog",
           "ok": true,
           "durationMs": 0
+        },
+        {
+          "id": "llm",
+          "ok": true,
+          "durationMs": 4033
         },
         {
           "id": "finalizer",
@@ -2134,6 +2748,23 @@
           }
         ]
       },
+      "llm": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "name": "Хохольский район",
+            "kind": "district",
+            "regionCode": "36"
+          },
+          {
+            "name": "Воронежская область",
+            "kind": "region",
+            "regionCode": "36"
+          }
+        ],
+        "confidence": 1,
+        "reason": "Указанные географические объекты точно идентифицированы в тексте."
+      },
       "finalizer": {
         "schemaVersion": 1,
         "regions": [
@@ -2151,7 +2782,7 @@
         ],
         "precision": "district",
         "completeness": 0.5,
-        "source": "local"
+        "source": "llm"
       }
     }
   },
@@ -2162,7 +2793,7 @@
       "text": "Радар по всей России | БПЛА, [08.05.2026 22:52]\nБелевский район \nАрсеньевский район \nТульская область \nФиксации групп БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "610b1c7b5837163d9a8c7fa30b7866588ef22837c8a5422dc6ec0684f7bbb3be",
       "channelKey": "snap_004",
-      "postedAt": "2026-05-09T20:15:17.056Z",
+      "postedAt": "2026-05-30T14:54:35.350Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -2193,11 +2824,13 @@
       ],
       "precision": "district",
       "completeness": 0.5,
-      "source": "local"
+      "source": "llm"
     },
     "enrich": {
-      "invoked": false,
-      "providersTried": [],
+      "invoked": true,
+      "providersTried": [
+        "llm"
+      ],
       "hits": 3,
       "misses": 0,
       "cacheHit": false
@@ -2212,6 +2845,11 @@
           "id": "catalog",
           "ok": true,
           "durationMs": 0
+        },
+        {
+          "id": "llm",
+          "ok": true,
+          "durationMs": 4752
         },
         {
           "id": "finalizer",
@@ -2243,6 +2881,28 @@
           }
         ]
       },
+      "llm": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "name": "Белевский район",
+            "kind": "district",
+            "regionCode": "71"
+          },
+          {
+            "name": "Арсеньевский район",
+            "kind": "district",
+            "regionCode": "71"
+          },
+          {
+            "name": "Тульская область",
+            "kind": "region",
+            "regionCode": "71"
+          }
+        ],
+        "confidence": 0.95,
+        "reason": "Успешно распознаны географические объекты"
+      },
       "finalizer": {
         "schemaVersion": 1,
         "regions": [
@@ -2264,7 +2924,7 @@
         ],
         "precision": "district",
         "completeness": 0.5,
-        "source": "local"
+        "source": "llm"
       }
     }
   },
@@ -2275,7 +2935,7 @@
       "text": "Радар по всей России | БПЛА, [08.05.2026 22:52]\nКимовский район \nКаменский район \nТульская область \nФиксации БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "dc4e5fc1b957b99e38b0316e3e99bd11fdf16f41021d0f515a52af22196cc963",
       "channelKey": "snap_004",
-      "postedAt": "2026-05-09T20:15:17.057Z",
+      "postedAt": "2026-05-30T14:54:40.102Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -2306,11 +2966,13 @@
       ],
       "precision": "district",
       "completeness": 0.5,
-      "source": "local"
+      "source": "llm"
     },
     "enrich": {
-      "invoked": false,
-      "providersTried": [],
+      "invoked": true,
+      "providersTried": [
+        "llm"
+      ],
       "hits": 3,
       "misses": 0,
       "cacheHit": false
@@ -2325,6 +2987,11 @@
           "id": "catalog",
           "ok": true,
           "durationMs": 0
+        },
+        {
+          "id": "llm",
+          "ok": true,
+          "durationMs": 4796
         },
         {
           "id": "finalizer",
@@ -2356,6 +3023,28 @@
           }
         ]
       },
+      "llm": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "name": "Кимовский район",
+            "kind": "district",
+            "regionCode": "71"
+          },
+          {
+            "name": "Каменский район",
+            "kind": "district",
+            "regionCode": "71"
+          },
+          {
+            "name": "Тульская область",
+            "kind": "region",
+            "regionCode": "71"
+          }
+        ],
+        "confidence": 0.95,
+        "reason": "Успешно распознаны географические объекты из текста."
+      },
       "finalizer": {
         "schemaVersion": 1,
         "regions": [
@@ -2377,7 +3066,7 @@
         ],
         "precision": "district",
         "completeness": 0.5,
-        "source": "local"
+        "source": "llm"
       }
     }
   },
@@ -2388,7 +3077,7 @@
       "text": "Радар по всей России | БПЛА, [08.05.2026 22:53]\nГО Подольск \nМосковская область \nФиксация БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "c75903a16f41ce9b37d1f687c1b2f0046bdc80efcf5a01c71a1e1f78d3975630",
       "channelKey": "snap_004",
-      "postedAt": "2026-05-09T20:15:17.057Z",
+      "postedAt": "2026-05-30T14:54:44.898Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -2411,16 +3100,22 @@
         {
           "name": "ГО Подольск",
           "kind": "city"
+        },
+        {
+          "name": "Подольск",
+          "kind": "city"
         }
       ],
       "precision": "locality",
       "completeness": 0.75,
-      "source": "local"
+      "source": "llm"
     },
     "enrich": {
-      "invoked": false,
-      "providersTried": [],
-      "hits": 2,
+      "invoked": true,
+      "providersTried": [
+        "llm"
+      ],
+      "hits": 3,
       "misses": 0,
       "cacheHit": false
     },
@@ -2434,6 +3129,11 @@
           "id": "catalog",
           "ok": true,
           "durationMs": 0
+        },
+        {
+          "id": "llm",
+          "ok": true,
+          "durationMs": 3651
         },
         {
           "id": "finalizer",
@@ -2460,6 +3160,23 @@
           }
         ]
       },
+      "llm": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "name": "Подольск",
+            "kind": "city",
+            "regionCode": "50"
+          },
+          {
+            "name": "Московская область",
+            "kind": "region",
+            "regionCode": "50"
+          }
+        ],
+        "confidence": 1,
+        "reason": "Текст содержит явные упоминания города и региона."
+      },
       "finalizer": {
         "schemaVersion": 1,
         "regions": [
@@ -2473,11 +3190,15 @@
           {
             "name": "ГО Подольск",
             "kind": "city"
+          },
+          {
+            "name": "Подольск",
+            "kind": "city"
           }
         ],
         "precision": "locality",
         "completeness": 0.75,
-        "source": "local"
+        "source": "llm"
       }
     }
   },
@@ -2488,7 +3209,7 @@
       "text": "Радар по всей России | БПЛА, [08.05.2026 22:54]\nЗаокский район \nАлексинский район \nТульская область \nФиксации БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "fb2ec973670a2f417489562fb24f167a4f802121b94dca256efc2da5448dd2de",
       "channelKey": "snap_004",
-      "postedAt": "2026-05-09T20:15:17.057Z",
+      "postedAt": "2026-05-30T14:54:48.550Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -2519,11 +3240,13 @@
       ],
       "precision": "district",
       "completeness": 0.5,
-      "source": "local"
+      "source": "llm"
     },
     "enrich": {
-      "invoked": false,
-      "providersTried": [],
+      "invoked": true,
+      "providersTried": [
+        "llm"
+      ],
       "hits": 3,
       "misses": 0,
       "cacheHit": false
@@ -2538,6 +3261,11 @@
           "id": "catalog",
           "ok": true,
           "durationMs": 0
+        },
+        {
+          "id": "llm",
+          "ok": true,
+          "durationMs": 4732
         },
         {
           "id": "finalizer",
@@ -2569,6 +3297,28 @@
           }
         ]
       },
+      "llm": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "name": "Заокский район",
+            "kind": "district",
+            "regionCode": "71"
+          },
+          {
+            "name": "Алексинский район",
+            "kind": "district",
+            "regionCode": "71"
+          },
+          {
+            "name": "Тульская область",
+            "kind": "region",
+            "regionCode": "71"
+          }
+        ],
+        "confidence": 0.95,
+        "reason": "Упоминание конкретных районов и области в тексте"
+      },
       "finalizer": {
         "schemaVersion": 1,
         "regions": [
@@ -2590,7 +3340,7 @@
         ],
         "precision": "district",
         "completeness": 0.5,
-        "source": "local"
+        "source": "llm"
       }
     }
   },
@@ -2601,7 +3351,7 @@
       "text": "Радар по всей России | БПЛА, [08.05.2026 22:55]\nГО Ступино \nМосковская область \nФиксации БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "39b10608a84e1103a392678ebbdf8f42c5b3b02d112b0e7b42cc8a7a026b37b6",
       "channelKey": "snap_004",
-      "postedAt": "2026-05-09T20:15:17.058Z",
+      "postedAt": "2026-05-30T14:54:53.282Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -2624,16 +3374,22 @@
         {
           "name": "ГО Ступино",
           "kind": "city"
+        },
+        {
+          "name": "Ступино",
+          "kind": "city"
         }
       ],
       "precision": "locality",
       "completeness": 0.75,
-      "source": "local"
+      "source": "llm"
     },
     "enrich": {
-      "invoked": false,
-      "providersTried": [],
-      "hits": 2,
+      "invoked": true,
+      "providersTried": [
+        "llm"
+      ],
+      "hits": 3,
       "misses": 0,
       "cacheHit": false
     },
@@ -2647,6 +3403,11 @@
           "id": "catalog",
           "ok": true,
           "durationMs": 0
+        },
+        {
+          "id": "llm",
+          "ok": true,
+          "durationMs": 3602
         },
         {
           "id": "finalizer",
@@ -2673,6 +3434,23 @@
           }
         ]
       },
+      "llm": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "name": "Ступино",
+            "kind": "city",
+            "regionCode": "50"
+          },
+          {
+            "name": "Московская область",
+            "kind": "region",
+            "regionCode": "50"
+          }
+        ],
+        "confidence": 1,
+        "reason": "В тексте указаны конкретные географические объекты."
+      },
       "finalizer": {
         "schemaVersion": 1,
         "regions": [
@@ -2686,11 +3464,15 @@
           {
             "name": "ГО Ступино",
             "kind": "city"
+          },
+          {
+            "name": "Ступино",
+            "kind": "city"
           }
         ],
         "precision": "locality",
         "completeness": 0.75,
-        "source": "local"
+        "source": "llm"
       }
     }
   },
@@ -2701,7 +3483,7 @@
       "text": "Радар по всей России | БПЛА, [08.05.2026 22:56]\nКалуга \nКалужская область \nРабота ПВО по БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "d07379591cfe789f5f777bf53d247e5183bc8bc72b6c251d806bb9f17157a473",
       "channelKey": "snap_004",
-      "postedAt": "2026-05-09T20:15:17.058Z",
+      "postedAt": "2026-05-30T14:54:56.885Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -2728,11 +3510,13 @@
       ],
       "precision": "locality",
       "completeness": 0.75,
-      "source": "local"
+      "source": "llm"
     },
     "enrich": {
-      "invoked": false,
-      "providersTried": [],
+      "invoked": true,
+      "providersTried": [
+        "llm"
+      ],
       "hits": 2,
       "misses": 0,
       "cacheHit": false
@@ -2747,6 +3531,11 @@
           "id": "catalog",
           "ok": true,
           "durationMs": 0
+        },
+        {
+          "id": "llm",
+          "ok": true,
+          "durationMs": 3567
         },
         {
           "id": "finalizer",
@@ -2773,6 +3562,23 @@
           }
         ]
       },
+      "llm": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "name": "Калуга",
+            "kind": "city",
+            "regionCode": "40"
+          },
+          {
+            "name": "Калужская область",
+            "kind": "region",
+            "regionCode": "40"
+          }
+        ],
+        "confidence": 1,
+        "reason": "В тексте указаны конкретные географические объекты."
+      },
       "finalizer": {
         "schemaVersion": 1,
         "regions": [
@@ -2790,7 +3596,7 @@
         ],
         "precision": "locality",
         "completeness": 0.75,
-        "source": "local"
+        "source": "llm"
       }
     }
   },
@@ -2801,7 +3607,7 @@
       "text": "Радар по всей России | БПЛА, [08.05.2026 22:56]\nВоронеж \nВоронежская область \nРабота ПВО по БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "3456d92484c1eb999a9e2b8bda0306b7c3591ec20a5d951032e43c9159e93f1e",
       "channelKey": "snap_004",
-      "postedAt": "2026-05-09T20:15:17.058Z",
+      "postedAt": "2026-05-30T14:55:00.453Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -2828,11 +3634,13 @@
       ],
       "precision": "locality",
       "completeness": 0.75,
-      "source": "local"
+      "source": "llm"
     },
     "enrich": {
-      "invoked": false,
-      "providersTried": [],
+      "invoked": true,
+      "providersTried": [
+        "llm"
+      ],
       "hits": 2,
       "misses": 0,
       "cacheHit": false
@@ -2847,6 +3655,11 @@
           "id": "catalog",
           "ok": true,
           "durationMs": 0
+        },
+        {
+          "id": "llm",
+          "ok": true,
+          "durationMs": 4017
         },
         {
           "id": "finalizer",
@@ -2873,6 +3686,23 @@
           }
         ]
       },
+      "llm": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "name": "Воронеж",
+            "kind": "city",
+            "regionCode": "36"
+          },
+          {
+            "name": "Воронежская область",
+            "kind": "region",
+            "regionCode": "36"
+          }
+        ],
+        "confidence": 1,
+        "reason": "Указанные географические объекты точно идентифицированы в тексте."
+      },
       "finalizer": {
         "schemaVersion": 1,
         "regions": [
@@ -2890,7 +3720,7 @@
         ],
         "precision": "locality",
         "completeness": 0.75,
-        "source": "local"
+        "source": "llm"
       }
     }
   },
@@ -2901,7 +3731,7 @@
       "text": "Радар по всей России | БПЛА, [08.05.2026 22:57]\nУкраинские БПЛА в эти минуты атакуют базу Каспийской флотилии в дагестанском Каспийске.\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "813e2011bb9d5597d806f9d51e7189bc022c3f1d6874b4d54c47422a9e638958",
       "channelKey": "snap_004",
-      "postedAt": "2026-05-09T20:15:17.059Z"
+      "postedAt": "2026-05-30T14:55:04.470Z"
     },
     "classification": {
       "kind": "meta",
@@ -2933,7 +3763,7 @@
       "text": "Радар по всей России | БПЛА, [08.05.2026 22:58]\nОт 80 БПЛА на Москву через Калужскую, Орловскую и Тульскую области.\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "a19d7e84f23ca41116332dd804383c322522422065a0b132d5a97d33c27541bc",
       "channelKey": "snap_004",
-      "postedAt": "2026-05-09T20:15:17.059Z",
+      "postedAt": "2026-05-30T14:55:04.470Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -2966,11 +3796,13 @@
       "places": [],
       "precision": "region",
       "completeness": 0.25,
-      "source": "local"
+      "source": "llm"
     },
     "enrich": {
-      "invoked": false,
-      "providersTried": [],
+      "invoked": true,
+      "providersTried": [
+        "llm"
+      ],
       "hits": 3,
       "misses": 0,
       "cacheHit": false
@@ -2985,6 +3817,11 @@
           "id": "catalog",
           "ok": true,
           "durationMs": 0
+        },
+        {
+          "id": "llm",
+          "ok": true,
+          "durationMs": 4770
         },
         {
           "id": "finalizer",
@@ -3015,6 +3852,28 @@
         ],
         "places": []
       },
+      "llm": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "name": "Калужская область",
+            "kind": "region",
+            "regionCode": "40"
+          },
+          {
+            "name": "Орловская область",
+            "kind": "region",
+            "regionCode": "57"
+          },
+          {
+            "name": "Тульская область",
+            "kind": "region",
+            "regionCode": "71"
+          }
+        ],
+        "confidence": 0.95,
+        "reason": "Упоминание регионов в тексте"
+      },
       "finalizer": {
         "schemaVersion": 1,
         "regions": [
@@ -3037,7 +3896,7 @@
         "places": [],
         "precision": "region",
         "completeness": 0.25,
-        "source": "local"
+        "source": "llm"
       }
     }
   },
@@ -3048,7 +3907,7 @@
       "text": "Радар по всей России | БПЛА, [08.05.2026 22:58]\nРоссошанский район \nВоронежская область \nОпасность по БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "b56e205ee49b75c753b7586e625e7dd509a2af3d3b5baaefbba2688c88d59d26",
       "channelKey": "snap_004",
-      "postedAt": "2026-05-09T20:15:17.059Z",
+      "postedAt": "2026-05-30T14:55:09.241Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -3075,11 +3934,13 @@
       ],
       "precision": "district",
       "completeness": 0.5,
-      "source": "local"
+      "source": "llm"
     },
     "enrich": {
-      "invoked": false,
-      "providersTried": [],
+      "invoked": true,
+      "providersTried": [
+        "llm"
+      ],
       "hits": 2,
       "misses": 0,
       "cacheHit": false
@@ -3093,7 +3954,12 @@
         {
           "id": "catalog",
           "ok": true,
-          "durationMs": 2
+          "durationMs": 0
+        },
+        {
+          "id": "llm",
+          "ok": true,
+          "durationMs": 4040
         },
         {
           "id": "finalizer",
@@ -3120,6 +3986,23 @@
           }
         ]
       },
+      "llm": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "name": "Россошанский район",
+            "kind": "district",
+            "regionCode": "36"
+          },
+          {
+            "name": "Воронежская область",
+            "kind": "region",
+            "regionCode": "36"
+          }
+        ],
+        "confidence": 1,
+        "reason": "Географические объекты найдены и сопоставлены с каталогом регионов."
+      },
       "finalizer": {
         "schemaVersion": 1,
         "regions": [
@@ -3137,7 +4020,7 @@
         ],
         "precision": "district",
         "completeness": 0.5,
-        "source": "local"
+        "source": "llm"
       }
     }
   },
@@ -3148,7 +4031,7 @@
       "text": "Радар по всей России | БПЛА, [08.05.2026 23:09]\nРоссошанский район \nВоронежская область \nРабота ПВО по БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "aaed191617128b94d761e22940dd995f1fdc1bad5b7659f6f408f617bf494df3",
       "channelKey": "snap_004",
-      "postedAt": "2026-05-09T20:15:17.061Z",
+      "postedAt": "2026-05-30T14:55:13.281Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -3175,11 +4058,13 @@
       ],
       "precision": "district",
       "completeness": 0.5,
-      "source": "local"
+      "source": "llm"
     },
     "enrich": {
-      "invoked": false,
-      "providersTried": [],
+      "invoked": true,
+      "providersTried": [
+        "llm"
+      ],
       "hits": 2,
       "misses": 0,
       "cacheHit": false
@@ -3194,6 +4079,11 @@
           "id": "catalog",
           "ok": true,
           "durationMs": 0
+        },
+        {
+          "id": "llm",
+          "ok": true,
+          "durationMs": 4153
         },
         {
           "id": "finalizer",
@@ -3220,6 +4110,23 @@
           }
         ]
       },
+      "llm": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "name": "Россошанский район",
+            "kind": "district",
+            "regionCode": "36"
+          },
+          {
+            "name": "Воронежская область",
+            "kind": "region",
+            "regionCode": "36"
+          }
+        ],
+        "confidence": 1,
+        "reason": "Географические объекты найдены и сопоставлены с каталогом регионов."
+      },
       "finalizer": {
         "schemaVersion": 1,
         "regions": [
@@ -3237,7 +4144,7 @@
         ],
         "precision": "district",
         "completeness": 0.5,
-        "source": "local"
+        "source": "llm"
       }
     }
   },
@@ -3248,7 +4155,7 @@
       "text": "Радар по всей России | БПЛА, [08.05.2026 23:17]\nГО Домодедово \nМосковская область\nРабота ПВО по БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "68c965756b5b22ffd43ef262284873634eb97d0d83c8efb99b2c809d08d41580",
       "channelKey": "snap_004",
-      "postedAt": "2026-05-09T20:15:17.062Z",
+      "postedAt": "2026-05-30T14:55:17.435Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -3271,16 +4178,22 @@
         {
           "name": "ГО Домодедово",
           "kind": "city"
+        },
+        {
+          "name": "Домодедово",
+          "kind": "city"
         }
       ],
       "precision": "locality",
       "completeness": 0.75,
-      "source": "local"
+      "source": "llm"
     },
     "enrich": {
-      "invoked": false,
-      "providersTried": [],
-      "hits": 2,
+      "invoked": true,
+      "providersTried": [
+        "llm"
+      ],
+      "hits": 3,
       "misses": 0,
       "cacheHit": false
     },
@@ -3294,6 +4207,11 @@
           "id": "catalog",
           "ok": true,
           "durationMs": 0
+        },
+        {
+          "id": "llm",
+          "ok": true,
+          "durationMs": 3726
         },
         {
           "id": "finalizer",
@@ -3320,6 +4238,23 @@
           }
         ]
       },
+      "llm": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "name": "Домодедово",
+            "kind": "city",
+            "regionCode": "50"
+          },
+          {
+            "name": "Московская область",
+            "kind": "region",
+            "regionCode": "50"
+          }
+        ],
+        "confidence": 1,
+        "reason": "В тексте указаны город Домодедово и Московская область."
+      },
       "finalizer": {
         "schemaVersion": 1,
         "regions": [
@@ -3333,11 +4268,15 @@
           {
             "name": "ГО Домодедово",
             "kind": "city"
+          },
+          {
+            "name": "Домодедово",
+            "kind": "city"
           }
         ],
         "precision": "locality",
         "completeness": 0.75,
-        "source": "local"
+        "source": "llm"
       }
     }
   },
@@ -3348,7 +4287,7 @@
       "text": "Радар по всей России | БПЛА, [08.05.2026 23:18]\nДорогобужский район\nСмоленская область \nФиксация БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "5990ffe54b04bfcc8f125741495bd64195fd2d4c1f3dc77ac1f1565062601f10",
       "channelKey": "snap_004",
-      "postedAt": "2026-05-09T20:15:17.062Z",
+      "postedAt": "2026-05-30T14:55:21.162Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -3375,11 +4314,13 @@
       ],
       "precision": "district",
       "completeness": 0.5,
-      "source": "local"
+      "source": "llm"
     },
     "enrich": {
-      "invoked": false,
-      "providersTried": [],
+      "invoked": true,
+      "providersTried": [
+        "llm"
+      ],
       "hits": 2,
       "misses": 0,
       "cacheHit": false
@@ -3394,6 +4335,11 @@
           "id": "catalog",
           "ok": true,
           "durationMs": 0
+        },
+        {
+          "id": "llm",
+          "ok": true,
+          "durationMs": 3712
         },
         {
           "id": "finalizer",
@@ -3420,6 +4366,23 @@
           }
         ]
       },
+      "llm": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "name": "Дорогобужский район",
+            "kind": "district",
+            "regionCode": "67"
+          },
+          {
+            "name": "Смоленская область",
+            "kind": "region",
+            "regionCode": "67"
+          }
+        ],
+        "confidence": 1,
+        "reason": "В тексте указаны конкретные географические объекты."
+      },
       "finalizer": {
         "schemaVersion": 1,
         "regions": [
@@ -3437,7 +4400,7 @@
         ],
         "precision": "district",
         "completeness": 0.5,
-        "source": "local"
+        "source": "llm"
       }
     }
   },
@@ -3448,7 +4411,7 @@
       "text": "Радар по всей России | БПЛА, [08.05.2026 23:21]\nМедынский район \nКалужская область \nФиксация БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "53a4c42329a6dbaf6cd8f41737bb4d0b21f69b6014717fa4fff47292eefcad81",
       "channelKey": "snap_004",
-      "postedAt": "2026-05-09T20:15:17.062Z",
+      "postedAt": "2026-05-30T14:55:24.875Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -3475,11 +4438,13 @@
       ],
       "precision": "district",
       "completeness": 0.5,
-      "source": "local"
+      "source": "llm"
     },
     "enrich": {
-      "invoked": false,
-      "providersTried": [],
+      "invoked": true,
+      "providersTried": [
+        "llm"
+      ],
       "hits": 2,
       "misses": 0,
       "cacheHit": false
@@ -3494,6 +4459,11 @@
           "id": "catalog",
           "ok": true,
           "durationMs": 0
+        },
+        {
+          "id": "llm",
+          "ok": true,
+          "durationMs": 3627
         },
         {
           "id": "finalizer",
@@ -3520,6 +4490,23 @@
           }
         ]
       },
+      "llm": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "name": "Медынский район",
+            "kind": "district",
+            "regionCode": "40"
+          },
+          {
+            "name": "Калужская область",
+            "kind": "region",
+            "regionCode": "40"
+          }
+        ],
+        "confidence": 1,
+        "reason": "В тексте указаны конкретные географические объекты."
+      },
       "finalizer": {
         "schemaVersion": 1,
         "regions": [
@@ -3537,7 +4524,7 @@
         ],
         "precision": "district",
         "completeness": 0.5,
-        "source": "local"
+        "source": "llm"
       }
     }
   },
@@ -3548,7 +4535,7 @@
       "text": "Радар по всей России | БПЛА, [08.05.2026 23:21]\nСтык Калужской и Тульской областей\nФиксации групп БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "25bb3beba380c3aa13c9ce60109915f725f0e0660c4ccea58b8d71891111a5af",
       "channelKey": "snap_004",
-      "postedAt": "2026-05-09T20:15:17.062Z",
+      "postedAt": "2026-05-30T14:55:28.503Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -3580,11 +4567,13 @@
       ],
       "precision": "locality",
       "completeness": 0.75,
-      "source": "local"
+      "source": "llm"
     },
     "enrich": {
-      "invoked": false,
-      "providersTried": [],
+      "invoked": true,
+      "providersTried": [
+        "llm"
+      ],
       "hits": 3,
       "misses": 0,
       "cacheHit": false
@@ -3599,6 +4588,11 @@
           "id": "catalog",
           "ok": true,
           "durationMs": 0
+        },
+        {
+          "id": "llm",
+          "ok": true,
+          "durationMs": 3600
         },
         {
           "id": "finalizer",
@@ -3630,6 +4624,23 @@
           }
         ]
       },
+      "llm": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "name": "Калужская область",
+            "kind": "region",
+            "regionCode": "40"
+          },
+          {
+            "name": "Тульская область",
+            "kind": "region",
+            "regionCode": "71"
+          }
+        ],
+        "confidence": 1,
+        "reason": "В тексте указаны конкретные регионы России."
+      },
       "finalizer": {
         "schemaVersion": 1,
         "regions": [
@@ -3652,7 +4663,7 @@
         ],
         "precision": "locality",
         "completeness": 0.75,
-        "source": "local"
+        "source": "llm"
       }
     }
   },
@@ -3663,7 +4674,7 @@
       "text": "Радар по всей России | БПЛА, [08.05.2026 23:22]\nВоловский район \nПлавский район\nТульская область \nФиксации групп БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "94f41ccf763de9ffa96e2b06106c278218cc1a47882dc76c6648cb15e6d279d0",
       "channelKey": "snap_004",
-      "postedAt": "2026-05-09T20:15:17.063Z",
+      "postedAt": "2026-05-30T14:55:32.104Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -3694,11 +4705,13 @@
       ],
       "precision": "district",
       "completeness": 0.5,
-      "source": "local"
+      "source": "llm"
     },
     "enrich": {
-      "invoked": false,
-      "providersTried": [],
+      "invoked": true,
+      "providersTried": [
+        "llm"
+      ],
       "hits": 3,
       "misses": 0,
       "cacheHit": false
@@ -3713,6 +4726,11 @@
           "id": "catalog",
           "ok": true,
           "durationMs": 0
+        },
+        {
+          "id": "llm",
+          "ok": true,
+          "durationMs": 4590
         },
         {
           "id": "finalizer",
@@ -3744,6 +4762,28 @@
           }
         ]
       },
+      "llm": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "name": "Воловский район",
+            "kind": "district",
+            "regionCode": "71"
+          },
+          {
+            "name": "Плавский район",
+            "kind": "district",
+            "regionCode": "71"
+          },
+          {
+            "name": "Тульская область",
+            "kind": "region",
+            "regionCode": "71"
+          }
+        ],
+        "confidence": 0.95,
+        "reason": "Упоминание конкретных районов и области в тексте"
+      },
       "finalizer": {
         "schemaVersion": 1,
         "regions": [
@@ -3765,7 +4805,7 @@
         ],
         "precision": "district",
         "completeness": 0.5,
-        "source": "local"
+        "source": "llm"
       }
     }
   },
@@ -3776,7 +4816,7 @@
       "text": "Радар по всей России | БПЛА, [08.05.2026 23:23]\nОрловский район\nЗалегощенский район\nОрловская область\nФиксация группы БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "0a0a93a0a4c78ff597c4654f7bec205a3715d847c681eb64d237053412ae674d",
       "channelKey": "snap_004",
-      "postedAt": "2026-05-09T20:15:17.063Z",
+      "postedAt": "2026-05-30T14:55:36.694Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -3807,11 +4847,13 @@
       ],
       "precision": "district",
       "completeness": 0.5,
-      "source": "local"
+      "source": "llm"
     },
     "enrich": {
-      "invoked": false,
-      "providersTried": [],
+      "invoked": true,
+      "providersTried": [
+        "llm"
+      ],
       "hits": 3,
       "misses": 0,
       "cacheHit": false
@@ -3826,6 +4868,11 @@
           "id": "catalog",
           "ok": true,
           "durationMs": 0
+        },
+        {
+          "id": "llm",
+          "ok": true,
+          "durationMs": 4900
         },
         {
           "id": "finalizer",
@@ -3857,6 +4904,28 @@
           }
         ]
       },
+      "llm": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "name": "Орловский район",
+            "kind": "district",
+            "regionCode": "57"
+          },
+          {
+            "name": "Залегощенский район",
+            "kind": "district",
+            "regionCode": "57"
+          },
+          {
+            "name": "Орловская область",
+            "kind": "region",
+            "regionCode": "57"
+          }
+        ],
+        "confidence": 1,
+        "reason": "Все упомянутые географические объекты найдены и сопоставлены."
+      },
       "finalizer": {
         "schemaVersion": 1,
         "regions": [
@@ -3878,7 +4947,7 @@
         ],
         "precision": "district",
         "completeness": 0.5,
-        "source": "local"
+        "source": "llm"
       }
     }
   },
@@ -3889,7 +4958,7 @@
       "text": "Радар по всей России | БПЛА, [08.05.2026 23:24]\nСтык Московской и Тульской областей \nФиксации групп БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "9e34ef68ed1b54a86c9f0ea16f1cf2731a765d1a58c27e73d0f59a20dab60615",
       "channelKey": "snap_004",
-      "postedAt": "2026-05-09T20:15:17.063Z",
+      "postedAt": "2026-05-30T14:55:41.595Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -3921,11 +4990,13 @@
       ],
       "precision": "locality",
       "completeness": 0.75,
-      "source": "local"
+      "source": "llm"
     },
     "enrich": {
-      "invoked": false,
-      "providersTried": [],
+      "invoked": true,
+      "providersTried": [
+        "llm"
+      ],
       "hits": 3,
       "misses": 0,
       "cacheHit": false
@@ -3940,6 +5011,11 @@
           "id": "catalog",
           "ok": true,
           "durationMs": 0
+        },
+        {
+          "id": "llm",
+          "ok": true,
+          "durationMs": 3658
         },
         {
           "id": "finalizer",
@@ -3971,6 +5047,23 @@
           }
         ]
       },
+      "llm": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "name": "Московская область",
+            "kind": "region",
+            "regionCode": "50"
+          },
+          {
+            "name": "Тульская область",
+            "kind": "region",
+            "regionCode": "71"
+          }
+        ],
+        "confidence": 1,
+        "reason": "Успешное распознавание регионов из текста"
+      },
       "finalizer": {
         "schemaVersion": 1,
         "regions": [
@@ -3993,7 +5086,7 @@
         ],
         "precision": "locality",
         "completeness": 0.75,
-        "source": "local"
+        "source": "llm"
       }
     }
   },
@@ -4004,7 +5097,7 @@
       "text": "Радар по всей России | БПЛА, [08.05.2026 23:25]\nРыбновский район \nРязанская область \nФиксация БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "d61891e7c19e9d86560c3b60f25510f4e836be8a9022c09b1ac4406267b43a1e",
       "channelKey": "snap_004",
-      "postedAt": "2026-05-09T20:15:17.064Z",
+      "postedAt": "2026-05-30T14:55:45.254Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -4031,11 +5124,13 @@
       ],
       "precision": "district",
       "completeness": 0.5,
-      "source": "local"
+      "source": "llm"
     },
     "enrich": {
-      "invoked": false,
-      "providersTried": [],
+      "invoked": true,
+      "providersTried": [
+        "llm"
+      ],
       "hits": 2,
       "misses": 0,
       "cacheHit": false
@@ -4050,6 +5145,11 @@
           "id": "catalog",
           "ok": true,
           "durationMs": 0
+        },
+        {
+          "id": "llm",
+          "ok": true,
+          "durationMs": 3654
         },
         {
           "id": "finalizer",
@@ -4076,6 +5176,23 @@
           }
         ]
       },
+      "llm": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "name": "Рыбновский район",
+            "kind": "district",
+            "regionCode": "62"
+          },
+          {
+            "name": "Рязанская область",
+            "kind": "region",
+            "regionCode": "62"
+          }
+        ],
+        "confidence": 1,
+        "reason": "В тексте указаны конкретные географические объекты."
+      },
       "finalizer": {
         "schemaVersion": 1,
         "regions": [
@@ -4093,7 +5210,7 @@
         ],
         "precision": "district",
         "completeness": 0.5,
-        "source": "local"
+        "source": "llm"
       }
     }
   },
@@ -4104,7 +5221,7 @@
       "text": "Радар по всей России | БПЛА, [08.05.2026 23:26]\nСкопинский район \nМихайловский район\nРязанская область \nФиксация БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "640d97d222fe2f2e70f108c98be6e73e20462d3282ef3aa9c7b0f334f42047c0",
       "channelKey": "snap_004",
-      "postedAt": "2026-05-09T20:15:17.064Z",
+      "postedAt": "2026-05-30T14:55:48.908Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -4135,11 +5252,13 @@
       ],
       "precision": "district",
       "completeness": 0.5,
-      "source": "local"
+      "source": "llm"
     },
     "enrich": {
-      "invoked": false,
-      "providersTried": [],
+      "invoked": true,
+      "providersTried": [
+        "llm"
+      ],
       "hits": 3,
       "misses": 0,
       "cacheHit": false
@@ -4154,6 +5273,11 @@
           "id": "catalog",
           "ok": true,
           "durationMs": 0
+        },
+        {
+          "id": "llm",
+          "ok": true,
+          "durationMs": 5026
         },
         {
           "id": "finalizer",
@@ -4185,6 +5309,28 @@
           }
         ]
       },
+      "llm": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "name": "Скопинский район",
+            "kind": "district",
+            "regionCode": "62"
+          },
+          {
+            "name": "Михайловский район",
+            "kind": "district",
+            "regionCode": "62"
+          },
+          {
+            "name": "Рязанская область",
+            "kind": "region",
+            "regionCode": "62"
+          }
+        ],
+        "confidence": 1,
+        "reason": "Все упомянутые географические объекты найдены и сопоставлены."
+      },
       "finalizer": {
         "schemaVersion": 1,
         "regions": [
@@ -4206,7 +5352,7 @@
         ],
         "precision": "district",
         "completeness": 0.5,
-        "source": "local"
+        "source": "llm"
       }
     }
   },
@@ -4217,7 +5363,7 @@
       "text": "Радар по всей России | БПЛА, [08.05.2026 23:27]\nКраснинский район\nЛебедянский район\nЧаплыгинский район\nЛипецкая область \nФиксация группы БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "764a00751687e45d7af9626d2290f5981973c5b0e26159cbab360b507b9d46f2",
       "channelKey": "snap_004",
-      "postedAt": "2026-05-09T20:15:17.064Z",
+      "postedAt": "2026-05-30T14:55:53.934Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -4252,11 +5398,13 @@
       ],
       "precision": "district",
       "completeness": 0.5,
-      "source": "local"
+      "source": "llm"
     },
     "enrich": {
-      "invoked": false,
-      "providersTried": [],
+      "invoked": true,
+      "providersTried": [
+        "llm"
+      ],
       "hits": 4,
       "misses": 0,
       "cacheHit": false
@@ -4271,6 +5419,11 @@
           "id": "catalog",
           "ok": true,
           "durationMs": 0
+        },
+        {
+          "id": "llm",
+          "ok": true,
+          "durationMs": 6422
         },
         {
           "id": "finalizer",
@@ -4306,6 +5459,33 @@
             "regionCode": "48"
           }
         ]
+      },
+      "llm": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "name": "Краснинский район",
+            "kind": "district",
+            "regionCode": "48"
+          },
+          {
+            "name": "Лебедянский район",
+            "kind": "district",
+            "regionCode": "48"
+          },
+          {
+            "name": "Чаплыгинский район",
+            "kind": "district",
+            "regionCode": "48"
+          },
+          {
+            "name": "Липецкая область",
+            "kind": "region",
+            "regionCode": "48"
+          }
+        ],
+        "confidence": 1,
+        "reason": "Все упомянутые географические объекты найдены и сопоставлены с каталогом регионов."
       },
       "finalizer": {
         "schemaVersion": 1,
@@ -4332,7 +5512,7 @@
         ],
         "precision": "district",
         "completeness": 0.5,
-        "source": "local"
+        "source": "llm"
       }
     }
   },
@@ -4343,7 +5523,7 @@
       "text": "Радар по всей России | БПЛА, [08.05.2026 23:29]\nМО Егорьевск \nМосковская область \nФиксация БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "f796b5ded1e9de8638a3e7617afe0f6b0fcbfebda0886d45faca8637a59bd25b",
       "channelKey": "snap_004",
-      "postedAt": "2026-05-09T20:15:17.064Z",
+      "postedAt": "2026-05-30T14:56:00.357Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -4366,16 +5546,22 @@
         {
           "name": "МО Егорьевск",
           "kind": "city"
+        },
+        {
+          "name": "Егорьевск",
+          "kind": "city"
         }
       ],
       "precision": "locality",
       "completeness": 0.75,
-      "source": "local"
+      "source": "llm"
     },
     "enrich": {
-      "invoked": false,
-      "providersTried": [],
-      "hits": 2,
+      "invoked": true,
+      "providersTried": [
+        "llm"
+      ],
+      "hits": 3,
       "misses": 0,
       "cacheHit": false
     },
@@ -4389,6 +5575,11 @@
           "id": "catalog",
           "ok": true,
           "durationMs": 0
+        },
+        {
+          "id": "llm",
+          "ok": true,
+          "durationMs": 3702
         },
         {
           "id": "finalizer",
@@ -4415,6 +5606,23 @@
           }
         ]
       },
+      "llm": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "name": "Егорьевск",
+            "kind": "city",
+            "regionCode": "50"
+          },
+          {
+            "name": "Московская область",
+            "kind": "region",
+            "regionCode": "50"
+          }
+        ],
+        "confidence": 1,
+        "reason": "Успешно распознаны регион и город из текста"
+      },
       "finalizer": {
         "schemaVersion": 1,
         "regions": [
@@ -4428,11 +5636,15 @@
           {
             "name": "МО Егорьевск",
             "kind": "city"
+          },
+          {
+            "name": "Егорьевск",
+            "kind": "city"
           }
         ],
         "precision": "locality",
         "completeness": 0.75,
-        "source": "local"
+        "source": "llm"
       }
     }
   },
@@ -4443,7 +5655,7 @@
       "text": "Радар по всей России | БПЛА, [08.05.2026 23:30]\nГО Коломна \nГО Воскресенск \nМосковская область \nФиксации БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "770da6447686e13c917d697de5e90b3ba6fc5b36a51a60a2f48be2ee00aaa153",
       "channelKey": "snap_004",
-      "postedAt": "2026-05-09T20:15:17.065Z",
+      "postedAt": "2026-05-30T14:56:04.060Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -4470,16 +5682,26 @@
         {
           "name": "ГО Воскресенск",
           "kind": "city"
+        },
+        {
+          "name": "Коломна",
+          "kind": "city"
+        },
+        {
+          "name": "Воскресенск",
+          "kind": "city"
         }
       ],
       "precision": "locality",
       "completeness": 0.75,
-      "source": "local"
+      "source": "llm"
     },
     "enrich": {
-      "invoked": false,
-      "providersTried": [],
-      "hits": 3,
+      "invoked": true,
+      "providersTried": [
+        "llm"
+      ],
+      "hits": 5,
       "misses": 0,
       "cacheHit": false
     },
@@ -4493,6 +5715,11 @@
           "id": "catalog",
           "ok": true,
           "durationMs": 0
+        },
+        {
+          "id": "llm",
+          "ok": true,
+          "durationMs": 4918
         },
         {
           "id": "finalizer",
@@ -4524,6 +5751,28 @@
           }
         ]
       },
+      "llm": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "name": "Коломна",
+            "kind": "city",
+            "regionCode": "50"
+          },
+          {
+            "name": "Воскресенск",
+            "kind": "city",
+            "regionCode": "50"
+          },
+          {
+            "name": "Московская область",
+            "kind": "region",
+            "regionCode": "50"
+          }
+        ],
+        "confidence": 1,
+        "reason": "Все упомянутые географические объекты найдены и сопоставлены."
+      },
       "finalizer": {
         "schemaVersion": 1,
         "regions": [
@@ -4541,11 +5790,19 @@
           {
             "name": "ГО Воскресенск",
             "kind": "city"
+          },
+          {
+            "name": "Коломна",
+            "kind": "city"
+          },
+          {
+            "name": "Воскресенск",
+            "kind": "city"
           }
         ],
         "precision": "locality",
         "completeness": 0.75,
-        "source": "local"
+        "source": "llm"
       }
     }
   },
@@ -4556,7 +5813,7 @@
       "text": "Радар по всей России | БПЛА, [08.05.2026 23:31]\nКарачаево-Черкесская Республика \nКабардино-Балкарская Республика \nРеспублика Северная Осетия\nРеспублика Ингушетия\nРеспублика Дагестан\nЧеченская Республика\nОтбой опасности по БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "b19a51695ed8d557a33e8301915f2e46edd2c6f552497b8f9bd39e0932002a46",
       "channelKey": "snap_004",
-      "postedAt": "2026-05-09T20:15:17.065Z",
+      "postedAt": "2026-05-30T14:56:08.979Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -4601,8 +5858,10 @@
       "source": "local"
     },
     "enrich": {
-      "invoked": false,
-      "providersTried": [],
+      "invoked": true,
+      "providersTried": [
+        "llm"
+      ],
       "hits": 5,
       "misses": 0,
       "cacheHit": false
@@ -4617,6 +5876,11 @@
           "id": "catalog",
           "ok": true,
           "durationMs": 0
+        },
+        {
+          "id": "llm",
+          "ok": true,
+          "durationMs": 8274
         },
         {
           "id": "finalizer",
@@ -4656,6 +5920,12 @@
           }
         ],
         "places": []
+      },
+      "llm": {
+        "schemaVersion": 1,
+        "nodes": [],
+        "confidence": 0,
+        "reason": "no result"
       },
       "finalizer": {
         "schemaVersion": 1,
@@ -4700,7 +5970,7 @@
       "text": "Радар по всей России | БПЛА, [08.05.2026 23:32]\nТула\nОпасность по БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "9a983c47123a4427aabad96755751f6d796dba1a71484964a930ae4ec051c15f",
       "channelKey": "snap_004",
-      "postedAt": "2026-05-09T20:15:17.065Z",
+      "postedAt": "2026-05-30T14:56:17.254Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -4721,11 +5991,13 @@
       ],
       "precision": "locality",
       "completeness": 0.75,
-      "source": "local"
+      "source": "llm"
     },
     "enrich": {
-      "invoked": false,
-      "providersTried": [],
+      "invoked": true,
+      "providersTried": [
+        "llm"
+      ],
       "hits": 1,
       "misses": 0,
       "cacheHit": false
@@ -4739,7 +6011,12 @@
         {
           "id": "catalog",
           "ok": true,
-          "durationMs": 0
+          "durationMs": 1
+        },
+        {
+          "id": "llm",
+          "ok": true,
+          "durationMs": 2338
         },
         {
           "id": "finalizer",
@@ -4759,6 +6036,17 @@
           }
         ]
       },
+      "llm": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "name": "Тула",
+            "kind": "city"
+          }
+        ],
+        "confidence": 1,
+        "reason": "В тексте упоминается город Тула."
+      },
       "finalizer": {
         "schemaVersion": 1,
         "regions": [],
@@ -4770,7 +6058,7 @@
         ],
         "precision": "locality",
         "completeness": 0.75,
-        "source": "local"
+        "source": "llm"
       }
     }
   },
@@ -4781,7 +6069,7 @@
       "text": "Радар по всей России | БПЛА, [08.05.2026 23:38]\nТула\nЩёкино\nАлексин\n\nПриготовится к сбитиям групп БПЛА.\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "c4b2f9837465893c317ffce5166b0fbaeeac45a87648df9e052bfeb5250cfd1e",
       "channelKey": "snap_004",
-      "postedAt": "2026-05-09T20:15:17.066Z"
+      "postedAt": "2026-05-30T14:56:19.593Z"
     },
     "classification": {
       "kind": "noise",
@@ -4813,7 +6101,7 @@
       "text": "Радар по всей России | БПЛА, [08.05.2026 23:39]\nПензенская область \nОтбой опасности по БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "bd3cf0cbbc75529e27c85489f13e6401f64fcd0d3e27bd9ebbf774f502331c87",
       "channelKey": "snap_004",
-      "postedAt": "2026-05-09T20:15:17.066Z",
+      "postedAt": "2026-05-30T14:56:19.593Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -4835,11 +6123,13 @@
       "places": [],
       "precision": "region",
       "completeness": 0.25,
-      "source": "local"
+      "source": "llm"
     },
     "enrich": {
-      "invoked": false,
-      "providersTried": [],
+      "invoked": true,
+      "providersTried": [
+        "llm"
+      ],
       "hits": 1,
       "misses": 0,
       "cacheHit": false
@@ -4854,6 +6144,11 @@
           "id": "catalog",
           "ok": true,
           "durationMs": 0
+        },
+        {
+          "id": "llm",
+          "ok": true,
+          "durationMs": 2516
         },
         {
           "id": "finalizer",
@@ -4874,6 +6169,18 @@
         ],
         "places": []
       },
+      "llm": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "name": "Пензенская область",
+            "kind": "region",
+            "regionCode": "58"
+          }
+        ],
+        "confidence": 1,
+        "reason": "В тексте указано конкретное название региона."
+      },
       "finalizer": {
         "schemaVersion": 1,
         "regions": [
@@ -4886,7 +6193,7 @@
         "places": [],
         "precision": "region",
         "completeness": 0.25,
-        "source": "local"
+        "source": "llm"
       }
     }
   },
@@ -4897,7 +6204,7 @@
       "text": "Радар по всей России | БПЛА, [08.05.2026 23:43]\nСтарожиловский район\nРязанская область\nФиксация группы БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "c68088f011bfbc1b512081f1e35fcff6c1ac43e0a60fc53200685adfdf278a92",
       "channelKey": "snap_004",
-      "postedAt": "2026-05-09T20:15:17.066Z",
+      "postedAt": "2026-05-30T14:56:22.110Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -4924,11 +6231,13 @@
       ],
       "precision": "district",
       "completeness": 0.5,
-      "source": "local"
+      "source": "llm"
     },
     "enrich": {
-      "invoked": false,
-      "providersTried": [],
+      "invoked": true,
+      "providersTried": [
+        "llm"
+      ],
       "hits": 2,
       "misses": 0,
       "cacheHit": false
@@ -4942,7 +6251,12 @@
         {
           "id": "catalog",
           "ok": true,
-          "durationMs": 1
+          "durationMs": 0
+        },
+        {
+          "id": "llm",
+          "ok": true,
+          "durationMs": 3839
         },
         {
           "id": "finalizer",
@@ -4969,6 +6283,23 @@
           }
         ]
       },
+      "llm": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "name": "Старожиловский район",
+            "kind": "district",
+            "regionCode": "62"
+          },
+          {
+            "name": "Рязанская область",
+            "kind": "region",
+            "regionCode": "62"
+          }
+        ],
+        "confidence": 1,
+        "reason": "Успешно распознаны регион и район из текста"
+      },
       "finalizer": {
         "schemaVersion": 1,
         "regions": [
@@ -4986,7 +6317,7 @@
         ],
         "precision": "district",
         "completeness": 0.5,
-        "source": "local"
+        "source": "llm"
       }
     }
   },
@@ -4997,7 +6328,7 @@
       "text": "Радар по всей России | БПЛА, [08.05.2026 23:44]\nУгранский район \nЕльнинский район \nСмоленская область \nФиксация группы БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "889362627950e308a4a2ef27e2433986d92eba620234ad27c294c3cdf911a8a3",
       "channelKey": "snap_004",
-      "postedAt": "2026-05-09T20:15:17.067Z",
+      "postedAt": "2026-05-30T14:56:25.949Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -5028,11 +6359,13 @@
       ],
       "precision": "district",
       "completeness": 0.5,
-      "source": "local"
+      "source": "llm"
     },
     "enrich": {
-      "invoked": false,
-      "providersTried": [],
+      "invoked": true,
+      "providersTried": [
+        "llm"
+      ],
       "hits": 3,
       "misses": 0,
       "cacheHit": false
@@ -5047,6 +6380,11 @@
           "id": "catalog",
           "ok": true,
           "durationMs": 0
+        },
+        {
+          "id": "llm",
+          "ok": true,
+          "durationMs": 5158
         },
         {
           "id": "finalizer",
@@ -5078,6 +6416,28 @@
           }
         ]
       },
+      "llm": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "name": "Угранский район",
+            "kind": "district",
+            "regionCode": "67"
+          },
+          {
+            "name": "Ельнинский район",
+            "kind": "district",
+            "regionCode": "67"
+          },
+          {
+            "name": "Смоленская область",
+            "kind": "region",
+            "regionCode": "67"
+          }
+        ],
+        "confidence": 1,
+        "reason": "Все упомянутые географические объекты найдены в тексте и соответствуют каталогу регионов."
+      },
       "finalizer": {
         "schemaVersion": 1,
         "regions": [
@@ -5099,7 +6459,7 @@
         ],
         "precision": "district",
         "completeness": 0.5,
-        "source": "local"
+        "source": "llm"
       }
     }
   },
@@ -5110,7 +6470,7 @@
       "text": "Радар по всей России | БПЛА, [08.05.2026 23:52]\nРостовская область \nОпасность по БПЛА повторно\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "f666c76fba3ab7af0cf5a898d53130ed2314f56bb4efae344d0bd0e01bb981a1",
       "channelKey": "snap_004",
-      "postedAt": "2026-05-09T20:15:17.067Z",
+      "postedAt": "2026-05-30T14:56:31.108Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -5132,11 +6492,13 @@
       "places": [],
       "precision": "region",
       "completeness": 0.25,
-      "source": "local"
+      "source": "llm"
     },
     "enrich": {
-      "invoked": false,
-      "providersTried": [],
+      "invoked": true,
+      "providersTried": [
+        "llm"
+      ],
       "hits": 1,
       "misses": 0,
       "cacheHit": false
@@ -5151,6 +6513,11 @@
           "id": "catalog",
           "ok": true,
           "durationMs": 0
+        },
+        {
+          "id": "llm",
+          "ok": true,
+          "durationMs": 2501
         },
         {
           "id": "finalizer",
@@ -5171,6 +6538,18 @@
         ],
         "places": []
       },
+      "llm": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "name": "Ростовская область",
+            "kind": "region",
+            "regionCode": "61"
+          }
+        ],
+        "confidence": 1,
+        "reason": "Указан конкретный регион из каталога"
+      },
       "finalizer": {
         "schemaVersion": 1,
         "regions": [
@@ -5183,7 +6562,7 @@
         "places": [],
         "precision": "region",
         "completeness": 0.25,
-        "source": "local"
+        "source": "llm"
       }
     }
   },
@@ -5194,7 +6573,7 @@
       "text": "Радар по всей России | БПЛА, [09.05.2026 00:17]\nБрянская область\nОпасность по БПЛА повторно\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "7bd3b424f5531ced8cc282272e48f665369080642aa388d8cab0dbcb19feb09e",
       "channelKey": "snap_004",
-      "postedAt": "2026-05-09T20:15:17.068Z",
+      "postedAt": "2026-05-30T14:56:33.609Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -5216,11 +6595,13 @@
       "places": [],
       "precision": "region",
       "completeness": 0.25,
-      "source": "local"
+      "source": "llm"
     },
     "enrich": {
-      "invoked": false,
-      "providersTried": [],
+      "invoked": true,
+      "providersTried": [
+        "llm"
+      ],
       "hits": 1,
       "misses": 0,
       "cacheHit": false
@@ -5235,6 +6616,11 @@
           "id": "catalog",
           "ok": true,
           "durationMs": 0
+        },
+        {
+          "id": "llm",
+          "ok": true,
+          "durationMs": 2433
         },
         {
           "id": "finalizer",
@@ -5255,6 +6641,18 @@
         ],
         "places": []
       },
+      "llm": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "name": "Брянская область",
+            "kind": "region",
+            "regionCode": "32"
+          }
+        ],
+        "confidence": 1,
+        "reason": "В тексте указан конкретный регион"
+      },
       "finalizer": {
         "schemaVersion": 1,
         "regions": [
@@ -5267,7 +6665,7 @@
         "places": [],
         "precision": "region",
         "completeness": 0.25,
-        "source": "local"
+        "source": "llm"
       }
     }
   },
@@ -5278,7 +6676,7 @@
       "text": "Радар по всей России | БПЛА, [09.05.2026 00:17]\nРоссошанский район \nВоронеж \nВоронежская область \nОтбой опасности по БПЛА \nНа территории региона опасность сохраняется\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "8ee8efa41d22307033be37a8aaf98fd2c85ce155f61c6d56b80ebfba3fb8ac5a",
       "channelKey": "snap_004",
-      "postedAt": "2026-05-09T20:15:17.068Z",
+      "postedAt": "2026-05-30T14:56:36.042Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -5309,11 +6707,13 @@
       ],
       "precision": "locality",
       "completeness": 0.75,
-      "source": "local"
+      "source": "llm"
     },
     "enrich": {
-      "invoked": false,
-      "providersTried": [],
+      "invoked": true,
+      "providersTried": [
+        "llm"
+      ],
       "hits": 3,
       "misses": 0,
       "cacheHit": false
@@ -5328,6 +6728,11 @@
           "id": "catalog",
           "ok": true,
           "durationMs": 0
+        },
+        {
+          "id": "llm",
+          "ok": true,
+          "durationMs": 6398
         },
         {
           "id": "finalizer",
@@ -5359,6 +6764,29 @@
           }
         ]
       },
+      "llm": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "name": "Россошанский район",
+            "kind": "district",
+            "regionCode": "36"
+          },
+          {
+            "name": "Воронеж",
+            "kind": "city",
+            "regionCode": "36"
+          },
+          {
+            "name": "Воронежская область",
+            "kind": "region",
+            "regionCode": "36",
+            "fiasId": "b756fe6b-bbd3-44d5-9302-5bfcc740f46e"
+          }
+        ],
+        "confidence": 1,
+        "reason": "Все упомянутые географические объекты найдены и сопоставлены."
+      },
       "finalizer": {
         "schemaVersion": 1,
         "regions": [
@@ -5380,7 +6808,7 @@
         ],
         "precision": "locality",
         "completeness": 0.75,
-        "source": "local"
+        "source": "llm"
       }
     }
   },
@@ -5391,11 +6819,11 @@
       "text": "Радар по всей России | БПЛА, [09.05.2026 00:19]\nС 20:00 до 00:00 силами противовоздушной обороны было уничтожено 44 БПЛА над территориями Брянской, Белгородской, Курской, Калужской, Орловской, Тульской, Липецкой, Рязанской областей, Московского региона и над акваторией Азовского моря.\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "6dd07d22827f0949f20ba0ebbba93cd61479a8ebdbca87292d973932d9178113",
       "channelKey": "snap_004",
-      "postedAt": "2026-05-09T20:15:17.068Z"
+      "postedAt": "2026-05-30T14:56:42.441Z"
     },
     "classification": {
-      "kind": "noise",
-      "reason": "event_type_not_detected"
+      "kind": "meta",
+      "reason": "meta_content"
     },
     "geo": {
       "regions": [],
@@ -5423,7 +6851,7 @@
       "text": "Радар по всей России | БПЛА, [09.05.2026 00:21]\nАлексин \nТульская область \nРабота ПВО по БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "0d9e6bb5f1fba8eb7f17733383ac4cf101d5a22e3198402812903fea4781770a",
       "channelKey": "snap_004",
-      "postedAt": "2026-05-09T20:15:17.068Z",
+      "postedAt": "2026-05-30T14:56:42.441Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -5450,11 +6878,13 @@
       ],
       "precision": "locality",
       "completeness": 0.75,
-      "source": "local"
+      "source": "llm"
     },
     "enrich": {
-      "invoked": false,
-      "providersTried": [],
+      "invoked": true,
+      "providersTried": [
+        "llm"
+      ],
       "hits": 2,
       "misses": 0,
       "cacheHit": false
@@ -5469,6 +6899,11 @@
           "id": "catalog",
           "ok": true,
           "durationMs": 0
+        },
+        {
+          "id": "llm",
+          "ok": true,
+          "durationMs": 3681
         },
         {
           "id": "finalizer",
@@ -5495,6 +6930,23 @@
           }
         ]
       },
+      "llm": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "name": "Алексин",
+            "kind": "city",
+            "regionCode": "71"
+          },
+          {
+            "name": "Тульская область",
+            "kind": "region",
+            "regionCode": "71"
+          }
+        ],
+        "confidence": 0.95,
+        "reason": "Успешно распознаны реальные географические объекты."
+      },
       "finalizer": {
         "schemaVersion": 1,
         "regions": [
@@ -5512,7 +6964,7 @@
         ],
         "precision": "locality",
         "completeness": 0.75,
-        "source": "local"
+        "source": "llm"
       }
     }
   },
@@ -5523,7 +6975,7 @@
       "text": "Радар по всей России | БПЛА, [09.05.2026 00:30]\nВолгоградская область \nОпасность по БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "20ec406047c621ea01e5b7141cc5baab909b708e814d5dcdb74d166b126f2341",
       "channelKey": "snap_004",
-      "postedAt": "2026-05-09T20:15:17.069Z",
+      "postedAt": "2026-05-30T14:56:46.122Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -5545,11 +6997,13 @@
       "places": [],
       "precision": "region",
       "completeness": 0.25,
-      "source": "local"
+      "source": "llm"
     },
     "enrich": {
-      "invoked": false,
-      "providersTried": [],
+      "invoked": true,
+      "providersTried": [
+        "llm"
+      ],
       "hits": 1,
       "misses": 0,
       "cacheHit": false
@@ -5564,6 +7018,11 @@
           "id": "catalog",
           "ok": true,
           "durationMs": 0
+        },
+        {
+          "id": "llm",
+          "ok": true,
+          "durationMs": 2706
         },
         {
           "id": "finalizer",
@@ -5584,6 +7043,18 @@
         ],
         "places": []
       },
+      "llm": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "name": "Волгоградская область",
+            "kind": "region",
+            "regionCode": "34"
+          }
+        ],
+        "confidence": 0.95,
+        "reason": "Упоминание конкретного региона в тексте"
+      },
       "finalizer": {
         "schemaVersion": 1,
         "regions": [
@@ -5596,7 +7067,7 @@
         "places": [],
         "precision": "region",
         "completeness": 0.25,
-        "source": "local"
+        "source": "llm"
       }
     }
   },
@@ -5607,7 +7078,7 @@
       "text": "Радар по всей России | БПЛА, [09.05.2026 00:33]\nКовровский район \nВладимирская область \nФиксация БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "2fa20cd6d090af285a879eaec32725d8c3c326e30685c08a32a677855deb3a7c",
       "channelKey": "snap_004",
-      "postedAt": "2026-05-09T20:15:17.069Z",
+      "postedAt": "2026-05-30T14:56:48.829Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -5634,11 +7105,13 @@
       ],
       "precision": "district",
       "completeness": 0.5,
-      "source": "local"
+      "source": "llm"
     },
     "enrich": {
-      "invoked": false,
-      "providersTried": [],
+      "invoked": true,
+      "providersTried": [
+        "llm"
+      ],
       "hits": 2,
       "misses": 0,
       "cacheHit": false
@@ -5653,6 +7126,11 @@
           "id": "catalog",
           "ok": true,
           "durationMs": 0
+        },
+        {
+          "id": "llm",
+          "ok": true,
+          "durationMs": 4031
         },
         {
           "id": "finalizer",
@@ -5679,6 +7157,23 @@
           }
         ]
       },
+      "llm": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "name": "Ковровский район",
+            "kind": "district",
+            "regionCode": "33"
+          },
+          {
+            "name": "Владимирская область",
+            "kind": "region",
+            "regionCode": "33"
+          }
+        ],
+        "confidence": 1,
+        "reason": "Указанные географические объекты точно идентифицированы в тексте."
+      },
       "finalizer": {
         "schemaVersion": 1,
         "regions": [
@@ -5696,7 +7191,7 @@
         ],
         "precision": "district",
         "completeness": 0.5,
-        "source": "local"
+        "source": "llm"
       }
     }
   },
@@ -5707,7 +7202,7 @@
       "text": "Радар по всей России | БПЛА, [09.05.2026 00:34]\nКраснодарский край \nРеспублика Адыгея \nОпасность по БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "ca80282baf4d0513cb1bd018992d11838c0aa3991cedda112d72a39f53e3944e",
       "channelKey": "snap_004",
-      "postedAt": "2026-05-09T20:15:17.069Z",
+      "postedAt": "2026-05-30T14:56:52.861Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -5734,11 +7229,13 @@
       "places": [],
       "precision": "region",
       "completeness": 0.25,
-      "source": "local"
+      "source": "llm"
     },
     "enrich": {
-      "invoked": false,
-      "providersTried": [],
+      "invoked": true,
+      "providersTried": [
+        "llm"
+      ],
       "hits": 2,
       "misses": 0,
       "cacheHit": false
@@ -5753,6 +7250,11 @@
           "id": "catalog",
           "ok": true,
           "durationMs": 0
+        },
+        {
+          "id": "llm",
+          "ok": true,
+          "durationMs": 3836
         },
         {
           "id": "finalizer",
@@ -5778,6 +7280,23 @@
         ],
         "places": []
       },
+      "llm": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "name": "Краснодарский край",
+            "kind": "region",
+            "regionCode": "23"
+          },
+          {
+            "name": "Республика Адыгея",
+            "kind": "region",
+            "regionCode": "01"
+          }
+        ],
+        "confidence": 1,
+        "reason": "В тексте указаны конкретные регионы России."
+      },
       "finalizer": {
         "schemaVersion": 1,
         "regions": [
@@ -5795,7 +7314,7 @@
         "places": [],
         "precision": "region",
         "completeness": 0.25,
-        "source": "local"
+        "source": "llm"
       }
     }
   },
@@ -5806,7 +7325,7 @@
       "text": "Радар по всей России | БПЛА, [09.05.2026 00:35]\nЛипецк\nЛипецкая область \nРабота ПВО по БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "ebadc979fd7eadf5a740d17ec8ada6b89483a04accb60eac9827f4e04155052a",
       "channelKey": "snap_004",
-      "postedAt": "2026-05-09T20:15:17.070Z",
+      "postedAt": "2026-05-30T14:56:56.697Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -5833,11 +7352,13 @@
       ],
       "precision": "locality",
       "completeness": 0.75,
-      "source": "local"
+      "source": "llm"
     },
     "enrich": {
-      "invoked": false,
-      "providersTried": [],
+      "invoked": true,
+      "providersTried": [
+        "llm"
+      ],
       "hits": 2,
       "misses": 0,
       "cacheHit": false
@@ -5852,6 +7373,11 @@
           "id": "catalog",
           "ok": true,
           "durationMs": 0
+        },
+        {
+          "id": "llm",
+          "ok": true,
+          "durationMs": 3799
         },
         {
           "id": "finalizer",
@@ -5878,6 +7404,23 @@
           }
         ]
       },
+      "llm": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "name": "Липецк",
+            "kind": "city",
+            "regionCode": "48"
+          },
+          {
+            "name": "Липецкая область",
+            "kind": "region",
+            "regionCode": "48"
+          }
+        ],
+        "confidence": 1,
+        "reason": "Упоминание Липецка и Липецкой области в тексте"
+      },
       "finalizer": {
         "schemaVersion": 1,
         "regions": [
@@ -5895,7 +7438,7 @@
         ],
         "precision": "locality",
         "completeness": 0.75,
-        "source": "local"
+        "source": "llm"
       }
     }
   },
@@ -5906,7 +7449,7 @@
       "text": "Радар по всей России | БПЛА, [09.05.2026 00:41]\nГО Ступино \nМО Шатура \nМосковская область \nФиксация БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "ef1f4a9f7318287a7e539ee59dc17c8a511acf60428e035bb09f17057987b4cf",
       "channelKey": "snap_004",
-      "postedAt": "2026-05-09T20:15:17.070Z",
+      "postedAt": "2026-05-30T14:57:00.497Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -5933,16 +7476,26 @@
         {
           "name": "МО Шатура",
           "kind": "city"
+        },
+        {
+          "name": "Ступино",
+          "kind": "city"
+        },
+        {
+          "name": "Шатура",
+          "kind": "city"
         }
       ],
       "precision": "locality",
       "completeness": 0.75,
-      "source": "local"
+      "source": "llm"
     },
     "enrich": {
-      "invoked": false,
-      "providersTried": [],
-      "hits": 3,
+      "invoked": true,
+      "providersTried": [
+        "llm"
+      ],
+      "hits": 5,
       "misses": 0,
       "cacheHit": false
     },
@@ -5956,6 +7509,11 @@
           "id": "catalog",
           "ok": true,
           "durationMs": 0
+        },
+        {
+          "id": "llm",
+          "ok": true,
+          "durationMs": 4949
         },
         {
           "id": "finalizer",
@@ -5987,6 +7545,28 @@
           }
         ]
       },
+      "llm": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "name": "Ступино",
+            "kind": "city",
+            "regionCode": "50"
+          },
+          {
+            "name": "Шатура",
+            "kind": "city",
+            "regionCode": "50"
+          },
+          {
+            "name": "Московская область",
+            "kind": "region",
+            "regionCode": "50"
+          }
+        ],
+        "confidence": 1,
+        "reason": "Все упомянутые географические объекты найдены и сопоставлены."
+      },
       "finalizer": {
         "schemaVersion": 1,
         "regions": [
@@ -6004,11 +7584,19 @@
           {
             "name": "МО Шатура",
             "kind": "city"
+          },
+          {
+            "name": "Ступино",
+            "kind": "city"
+          },
+          {
+            "name": "Шатура",
+            "kind": "city"
           }
         ],
         "precision": "locality",
         "completeness": 0.75,
-        "source": "local"
+        "source": "llm"
       }
     }
   },
@@ -6019,7 +7607,7 @@
       "text": "Радар по всей России | БПЛА, [09.05.2026 00:42]\nСухиничский район \nБабынинский район\nКалужский район \nКалужская область \nФиксации групп БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "5ab0392e2cb02cfa10ca4724e621fe5fe9eb967962b937de6accf706c3d18959",
       "channelKey": "snap_004",
-      "postedAt": "2026-05-09T20:15:17.070Z",
+      "postedAt": "2026-05-30T14:57:05.447Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -6054,11 +7642,13 @@
       ],
       "precision": "district",
       "completeness": 0.5,
-      "source": "local"
+      "source": "llm"
     },
     "enrich": {
-      "invoked": false,
-      "providersTried": [],
+      "invoked": true,
+      "providersTried": [
+        "llm"
+      ],
       "hits": 4,
       "misses": 0,
       "cacheHit": false
@@ -6073,6 +7663,11 @@
           "id": "catalog",
           "ok": true,
           "durationMs": 0
+        },
+        {
+          "id": "llm",
+          "ok": true,
+          "durationMs": 6100
         },
         {
           "id": "finalizer",
@@ -6109,6 +7704,33 @@
           }
         ]
       },
+      "llm": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "name": "Сухиничский район",
+            "kind": "district",
+            "regionCode": "40"
+          },
+          {
+            "name": "Бабынинский район",
+            "kind": "district",
+            "regionCode": "40"
+          },
+          {
+            "name": "Калужский район",
+            "kind": "district",
+            "regionCode": "40"
+          },
+          {
+            "name": "Калужская область",
+            "kind": "region",
+            "regionCode": "40"
+          }
+        ],
+        "confidence": 1,
+        "reason": "Все упомянутые географические объекты найдены и сопоставлены."
+      },
       "finalizer": {
         "schemaVersion": 1,
         "regions": [
@@ -6134,7 +7756,7 @@
         ],
         "precision": "district",
         "completeness": 0.5,
-        "source": "local"
+        "source": "llm"
       }
     }
   },
@@ -6145,7 +7767,7 @@
       "text": "Радар по всей России | БПЛА, [09.05.2026 00:43]\nКиреевский район \nВоловский район\nТульская область \nФиксация БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "6a8f9b8b1d92376e4fbcc4409bbe98886156ff8ed71d81ebd11d2c68296fb37e",
       "channelKey": "snap_004",
-      "postedAt": "2026-05-09T20:15:17.070Z",
+      "postedAt": "2026-05-30T14:57:11.547Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -6176,11 +7798,13 @@
       ],
       "precision": "district",
       "completeness": 0.5,
-      "source": "local"
+      "source": "llm"
     },
     "enrich": {
-      "invoked": false,
-      "providersTried": [],
+      "invoked": true,
+      "providersTried": [
+        "llm"
+      ],
       "hits": 3,
       "misses": 0,
       "cacheHit": false
@@ -6195,6 +7819,11 @@
           "id": "catalog",
           "ok": true,
           "durationMs": 0
+        },
+        {
+          "id": "llm",
+          "ok": true,
+          "durationMs": 4717
         },
         {
           "id": "finalizer",
@@ -6226,6 +7855,28 @@
           }
         ]
       },
+      "llm": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "name": "Киреевский район",
+            "kind": "district",
+            "regionCode": "71"
+          },
+          {
+            "name": "Воловский район",
+            "kind": "district",
+            "regionCode": "71"
+          },
+          {
+            "name": "Тульская область",
+            "kind": "region",
+            "regionCode": "71"
+          }
+        ],
+        "confidence": 0.95,
+        "reason": "Упоминание конкретных районов и области в тексте"
+      },
       "finalizer": {
         "schemaVersion": 1,
         "regions": [
@@ -6247,7 +7898,7 @@
         ],
         "precision": "district",
         "completeness": 0.5,
-        "source": "local"
+        "source": "llm"
       }
     }
   },
@@ -6258,7 +7909,7 @@
       "text": "Радар по всей России | БПЛА, [09.05.2026 00:44]\nЗалегощенский район \nОрловская область \nФиксация БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "827907282de94bf8a57025405f4b8cd3f68ddf3916ccee1f661bce73d11eb644",
       "channelKey": "snap_004",
-      "postedAt": "2026-05-09T20:15:17.071Z",
+      "postedAt": "2026-05-30T14:57:16.265Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -6285,11 +7936,13 @@
       ],
       "precision": "district",
       "completeness": 0.5,
-      "source": "local"
+      "source": "llm"
     },
     "enrich": {
-      "invoked": false,
-      "providersTried": [],
+      "invoked": true,
+      "providersTried": [
+        "llm"
+      ],
       "hits": 2,
       "misses": 0,
       "cacheHit": false
@@ -6304,6 +7957,11 @@
           "id": "catalog",
           "ok": true,
           "durationMs": 0
+        },
+        {
+          "id": "llm",
+          "ok": true,
+          "durationMs": 3629
         },
         {
           "id": "finalizer",
@@ -6330,6 +7988,23 @@
           }
         ]
       },
+      "llm": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "name": "Залегощенский район",
+            "kind": "district",
+            "regionCode": "57"
+          },
+          {
+            "name": "Орловская область",
+            "kind": "region",
+            "regionCode": "57"
+          }
+        ],
+        "confidence": 1,
+        "reason": "В тексте указаны конкретные географические объекты."
+      },
       "finalizer": {
         "schemaVersion": 1,
         "regions": [
@@ -6347,7 +8022,7 @@
         ],
         "precision": "district",
         "completeness": 0.5,
-        "source": "local"
+        "source": "llm"
       }
     }
   },
@@ -6358,7 +8033,7 @@
       "text": "Радар по всей России | БПЛА, [09.05.2026 00:45]\nРамонский район\nВоронежская область \nФиксация БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "9c195c0c919b681c07b98ea9e4c3f8b9f2024b9641cf34e3b0f750e28b642a2e",
       "channelKey": "snap_004",
-      "postedAt": "2026-05-09T20:15:17.071Z",
+      "postedAt": "2026-05-30T14:57:19.894Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -6385,11 +8060,13 @@
       ],
       "precision": "district",
       "completeness": 0.5,
-      "source": "local"
+      "source": "llm"
     },
     "enrich": {
-      "invoked": false,
-      "providersTried": [],
+      "invoked": true,
+      "providersTried": [
+        "llm"
+      ],
       "hits": 2,
       "misses": 0,
       "cacheHit": false
@@ -6404,6 +8081,11 @@
           "id": "catalog",
           "ok": true,
           "durationMs": 0
+        },
+        {
+          "id": "llm",
+          "ok": true,
+          "durationMs": 3829
         },
         {
           "id": "finalizer",
@@ -6430,6 +8112,23 @@
           }
         ]
       },
+      "llm": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "name": "Рамонский район",
+            "kind": "district",
+            "regionCode": "36"
+          },
+          {
+            "name": "Воронежская область",
+            "kind": "region",
+            "regionCode": "36"
+          }
+        ],
+        "confidence": 1,
+        "reason": "Успешно распознаны регионы и район из текста"
+      },
       "finalizer": {
         "schemaVersion": 1,
         "regions": [
@@ -6447,7 +8146,7 @@
         ],
         "precision": "district",
         "completeness": 0.5,
-        "source": "local"
+        "source": "llm"
       }
     }
   },
@@ -6458,7 +8157,7 @@
       "text": "Радар по всей России | БПЛА, [09.05.2026 00:46]\nШолоховский район \nРостовская область \nФиксация БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "53939c69186f85f0b69f7a2397ca38202366459cf8bc6a05dda7986806faaf0d",
       "channelKey": "snap_004",
-      "postedAt": "2026-05-09T20:15:17.071Z",
+      "postedAt": "2026-05-30T14:57:23.723Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -6485,11 +8184,13 @@
       ],
       "precision": "district",
       "completeness": 0.5,
-      "source": "local"
+      "source": "llm"
     },
     "enrich": {
-      "invoked": false,
-      "providersTried": [],
+      "invoked": true,
+      "providersTried": [
+        "llm"
+      ],
       "hits": 2,
       "misses": 0,
       "cacheHit": false
@@ -6504,6 +8205,11 @@
           "id": "catalog",
           "ok": true,
           "durationMs": 0
+        },
+        {
+          "id": "llm",
+          "ok": true,
+          "durationMs": 3944
         },
         {
           "id": "finalizer",
@@ -6530,6 +8236,23 @@
           }
         ]
       },
+      "llm": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "name": "Шолоховский район",
+            "kind": "district",
+            "regionCode": "61"
+          },
+          {
+            "name": "Ростовская область",
+            "kind": "region",
+            "regionCode": "61"
+          }
+        ],
+        "confidence": 0.95,
+        "reason": "Упоминание конкретных районов и областей в тексте"
+      },
       "finalizer": {
         "schemaVersion": 1,
         "regions": [
@@ -6547,7 +8270,7 @@
         ],
         "precision": "district",
         "completeness": 0.5,
-        "source": "local"
+        "source": "llm"
       }
     }
   },
@@ -6558,7 +8281,7 @@
       "text": "Радар по всей России | БПЛА, [09.05.2026 00:47]\nРязанский район\nРязанская область \nФиксация БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "d0463b4ab3e240da6bb6210aba33f6519fb6c614b2aa903cc39f778de51f4a37",
       "channelKey": "snap_004",
-      "postedAt": "2026-05-09T20:15:17.071Z",
+      "postedAt": "2026-05-30T14:57:27.668Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -6585,11 +8308,13 @@
       ],
       "precision": "district",
       "completeness": 0.5,
-      "source": "local"
+      "source": "llm"
     },
     "enrich": {
-      "invoked": false,
-      "providersTried": [],
+      "invoked": true,
+      "providersTried": [
+        "llm"
+      ],
       "hits": 2,
       "misses": 0,
       "cacheHit": false
@@ -6604,6 +8329,11 @@
           "id": "catalog",
           "ok": true,
           "durationMs": 0
+        },
+        {
+          "id": "llm",
+          "ok": true,
+          "durationMs": 3645
         },
         {
           "id": "finalizer",
@@ -6630,6 +8360,23 @@
           }
         ]
       },
+      "llm": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "name": "Рязанский район",
+            "kind": "district",
+            "regionCode": "62"
+          },
+          {
+            "name": "Рязанская область",
+            "kind": "region",
+            "regionCode": "62"
+          }
+        ],
+        "confidence": 1,
+        "reason": "В тексте указаны конкретные географические объекты."
+      },
       "finalizer": {
         "schemaVersion": 1,
         "regions": [
@@ -6647,7 +8394,7 @@
         ],
         "precision": "district",
         "completeness": 0.5,
-        "source": "local"
+        "source": "llm"
       }
     }
   },
@@ -6658,7 +8405,7 @@
       "text": "Радар по всей России | БПЛА, [09.05.2026 00:48]\nСлавянский район\nКраснодарский край \nФиксация БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "5c4ffb64d1214ca904c7e106355789b703d70eb68c86e06283af4411f08644e2",
       "channelKey": "snap_004",
-      "postedAt": "2026-05-09T20:15:17.072Z",
+      "postedAt": "2026-05-30T14:57:31.314Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -6685,11 +8432,13 @@
       ],
       "precision": "district",
       "completeness": 0.5,
-      "source": "local"
+      "source": "llm"
     },
     "enrich": {
-      "invoked": false,
-      "providersTried": [],
+      "invoked": true,
+      "providersTried": [
+        "llm"
+      ],
       "hits": 2,
       "misses": 0,
       "cacheHit": false
@@ -6704,6 +8453,11 @@
           "id": "catalog",
           "ok": true,
           "durationMs": 0
+        },
+        {
+          "id": "llm",
+          "ok": true,
+          "durationMs": 3726
         },
         {
           "id": "finalizer",
@@ -6730,6 +8484,23 @@
           }
         ]
       },
+      "llm": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "name": "Славянский район",
+            "kind": "district",
+            "regionCode": "23"
+          },
+          {
+            "name": "Краснодарский край",
+            "kind": "region",
+            "regionCode": "23"
+          }
+        ],
+        "confidence": 1,
+        "reason": "В тексте указаны конкретные географические объекты."
+      },
       "finalizer": {
         "schemaVersion": 1,
         "regions": [
@@ -6747,7 +8518,7 @@
         ],
         "precision": "district",
         "completeness": 0.5,
-        "source": "local"
+        "source": "llm"
       }
     }
   },
@@ -6758,7 +8529,7 @@
       "text": "Радар по всей России | БПЛА, [09.05.2026 00:52]\nПсковская область\nТверская область\nНовгородская область \nОпасность по БПЛА, повторно\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "159dc5085ba7bece98aa51b023bd555d3cb888a45bbe018d94c864878693a1b3",
       "channelKey": "snap_004",
-      "postedAt": "2026-05-09T20:15:17.072Z",
+      "postedAt": "2026-05-30T14:57:35.041Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -6790,11 +8561,13 @@
       "places": [],
       "precision": "region",
       "completeness": 0.25,
-      "source": "local"
+      "source": "llm"
     },
     "enrich": {
-      "invoked": false,
-      "providersTried": [],
+      "invoked": true,
+      "providersTried": [
+        "llm"
+      ],
       "hits": 3,
       "misses": 0,
       "cacheHit": false
@@ -6809,6 +8582,11 @@
           "id": "catalog",
           "ok": true,
           "durationMs": 0
+        },
+        {
+          "id": "llm",
+          "ok": true,
+          "durationMs": 4841
         },
         {
           "id": "finalizer",
@@ -6839,6 +8617,28 @@
         ],
         "places": []
       },
+      "llm": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "name": "Псковская область",
+            "kind": "region",
+            "regionCode": "60"
+          },
+          {
+            "name": "Тверская область",
+            "kind": "region",
+            "regionCode": "69"
+          },
+          {
+            "name": "Новгородская область",
+            "kind": "region",
+            "regionCode": "53"
+          }
+        ],
+        "confidence": 1,
+        "reason": "Все упомянутые регионы найдены в каталоге"
+      },
       "finalizer": {
         "schemaVersion": 1,
         "regions": [
@@ -6861,7 +8661,7 @@
         "places": [],
         "precision": "region",
         "completeness": 0.25,
-        "source": "local"
+        "source": "llm"
       }
     }
   },
@@ -6872,7 +8672,7 @@
       "text": "Радар по всей России | БПЛА, [09.05.2026 01:02]\nГагаринский район\nСмоленская область \nФиксация БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "a3d6e8bb3d2e2efd8974ee1c0c6bb149a7a8827319544f3813872b6e0d0631a0",
       "channelKey": "snap_004",
-      "postedAt": "2026-05-09T20:15:17.072Z",
+      "postedAt": "2026-05-30T14:57:39.882Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -6899,11 +8699,13 @@
       ],
       "precision": "district",
       "completeness": 0.5,
-      "source": "local"
+      "source": "llm"
     },
     "enrich": {
-      "invoked": false,
-      "providersTried": [],
+      "invoked": true,
+      "providersTried": [
+        "llm"
+      ],
       "hits": 2,
       "misses": 0,
       "cacheHit": false
@@ -6918,6 +8720,11 @@
           "id": "catalog",
           "ok": true,
           "durationMs": 0
+        },
+        {
+          "id": "llm",
+          "ok": true,
+          "durationMs": 3639
         },
         {
           "id": "finalizer",
@@ -6944,6 +8751,23 @@
           }
         ]
       },
+      "llm": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "name": "Гагаринский район",
+            "kind": "district",
+            "regionCode": "67"
+          },
+          {
+            "name": "Смоленская область",
+            "kind": "region",
+            "regionCode": "67"
+          }
+        ],
+        "confidence": 1,
+        "reason": "В тексте указаны конкретные географические объекты."
+      },
       "finalizer": {
         "schemaVersion": 1,
         "regions": [
@@ -6961,7 +8785,7 @@
         ],
         "precision": "district",
         "completeness": 0.5,
-        "source": "local"
+        "source": "llm"
       }
     }
   },
@@ -6972,7 +8796,7 @@
       "text": "Радар по всей России | БПЛА, [09.05.2026 01:08]\nАнапа и близлежащие\nНовороссийск и близлежащие \nКраснодарский край \nОпасность по БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "526762fdf566ca02f05af21162e0d36135777ea7b75f2a9c8d5663a1b7eb208e",
       "channelKey": "snap_004",
-      "postedAt": "2026-05-09T20:15:17.072Z",
+      "postedAt": "2026-05-30T14:57:43.522Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -6999,16 +8823,26 @@
         {
           "name": "Новороссийск и близлежащие",
           "kind": "city"
+        },
+        {
+          "name": "Анапа",
+          "kind": "city"
+        },
+        {
+          "name": "Новороссийск",
+          "kind": "city"
         }
       ],
       "precision": "locality",
       "completeness": 0.75,
-      "source": "local"
+      "source": "llm"
     },
     "enrich": {
-      "invoked": false,
-      "providersTried": [],
-      "hits": 3,
+      "invoked": true,
+      "providersTried": [
+        "llm"
+      ],
+      "hits": 5,
       "misses": 0,
       "cacheHit": false
     },
@@ -7022,6 +8856,11 @@
           "id": "catalog",
           "ok": true,
           "durationMs": 0
+        },
+        {
+          "id": "llm",
+          "ok": true,
+          "durationMs": 5041
         },
         {
           "id": "finalizer",
@@ -7053,6 +8892,28 @@
           }
         ]
       },
+      "llm": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "name": "Анапа",
+            "kind": "city",
+            "regionCode": "23"
+          },
+          {
+            "name": "Новороссийск",
+            "kind": "city",
+            "regionCode": "23"
+          },
+          {
+            "name": "Краснодарский край",
+            "kind": "region",
+            "regionCode": "23"
+          }
+        ],
+        "confidence": 1,
+        "reason": "В тексте указаны конкретные города и регион Краснодарского края."
+      },
       "finalizer": {
         "schemaVersion": 1,
         "regions": [
@@ -7070,11 +8931,19 @@
           {
             "name": "Новороссийск и близлежащие",
             "kind": "city"
+          },
+          {
+            "name": "Анапа",
+            "kind": "city"
+          },
+          {
+            "name": "Новороссийск",
+            "kind": "city"
           }
         ],
         "precision": "locality",
         "completeness": 0.75,
-        "source": "local"
+        "source": "llm"
       }
     }
   },
@@ -7085,7 +8954,7 @@
       "text": "Радар по всей России | БПЛА, [09.05.2026 01:10]\nУсманский район \nЛипецкая область \nРабота ПВО по БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "65f13e5b06779cad28342d80a7dea6589134067e1aaa7297e3e2b87e56ccce9f",
       "channelKey": "snap_004",
-      "postedAt": "2026-05-09T20:15:17.073Z",
+      "postedAt": "2026-05-30T14:57:48.564Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -7112,11 +8981,13 @@
       ],
       "precision": "district",
       "completeness": 0.5,
-      "source": "local"
+      "source": "llm"
     },
     "enrich": {
-      "invoked": false,
-      "providersTried": [],
+      "invoked": true,
+      "providersTried": [
+        "llm"
+      ],
       "hits": 2,
       "misses": 0,
       "cacheHit": false
@@ -7131,6 +9002,11 @@
           "id": "catalog",
           "ok": true,
           "durationMs": 0
+        },
+        {
+          "id": "llm",
+          "ok": true,
+          "durationMs": 3695
         },
         {
           "id": "finalizer",
@@ -7157,6 +9033,23 @@
           }
         ]
       },
+      "llm": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "name": "Усманский район",
+            "kind": "district",
+            "regionCode": "48"
+          },
+          {
+            "name": "Липецкая область",
+            "kind": "region",
+            "regionCode": "48"
+          }
+        ],
+        "confidence": 1,
+        "reason": "В тексте указаны конкретные географические объекты."
+      },
       "finalizer": {
         "schemaVersion": 1,
         "regions": [
@@ -7174,7 +9067,7 @@
         ],
         "precision": "district",
         "completeness": 0.5,
-        "source": "local"
+        "source": "llm"
       }
     }
   },
@@ -7185,7 +9078,7 @@
       "text": "Радар по всей России | БПЛА, [09.05.2026 01:14]\nСаратовская область\nПензенская область \nОпасность по БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "5364105010a857aab667a4553fb5c21651609c9b4f293e67616c6d8d604862a8",
       "channelKey": "snap_004",
-      "postedAt": "2026-05-09T20:15:17.073Z",
+      "postedAt": "2026-05-30T14:57:52.260Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -7212,11 +9105,13 @@
       "places": [],
       "precision": "region",
       "completeness": 0.25,
-      "source": "local"
+      "source": "llm"
     },
     "enrich": {
-      "invoked": false,
-      "providersTried": [],
+      "invoked": true,
+      "providersTried": [
+        "llm"
+      ],
       "hits": 2,
       "misses": 0,
       "cacheHit": false
@@ -7231,6 +9126,11 @@
           "id": "catalog",
           "ok": true,
           "durationMs": 0
+        },
+        {
+          "id": "llm",
+          "ok": true,
+          "durationMs": 3686
         },
         {
           "id": "finalizer",
@@ -7256,6 +9156,23 @@
         ],
         "places": []
       },
+      "llm": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "name": "Саратовская область",
+            "kind": "region",
+            "regionCode": "64"
+          },
+          {
+            "name": "Пензенская область",
+            "kind": "region",
+            "regionCode": "58"
+          }
+        ],
+        "confidence": 1,
+        "reason": "В тексте указаны конкретные регионы России."
+      },
       "finalizer": {
         "schemaVersion": 1,
         "regions": [
@@ -7273,7 +9190,7 @@
         "places": [],
         "precision": "region",
         "completeness": 0.25,
-        "source": "local"
+        "source": "llm"
       }
     }
   },
@@ -7284,7 +9201,7 @@
       "text": "Радар по всей России | БПЛА, [09.05.2026 01:14]\nПензенский район \nПензенская область \nФиксация БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "81dcc2e3e8e0fe6aba40a4c29d405b86f4de4448581acc6d66fdfa0017833313",
       "channelKey": "snap_004",
-      "postedAt": "2026-05-09T20:15:17.073Z",
+      "postedAt": "2026-05-30T14:57:55.946Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -7311,11 +9228,13 @@
       ],
       "precision": "district",
       "completeness": 0.5,
-      "source": "local"
+      "source": "llm"
     },
     "enrich": {
-      "invoked": false,
-      "providersTried": [],
+      "invoked": true,
+      "providersTried": [
+        "llm"
+      ],
       "hits": 2,
       "misses": 0,
       "cacheHit": false
@@ -7330,6 +9249,11 @@
           "id": "catalog",
           "ok": true,
           "durationMs": 0
+        },
+        {
+          "id": "llm",
+          "ok": true,
+          "durationMs": 3750
         },
         {
           "id": "finalizer",
@@ -7356,6 +9280,23 @@
           }
         ]
       },
+      "llm": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "name": "Пензенский район",
+            "kind": "district",
+            "regionCode": "58"
+          },
+          {
+            "name": "Пензенская область",
+            "kind": "region",
+            "regionCode": "58"
+          }
+        ],
+        "confidence": 1,
+        "reason": "В тексте указаны конкретные географические объекты."
+      },
       "finalizer": {
         "schemaVersion": 1,
         "regions": [
@@ -7373,7 +9314,7 @@
         ],
         "precision": "district",
         "completeness": 0.5,
-        "source": "local"
+        "source": "llm"
       }
     }
   },
@@ -7384,7 +9325,7 @@
       "text": "Радар по всей России | БПЛА, [09.05.2026 01:24]\nЛенинградская область \nОпасность по БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "d599f5b138b17473cb11a1313efda6fea321425fcf45b2c57851af6382511f5b",
       "channelKey": "snap_004",
-      "postedAt": "2026-05-09T20:15:17.073Z",
+      "postedAt": "2026-05-30T14:57:59.697Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -7406,11 +9347,13 @@
       "places": [],
       "precision": "region",
       "completeness": 0.25,
-      "source": "local"
+      "source": "llm"
     },
     "enrich": {
-      "invoked": false,
-      "providersTried": [],
+      "invoked": true,
+      "providersTried": [
+        "llm"
+      ],
       "hits": 1,
       "misses": 0,
       "cacheHit": false
@@ -7425,6 +9368,11 @@
           "id": "catalog",
           "ok": true,
           "durationMs": 0
+        },
+        {
+          "id": "llm",
+          "ok": true,
+          "durationMs": 2646
         },
         {
           "id": "finalizer",
@@ -7445,6 +9393,18 @@
         ],
         "places": []
       },
+      "llm": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "name": "Ленинградская область",
+            "kind": "region",
+            "regionCode": "47"
+          }
+        ],
+        "confidence": 1,
+        "reason": "Текст содержит упоминание Ленинградской области."
+      },
       "finalizer": {
         "schemaVersion": 1,
         "regions": [
@@ -7457,7 +9417,7 @@
         "places": [],
         "precision": "region",
         "completeness": 0.25,
-        "source": "local"
+        "source": "llm"
       }
     }
   },
@@ -7468,7 +9428,7 @@
       "text": "Радар по всей России | БПЛА, [09.05.2026 01:25]\nТёмкинский район\nУгранский район \nСмоленская область \nФиксации групп БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "5bca728aabb00ef70dcaf672159f59631bbcb58698173e5c6715c1f92977a2ec",
       "channelKey": "snap_004",
-      "postedAt": "2026-05-09T20:15:17.074Z",
+      "postedAt": "2026-05-30T14:58:02.343Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -7499,11 +9459,13 @@
       ],
       "precision": "district",
       "completeness": 0.5,
-      "source": "local"
+      "source": "llm"
     },
     "enrich": {
-      "invoked": false,
-      "providersTried": [],
+      "invoked": true,
+      "providersTried": [
+        "llm"
+      ],
       "hits": 3,
       "misses": 0,
       "cacheHit": false
@@ -7518,6 +9480,11 @@
           "id": "catalog",
           "ok": true,
           "durationMs": 0
+        },
+        {
+          "id": "llm",
+          "ok": true,
+          "durationMs": 4938
         },
         {
           "id": "finalizer",
@@ -7549,6 +9516,28 @@
           }
         ]
       },
+      "llm": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "name": "Тёмкинский район",
+            "kind": "district",
+            "regionCode": "67"
+          },
+          {
+            "name": "Угранский район",
+            "kind": "district",
+            "regionCode": "67"
+          },
+          {
+            "name": "Смоленская область",
+            "kind": "region",
+            "regionCode": "67"
+          }
+        ],
+        "confidence": 1,
+        "reason": "Все упомянутые географические объекты найдены и сопоставлены."
+      },
       "finalizer": {
         "schemaVersion": 1,
         "regions": [
@@ -7570,7 +9559,7 @@
         ],
         "precision": "district",
         "completeness": 0.5,
-        "source": "local"
+        "source": "llm"
       }
     }
   },
@@ -7581,7 +9570,7 @@
       "text": "Радар по всей России | БПЛА, [09.05.2026 01:25]\nСмоленский район \nСмоленская область \nФиксация БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "52b42cb352ae0e885a8f193b79dea59885de178fcb9e4dbec0df304c5f062dc5",
       "channelKey": "snap_004",
-      "postedAt": "2026-05-09T20:15:17.074Z",
+      "postedAt": "2026-05-30T14:58:07.282Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -7608,11 +9597,13 @@
       ],
       "precision": "district",
       "completeness": 0.5,
-      "source": "local"
+      "source": "llm"
     },
     "enrich": {
-      "invoked": false,
-      "providersTried": [],
+      "invoked": true,
+      "providersTried": [
+        "llm"
+      ],
       "hits": 2,
       "misses": 0,
       "cacheHit": false
@@ -7627,6 +9618,11 @@
           "id": "catalog",
           "ok": true,
           "durationMs": 0
+        },
+        {
+          "id": "llm",
+          "ok": true,
+          "durationMs": 3731
         },
         {
           "id": "finalizer",
@@ -7653,6 +9649,23 @@
           }
         ]
       },
+      "llm": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "name": "Смоленский район",
+            "kind": "district",
+            "regionCode": "67"
+          },
+          {
+            "name": "Смоленская область",
+            "kind": "region",
+            "regionCode": "67"
+          }
+        ],
+        "confidence": 1,
+        "reason": "Указанные географические объекты найдены в тексте."
+      },
       "finalizer": {
         "schemaVersion": 1,
         "regions": [
@@ -7670,7 +9683,7 @@
         ],
         "precision": "district",
         "completeness": 0.5,
-        "source": "local"
+        "source": "llm"
       }
     }
   },
@@ -7681,7 +9694,7 @@
       "text": "Радар по всей России | БПЛА, [09.05.2026 01:26]\nЖиздринский район \nМещовский район \nКалужская область \nФиксации БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "9e13dc716d40b4656428311d44910d29d45656a85afc3e205c17575ae8170793",
       "channelKey": "snap_004",
-      "postedAt": "2026-05-09T20:15:17.074Z",
+      "postedAt": "2026-05-30T14:58:11.013Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -7712,11 +9725,13 @@
       ],
       "precision": "district",
       "completeness": 0.5,
-      "source": "local"
+      "source": "llm"
     },
     "enrich": {
-      "invoked": false,
-      "providersTried": [],
+      "invoked": true,
+      "providersTried": [
+        "llm"
+      ],
       "hits": 3,
       "misses": 0,
       "cacheHit": false
@@ -7731,6 +9746,11 @@
           "id": "catalog",
           "ok": true,
           "durationMs": 0
+        },
+        {
+          "id": "llm",
+          "ok": true,
+          "durationMs": 4998
         },
         {
           "id": "finalizer",
@@ -7762,6 +9782,28 @@
           }
         ]
       },
+      "llm": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "name": "Жиздринский район",
+            "kind": "district",
+            "regionCode": "40"
+          },
+          {
+            "name": "Мещовский район",
+            "kind": "district",
+            "regionCode": "40"
+          },
+          {
+            "name": "Калужская область",
+            "kind": "region",
+            "regionCode": "40"
+          }
+        ],
+        "confidence": 1,
+        "reason": "Все упомянутые географические объекты найдены и сопоставлены."
+      },
       "finalizer": {
         "schemaVersion": 1,
         "regions": [
@@ -7783,7 +9825,7 @@
         ],
         "precision": "district",
         "completeness": 0.5,
-        "source": "local"
+        "source": "llm"
       }
     }
   },
@@ -7794,7 +9836,7 @@
       "text": "Радар по всей России | БПЛА, [09.05.2026 01:26]\nПеремышльский район \nФерзиковский район\nТарусский район \nКалужская область \nФиксации групп БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "9b09dced3dd4c9bf3640d904877a06a91cd25c26d12060f212f56347d73e5cb4",
       "channelKey": "snap_004",
-      "postedAt": "2026-05-09T20:15:17.075Z",
+      "postedAt": "2026-05-30T14:58:16.012Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -7829,11 +9871,13 @@
       ],
       "precision": "district",
       "completeness": 0.5,
-      "source": "local"
+      "source": "llm"
     },
     "enrich": {
-      "invoked": false,
-      "providersTried": [],
+      "invoked": true,
+      "providersTried": [
+        "llm"
+      ],
       "hits": 4,
       "misses": 0,
       "cacheHit": false
@@ -7848,6 +9892,11 @@
           "id": "catalog",
           "ok": true,
           "durationMs": 0
+        },
+        {
+          "id": "llm",
+          "ok": true,
+          "durationMs": 6013
         },
         {
           "id": "finalizer",
@@ -7883,6 +9932,33 @@
             "regionCode": "40"
           }
         ]
+      },
+      "llm": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "name": "Перемышльский район",
+            "kind": "district",
+            "regionCode": "40"
+          },
+          {
+            "name": "Ферзиковский район",
+            "kind": "district",
+            "regionCode": "40"
+          },
+          {
+            "name": "Тарусский район",
+            "kind": "district",
+            "regionCode": "40"
+          },
+          {
+            "name": "Калужская область",
+            "kind": "region",
+            "regionCode": "40"
+          }
+        ],
+        "confidence": 1,
+        "reason": "Все упомянутые географические объекты найдены и сопоставлены."
       },
       "finalizer": {
         "schemaVersion": 1,
@@ -7909,7 +9985,7 @@
         ],
         "precision": "district",
         "completeness": 0.5,
-        "source": "local"
+        "source": "llm"
       }
     }
   },
@@ -7920,7 +9996,7 @@
       "text": "Радар по всей России | БПЛА, [09.05.2026 01:29]\nГО Кашира \nГО Ступино\nМосковская область \nФиксации групп БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "db9c5aa7fc2e0a1edd228601bbbc7493b4535173b89f7fea54d4542eaf164f83",
       "channelKey": "snap_004",
-      "postedAt": "2026-05-09T20:15:17.075Z",
+      "postedAt": "2026-05-30T14:58:22.025Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -7947,16 +10023,26 @@
         {
           "name": "ГО Ступино",
           "kind": "city"
+        },
+        {
+          "name": "Кашира",
+          "kind": "city"
+        },
+        {
+          "name": "Ступино",
+          "kind": "city"
         }
       ],
       "precision": "locality",
       "completeness": 0.75,
-      "source": "local"
+      "source": "llm"
     },
     "enrich": {
-      "invoked": false,
-      "providersTried": [],
-      "hits": 3,
+      "invoked": true,
+      "providersTried": [
+        "llm"
+      ],
+      "hits": 5,
       "misses": 0,
       "cacheHit": false
     },
@@ -7970,6 +10056,11 @@
           "id": "catalog",
           "ok": true,
           "durationMs": 0
+        },
+        {
+          "id": "llm",
+          "ok": true,
+          "durationMs": 4918
         },
         {
           "id": "finalizer",
@@ -8001,6 +10092,28 @@
           }
         ]
       },
+      "llm": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "name": "Кашира",
+            "kind": "city",
+            "regionCode": "50"
+          },
+          {
+            "name": "Ступино",
+            "kind": "city",
+            "regionCode": "50"
+          },
+          {
+            "name": "Московская область",
+            "kind": "region",
+            "regionCode": "50"
+          }
+        ],
+        "confidence": 1,
+        "reason": "Все упомянутые географические объекты найдены и сопоставлены."
+      },
       "finalizer": {
         "schemaVersion": 1,
         "regions": [
@@ -8018,11 +10131,19 @@
           {
             "name": "ГО Ступино",
             "kind": "city"
+          },
+          {
+            "name": "Кашира",
+            "kind": "city"
+          },
+          {
+            "name": "Ступино",
+            "kind": "city"
           }
         ],
         "precision": "locality",
         "completeness": 0.75,
-        "source": "local"
+        "source": "llm"
       }
     }
   },
@@ -8033,7 +10154,7 @@
       "text": "Радар по всей России | БПЛА, [09.05.2026 01:29]\nАО Троицкий \nМосковская область \nФиксация БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "5f6eb913ce7486ad4ab58fd8a19e730f45166c05904bcd18943eb6bd50fa6340",
       "channelKey": "snap_004",
-      "postedAt": "2026-05-09T20:15:17.075Z",
+      "postedAt": "2026-05-30T14:58:26.944Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -8055,11 +10176,13 @@
       "places": [],
       "precision": "region",
       "completeness": 0.25,
-      "source": "local"
+      "source": "llm"
     },
     "enrich": {
-      "invoked": false,
-      "providersTried": [],
+      "invoked": true,
+      "providersTried": [
+        "llm"
+      ],
       "hits": 1,
       "misses": 0,
       "cacheHit": false
@@ -8074,6 +10197,11 @@
           "id": "catalog",
           "ok": true,
           "durationMs": 0
+        },
+        {
+          "id": "llm",
+          "ok": true,
+          "durationMs": 2413
         },
         {
           "id": "finalizer",
@@ -8094,6 +10222,18 @@
         ],
         "places": []
       },
+      "llm": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "name": "Московская область",
+            "kind": "region",
+            "regionCode": "50"
+          }
+        ],
+        "confidence": 1,
+        "reason": "В тексте указано название региона."
+      },
       "finalizer": {
         "schemaVersion": 1,
         "regions": [
@@ -8106,7 +10246,7 @@
         "places": [],
         "precision": "region",
         "completeness": 0.25,
-        "source": "local"
+        "source": "llm"
       }
     }
   },
@@ -8117,7 +10257,7 @@
       "text": "Радар по всей России | БПЛА, [09.05.2026 01:30]\nМО Егорьевск \nМосковская область \nФиксация группы БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "b63da2c4e2eeefe8ca6a854e3c89454d73acd93e42a37afe1610fff8eaabad76",
       "channelKey": "snap_004",
-      "postedAt": "2026-05-09T20:15:17.075Z",
+      "postedAt": "2026-05-30T14:58:29.357Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -8140,16 +10280,22 @@
         {
           "name": "МО Егорьевск",
           "kind": "city"
+        },
+        {
+          "name": "Егорьевск",
+          "kind": "city"
         }
       ],
       "precision": "locality",
       "completeness": 0.75,
-      "source": "local"
+      "source": "llm"
     },
     "enrich": {
-      "invoked": false,
-      "providersTried": [],
-      "hits": 2,
+      "invoked": true,
+      "providersTried": [
+        "llm"
+      ],
+      "hits": 3,
       "misses": 0,
       "cacheHit": false
     },
@@ -8163,6 +10309,11 @@
           "id": "catalog",
           "ok": true,
           "durationMs": 0
+        },
+        {
+          "id": "llm",
+          "ok": true,
+          "durationMs": 3723
         },
         {
           "id": "finalizer",
@@ -8189,6 +10340,23 @@
           }
         ]
       },
+      "llm": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "name": "Егорьевск",
+            "kind": "city",
+            "regionCode": "50"
+          },
+          {
+            "name": "Московская область",
+            "kind": "region",
+            "regionCode": "50"
+          }
+        ],
+        "confidence": 1,
+        "reason": "Успешно распознаны регион и город из текста"
+      },
       "finalizer": {
         "schemaVersion": 1,
         "regions": [
@@ -8202,11 +10370,15 @@
           {
             "name": "МО Егорьевск",
             "kind": "city"
+          },
+          {
+            "name": "Егорьевск",
+            "kind": "city"
           }
         ],
         "precision": "locality",
         "completeness": 0.75,
-        "source": "local"
+        "source": "llm"
       }
     }
   },
@@ -8217,7 +10389,7 @@
       "text": "Радар по всей России | БПЛА, [09.05.2026 01:31]\nМихайловский район \nРязанский район \nРязанская область \nФиксация группы БПЛА в сторону Московской области\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "0be0832971e8ecdda4f304f6a9ff6bc9b3980032a9926e7eb566a8ad11b722a3",
       "channelKey": "snap_004",
-      "postedAt": "2026-05-09T20:15:17.076Z",
+      "postedAt": "2026-05-30T14:58:33.081Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -8253,11 +10425,13 @@
       ],
       "precision": "district",
       "completeness": 0.5,
-      "source": "local"
+      "source": "llm"
     },
     "enrich": {
-      "invoked": false,
-      "providersTried": [],
+      "invoked": true,
+      "providersTried": [
+        "llm"
+      ],
       "hits": 4,
       "misses": 0,
       "cacheHit": false
@@ -8272,6 +10446,11 @@
           "id": "catalog",
           "ok": true,
           "durationMs": 0
+        },
+        {
+          "id": "llm",
+          "ok": true,
+          "durationMs": 6025
         },
         {
           "id": "finalizer",
@@ -8308,6 +10487,33 @@
           }
         ]
       },
+      "llm": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "name": "Михайловский район",
+            "kind": "district",
+            "regionCode": "62"
+          },
+          {
+            "name": "Рязанский район",
+            "kind": "district",
+            "regionCode": "62"
+          },
+          {
+            "name": "Рязанская область",
+            "kind": "region",
+            "regionCode": "62"
+          },
+          {
+            "name": "Московская область",
+            "kind": "region",
+            "regionCode": "50"
+          }
+        ],
+        "confidence": 1,
+        "reason": "Все упомянутые географические объекты найдены и сопоставлены."
+      },
       "finalizer": {
         "schemaVersion": 1,
         "regions": [
@@ -8334,7 +10540,7 @@
         ],
         "precision": "district",
         "completeness": 0.5,
-        "source": "local"
+        "source": "llm"
       }
     }
   },
@@ -8345,7 +10551,7 @@
       "text": "Радар по всей России | БПЛА, [09.05.2026 01:32]\nПензенский район\nПензенская область \nОтбой фиксации\nЛожная цель\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "01b3ae1fd2c80c22acae2f51f81ed90bdf920aed654c53ed50b44a3a401912ca",
       "channelKey": "snap_004",
-      "postedAt": "2026-05-09T20:15:17.076Z",
+      "postedAt": "2026-05-30T14:58:39.107Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -8376,11 +10582,13 @@
       ],
       "precision": "locality",
       "completeness": 0.75,
-      "source": "local"
+      "source": "llm"
     },
     "enrich": {
-      "invoked": false,
-      "providersTried": [],
+      "invoked": true,
+      "providersTried": [
+        "llm"
+      ],
       "hits": 3,
       "misses": 0,
       "cacheHit": false
@@ -8395,6 +10603,11 @@
           "id": "catalog",
           "ok": true,
           "durationMs": 0
+        },
+        {
+          "id": "llm",
+          "ok": true,
+          "durationMs": 3691
         },
         {
           "id": "finalizer",
@@ -8426,6 +10639,23 @@
           }
         ]
       },
+      "llm": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "name": "Пензенский район",
+            "kind": "district",
+            "regionCode": "58"
+          },
+          {
+            "name": "Пензенская область",
+            "kind": "region",
+            "regionCode": "58"
+          }
+        ],
+        "confidence": 1,
+        "reason": "В тексте указаны конкретные географические объекты."
+      },
       "finalizer": {
         "schemaVersion": 1,
         "regions": [
@@ -8447,7 +10677,7 @@
         ],
         "precision": "locality",
         "completeness": 0.75,
-        "source": "local"
+        "source": "llm"
       }
     }
   },
@@ -8458,7 +10688,7 @@
       "text": "Радар по всей России | БПЛА, [09.05.2026 01:34]\nМценск и близлежащие\nОрловская область\nТревога по БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "7002873836f79fefabfb7f9a325bbe5de890d6684343abbdaa1444411376278c",
       "channelKey": "snap_004",
-      "postedAt": "2026-05-09T20:15:17.077Z",
+      "postedAt": "2026-05-30T14:58:42.798Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -8481,16 +10711,22 @@
         {
           "name": "Мценск и близлежащие",
           "kind": "city"
+        },
+        {
+          "name": "Мценск",
+          "kind": "city"
         }
       ],
       "precision": "locality",
       "completeness": 0.75,
-      "source": "local"
+      "source": "llm"
     },
     "enrich": {
-      "invoked": false,
-      "providersTried": [],
-      "hits": 2,
+      "invoked": true,
+      "providersTried": [
+        "llm"
+      ],
+      "hits": 3,
       "misses": 0,
       "cacheHit": false
     },
@@ -8504,6 +10740,11 @@
           "id": "catalog",
           "ok": true,
           "durationMs": 0
+        },
+        {
+          "id": "llm",
+          "ok": true,
+          "durationMs": 3583
         },
         {
           "id": "finalizer",
@@ -8530,6 +10771,23 @@
           }
         ]
       },
+      "llm": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "name": "Мценск",
+            "kind": "city",
+            "regionCode": "57"
+          },
+          {
+            "name": "Орловская область",
+            "kind": "region",
+            "regionCode": "57"
+          }
+        ],
+        "confidence": 1,
+        "reason": "Упоминание конкретных городов и регионов"
+      },
       "finalizer": {
         "schemaVersion": 1,
         "regions": [
@@ -8543,11 +10801,15 @@
           {
             "name": "Мценск и близлежащие",
             "kind": "city"
+          },
+          {
+            "name": "Мценск",
+            "kind": "city"
           }
         ],
         "precision": "locality",
         "completeness": 0.75,
-        "source": "local"
+        "source": "llm"
       }
     }
   },
@@ -8558,7 +10820,7 @@
       "text": "Радар по всей России | БПЛА, [09.05.2026 01:35]\nПриморско-Ахтарск и близлежащие\nТревога по БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "1bfd1e7840ca5a7295339cfe5c200ef89393ef0935414ea366e917b938feb170",
       "channelKey": "snap_004",
-      "postedAt": "2026-05-09T20:15:17.077Z",
+      "postedAt": "2026-05-30T14:58:46.381Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -8575,16 +10837,22 @@
         {
           "name": "Приморско-Ахтарск и близлежащие",
           "kind": "city"
+        },
+        {
+          "name": "Приморско-Ахтарск",
+          "kind": "city"
         }
       ],
       "precision": "locality",
       "completeness": 0.75,
-      "source": "local"
+      "source": "llm"
     },
     "enrich": {
-      "invoked": false,
-      "providersTried": [],
-      "hits": 1,
+      "invoked": true,
+      "providersTried": [
+        "llm"
+      ],
+      "hits": 2,
       "misses": 0,
       "cacheHit": false
     },
@@ -8598,6 +10866,11 @@
           "id": "catalog",
           "ok": true,
           "durationMs": 0
+        },
+        {
+          "id": "llm",
+          "ok": true,
+          "durationMs": 2716
         },
         {
           "id": "finalizer",
@@ -8617,6 +10890,17 @@
           }
         ]
       },
+      "llm": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "name": "Приморско-Ахтарск",
+            "kind": "city"
+          }
+        ],
+        "confidence": 1,
+        "reason": "Упоминается конкретный город Приморско-Ахтарск."
+      },
       "finalizer": {
         "schemaVersion": 1,
         "regions": [],
@@ -8624,11 +10908,15 @@
           {
             "name": "Приморско-Ахтарск и близлежащие",
             "kind": "city"
+          },
+          {
+            "name": "Приморско-Ахтарск",
+            "kind": "city"
           }
         ],
         "precision": "locality",
         "completeness": 0.75,
-        "source": "local"
+        "source": "llm"
       }
     }
   },
@@ -8639,7 +10927,7 @@
       "text": "Радар по всей России | БПЛА, [09.05.2026 01:40]\nАстраханская область\nОпасность по БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "581324c261c2906197e21474bf8247d3a566503892e3fc7bf155175b9f141816",
       "channelKey": "snap_004",
-      "postedAt": "2026-05-09T20:15:17.077Z",
+      "postedAt": "2026-05-30T14:58:49.097Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -8661,11 +10949,13 @@
       "places": [],
       "precision": "region",
       "completeness": 0.25,
-      "source": "local"
+      "source": "llm"
     },
     "enrich": {
-      "invoked": false,
-      "providersTried": [],
+      "invoked": true,
+      "providersTried": [
+        "llm"
+      ],
       "hits": 1,
       "misses": 0,
       "cacheHit": false
@@ -8680,6 +10970,11 @@
           "id": "catalog",
           "ok": true,
           "durationMs": 0
+        },
+        {
+          "id": "llm",
+          "ok": true,
+          "durationMs": 2689
         },
         {
           "id": "finalizer",
@@ -8700,6 +10995,18 @@
         ],
         "places": []
       },
+      "llm": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "name": "Астраханская область",
+            "kind": "region",
+            "regionCode": "30"
+          }
+        ],
+        "confidence": 1,
+        "reason": "Текст содержит упоминание Астраханской области."
+      },
       "finalizer": {
         "schemaVersion": 1,
         "regions": [
@@ -8712,7 +11019,7 @@
         "places": [],
         "precision": "region",
         "completeness": 0.25,
-        "source": "local"
+        "source": "llm"
       }
     }
   },
@@ -8723,7 +11030,7 @@
       "text": "Радар по всей России | БПЛА, [09.05.2026 01:41]\nКалачевский район \nФиксация реактивного БПЛА \nВолгоградская область\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "7e0cae9b202eb6625286aadc4bfa214d83f077890dfdefcbce3c37877d6380e9",
       "channelKey": "snap_004",
-      "postedAt": "2026-05-09T20:15:17.077Z",
+      "postedAt": "2026-05-30T14:58:51.786Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -8750,11 +11057,13 @@
       ],
       "precision": "district",
       "completeness": 0.5,
-      "source": "local"
+      "source": "llm"
     },
     "enrich": {
-      "invoked": false,
-      "providersTried": [],
+      "invoked": true,
+      "providersTried": [
+        "llm"
+      ],
       "hits": 2,
       "misses": 0,
       "cacheHit": false
@@ -8769,6 +11078,11 @@
           "id": "catalog",
           "ok": true,
           "durationMs": 0
+        },
+        {
+          "id": "llm",
+          "ok": true,
+          "durationMs": 4007
         },
         {
           "id": "finalizer",
@@ -8795,6 +11109,23 @@
           }
         ]
       },
+      "llm": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "name": "Калачевский район",
+            "kind": "district",
+            "regionCode": "34"
+          },
+          {
+            "name": "Волгоградская область",
+            "kind": "region",
+            "regionCode": "34"
+          }
+        ],
+        "confidence": 1,
+        "reason": "Географические объекты найдены и сопоставлены с каталогом регионов."
+      },
       "finalizer": {
         "schemaVersion": 1,
         "regions": [
@@ -8812,7 +11143,7 @@
         ],
         "precision": "district",
         "completeness": 0.5,
-        "source": "local"
+        "source": "llm"
       }
     }
   },
@@ -8823,7 +11154,7 @@
       "text": "Радар по всей России | БПЛА, [09.05.2026 01:42]\nМариновка \nОпасность по БПЛА \nВолгоградская область\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "629701f6b6281ccdde45ae1b105b6d0f5b19c57e99b8538ef06cb56849f55c44",
       "channelKey": "snap_004",
-      "postedAt": "2026-05-09T20:15:17.078Z",
+      "postedAt": "2026-05-30T14:58:55.793Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -8850,11 +11181,13 @@
       ],
       "precision": "locality",
       "completeness": 0.75,
-      "source": "local"
+      "source": "llm"
     },
     "enrich": {
-      "invoked": false,
-      "providersTried": [],
+      "invoked": true,
+      "providersTried": [
+        "llm"
+      ],
       "hits": 2,
       "misses": 0,
       "cacheHit": false
@@ -8869,6 +11202,11 @@
           "id": "catalog",
           "ok": true,
           "durationMs": 0
+        },
+        {
+          "id": "llm",
+          "ok": true,
+          "durationMs": 3686
         },
         {
           "id": "finalizer",
@@ -8895,6 +11233,23 @@
           }
         ]
       },
+      "llm": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "name": "Мариновка",
+            "kind": "locality",
+            "regionCode": "34"
+          },
+          {
+            "name": "Волгоградская область",
+            "kind": "region",
+            "regionCode": "34"
+          }
+        ],
+        "confidence": 1,
+        "reason": "Успешно распознаны географические объекты"
+      },
       "finalizer": {
         "schemaVersion": 1,
         "regions": [
@@ -8912,7 +11267,7 @@
         ],
         "precision": "locality",
         "completeness": 0.75,
-        "source": "local"
+        "source": "llm"
       }
     }
   },
@@ -8923,7 +11278,7 @@
       "text": "Радар по всей России | БПЛА, [09.05.2026 01:51]\nТроснянский район\nМалоархангельский район \nДмитровский район \nОрловская область \nФиксации групп БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "a6242b6b2620af286c7f3f066677d0b6be26fd0dfb56b1f13a4b6eff06ca801d",
       "channelKey": "snap_004",
-      "postedAt": "2026-05-09T20:15:17.078Z",
+      "postedAt": "2026-05-30T14:58:59.480Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -8958,11 +11313,13 @@
       ],
       "precision": "district",
       "completeness": 0.5,
-      "source": "local"
+      "source": "llm"
     },
     "enrich": {
-      "invoked": false,
-      "providersTried": [],
+      "invoked": true,
+      "providersTried": [
+        "llm"
+      ],
       "hits": 4,
       "misses": 0,
       "cacheHit": false
@@ -8977,6 +11334,11 @@
           "id": "catalog",
           "ok": true,
           "durationMs": 0
+        },
+        {
+          "id": "llm",
+          "ok": true,
+          "durationMs": 6166
         },
         {
           "id": "finalizer",
@@ -9013,6 +11375,33 @@
           }
         ]
       },
+      "llm": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "name": "Троснянский район",
+            "kind": "district",
+            "regionCode": "57"
+          },
+          {
+            "name": "Малоархангельский район",
+            "kind": "district",
+            "regionCode": "57"
+          },
+          {
+            "name": "Дмитровский район",
+            "kind": "district",
+            "regionCode": "57"
+          },
+          {
+            "name": "Орловская область",
+            "kind": "region",
+            "regionCode": "57"
+          }
+        ],
+        "confidence": 1,
+        "reason": "Все упомянутые географические объекты найдены и сопоставлены."
+      },
       "finalizer": {
         "schemaVersion": 1,
         "regions": [
@@ -9038,7 +11427,7 @@
         ],
         "precision": "district",
         "completeness": 0.5,
-        "source": "local"
+        "source": "llm"
       }
     }
   },
@@ -9049,7 +11438,7 @@
       "text": "Радар по всей России | БПЛА, [09.05.2026 01:52]\nКозельский район\nПеремышльский район \nКалужская область \nФиксация БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "f594589f0c7a712422cc25b5312d882fabfb498be145e75347c7c352dea3df4d",
       "channelKey": "snap_004",
-      "postedAt": "2026-05-09T20:15:17.078Z",
+      "postedAt": "2026-05-30T14:59:05.647Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -9080,11 +11469,13 @@
       ],
       "precision": "district",
       "completeness": 0.5,
-      "source": "local"
+      "source": "llm"
     },
     "enrich": {
-      "invoked": false,
-      "providersTried": [],
+      "invoked": true,
+      "providersTried": [
+        "llm"
+      ],
       "hits": 3,
       "misses": 0,
       "cacheHit": false
@@ -9099,6 +11490,11 @@
           "id": "catalog",
           "ok": true,
           "durationMs": 0
+        },
+        {
+          "id": "llm",
+          "ok": true,
+          "durationMs": 4996
         },
         {
           "id": "finalizer",
@@ -9130,6 +11526,28 @@
           }
         ]
       },
+      "llm": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "name": "Козельский район",
+            "kind": "district",
+            "regionCode": "40"
+          },
+          {
+            "name": "Перемышльский район",
+            "kind": "district",
+            "regionCode": "40"
+          },
+          {
+            "name": "Калужская область",
+            "kind": "region",
+            "regionCode": "40"
+          }
+        ],
+        "confidence": 1,
+        "reason": "Все упомянутые географические объекты найдены и сопоставлены."
+      },
       "finalizer": {
         "schemaVersion": 1,
         "regions": [
@@ -9151,7 +11569,7 @@
         ],
         "precision": "district",
         "completeness": 0.5,
-        "source": "local"
+        "source": "llm"
       }
     }
   },
@@ -9162,7 +11580,7 @@
       "text": "Радар по всей России | БПЛА, [09.05.2026 01:53]\nМещовский район \nКалужская область \nФиксация группы БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "95696a98e0c042f4706ff90014acaa8eefd9630d91017ba8be2fb06005320507",
       "channelKey": "snap_004",
-      "postedAt": "2026-05-09T20:15:17.078Z",
+      "postedAt": "2026-05-30T14:59:10.643Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -9189,11 +11607,13 @@
       ],
       "precision": "district",
       "completeness": 0.5,
-      "source": "local"
+      "source": "llm"
     },
     "enrich": {
-      "invoked": false,
-      "providersTried": [],
+      "invoked": true,
+      "providersTried": [
+        "llm"
+      ],
       "hits": 2,
       "misses": 0,
       "cacheHit": false
@@ -9208,6 +11628,11 @@
           "id": "catalog",
           "ok": true,
           "durationMs": 0
+        },
+        {
+          "id": "llm",
+          "ok": true,
+          "durationMs": 3632
         },
         {
           "id": "finalizer",
@@ -9234,6 +11659,23 @@
           }
         ]
       },
+      "llm": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "name": "Мещовский район",
+            "kind": "district",
+            "regionCode": "40"
+          },
+          {
+            "name": "Калужская область",
+            "kind": "region",
+            "regionCode": "40"
+          }
+        ],
+        "confidence": 1,
+        "reason": "В тексте указаны конкретные географические объекты."
+      },
       "finalizer": {
         "schemaVersion": 1,
         "regions": [
@@ -9251,7 +11693,7 @@
         ],
         "precision": "district",
         "completeness": 0.5,
-        "source": "local"
+        "source": "llm"
       }
     }
   },
@@ -9262,7 +11704,7 @@
       "text": "Радар по всей России | БПЛА, [09.05.2026 01:54]\nАО Троицкий \nМосковская область \nФиксации БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "4499102db9a8b0d68b8333d0452af5fc715f88f23049119ed60efcc9776f78c7",
       "channelKey": "snap_004",
-      "postedAt": "2026-05-09T20:15:17.079Z",
+      "postedAt": "2026-05-30T14:59:14.276Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -9284,11 +11726,13 @@
       "places": [],
       "precision": "region",
       "completeness": 0.25,
-      "source": "local"
+      "source": "llm"
     },
     "enrich": {
-      "invoked": false,
-      "providersTried": [],
+      "invoked": true,
+      "providersTried": [
+        "llm"
+      ],
       "hits": 1,
       "misses": 0,
       "cacheHit": false
@@ -9303,6 +11747,11 @@
           "id": "catalog",
           "ok": true,
           "durationMs": 0
+        },
+        {
+          "id": "llm",
+          "ok": true,
+          "durationMs": 2395
         },
         {
           "id": "finalizer",
@@ -9323,6 +11772,18 @@
         ],
         "places": []
       },
+      "llm": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "name": "Московская область",
+            "kind": "region",
+            "regionCode": "50"
+          }
+        ],
+        "confidence": 1,
+        "reason": "В тексте указано название региона."
+      },
       "finalizer": {
         "schemaVersion": 1,
         "regions": [
@@ -9335,7 +11796,7 @@
         "places": [],
         "precision": "region",
         "completeness": 0.25,
-        "source": "local"
+        "source": "llm"
       }
     }
   },
@@ -9346,7 +11807,7 @@
       "text": "Радар по всей России | БПЛА, [09.05.2026 01:55]\nДорогобужский район \nВяземский район\nСмоленская область \nФиксация группы БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "095420373fe9ab557177981cbd389552d88c52ff55c476ddf7be08905b3c7238",
       "channelKey": "snap_004",
-      "postedAt": "2026-05-09T20:15:17.079Z",
+      "postedAt": "2026-05-30T14:59:16.672Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -9377,11 +11838,13 @@
       ],
       "precision": "district",
       "completeness": 0.5,
-      "source": "local"
+      "source": "llm"
     },
     "enrich": {
-      "invoked": false,
-      "providersTried": [],
+      "invoked": true,
+      "providersTried": [
+        "llm"
+      ],
       "hits": 3,
       "misses": 0,
       "cacheHit": false
@@ -9396,6 +11859,11 @@
           "id": "catalog",
           "ok": true,
           "durationMs": 0
+        },
+        {
+          "id": "llm",
+          "ok": true,
+          "durationMs": 4956
         },
         {
           "id": "finalizer",
@@ -9427,6 +11895,28 @@
           }
         ]
       },
+      "llm": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "name": "Дорогобужский район",
+            "kind": "district",
+            "regionCode": "67"
+          },
+          {
+            "name": "Вяземский район",
+            "kind": "district",
+            "regionCode": "67"
+          },
+          {
+            "name": "Смоленская область",
+            "kind": "region",
+            "regionCode": "67"
+          }
+        ],
+        "confidence": 1,
+        "reason": "В тексте указаны конкретные районы и область Смоленской области."
+      },
       "finalizer": {
         "schemaVersion": 1,
         "regions": [
@@ -9448,7 +11938,7 @@
         ],
         "precision": "district",
         "completeness": 0.5,
-        "source": "local"
+        "source": "llm"
       }
     }
   },
@@ -9459,7 +11949,7 @@
       "text": "Радар по всей России | БПЛА, [09.05.2026 01:55]\nИзносковский район \nМедынский район \nКалужская область\nФиксации групп БПЛА\n\n❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot",
       "hash": "5dc3c738c7740bee1ce8a2e04f9a2a7b59ccd17e707237b5c6b2ff9afdc64370",
       "channelKey": "snap_004",
-      "postedAt": "2026-05-09T20:15:17.079Z",
+      "postedAt": "2026-05-30T14:59:21.628Z",
       "rawMessageId": "00000000-0000-0000-0000-000000000000"
     },
     "classification": {
@@ -9490,11 +11980,13 @@
       ],
       "precision": "district",
       "completeness": 0.5,
-      "source": "local"
+      "source": "llm"
     },
     "enrich": {
-      "invoked": false,
-      "providersTried": [],
+      "invoked": true,
+      "providersTried": [
+        "llm"
+      ],
       "hits": 3,
       "misses": 0,
       "cacheHit": false
@@ -9509,6 +12001,11 @@
           "id": "catalog",
           "ok": true,
           "durationMs": 0
+        },
+        {
+          "id": "llm",
+          "ok": true,
+          "durationMs": 5112
         },
         {
           "id": "finalizer",
@@ -9540,6 +12037,28 @@
           }
         ]
       },
+      "llm": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "name": "Износковский район",
+            "kind": "district",
+            "regionCode": "40"
+          },
+          {
+            "name": "Медынский район",
+            "kind": "district",
+            "regionCode": "40"
+          },
+          {
+            "name": "Калужская область",
+            "kind": "region",
+            "regionCode": "40"
+          }
+        ],
+        "confidence": 1,
+        "reason": "Все упомянутые географические объекты найдены и сопоставлены."
+      },
       "finalizer": {
         "schemaVersion": 1,
         "regions": [
@@ -9561,7 +12080,7 @@
         ],
         "precision": "district",
         "completeness": 0.5,
-        "source": "local"
+        "source": "llm"
       }
     }
   }

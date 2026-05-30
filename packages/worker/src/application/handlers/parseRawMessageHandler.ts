@@ -203,6 +203,14 @@ export class ParseRawMessageHandler {
       payload: {
         eventType: parsed.eventType,
         severity: parsed.severity,
+        direction: parsed.direction,
+        postedAt: parsed.postedAt,
+        // Срез локаций для проекции состояния регионов (без тяжёлых полей).
+        locations: parsed.locations.map((location) => ({
+          regionId: location.regionId,
+          regionCode: location.regionCode,
+          placeId: location.placeId,
+        })),
       },
     });
     await this.events.publish([success]);

@@ -1,5 +1,11 @@
 import type { GeoProviderSnapshot, IGeoSourceProvider } from "@radar/shared";
-import { listArtifactKeysByPrefix, normalizeName, readArtifactsJson, sourceRevision } from "./geo-provider-utils";
+import {
+  centroidFromGeoJsonGeometry,
+  listArtifactKeysByPrefix,
+  normalizeName,
+  readArtifactsJson,
+  sourceRevision,
+} from "./geo-provider-utils";
 
 type FeatureCollection = {
   features?: Array<{
@@ -8,7 +14,8 @@ type FeatureCollection = {
   }>;
 };
 
-type PathKind = "countries" | "federal-districts" | "regions" | "cities" | "unknown";function toName(props: Record<string, unknown>): string | null {
+type PathKind = "countries" | "federal-districts" | "regions" | "cities" | "unknown";
+function toName(props: Record<string, unknown>): string | null {
   return (
     (typeof props.name === "string" && props.name.trim()) ||
     (typeof props.NAME === "string" && props.NAME.trim()) ||
@@ -19,26 +26,31 @@ type PathKind = "countries" | "federal-districts" | "regions" | "cities" | "unkn
       String(props["Federal District"]).trim()) ||
     null
   );
-}function firstSegmentName(file: string): string {
+}
+function firstSegmentName(file: string): string {
   const base = file.split("/").at(-1) ?? file;
   const raw = base.replace(/\.geojson$/i, "");
   const left = raw.includes("_") ? raw.split("_")[0] : raw;
   return left.trim();
-}function resolvePathKind(file: string): PathKind {
+}
+function resolvePathKind(file: string): PathKind {
   if (file.includes("/Countries/")) return "countries";
   if (file.includes("/Federal Districts/")) return "federal-districts";
   if (file.includes("/Regions/")) return "regions";
   if (file.includes("/Cities/")) return "cities";
   return "unknown";
-}function readStringProperty(
+}
+function readStringProperty(
   props: Record<string, unknown>,
   key: string,
 ): string | undefined {
   const value = props[key];
   return typeof value === "string" ? value : undefined;
-}function appendRegionDraft(options: {
+}
+function appendRegionDraft(options: {
   file: string;
   featureProps: Record<string, unknown>;
+  geometry?: { type?: string; coordinates?: unknown };
   regions: GeoProviderSnapshot["regions"];
   aliases: GeoProviderSnapshot["aliases"];
 }): void {
@@ -51,11 +63,14 @@ type PathKind = "countries" | "federal-districts" | "regions" | "cities" | "unkn
   }
 
   const regionCode = normalizeName(regionName);
+  const centroid = centroidFromGeoJsonGeometry(options.geometry);
   options.regions.push({
     iso: regionCode,
     name: regionName,
     nameWithType: regionName,
     geometryArtifactKey: options.file,
+    centroidLat: centroid.centroidLat,
+    centroidLon: centroid.centroidLon,
     frontRegion: false,
     borderRegion: false,
     sourceMeta: {
@@ -68,9 +83,11 @@ type PathKind = "countries" | "federal-districts" | "regions" | "cities" | "unkn
     alias: regionName,
     source: "auto",
   });
-}function appendPlaceDraft(options: {
+}
+function appendPlaceDraft(options: {
   file: string;
   featureProps: Record<string, unknown>;
+  geometry?: { type?: string; coordinates?: unknown };
   pathKind: PathKind;
   regionNameFromFile?: string;
   places: GeoProviderSnapshot["places"];
@@ -89,6 +106,7 @@ type PathKind = "countries" | "federal-districts" | "regions" | "cities" | "unkn
       ? options.featureProps.region
       : options.regionNameFromFile;
   const regionCode = regionHint ? normalizeName(regionHint) : "unknown";
+  const centroid = centroidFromGeoJsonGeometry(options.geometry);
 
   options.places.push({
     regionCode,
@@ -96,6 +114,8 @@ type PathKind = "countries" | "federal-districts" | "regions" | "cities" | "unkn
     name: placeName,
     nameWithType: placeName,
     geometryArtifactKey: options.file,
+    centroidLat: centroid.centroidLat,
+    centroidLon: centroid.centroidLon,
     sourceMeta: {
       sourceLayer: options.pathKind,
       federalDistrict: readStringProperty(options.featureProps, "Federal District"),
@@ -109,7 +129,8 @@ type PathKind = "countries" | "federal-districts" | "regions" | "cities" | "unkn
   });
 }
 
-export class RussiaGeoJsonOsmProvider implements IGeoSourceProvider {async loadSnapshot(): Promise<GeoProviderSnapshot> {
+export class RussiaGeoJsonOsmProvider implements IGeoSourceProvider {
+async loadSnapshot(): Promise<GeoProviderSnapshot> {
     // Источник: предсобранные artifacts из Russia_geojson_OSM.
     // На текущем этапе используем упрощенный name extraction
     // и создаем place/alias drafts.
@@ -131,6 +152,7 @@ export class RussiaGeoJsonOsmProvider implements IGeoSourceProvider {async load
           appendRegionDraft({
             file,
             featureProps: feature.properties,
+            geometry: feature.geometry,
             regions,
             aliases,
           });
@@ -139,6 +161,7 @@ export class RussiaGeoJsonOsmProvider implements IGeoSourceProvider {async load
         appendPlaceDraft({
           file,
           featureProps: feature.properties,
+          geometry: feature.geometry,
           pathKind,
           regionNameFromFile,
           places,

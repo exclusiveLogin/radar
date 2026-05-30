@@ -4,7 +4,15 @@ import path from "node:path";
 
 const root = process.cwd();
 const reportsDir = path.join(root, "reports");
-const inputFiles = ["snap_001.json", "snap_002.json", "snap_003.json"];
+const inputFiles = [
+  "snap_001.json",
+  "snap_001_single.json",
+  "snap_002.json",
+  "snap_003.json",
+  "snap_004.json",
+  "snap_005.json",
+  "snap_006.json",
+];
 const outputFile = path.join(reportsDir, "parser-gap-analysis.json");
 
 function normalizeText(value) {

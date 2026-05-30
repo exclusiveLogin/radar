@@ -8,6 +8,8 @@ export { PlaceCacheEntity } from "./place-cache.entity";
 export { PlaceEvidenceEntity } from "./place-evidence.entity";
 export { PlaceStatusActiveEntity } from "./place-status-active.entity";
 export { PlaceStatusHistoryEntity } from "./place-status-history.entity";
+export { RegionStateActiveEntity } from "./region-state-active.entity";
+export { RegionStateHistoryEntity } from "./region-state-history.entity";
 export { StatusDictionaryEntity } from "./status-dictionary.entity";
 
 // --- type-only exports ---

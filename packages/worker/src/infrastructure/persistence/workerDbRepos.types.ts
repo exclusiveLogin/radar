@@ -2,6 +2,7 @@ import type { DataSource } from "typeorm";
 import type { IEventPublisher } from "@radar/shared";
 import type {
   IChannelRepository,
+  IDomainEventRepository,
   IEventLocationRepository,
   IIngestBackfillJobRepository,
   IIngestBindingRepository,
@@ -11,8 +12,11 @@ import type {
   IPlaceAliasRepository,
   IPlaceEvidenceRepository,
   IPlaceRepository,
+  IPlaceStatusRepository,
   IRawMessageRepository,
   IRegionRepository,
+  IRegionStateRepository,
+  IStatusDictionaryRepository,
 } from "@radar/shared";
 
 export type WorkerDbRepositories = {
@@ -28,6 +32,10 @@ export type WorkerDbRepositories = {
   ingestBindings: IIngestBindingRepository;
   channels: IChannelRepository;
   backfillJobs: IIngestBackfillJobRepository;
+  regionState: IRegionStateRepository;
+  placeStatus: IPlaceStatusRepository;
+  statusDictionary: IStatusDictionaryRepository;
+  domainEvents: IDomainEventRepository;
 };
 
 /** Structural typing для runtime import API persistence (без компиляции api в worker). */
@@ -44,6 +52,10 @@ export type ApiPersistenceModule = {
   TypeOrmIngestBindingRepository: new (dataSource: DataSource) => IIngestBindingRepository;
   TypeOrmChannelRepository: new (dataSource: DataSource) => IChannelRepository;
   TypeOrmIngestBackfillJobRepository: new (dataSource: DataSource) => IIngestBackfillJobRepository;
+  TypeOrmRegionStateRepository: new (dataSource: DataSource) => IRegionStateRepository;
+  TypeOrmPlaceStatusRepository: new (dataSource: DataSource) => IPlaceStatusRepository;
+  TypeOrmStatusDictionaryRepository: new (dataSource: DataSource) => IStatusDictionaryRepository;
+  TypeOrmDomainEventRepository: new (dataSource: DataSource) => IDomainEventRepository;
 };
 
 export type ApiOutboxModule = {

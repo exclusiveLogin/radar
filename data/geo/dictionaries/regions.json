@@ -1,0 +1,50 @@
+[
+  {
+    "iso": "RU-DON",
+    "name": "Донецкая Народная Республика",
+    "nameWithType": "Донецкая Народная Республика",
+    "shortName": "ДНР",
+    "federalDistrict": "Южный",
+    "frontRegion": true,
+    "borderRegion": true,
+    "centroidLat": 48.0159,
+    "centroidLon": 37.8029,
+    "sourceMeta": { "geometry": "centroid-fallback", "note": "Временный центроид; заменить на GeoJSON при появлении источника" }
+  },
+  {
+    "iso": "RU-LUG",
+    "name": "Луганская Народная Республика",
+    "nameWithType": "Луганская Народная Республика",
+    "shortName": "ЛНР",
+    "federalDistrict": "Южный",
+    "frontRegion": true,
+    "borderRegion": true,
+    "centroidLat": 48.5740,
+    "centroidLon": 39.3078,
+    "sourceMeta": { "geometry": "centroid-fallback", "note": "Временный центроид; заменить на GeoJSON при появлении источника" }
+  },
+  {
+    "iso": "RU-ZP",
+    "name": "Запорожская область",
+    "nameWithType": "Запорожская область",
+    "shortName": "Запорожская обл.",
+    "federalDistrict": "Южный",
+    "frontRegion": true,
+    "borderRegion": true,
+    "centroidLat": 46.8489,
+    "centroidLon": 35.3650,
+    "sourceMeta": { "geometry": "centroid-fallback", "note": "Временный центроид (Мелитополь); заменить на GeoJSON при появлении источника" }
+  },
+  {
+    "iso": "RU-KHE",
+    "name": "Херсонская область",
+    "nameWithType": "Херсонская область",
+    "shortName": "Херсонская обл.",
+    "federalDistrict": "Южный",
+    "frontRegion": true,
+    "borderRegion": true,
+    "centroidLat": 46.1745,
+    "centroidLon": 34.8094,
+    "sourceMeta": { "geometry": "centroid-fallback", "note": "Временный центроид (Геническ); заменить на GeoJSON при появлении источника" }
+  }
+]

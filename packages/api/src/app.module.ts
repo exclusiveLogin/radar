@@ -4,6 +4,7 @@ import { TypeOrmModule } from "@nestjs/typeorm";
 import * as path from "path";
 import { HealthModule } from "./health/health.module";
 import { IngestAdminModule } from "./ingest-admin/ingest-admin.module";
+import { MapModule } from "./map/map.module";
 import { ReadSideModule } from "./read-side/read-side.module";
 
 @Module({
@@ -27,6 +28,7 @@ import { ReadSideModule } from "./read-side/read-side.module";
     }),
     HealthModule,
     IngestAdminModule,
+    MapModule,
     ReadSideModule,
   ],
 })
