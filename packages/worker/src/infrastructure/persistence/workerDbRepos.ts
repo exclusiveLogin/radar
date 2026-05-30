@@ -1,31 +1,15 @@
-import * as fs from "node:fs";
-import * as path from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
 import type { DataSource } from "typeorm";
 import type { ApiPersistenceModule, WorkerDbRepositories } from "./workerDbRepos.types.js";
+import { importApiDistModule } from "./resolveApiDistModule.js";
 
-const here = path.dirname(fileURLToPath(import.meta.url));
-
-function resolveApiPersistenceImport(): string {
-  const dist = path.resolve(
-    here,
-    "../../../../api/dist/infrastructure/persistence/index.js",
-  );
-  if (fs.existsSync(dist)) {
-    return dist;
-  }
-  return path.resolve(
-    here,
-    "../../../../api/src/infrastructure/persistence/index.js",
-  );
-}
-
-/** TypeORM repos из API persistence (runtime import, без Nest DI). */
+/** TypeORM repos из API persistence (`api/dist`, без Nest DI). */
 export async function createWorkerDbRepositories(
   dataSource: DataSource,
 ): Promise<WorkerDbRepositories> {
-  const persistence = (await import(
-    pathToFileURL(resolveApiPersistenceImport()).href,
+  const persistence = (await importApiDistModule(
+    "infrastructure",
+    "persistence",
+    "index.js",
   )) as ApiPersistenceModule;
 
   return {

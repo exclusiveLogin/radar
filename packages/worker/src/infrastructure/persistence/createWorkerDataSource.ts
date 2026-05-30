@@ -1,23 +1,12 @@
 import "reflect-metadata";
-import * as fs from "node:fs";
 import * as path from "node:path";
-import { fileURLToPath } from "node:url";
 import * as dotenv from "dotenv";
 import { DataSource } from "typeorm";
+import { fileURLToPath } from "node:url";
+import * as fs from "node:fs";
+import { getApiDistRoot } from "./resolveApiDistModule.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const apiRoot = path.resolve(here, "../../../../api");
-const apiDist = path.join(apiRoot, "dist");
-const apiSrc = path.join(apiRoot, "src");
-
-/** Скомпилированные entity (Nest build) — без поломки декораторов в tsx на .ts. */
-function resolveEntityGlob(): string {
-  const distGlob = path.join(apiDist, "**", "*.entity.js");
-  if (fs.existsSync(apiDist)) {
-    return distGlob;
-  }
-  return path.join(apiSrc, "**", "*.entity.{ts,js}");
-}
 
 function loadEnv(): void {
   const root = path.resolve(here, "../../../../../");
@@ -28,7 +17,7 @@ function loadEnv(): void {
 }
 
 /**
- * TypeORM DataSource для worker (тот же DATABASE_URL и entity-паттерн, что у API CLI).
+ * TypeORM DataSource для worker: только скомпилированные entity из `api/dist`.
  */
 export async function createWorkerDataSource(): Promise<DataSource> {
   loadEnv();
@@ -40,10 +29,13 @@ export async function createWorkerDataSource(): Promise<DataSource> {
     );
   }
 
+  const apiDist = getApiDistRoot();
+  const entityGlob = path.join(apiDist, "**", "*.entity.js");
+
   const dataSource = new DataSource({
     type: "postgres",
     url: databaseUrl,
-    entities: [resolveEntityGlob()],
+    entities: [entityGlob],
     synchronize: false,
   });
 

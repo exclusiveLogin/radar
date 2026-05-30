@@ -65,6 +65,7 @@ import {
 } from "../infrastructure/persistence/storageMode.js";
 import { createWorkerDataSource } from "../infrastructure/persistence/createWorkerDataSource.js";
 import { createWorkerDbRepositories } from "../infrastructure/persistence/workerDbRepos.js";
+import { importApiDistModule } from "../infrastructure/persistence/resolveApiDistModule.js";
 import type { ApiOutboxModule } from "../infrastructure/persistence/workerDbRepos.types.js";
 import { IngestOrchestrator } from "./ingest/ingestOrchestrator.js";
 import { SessionResolver } from "./sessions/sessionResolver.js";
@@ -143,10 +144,11 @@ export async function createWorkerCompositionRoot(
   if (storageMode === WorkerStorageMode.Db) {
     dataSource = await createWorkerDataSource();
     const repos = await createWorkerDbRepositories(dataSource);
-    const outboxPath = ["..", "..", "..", "api", "src", "infrastructure", "events", "outboxRelay.js"].join(
-      "/",
-    );
-    const { OutboxRelay } = (await import(outboxPath)) as ApiOutboxModule;
+    const { OutboxRelay } = (await importApiDistModule(
+      "infrastructure",
+      "events",
+      "outboxRelay.js",
+    )) as ApiOutboxModule;
 
     rawMessages = repos.rawMessages;
     parsedEvents = repos.parsedEvents;

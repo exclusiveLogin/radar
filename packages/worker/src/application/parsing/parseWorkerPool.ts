@@ -31,9 +31,14 @@ export class ParseWorkerPool {
   }
 
   private spawnWorker(): Worker {
+    const execArgv = process.execArgv.filter((arg) => !arg.startsWith("--inspect"));
+    // worker_threads не наследуют tsx — подключаем загрузчик TypeScript явно.
+    if (!execArgv.some((arg) => arg.includes("tsx"))) {
+      execArgv.push("--import", "tsx");
+    }
     return new Worker(new URL("./parsePipeline.worker.ts", import.meta.url), {
       workerData: { config: this.workerConfig },
-      execArgv: process.execArgv.filter((arg) => !arg.startsWith("--inspect")),
+      execArgv,
     });
   }
 

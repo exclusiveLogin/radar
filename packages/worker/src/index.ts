@@ -1,3 +1,4 @@
+import "reflect-metadata";
 import { runWorkerBootstrap } from "./application/runBootstrap.js";
 
 runWorkerBootstrap().catch((err) => {

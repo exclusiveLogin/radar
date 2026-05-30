@@ -13,6 +13,7 @@ import { repoRoot, run } from './utils.mjs';
 
 const full = process.argv.includes('--full');
 const sharedDist = 'file:packages/shared/dist/index.js';
+const apiDistMain = 'file:packages/api/dist/main.js';
 /** Readiness: порт + БД, чтобы фронт не ловил ECONNREFUSED на /api/map/snapshot. */
 const apiReady = 'http://127.0.0.1:3000/api/ready';
 const waitTimeoutMs = 120_000;
@@ -24,7 +25,7 @@ const commands = [
 ];
 if (full) {
   commands.push(
-    `npx wait-on -t ${waitTimeoutMs} ${sharedDist} && npm run dev -w @radar/worker`,
+    `npx wait-on -t ${waitTimeoutMs} ${apiDistMain} && npm run dev -w @radar/worker`,
   );
 }
 
