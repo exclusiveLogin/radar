@@ -15,7 +15,10 @@ export class FinalizerStep implements GeoPipelineStep {
   constructor(private readonly locations: EventLocation[]) {}
 
   run(ctx: GeoPipelineContext): Promise<void> {
-    const { finalizer, locations } = buildFinalizerResult(ctx.artifact);
+    const { finalizer, locations } = buildFinalizerResult(
+      ctx.artifact,
+      ctx.rawText,
+    );
     ctx.artifact.finalizer = finalizer;
     this.locations.push(...locations);
 

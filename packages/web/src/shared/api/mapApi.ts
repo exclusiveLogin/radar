@@ -46,4 +46,17 @@ export const mapApi = {
   },
   geoRegions: (): Promise<GeoRegionRef[]> =>
     getJson("/api/geo/regions", geoRegionsResponseSchema).then((r) => r.regions),
+  /** Полигоны субъектов РФ (OSM artifacts) с regionCode/stateLevel. */
+  regionsGeoJson: (): Promise<GeoJsonFeatureCollection> =>
+    getJson("/api/map/regions-geojson", geoJsonFeatureCollectionSchema),
+};
+
+const geoJsonFeatureCollectionSchema = z.object({
+  type: z.literal("FeatureCollection"),
+  features: z.array(z.unknown()),
+});
+
+type GeoJsonFeatureCollection = {
+  type: "FeatureCollection";
+  features: unknown[];
 };

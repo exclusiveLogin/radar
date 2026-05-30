@@ -14,15 +14,18 @@ const llmRuntimeConfigSchema = z.object({
   retryCount: z.number().int().min(0).max(3),
 });
 
-export type LlmRuntimeConfig = z.infer<typeof llmRuntimeConfigSchema>;function parseBoolean(value: string | undefined, fallback: boolean): boolean {
+export type LlmRuntimeConfig = z.infer<typeof llmRuntimeConfigSchema>;
+function parseBoolean(value: string | undefined, fallback: boolean): boolean {
   if (!value) return fallback;
   return truthy.has(value.trim().toLowerCase());
-}function parseNumber(value: string | undefined, fallback: number): number {
+}
+function parseNumber(value: string | undefined, fallback: number): number {
   if (!value) return fallback;
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return fallback;
   return parsed;
-}export function loadLlmRuntimeConfig(env = process.env): LlmRuntimeConfig {
+}
+export function loadLlmRuntimeConfig(env = process.env): LlmRuntimeConfig {
   const enabled = parseBoolean(env.RADAR_LLM_GEOCODER_ENABLED, false);
   return llmRuntimeConfigSchema.parse({
     enabled,
@@ -30,7 +33,7 @@ export type LlmRuntimeConfig = z.infer<typeof llmRuntimeConfigSchema>;function 
     baseUrl: env.RADAR_LLM_BASE_URL?.trim() || "http://127.0.0.1:11434/v1",
     model: env.RADAR_LLM_MODEL?.trim() || "qwen2.5:3b",
     timeoutMs: parseNumber(env.RADAR_LLM_TIMEOUT_MS, 60000),
-    maxTokens: parseNumber(env.RADAR_LLM_MAX_TOKENS, 220),
+    maxTokens: parseNumber(env.RADAR_LLM_MAX_TOKENS, 512),
     temperature: parseNumber(env.RADAR_LLM_TEMPERATURE, 0),
     jsonMode: parseBoolean(env.RADAR_LLM_JSON_MODE, true),
     retryCount: parseNumber(env.RADAR_LLM_RETRY_COUNT, 0),

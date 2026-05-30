@@ -27,6 +27,11 @@ export async function runWorkerBootstrap(): Promise<void> {
       console.log("BackfillDaemon запущен (ingest_backfill_jobs).");
     }
 
+    if (runtime.mapStateExpiryDaemon) {
+      runtime.mapStateExpiryDaemon.start();
+      console.log("MapStateExpiryDaemon запущен (TTL статусов карты).");
+    }
+
     const shutdown = async () => {
       console.log("Остановка worker...");
       await runtime.shutdown?.();

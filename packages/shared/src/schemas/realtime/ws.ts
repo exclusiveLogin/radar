@@ -1,6 +1,7 @@
 import { z } from "zod";
 import {
   mapSnapshotSchema,
+  placeStateEventSchema,
   regionStateEventSchema,
   warningSchema,
 } from "../geo/region-state";
@@ -10,7 +11,7 @@ import {
  * и предупреждения; клиент подписывается/отписывается на каналы.
  */
 
-export const wsChannelSchema = z.enum(["region-state", "warnings"]);
+export const wsChannelSchema = z.enum(["region-state", "place-state", "warnings"]);
 
 /** Сообщение клиента: подписка/отписка на набор каналов. */
 export const wsClientMessageSchema = z.object({
@@ -22,6 +23,7 @@ export const wsClientMessageSchema = z.object({
 export const wsServerMessageSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("snapshot"), payload: mapSnapshotSchema }),
   z.object({ type: z.literal("region-state"), payload: regionStateEventSchema }),
+  z.object({ type: z.literal("place-state"), payload: placeStateEventSchema }),
   z.object({ type: z.literal("warning"), payload: warningSchema }),
 ]);
 

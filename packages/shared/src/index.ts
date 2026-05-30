@@ -46,6 +46,8 @@ export {
   regionStateEventSchema,
   layoutTileSchema,
   mapRegionSnapshotSchema,
+  mapPlaceSnapshotSchema,
+  placeStateEventSchema,
   mapSnapshotSchema,
   regionAdjacencySchema,
   warningSchema,
@@ -93,6 +95,12 @@ export { InProcessEventBus } from "./events/inProcessEventBus";
 export { mergePlaceContribution, monotonicTrustState } from "./ports/placeContributionMerge";
 export { ingestMessageHash } from "./domain/ingestMessageHash";
 export type { RawMessageHashInput } from "./domain/ingestMessageHash";
+export {
+  canonicalRegionCode,
+  parseKladrSubjectPrefix,
+} from "./domain/regionLookupCode";
+export { layoutTileToCentroid } from "./domain/layoutCentroid";
+export { maxStateLevel } from "./domain/maxStateLevel";
 export { SourceUniquenessRegistry } from "./ports/source-uniqueness";
 
 // --- type-only exports ---
@@ -143,6 +151,8 @@ export type {
   RegionStateEvent,
   LayoutTile,
   MapRegionSnapshot,
+  MapPlaceSnapshot,
+  PlaceStateEvent,
   MapSnapshot,
   RegionAdjacency,
   Warning,

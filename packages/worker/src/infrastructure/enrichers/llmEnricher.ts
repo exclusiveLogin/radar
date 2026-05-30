@@ -17,7 +17,7 @@ const llmResponseSchema = z.object({
   places: z.array(llmPlaceSchema).default([]),
   regionCode: z.string().min(1).nullable().catch(null).optional(),
   confidence: z.number().min(0).max(1).default(0),
-  reason: z.string().max(500).nullable().catch("").transform((v) => v ?? ""),
+  reason: z.string().max(400).nullable().catch("").transform((v) => v ?? ""),
 });
 
 export type LlmGeoResponse = z.infer<typeof llmResponseSchema>;
@@ -51,11 +51,13 @@ const openAiCompatResponseSchema = z.object({
       }),
     )
     .min(1),
-});function unwrapJsonPayload(value: string): string {
+});
+function unwrapJsonPayload(value: string): string {
   const trimmed = value.trim();
   if (!trimmed.startsWith("```")) return trimmed;
   return trimmed.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
-}function extractContent(
+}
+function extractContent(
   content: string | Array<{ type: string; text?: string }>,
 ): string {
   if (typeof content === "string") return content;
@@ -68,10 +70,16 @@ const openAiCompatResponseSchema = z.object({
 // ─── Enricher ─────────────────────────────────────────────────────────────
 
 export class LlmEnricher {
-  constructor(private readonly config: LlmRuntimeConfig) {}async enrich(input: {
+  constructor(private readonly config: LlmRuntimeConfig) {}
+async enrich(input: {
     rawText: string;
     regionCode?: string;
     catalogRegions?: Array<{ code: string; name: string }>;
+    localityAnchors?: Array<{
+      name: string;
+      regionCode: string;
+      kind: "city" | "locality" | "settlement";
+    }>;
   }): Promise<(LlmGeoResponse & { model: string; latencyMs: number }) | null> {
     if (!this.config.enabled) return null;
 
@@ -105,6 +113,10 @@ export class LlmEnricher {
                   rawText: input.rawText,
                   regionCodeHint: input.regionCode ?? null,
                   catalogRegions: input.catalogRegions ?? null,
+                  localityAnchors:
+                    input.localityAnchors && input.localityAnchors.length > 0
+                      ? input.localityAnchors
+                      : null,
                 }),
               },
             ],

@@ -25,6 +25,9 @@ export const regionStateEventSchema = z.object({
   activity: z.number().int().min(0).default(0),
   reason: z.string().optional(),
   changedAt: z.string().datetime(),
+  /** Для гео-карты при live-обновлении (если в БД нет centroid). */
+  centroidLat: z.number().finite().optional(),
+  centroidLon: z.number().finite().optional(),
 });
 
 /** Координата региона в тайл-гриде схемы (layout.json). */
@@ -45,10 +48,38 @@ export const mapRegionSnapshotSchema = z.object({
   centroidLon: z.number().finite().optional(),
 });
 
+/** Населённый пункт на гео-карте: активный статус ≠ grey и есть координаты. */
+export const mapPlaceSnapshotSchema = z.object({
+  placeId: z.string().uuid(),
+  placeName: z.string().min(1),
+  regionId: z.string().uuid(),
+  regionCode: z.string().min(1),
+  statusCode: z.string().min(1),
+  stateLevel: stateLevelSchema,
+  lat: z.number().finite(),
+  lon: z.number().finite(),
+  updatedAt: z.string().datetime(),
+});
+
+/** Событие смены статуса места (WS `place-state`). */
+export const placeStateEventSchema = z.object({
+  placeId: z.string().uuid(),
+  placeName: z.string().min(1),
+  regionId: z.string().uuid(),
+  regionCode: z.string().min(1),
+  statusCode: z.string().min(1),
+  stateLevel: stateLevelSchema,
+  action: z.enum(["activate", "deactivate"]),
+  lat: z.number().finite().optional(),
+  lon: z.number().finite().optional(),
+  changedAt: z.string().datetime(),
+});
+
 /** Лёгкий снапшот карты: состояние + activity + layout, без полигонов. */
 export const mapSnapshotSchema = z.object({
   generatedAt: z.string().datetime(),
   regions: z.array(mapRegionSnapshotSchema),
+  places: z.array(mapPlaceSnapshotSchema).default([]),
 });
 
 /** Смежность регионов: code -> список соседних code (ненаправленная, симметричная). */
@@ -72,6 +103,8 @@ export type RegionStateRecord = z.infer<typeof regionStateRecordSchema>;
 export type RegionStateEvent = z.infer<typeof regionStateEventSchema>;
 export type LayoutTile = z.infer<typeof layoutTileSchema>;
 export type MapRegionSnapshot = z.infer<typeof mapRegionSnapshotSchema>;
+export type MapPlaceSnapshot = z.infer<typeof mapPlaceSnapshotSchema>;
+export type PlaceStateEvent = z.infer<typeof placeStateEventSchema>;
 export type MapSnapshot = z.infer<typeof mapSnapshotSchema>;
 export type RegionAdjacency = z.infer<typeof regionAdjacencySchema>;
 export type Warning = z.infer<typeof warningSchema>;

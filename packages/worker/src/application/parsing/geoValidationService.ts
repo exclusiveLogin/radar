@@ -3,15 +3,17 @@
  * @see ../../../../../docs/domain/contexts/geo-place.md
  * @see ../../../../../docs/domain/how-it-works.md#place-trust-flow
  */
-import type {
-  EventLocation,
-  IPlaceAliasRepository,
-  IPlaceEvidenceRepository,
-  IPlaceRepository,
-  PlaceContribution,
-  PlaceProvider,
-  IRegionRepository,
-  PlaceRecord,
+import {
+  canonicalRegionCode,
+  type EventLocation,
+  type IPlaceAliasRepository,
+  type IPlaceEvidenceRepository,
+  type IPlaceRepository,
+  type PlaceContribution,
+  type PlaceProvider,
+  type IRegionRepository,
+  type PlaceRecord,
+  type RegionRecord,
 } from "@radar/shared";
 import { randomUUID } from "node:crypto";
 
@@ -81,6 +83,18 @@ function toTrustState(
       ? "partially_verified"
       : "unverified";
   return { trustState, isTrusted, trustScore };
+}
+
+/** Подставляет regionId и канонический ISO в локацию после резолва региона. */
+function withResolvedRegion(
+  location: EventLocation,
+  region: RegionRecord,
+): EventLocation {
+  return {
+    ...location,
+    regionId: region.id,
+    regionCode: canonicalRegionCode(region),
+  };
 }
 
 export class GeoValidationService {
@@ -155,7 +169,7 @@ export class GeoValidationService {
     if (!location.placeName) {
       return {
         decision: "rejected",
-        location: { ...location, regionId: region.id },
+        location: withResolvedRegion(location, region),
       };
     }
 
@@ -184,8 +198,7 @@ export class GeoValidationService {
       return {
         decision: "matched_existing",
         location: {
-          ...location,
-          regionId: region.id,
+          ...withResolvedRegion(location, region),
           placeId: matched.id,
           placeName: merged.updated.name,
           placeFias: merged.updated.fiasId,
@@ -233,7 +246,7 @@ export class GeoValidationService {
 
     return {
       decision: "created_new",
-      location: { ...location, regionId: region.id, placeId },
+      location: { ...withResolvedRegion(location, region), placeId },
     };
   }
 
@@ -244,14 +257,20 @@ export class GeoValidationService {
   ): Promise<PlaceRecord | null> {
     if (placeFias) {
       const byFias = await this.places.findByFias(placeFias);
-      if (byFias) return byFias;
+      if (byFias?.regionId === regionId) {
+        return byFias;
+      }
     }
 
     const aliasMatches = await this.aliases.findByAlias(normalize(placeName));
-    const placeAlias = aliasMatches.find((row) => row.placeId);
-    if (placeAlias?.placeId) {
-      const place = await this.places.findById(placeAlias.placeId);
-      if (place) return place;
+    for (const row of aliasMatches) {
+      if (!row.placeId) {
+        continue;
+      }
+      const place = await this.places.findById(row.placeId);
+      if (place?.regionId === regionId) {
+        return place;
+      }
     }
 
     return this.places.findByNameInRegion(placeName, regionId);

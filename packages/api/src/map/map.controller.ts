@@ -39,6 +39,12 @@ export class MapController {
     });
   }
 
+  /** Тяжёлый GeoJSON-слой полигонов субъектов (только активные stateLevel ≠ grey). */
+  @Get("map/regions-geojson")
+  async regionsGeoJson() {
+    return await this.map.getRegionsGeoJsonLayer();
+  }
+
   @Get("regions/:id/geometry")
   async regionGeometry(@Param("id") id: string) {
     const geometry = await this.map.getRegionGeometry(id);

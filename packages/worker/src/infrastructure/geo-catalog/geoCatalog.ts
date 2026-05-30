@@ -1,6 +1,12 @@
 ﻿import * as path from "node:path";
+import {
+  filterRegionsByTextContext,
+  findLocalityAnchorsInText,
+  type LocalityAnchor,
+} from "../../domain/geo/geographicTextContext.js";
 import { CityCatalog, type CityCatalogEntry } from "./cityCatalog.js";
 import { extractFallbackCities } from "./cityFallbackExtractors.js";
+import { KnownLocalityCatalog } from "./knownLocalityCatalog.js";
 import {
   RegionCatalog,
   resolveArtifactsRoot,
@@ -80,6 +86,7 @@ export class GeoCatalog {
   constructor(
     private readonly regions: RegionCatalog,
     private readonly cities: CityCatalog,
+    private readonly knownLocalities: KnownLocalityCatalog,
   ) {}
 static loadFromArtifacts(artifactsRoot = resolveArtifactsRoot()): GeoCatalog {
     const regionCsvPath = path.join(
@@ -99,13 +106,45 @@ static loadFromArtifacts(artifactsRoot = resolveArtifactsRoot()): GeoCatalog {
     return new GeoCatalog(
       RegionCatalog.loadFromCsv(regionCsvPath),
       CityCatalog.loadFromDirectory(citiesPath),
+      KnownLocalityCatalog.loadFromDictionaries(),
     );
+  }
+/** Якорные города из places.json, найденные в тексте целиком. */
+  findLocalityAnchors(rawText: string): LocalityAnchor[] {
+    return findLocalityAnchorsInText(rawText, this.knownLocalities.list());
+  }
+private toRegionCandidate(entry: RegionCatalogEntry) {
+    return {
+      code: entry.code,
+      name: entry.name,
+      fiasId: entry.fiasId,
+      aliases: entry.aliases,
+    };
+  }
+getRegionByCode(code: string): RegionCatalogEntry | null {
+    return this.regions.getByCode(code);
   }
 findRegion(rawText: string): RegionCatalogEntry | null {
     return this.regions.findRegionInText(rawText);
   }
 findRegions(rawText: string): RegionCatalogEntry[] {
-    return this.regions.findRegionsInText(rawText);
+    const anchors = this.findLocalityAnchors(rawText);
+    const matched = this.regions.findRegionsInText(rawText);
+    const filtered = filterRegionsByTextContext(
+      matched.map((entry) => this.toRegionCandidate(entry)),
+      rawText,
+      anchors,
+    );
+    const byCode = new Map(matched.map((entry) => [entry.code, entry]));
+    return filtered.map(
+      (candidate) =>
+        byCode.get(candidate.code) ?? {
+          code: candidate.code,
+          name: candidate.name,
+          fiasId: candidate.fiasId,
+          aliases: candidate.aliases ?? [],
+        },
+    );
   }
 findPlacesInRegion(rawText: string, _regionCode?: string): GeoCatalogPlace[] {
     return deduplicatePlaces(collectCandidatePlaces(rawText, this.cities));

@@ -51,6 +51,13 @@ import type {
 } from "../infrastructure/enrichers/enricherChainFactory.js";
 import { GeoCatalog } from "../infrastructure/geo-catalog/index.js";
 import { loadRegionAdjacency } from "../infrastructure/geo-catalog/adjacencyLoader.js";
+import {
+  isMapStateExpiryEnabled,
+  resolveMapStateExpiryPollMs,
+  resolveMapStateTtlMs,
+} from "../infrastructure/config/mapStateExpiryConfig.js";
+import { MapStateExpiryDaemon } from "./map-state/mapStateExpiryDaemon.js";
+import { MapStateExpirySweep } from "./map-state/mapStateExpirySweep.js";
 import { RegionStateProjection } from "./subscribers/regionStateProjection.js";
 import { GeoValidationService } from "./parsing/geoValidationService.js";
 import { createParsePipeline } from "./parsing/createParsePipeline.js";
@@ -125,6 +132,7 @@ export async function createWorkerCompositionRoot(
   let outboxRelay: { start: () => void; stop: () => void } | undefined;
   let ingestOrchestrator: IngestOrchestrator | undefined;
   let backfillDaemon: BackfillDaemonService | undefined;
+  let mapStateExpiryDaemon: MapStateExpiryDaemon | undefined;
   let parseWorkerPool: ParseWorkerPool | undefined;
   let shutdown: (() => Promise<void>) | undefined;
 
@@ -173,11 +181,26 @@ export async function createWorkerCompositionRoot(
     });
     bus.subscribe("MessageParsed", regionStateProjection.handler);
 
+    if (isMapStateExpiryEnabled()) {
+      const sweep = new MapStateExpirySweep({
+        regionState: repos.regionState,
+        placeStatus: repos.placeStatus,
+        regions: repos.regions,
+        adjacency: loadRegionAdjacency(),
+        ttlMs: resolveMapStateTtlMs(),
+      });
+      mapStateExpiryDaemon = new MapStateExpiryDaemon(
+        sweep,
+        resolveMapStateExpiryPollMs(),
+      );
+    }
+
     outboxRelay = new OutboxRelay(dataSource, bus);
     outboxRelay.start();
 
     shutdown = async () => {
       outboxRelay?.stop();
+      mapStateExpiryDaemon?.stop();
       await backfillDaemon?.stop();
       await parseWorkerPool?.shutdown();
       await ingestOrchestrator?.stop();
@@ -277,6 +300,7 @@ export async function createWorkerCompositionRoot(
     parseRawMessageHandler,
     ingestOrchestrator,
     backfillDaemon,
+    mapStateExpiryDaemon,
     outboxRelay,
     dataSource,
     shutdown,

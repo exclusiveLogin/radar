@@ -4,6 +4,14 @@ import type {
   GeoEnrichmentFinalizer,
   GeoNode,
 } from "@radar/shared";
+import {
+  filterRegionsByTextContext,
+  findLocalityAnchorsInText,
+  inferPreferredRegionCode,
+  regionCodesEquivalent,
+  shouldDropRegionAssignment,
+} from "../../../domain/geo/geographicTextContext.js";
+import { KnownLocalityCatalog } from "../../../infrastructure/geo-catalog/knownLocalityCatalog.js";
 
 type RegionCandidate = { code: string; name: string; fiasId?: string };
 type PlaceKind = "district" | "city" | "locality" | "settlement";
@@ -164,13 +172,19 @@ function mergePlace(
   ) {
     existing.name = node.name;
   }
-  // Later providers in collect order may refine coordinates.
-  if (node.lat !== undefined && node.lon !== undefined) {
+  const regionConflict =
+    existing.regionCode
+    && node.regionCode
+    && !regionCodesEquivalent(existing.regionCode, node.regionCode);
+  // Координаты от enricher не перезаписывают место при конфликте субъекта.
+  if (node.lat !== undefined && node.lon !== undefined && !regionConflict) {
     existing.lat = node.lat;
     existing.lon = node.lon;
   }
   if (node.fiasId && !existing.fiasId) existing.fiasId = node.fiasId;
-  if (node.regionCode && !existing.regionCode) existing.regionCode = node.regionCode;
+  if (node.regionCode && !existing.regionCode && !regionConflict) {
+    existing.regionCode = node.regionCode;
+  }
 }
 
 /** Collects and merges place candidates from all enrichment namespaces. */
@@ -204,11 +218,19 @@ function resolveSourceFlags(artifact: GeoEnrichmentArtifact): SourceFlags {
 }
 
 /** Builds finalizer artifact and normalized EventLocation list from namespaces. */
-export function buildFinalizerResult(artifact: GeoEnrichmentArtifact): {
+export function buildFinalizerResult(
+  artifact: GeoEnrichmentArtifact,
+  rawText = "",
+): {
   finalizer: GeoEnrichmentFinalizer;
   locations: EventLocation[];
 } {
-  const regions = collectRegions(artifact);
+  const anchors = findLocalityAnchorsInText(
+    rawText,
+    KnownLocalityCatalog.loadFromDictionaries().list(),
+  );
+  const collected = collectRegions(artifact);
+  const regions = filterRegionsByTextContext(collected, rawText, anchors);
   const places = collectPlaces(artifact);
   const flags = resolveSourceFlags(artifact);
 
@@ -240,6 +262,21 @@ export function buildFinalizerResult(artifact: GeoEnrichmentArtifact): {
   };
 
   const primaryRegionCode = regions[0]?.code ?? "unknown";
+  const resolvePlaceRegionCode = (
+    placeRegionCode: string | undefined,
+  ): string => {
+    if (placeRegionCode) {
+      const region = collected.find((item) => item.code === placeRegionCode) ?? {
+        code: placeRegionCode,
+        name: placeRegionCode,
+        aliases: [],
+      };
+      if (shouldDropRegionAssignment(rawText, placeRegionCode, region, anchors)) {
+        return inferPreferredRegionCode(rawText, anchors) ?? primaryRegionCode;
+      }
+    }
+    return placeRegionCode ?? primaryRegionCode;
+  };
   const regionLocations: EventLocation[] = regions.map((region) => ({
     regionId: "00000000-0000-0000-0000-000000000000",
     regionCode: region.code,
@@ -250,7 +287,7 @@ export function buildFinalizerResult(artifact: GeoEnrichmentArtifact): {
   }));
   const placeLocations: EventLocation[] = places.map((place) => ({
     regionId: "00000000-0000-0000-0000-000000000000",
-    regionCode: place.regionCode ?? primaryRegionCode,
+    regionCode: resolvePlaceRegionCode(place.regionCode),
     precision: toEventLocationPrecision(place.kind),
     source: eventLocationSource,
     placeName: place.name,

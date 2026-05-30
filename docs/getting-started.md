@@ -68,11 +68,13 @@ npm run cold:up
 npm run up
 ```
 
-или, если БД уже крутится:
+Поднимает Docker и **API + web** (без worker). Полный стек с Telegram:
 
 ```powershell
 npm run dev
 ```
+
+(если Postgres уже запущен — можно без `up`, только `npm run dev` или `npm run dev:app`).
 
 ### 3. Проверка
 
@@ -81,8 +83,12 @@ npm run dev
 | http://127.0.0.1:3000/api/health | `ok` без БД |
 | http://127.0.0.1:3000/api/ready | БД доступна |
 | http://127.0.0.1:3000/api/docs | Swagger |
-| http://127.0.0.1:5173 | Фронт |
+| http://127.0.0.1:5173 | Фронт (тумблеры: схема, гео-карта, предупреждения) |
 | http://127.0.0.1:5050 | pgAdmin (логин из `.env`) |
+| `GET /api/map/snapshot` | Снапшот карты (регионы + places) |
+| `WS /ws` | Realtime: snapshot + `region-state` / `place-state` |
+
+Проверка WS: `node scripts/ws-smoke.mjs` (из корня репо, API должен быть запущен).
 
 ---
 
@@ -193,9 +199,9 @@ npm run cold:up -- -Geo
 | Команда | Назначение |
 |---------|------------|
 | `npm run cold:up` | Первая настройка: Docker + install + migrations |
-| `npm run up` | Docker + `dev` (все пакеты) |
-| `npm run dev` | Без Docker: shared + api + web + worker |
-| `npm run dev:app` | Без worker |
+| `npm run up` | Docker + `dev:app` (shared + API + web, **без** worker) |
+| `npm run dev` | Без Docker: shared + API + web + worker (`dev-stack --full`) |
+| `npm run dev:app` | Без Docker и без worker (только UI + API) |
 | `npm run migration:run` | Миграции TypeORM |
 | `npm run worker:parse:report -- --input tests` | Оффлайн-тест парсера без Telegram |
 | `npm run build` | Production build всех пакетов |

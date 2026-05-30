@@ -8,6 +8,7 @@ import type {
   PlaceRecord,
   RegionRecord,
 } from "@radar/shared";
+import { canonicalRegionCode } from "@radar/shared";
 import { randomUUID } from "node:crypto";
 import { normalizeGeoText } from "../geo/normalizeText";
 
@@ -45,7 +46,7 @@ export class GeoValidationService {
 
   /** Converts validated region/place pair into EventLocation DTO. */
   private toEventLocation(options: {
-    region: Pick<RegionRecord, "id" | "code">;
+    region: Pick<RegionRecord, "id" | "code" | "iso">;
     placeId: string;
     placeName: string;
     placeFias?: string;
@@ -53,7 +54,7 @@ export class GeoValidationService {
   }): EventLocation {
     return {
       regionId: options.region.id,
-      regionCode: options.region.code,
+      regionCode: canonicalRegionCode(options.region),
       placeId: options.placeId,
       placeName: options.placeName,
       placeFias: options.placeFias,

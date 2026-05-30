@@ -1,6 +1,8 @@
 import { BehaviorSubject } from "rxjs";
 import type {
+  MapPlaceSnapshot,
   MapRegionSnapshot,
+  PlaceStateEvent,
   RegionStateEvent,
   Warning,
   WsServerMessage,
@@ -10,6 +12,11 @@ import { connectMapWs } from "../realtime/ws";
 
 /** Состояние регионов по regionCode (ISO) — источник для всех карт-виджетов. */
 export const regionsByCode$ = new BehaviorSubject<Map<string, MapRegionSnapshot>>(
+  new Map(),
+);
+
+/** Активные места с координатами (гео-слой places). */
+export const placesById$ = new BehaviorSubject<Map<string, MapPlaceSnapshot>>(
   new Map(),
 );
 
@@ -26,27 +33,37 @@ export function startMapStore(): void {
   void mapApi
     .snapshot()
     .then((snap) => {
-      seedSnapshot(snap.regions);
-      // WS только после готовности API — иначе vite-proxy шумит ECONNREFUSED при старте.
+      seedSnapshot(snap.regions, snap.places ?? []);
       connectMapWs().subscribe(applyMessage);
     })
     .catch(reportError);
   void mapApi.warnings().then((items) => warnings$.next(items)).catch(reportError);
 }
 
-function seedSnapshot(regions: MapRegionSnapshot[]): void {
-  const next = new Map<string, MapRegionSnapshot>();
-  for (const region of regions) next.set(region.regionCode, region);
-  regionsByCode$.next(next);
+function seedSnapshot(
+  regions: MapRegionSnapshot[],
+  places: MapPlaceSnapshot[],
+): void {
+  const nextRegions = new Map<string, MapRegionSnapshot>();
+  for (const region of regions) nextRegions.set(region.regionCode, region);
+  regionsByCode$.next(nextRegions);
+
+  const nextPlaces = new Map<string, MapPlaceSnapshot>();
+  for (const place of places) nextPlaces.set(place.placeId, place);
+  placesById$.next(nextPlaces);
 }
 
 function applyMessage(message: WsServerMessage): void {
   if (message.type === "snapshot") {
-    seedSnapshot(message.payload.regions);
+    seedSnapshot(message.payload.regions, message.payload.places ?? []);
     return;
   }
   if (message.type === "region-state") {
     applyRegionState(message.payload);
+    return;
+  }
+  if (message.type === "place-state") {
+    applyPlaceState(message.payload);
     return;
   }
   if (message.type === "warning") {
@@ -65,10 +82,36 @@ function applyRegionState(event: RegionStateEvent): void {
     stateLevel: event.stateLevel,
     activity: event.activity,
     layout: existing?.layout,
-    centroidLat: existing?.centroidLat,
-    centroidLon: existing?.centroidLon,
+    centroidLat: event.centroidLat ?? existing?.centroidLat,
+    centroidLon: event.centroidLon ?? existing?.centroidLon,
   });
   regionsByCode$.next(next);
+}
+
+/** Добавляет/обновляет/снимает место на гео-карте по WS place-state. */
+function applyPlaceState(event: PlaceStateEvent): void {
+  const next = new Map(placesById$.value);
+
+  if (event.action === "deactivate" || event.stateLevel === "grey") {
+    next.delete(event.placeId);
+    placesById$.next(next);
+    return;
+  }
+
+  if (event.lat === undefined || event.lon === undefined) return;
+
+  next.set(event.placeId, {
+    placeId: event.placeId,
+    placeName: event.placeName,
+    regionId: event.regionId,
+    regionCode: event.regionCode,
+    statusCode: event.statusCode,
+    stateLevel: event.stateLevel,
+    lat: event.lat,
+    lon: event.lon,
+    updatedAt: event.changedAt,
+  });
+  placesById$.next(next);
 }
 
 function reportError(error: unknown): void {

@@ -3,6 +3,7 @@ import type {
   RegionStateActiveRecord,
 } from "@radar/shared";
 import type { DataSource } from "typeorm";
+import { LessThan, Not } from "typeorm";
 import {
   RegionStateActiveEntity,
   RegionStateHistoryEntity,
@@ -39,6 +40,18 @@ export class TypeOrmRegionStateRepository implements IRegionStateRepository {
     const rows = await this.dataSource
       .getRepository(RegionStateActiveEntity)
       .find();
+    return rows.map((row) => this.toRecord(row));
+  }
+
+  async listAlarmUpdatedBefore(
+    updatedBeforeIso: string,
+  ): Promise<RegionStateActiveRecord[]> {
+    const rows = await this.dataSource.getRepository(RegionStateActiveEntity).find({
+      where: {
+        stateLevel: Not("grey" as StateLevel),
+        updatedAt: LessThan(new Date(updatedBeforeIso)),
+      },
+    });
     return rows.map((row) => this.toRecord(row));
   }
 

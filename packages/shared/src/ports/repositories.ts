@@ -324,6 +324,10 @@ export interface IPlaceStatusRepository {
   upsertActive(input: PlaceStatusActiveRecord): Promise<void>;
   deactivate(placeId: string, statusCode: string, atIso: string): Promise<void>;
   listActive(placeId: string): Promise<PlaceStatusActiveRecord[]>;
+  /** Все строки place_status_active (для полного сброса перед reparse). */
+  listAllActive(): Promise<PlaceStatusActiveRecord[]>;
+  /** Активные статусы, не обновлявшиеся с `updatedBefore` (для TTL-сброса). */
+  listActiveUpdatedBefore(updatedBeforeIso: string): Promise<PlaceStatusActiveRecord[]>;
 }
 
 export interface IRegionStateRepository {
@@ -331,6 +335,8 @@ export interface IRegionStateRepository {
   upsert(input: RegionStateActiveRecord): Promise<void>;
   get(regionId: string): Promise<RegionStateActiveRecord | null>;
   listAll(): Promise<RegionStateActiveRecord[]>;
+  /** Регионы с `state_level ≠ grey` и `updated_at` старше порога (TTL). */
+  listAlarmUpdatedBefore(updatedBeforeIso: string): Promise<RegionStateActiveRecord[]>;
   /** Добавляет запись в историю смен region_state_history. */
   appendHistory(input: {
     regionId: string;

@@ -35,7 +35,8 @@ function createStepFactories(params: {
   const { geoCatalog, flags, llmRuntimeConfig, placeCache } = params;
   return {
     catalog: () => new CatalogStep(geoCatalog),
-    llm: () => (flags.llm ? new LlmStep(new LlmEnricher(llmRuntimeConfig)) : null),
+    llm: () =>
+      flags.llm ? new LlmStep(new LlmEnricher(llmRuntimeConfig), geoCatalog) : null,
     dadata: () =>
       flags.dadata
         ? new DadataStep(new DadataEnricher(process.env.DADATA_TOKEN), placeCache)

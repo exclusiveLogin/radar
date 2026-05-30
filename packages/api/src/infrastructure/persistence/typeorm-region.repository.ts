@@ -1,5 +1,10 @@
-import type { IRegionRepository, RegionRecord } from "@radar/shared";
+import {
+  type IRegionRepository,
+  type RegionRecord,
+  parseKladrSubjectPrefix,
+} from "@radar/shared";
 import type { DataSource } from "typeorm";
+import { Like } from "typeorm";
 import { RegionEntity } from "../../geo/entities";
 
 /** Maps TypeORM region entity into domain-level region record. */
@@ -75,15 +80,29 @@ export class TypeOrmRegionRepository implements IRegionRepository {
     });
   }
 
-  /** Finds region by business code aliases (FIAS/ISO/name). */
+  /** Finds region by ISO/FIAS/name или по префиксу kladr_id (первые 2 цифры субъекта РФ). */
   async findByCode(code: string): Promise<RegionRecord | null> {
     const row = await this.repo().findOne({
-      where: [{ fiasId: code }, { iso: code }, { name: code }],
+      where: [
+        { fiasId: code },
+        { iso: code },
+        { name: code },
+        { kladrId: code },
+      ],
     });
-    if (!row) {
+    if (row) {
+      return toRegionRecord(row);
+    }
+
+    const kladrPrefix = parseKladrSubjectPrefix(code);
+    if (!kladrPrefix) {
       return null;
     }
-    return toRegionRecord(row);
+
+    const byKladrPrefix = await this.repo().findOne({
+      where: { kladrId: Like(`${kladrPrefix}%`) },
+    });
+    return byKladrPrefix ? toRegionRecord(byKladrPrefix) : null;
   }
 
   /** Returns all active regions as domain records. */

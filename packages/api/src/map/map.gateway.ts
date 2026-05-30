@@ -9,13 +9,16 @@ import type { WsChannel, WsServerMessage } from "@radar/shared";
 import { WebSocket } from "ws";
 import type { RawData, Server } from "ws";
 import { MapQueryService } from "./map-query.service";
+import { PlaceStatePoller } from "./place-state.poller";
 import { RegionStatePoller } from "./region-state.poller";
 
-const ALL_CHANNELS: WsChannel[] = ["region-state", "warnings"];
+const ALL_CHANNELS: WsChannel[] = ["region-state", "place-state", "warnings"];
 
 /** Канал, к которому относится серверное сообщение. */
 function channelOf(message: WsServerMessage): WsChannel {
-  return message.type === "warning" ? "warnings" : "region-state";
+  if (message.type === "warning") return "warnings";
+  if (message.type === "place-state") return "place-state";
+  return "region-state";
 }
 
 /**
@@ -33,15 +36,19 @@ export class MapGateway
 
   constructor(
     private readonly map: MapQueryService,
-    private readonly poller: RegionStatePoller,
+    private readonly regionPoller: RegionStatePoller,
+    private readonly placePoller: PlaceStatePoller,
   ) {}
 
   onModuleInit(): void {
-    this.poller.start((message) => this.broadcast(message));
+    const emit = (message: WsServerMessage): void => this.broadcast(message);
+    this.regionPoller.start(emit);
+    this.placePoller.start(emit);
   }
 
   onModuleDestroy(): void {
-    this.poller.stop();
+    this.regionPoller.stop();
+    this.placePoller.stop();
   }
 
   async handleConnection(client: WebSocket): Promise<void> {

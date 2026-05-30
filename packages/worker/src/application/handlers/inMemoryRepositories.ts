@@ -1,3 +1,4 @@
+import { parseKladrSubjectPrefix } from "@radar/shared";
 import type {
   EventLocation,
   IPlaceAliasRepository,
@@ -116,7 +117,13 @@ export class InMemoryRegionRepository implements IRegionRepository {
     }
   }
   async findByCode(code: string): Promise<RegionRecord | null> {
-    return this.rows.get(code) ?? null;
+    const direct = this.rows.get(code);
+    if (direct) return direct;
+
+    const prefix = parseKladrSubjectPrefix(code);
+    if (!prefix) return null;
+
+    return this.rows.get(prefix) ?? null;
   }
   async listActive(): Promise<RegionRecord[]> {
     return [...this.rows.values()];

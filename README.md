@@ -69,23 +69,26 @@ flowchart LR
 
   subgraph api[NestJS API]
     REST[REST / Swagger]
-    PUSH[Уведомления]
+    WS[WebSocket /ws]
   end
 
   subgraph ui[Web UI]
-    MAP[Карта]
+    MAP[Схема + гео-карта]
+    WARN[Предупреждения]
     TL[Таймлайн + Time Machine]
-    ALERT[Оповещения и ETA]
     ARC[Архив и heatmap]
   end
 
   TG --> W --> NLP --> DB
   GEO --> DB
   DB --> ANA --> REST
+  DB --> WS
   REST --> MAP
+  WS --> MAP
+  REST --> WARN
+  WS --> WARN
   REST --> TL
   REST --> ARC
-  PUSH --> ALERT
 ```
 
 ### Примерный макет интерфейса
@@ -134,10 +137,11 @@ flowchart LR
 
 ## ⚙️ Текущий статус репозитория
 
-- Готов инфраструктурный каркас монорепо (`api`, `worker`, `web`, `shared`).
-- Реализован cold start (`npm run cold:up`) и dev-контур.
-- Поднят geo-пайплайн `vendor -> artifacts -> manifest -> geo:seed -> geo:db:apply`.
-- Добавлены фикстуры сообщений в `tests/` для отладки фильтров и парсинга.
+- Монорепо: `api`, `worker`, `web`, `shared` — cold start и dev-стек.
+- **Карта (MVP):** схема регионов (`layout.json`), гео-карта (MapLibre), лента предупреждений; состояние — `region_state_active` / `place_status_active`.
+- **Realtime:** WebSocket `/ws` — snapshot и дельты (`region-state`, `place-state`, `warning`); полигоны регионов — REST `GET /api/map/regions-geojson`.
+- Geo-пайплайн: `vendor → artifacts → manifest → geo:seed → geo:db:apply` (контуры субъектов в `data/geo/artifacts/`).
+- Ingest/parse в `db`-режиме, backfill, оффлайн-снапшоты в `tests/`.
 
 ## Стек
 
@@ -145,93 +149,103 @@ flowchart LR
 - **API:** NestJS, TypeORM, PostgreSQL, Swagger UI по адресу `/api/docs`
 - **pgAdmin:** в Docker, см. [docker/pgadmin/README.md](docker/pgadmin/README.md) (порт по умолчанию **5050**)
 - **Worker:** GramJS (user MTProto), сессия в корне репозитория (см. ниже)
-- **Web:** Vite + React, прокси `/api` → `http://127.0.0.1:3000`
+- **Web:** Vite + React; прокси **`/api`** и **`/ws`** → `http://127.0.0.1:3000`
 
-## Быстрый старт (Windows)
+## Запуск (Windows / PowerShell)
 
-> Пошагово для всего контура (режимы, ingest, проверка URL): **[docs/getting-started.md](docs/getting-started.md)**.
+Полный сценарий (ingest, backfill, troubleshooting): **[docs/getting-started.md](docs/getting-started.md)**.
 
-### Холодный старт (новая машина / чистый клон)
+### Режимы одной строкой
 
-1. Скопировать **`.env.example` → `.env`** (в корне).
-2. Выполнить **`npm run cold:up`** — поднимет Docker (БД + pgAdmin), `npm install`, сборка `@radar/shared`, миграции. Дождаться «Готово», затем **`npm run dev`**.
-   - С гео-пайплайном (долго, нужен интернет; включает `geo:vendor`, `geo:sync`, `geo:seed`, `geo:db:apply`):  
-     `npm run cold:up -- -Geo`
-   - Сразу дев-серверы без отдельного `npm run dev`:  
-     `npm run cold:up -- -Dev`
-   - С LLM-контуром (поднимет `ollama` profile и сделает `ollama pull` для модели из `RADAR_LLM_MODEL`):  
-     `npm run cold:up -- -Llm`
-   - С чат-интерфейсом Open WebUI:  
-     `npm run cold:up -- -LlmUi`
-   - LLM включится автоматически в cold-start, если в env задано `RADAR_LLM_GEOCODER_ENABLED=1` или `COLD_UP_WITH_LLM=1`.
-   - Open WebUI включится автоматически в cold-start, если в env задано `COLD_UP_WITH_LLM_UI=1`.
-   - Вместе: `npm run cold:up -- -Geo -Dev`
+| Команда | Docker (Postgres) | Процессы | Когда |
+|---------|-------------------|----------|--------|
+| **`npm run cold:up`** | да | install + build shared + **миграции** | первый раз на машине |
+| **`npm run up`** | да | **shared + API + web** (`dev:app`) | каждый день, UI без Telegram |
+| **`npm run dev`** | нет | shared + API + web + **worker** | БД уже поднята, полный стек |
+| **`npm run dev:app`** | нет | shared + API + web | отладка карты/API без worker |
 
-**`npm run up`** — по-прежнему только «Docker + dev» без установки зависимостей и миграций (на каждый день).
+Перед `dev` / `dev:app` скрипты **`predev`** собирают `@radar/shared` и `@radar/api`. Web стартует **после** `http://127.0.0.1:3000/api/ready` (`scripts/dev-stack.mjs`).
 
-Для LLM-контура (Ollama) используйте профиль compose:
+### Первый запуск
 
-```bash
-docker compose --profile llm up -d
+```powershell
+cd C:\path\to\radar
+Copy-Item .env.example .env
+# Минимум: DATABASE_URL=postgresql://radar:radar@127.0.0.1:5432/radar
+npm run cold:up
+npm run dev:app
+# или с worker и Telegram: npm run dev
 ```
 
-Для chat UI поверх Ollama (Open WebUI):
+Опции `cold:up` (можно комбинировать):
 
-```bash
+| Флаг | Эффект |
+|------|--------|
+| **`-Geo`** | `geo:vendor` → `geo:sync` → `geo:seed` → `geo:db:apply` (долго, нужен интернет) |
+| **`-Dev`** | сразу запустить dev-стек после cold |
+| **`-Llm`** | Docker profile `llm` + `ollama pull` |
+| **`-LlmUi`** | + Open WebUI |
+
+Пример: `npm run cold:up -- -Geo -Dev`
+
+### Проверка после старта
+
+| URL | Ожидание |
+|-----|----------|
+| [http://127.0.0.1:3000/api/health](http://127.0.0.1:3000/api/health) | health без БД |
+| [http://127.0.0.1:3000/api/ready](http://127.0.0.1:3000/api/ready) | `"status":"ready"` |
+| [http://127.0.0.1:3000/api/docs](http://127.0.0.1:3000/api/docs) | Swagger |
+| [http://127.0.0.1:5173](http://127.0.0.1:5173) | UI (виджеты: схема, гео-карта, предупреждения) |
+| [http://127.0.0.1:5050](http://127.0.0.1:5050) | pgAdmin |
+
+Проверка карты (PowerShell):
+
+```powershell
+curl.exe -s http://127.0.0.1:3000/api/map/snapshot | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{const j=JSON.parse(d);console.log('regions',j.regions?.length,'places',j.places?.length)})"
+node scripts/ws-smoke.mjs
+```
+
+### Карта: REST + WebSocket
+
+```text
+Старт UI:  GET /api/map/snapshot  →  mapStore (регионы, places)
+Подключение:  WS /ws  →  snapshot (повтор) + дельты
+Live:  region-state | place-state | warning  →  патч store (не refetch snapshot)
+Гео-контуры:  GET /api/map/regions-geojson  →  только активные субъекты (≠ grey)
+```
+
+| Слой UI | Источник данных |
+|---------|-----------------|
+| **Схема** | `regionsByCode$` (layout + stateLevel) |
+| **Гео** | контур региона по статусу (GeoJSON) + **точки** places |
+| **Предупреждения** | `warnings$` (REST + WS `warning`) |
+
+Поллеры API читают `region_state_history` / `place_status_history` (раз в 1 с). События **до перезапуска API** по WS не переигрываются — только snapshot при connect.
+
+Данные на карте после ingest: `npm run worker:reparse:raw` (пересчёт проекций из `raw_messages`).
+
+**TTL статусов (24 ч по умолчанию):** в `db`-режиме worker запускает `MapStateExpiryDaemon` — регионы с `state_level ≠ grey` и места в `place_status_active`, не обновлявшиеся дольше порога, сбрасываются (`grey` / `deactivate`) с записью в `*_history` → WS. Ручной прогон: `npm run worker:map-state:expire`. Env: `RADAR_MAP_STATE_TTL_HOURS`, `RADAR_MAP_STATE_EXPIRY_ENABLED`, `RADAR_MAP_STATE_EXPIRY_POLL_MS`.
+
+### LLM (опционально)
+
+```powershell
+docker compose --profile llm up -d
 docker compose --profile llm-ui up -d
 ```
 
-После старта:
-
-- Ollama API: [http://127.0.0.1:11434/api/tags](http://127.0.0.1:11434/api/tags)
-- Open WebUI: [http://127.0.0.1:3001](http://127.0.0.1:3001) (порт настраивается через `OPEN_WEBUI_PORT`)
-
-Промежуточный checkup:
-
-```bash
-docker compose ps
-# PowerShell: Invoke-RestMethod http://127.0.0.1:11434/api/tags
-npm run worker:parse:report -- --input tests --outdir reports --format json --div file --use-providers
-```
+- Ollama: [http://127.0.0.1:11434/api/tags](http://127.0.0.1:11434/api/tags)
+- Open WebUI: [http://127.0.0.1:3001](http://127.0.0.1:3001) (`OPEN_WEBUI_PORT`)
 
 ---
 
 ### Пошагово вручную
 
-1. Скопировать `.env.example` в `.env` в **корне** репозитория и заполнить переменные (минимум `DATABASE_URL` для API).
-2. Поднять PostgreSQL:
+1. **`.env.example` → `.env`** в корне (`DATABASE_URL` обязателен).
+2. `docker compose up -d`
+3. `npm install` → `npm run migration:run`
+4. `npm run dev` или `npm run dev:app` (см. таблицу режимов выше).
 
-   ```bash
-   docker compose up -d
-   ```
-
-3. Установить зависимости и применить миграции:
-
-   ```bash
-   npm install
-   # Windows PowerShell: $env:DATABASE_URL = "postgresql://radar:radar@127.0.0.1:5432/radar"
-   # bash: export DATABASE_URL="postgresql://radar:radar@127.0.0.1:5432/radar"
-   npm run migration:run
-   ```
-
-   (Логин/пароль/БД по умолчанию совпадают с `docker-compose.yml`; при смене — поправьте строку подключения.)
-
-4. Запуск в разработке — **без ручного `build` перед стартом**:
-   - **`npm run up`** — одна команда: Postgres в Docker и **все** дев-процессы (shared, API, web, worker). Перед первым запуском API выполните миграции (шаг 3).
-   - **`npm run dev`** — то же по приложениям, **без** старта Docker (БД уже должна быть доступна).
-   - **`npm run dev:app`** — только shared + API + web, **без** worker (удобно без Telegram).
-   - Транспиляция на лету: **Nest** и **shared** инкрементально компилируют TypeScript при сохранении; **Vite** — для клиента; **worker** — `tsx watch`.
-   - Vite для `@radar/shared` смотрит на **исходники** (`packages/shared/src`), чтобы не упираться в CJS interop; Node (API) по-прежнему импортирует собранный **`dist`** пакета.
-   - Только API: нужен актуальный `dist` у shared — либо второй терминал `npm run shared:dev`, либо один раз из корня уже запускали `npm run dev`.
-   - Если правили **только** `packages/shared`, а Nest не пересобрался, сохраните любой файл в `packages/api/src` или перезапустите процесс API.
-
-5. Проверка:
-
-   - [http://127.0.0.1:3000/api/health](http://127.0.0.1:3000/api/health) — без БД  
-   - [http://127.0.0.1:3000/api/ready](http://127.0.0.1:3000/api/ready) — `SELECT 1`  
-   - [http://127.0.0.1:3000/api/docs](http://127.0.0.1:3000/api/docs) — Swagger  
-   - [http://127.0.0.1:5173](http://127.0.0.1:5173) — фронт (запрос к API через прокси)
-   - [http://127.0.0.1:5050](http://127.0.0.1:5050) — pgAdmin (логин/пароль из `.env`, см. `.env.example`)
+Подробности transpile/watch: Nest + `shared/dist` для API; Vite тянет схемы из `packages/shared/src`.
 
 ## Локальные GeoJSON (без submodules)
 
@@ -327,9 +341,11 @@ npm run migration:run
 | Скрипт            | Назначение                          |
 |-------------------|-------------------------------------|
 | `npm run cold:up` | холодный старт: Docker, `npm install`, build shared, миграции (без `dev`) |
-| `npm run up`      | **Docker + dev** — без установки/миграций (ежедневная работа) |
-| `npm run dev`     | все dev-процессы **без** `docker compose` |
+| `npm run up`      | **Docker + dev:app** (API + web, без worker) |
+| `npm run dev`     | shared + API + web + worker (**без** Docker) |
 | `npm run dev:app` | shared + API + web (**без** worker) |
+| `npm run worker:reparse:raw` | перепарсить `raw_messages` и обновить проекции карты |
+| `npm run worker:map-state:expire` | одноразовый TTL-sweep регионов/places (без полного worker) |
 | `npm run bot:dev` | запуск HLD-каркаса admin-bot |
 | `npm run start:api` | прод: `node dist/main.js` у API (**нужен** предварительный `npm run build`) |
 | `npm run db:up`   | `docker compose up -d` (Postgres + **pgAdmin**) |

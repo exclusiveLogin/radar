@@ -4,6 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "predev": "npm run build -w @radar/shared && npm run build -w @radar/api && npm run build -w @radar/worker",
+    "prestart": "npm run predev",
     "dev": "tsx watch src/index.ts",
     "start": "tsx src/index.ts",
     "parse:snap": "tsx src/cli/parseSnap.ts",
@@ -17,7 +19,12 @@
     "worker:session:invalidate": "tsx src/cli/sessionCli.ts invalidate",
     "ingest:manifest:import": "tsx src/cli/ingestManifestCli.ts import",
     "ingest:manifest:export": "tsx src/cli/ingestManifestCli.ts export",
-    "worker:ingest:backfill": "tsx src/cli/ingestBackfillCli.ts"
+    "worker:ingest:backfill": "tsx src/cli/ingestBackfillCli.ts",
+    "worker:reparse:raw": "tsx src/cli/reparseRawCli.ts",
+    "worker:backfill:place-status-history": "tsx src/cli/backfillPlaceStatusHistoryCli.ts",
+    "worker:map-state:expire": "tsx src/cli/mapStateExpireCli.ts",
+    "verify:parse-threads": "tsx scripts/verify-parse-threads.mjs",
+    "verify:bootstrap": "tsx scripts/verify-worker-bootstrap.mjs"
   },
   "dependencies": {
     "@radar/shared": "*",

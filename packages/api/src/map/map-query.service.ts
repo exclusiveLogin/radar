@@ -3,21 +3,30 @@ import { InjectDataSource } from "@nestjs/typeorm";
 import type { DataSource } from "typeorm";
 import { MoreThan } from "typeorm";
 import type {
+  MapPlaceSnapshot,
   MapRegionSnapshot,
   MapSnapshot,
+  StateLevel,
   StatusDictionary,
   Warning,
 } from "@radar/shared";
 import {
+  PlaceStatusActiveEntity,
   RegionStateActiveEntity,
   RegionStateHistoryEntity,
   StatusDictionaryEntity,
 } from "../events/entities";
 import { PlaceEntity, RegionEntity } from "../geo/entities";
+import { resolveRegionCentroid } from "./map-centroid.resolver";
 import { loadLayout } from "./layout.loader";
+import { maxStateLevel } from "@radar/shared";
 import type { GeoRegionRef, PlaceRef } from "./map.dto";
+import {
+  RegionGeometryCatalog,
+  type RegionsGeoJsonLayer,
+} from "./region-geometry.catalog";
 
-type StateLevel = MapRegionSnapshot["stateLevel"];
+type RegionStateLevel = MapRegionSnapshot["stateLevel"];
 
 /** Преобразует numeric-строку TypeORM в число (или undefined). */
 function toNumber(value: string | null): number | undefined {
@@ -28,7 +37,43 @@ function toNumber(value: string | null): number | undefined {
 
 @Injectable()
 export class MapQueryService {
+  private catalogBound = false;
+
   constructor(@InjectDataSource() private readonly dataSource: DataSource) {}
+
+  /** Полигоны активных регионов (OSM GeoJSON) + stateLevel из region_state_active. */
+  async getRegionsGeoJsonLayer(): Promise<RegionsGeoJsonLayer> {
+    await this.ensureCatalogBound();
+    const states = await this.dataSource
+      .getRepository(RegionStateActiveEntity)
+      .find();
+
+    const stateByIso = new Map<string, StateLevel>();
+    for (const row of states) {
+      if (!row.regionCode) continue;
+      stateByIso.set(row.regionCode, row.stateLevel as StateLevel);
+    }
+
+    // Только активные (≠ grey): ~300 KB вместо ~44 MB — иначе браузер не загружает слой.
+    return RegionGeometryCatalog.getInstance().buildLayer(stateByIso);
+  }
+
+  /** Привязка файлов OSM к ISO регионов БД (один раз за процесс). */
+  private async ensureCatalogBound(): Promise<void> {
+    if (this.catalogBound) return;
+    const regions = await this.dataSource.getRepository(RegionEntity).find({
+      where: { isActive: true },
+    });
+    RegionGeometryCatalog.getInstance().bindRegions(
+      regions.map((region) => ({
+        iso: region.iso,
+        name: region.name,
+        nameWithType: region.nameWithType,
+        geometryArtifactKey: region.geometryArtifactKey,
+      })),
+    );
+    this.catalogBound = true;
+  }
 
   /** Лёгкий снапшот карты: регионы + stateLevel + activity + layout, без полигонов. */
   async getSnapshot(since?: string): Promise<MapSnapshot> {
@@ -43,6 +88,7 @@ export class MapQueryService {
     const layout = loadLayout();
     const sinceDate = since ? new Date(since) : null;
     const placeCentroidByRegion = await this.loadPlaceCentroidByRegion();
+    const levelByStatus = await this.loadStatusLevels();
 
     const items: MapRegionSnapshot[] = [];
     for (const region of regions) {
@@ -51,24 +97,30 @@ export class MapQueryService {
 
       const code = region.iso ?? region.fiasId ?? region.name;
       const tile = layout.tiles[code];
-      const fromRegion = {
-        lat: toNumber(region.centroidLat),
-        lon: toNumber(region.centroidLon),
-      };
-      const fromPlaces = placeCentroidByRegion.get(region.id);
+      const centroid = resolveRegionCentroid({
+        region,
+        code,
+        tile,
+        layoutCols: layout.cols,
+        layoutRows: layout.rows,
+        placeFallback: placeCentroidByRegion.get(region.id),
+        stateLevel: (state?.stateLevel ?? "grey") as RegionStateLevel,
+      });
       items.push({
         regionId: region.id,
         regionCode: code,
         name: region.name,
-        stateLevel: (state?.stateLevel ?? "grey") as StateLevel,
+        stateLevel: (state?.stateLevel ?? "grey") as RegionStateLevel,
         activity: state?.activity ?? 0,
         layout: tile,
-        centroidLat: fromRegion.lat ?? fromPlaces?.lat,
-        centroidLon: fromRegion.lon ?? fromPlaces?.lon,
+        centroidLat: centroid?.lat,
+        centroidLon: centroid?.lon,
       });
     }
 
-    return { generatedAt: new Date().toISOString(), regions: items };
+    const places = await this.loadMapPlaces(levelByStatus);
+
+    return { generatedAt: new Date().toISOString(), regions: items, places };
   }
 
   /** Тяжёлая геометрия: ссылки на регионы (centroid/bbox/artifactKey), тянется лениво гео-виджетом. */
@@ -175,8 +227,75 @@ export class MapQueryService {
     return map;
   }
 
-  private warningTitle(level: StateLevel): string {
-    const titles: Record<StateLevel, string> = {
+  /** Активные места с координатами и уровнем ≠ grey (для гео-слоя places). */
+  private async loadMapPlaces(
+    levelByStatus: Map<string, StateLevel>,
+  ): Promise<MapPlaceSnapshot[]> {
+    const rows = await this.dataSource.getRepository(PlaceStatusActiveEntity).find({
+      relations: { place: { region: true } },
+    });
+
+    const byPlace = new Map<
+      string,
+      {
+        place: PlaceEntity;
+        regionCode: string;
+        statusCodes: string[];
+        updatedAt: Date;
+      }
+    >();
+
+    for (const row of rows) {
+      const place = row.place;
+      if (!place?.region) continue;
+      const lat = toNumber(place.centroidLat);
+      const lon = toNumber(place.centroidLon);
+      if (lat === undefined || lon === undefined) continue;
+
+      const regionCode = place.region.iso ?? place.region.name;
+      const bucket = byPlace.get(place.id) ?? {
+        place,
+        regionCode,
+        statusCodes: [],
+        updatedAt: row.updatedAt,
+      };
+      bucket.statusCodes.push(row.statusCode);
+      if (row.updatedAt > bucket.updatedAt) bucket.updatedAt = row.updatedAt;
+      byPlace.set(place.id, bucket);
+    }
+
+    const items: MapPlaceSnapshot[] = [];
+    for (const entry of byPlace.values()) {
+      const stateLevel = maxStateLevel(entry.statusCodes, levelByStatus);
+      if (stateLevel === "grey") continue;
+
+      const lat = toNumber(entry.place.centroidLat)!;
+      const lon = toNumber(entry.place.centroidLon)!;
+      items.push({
+        placeId: entry.place.id,
+        placeName: entry.place.name,
+        regionId: entry.place.regionId,
+        regionCode: entry.regionCode,
+        statusCode: entry.statusCodes[0]!,
+        stateLevel,
+        lat,
+        lon,
+        updatedAt: entry.updatedAt.toISOString(),
+      });
+    }
+
+    return items;
+  }
+
+  private async loadStatusLevels(): Promise<Map<string, StateLevel>> {
+    const rows = await this.dataSource
+      .getRepository(StatusDictionaryEntity)
+      .find({ where: { isActive: true } });
+    return new Map(rows.map((row) => [row.code, row.stateLevel as StateLevel]));
+  }
+
+  private warningTitle(level: RegionStateLevel): string {
+    const titles: Record<RegionStateLevel, string> = {
       grey: "Нет данных",
       green: "Отбой",
       yellow: "Внимание",

@@ -1,7 +1,26 @@
 import { randomUUID } from "node:crypto";
+import * as fs from "node:fs";
+import * as path from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { Worker } from "node:worker_threads";
 import type { ParsePipelineInput, ParsePipelineResult } from "./parsePipelineService.js";
 import type { ParsePipelineWorkerConfig } from "./createParsePipeline.js";
+
+const here = path.dirname(fileURLToPath(import.meta.url));
+
+/**
+ * Worker thread грузит скомпилированный .js (Node без tsx).
+ * tsx/--import в worker_threads на Windows не резолвит импорты `.js` → `.ts`.
+ */
+function resolveParseWorkerEntry(): URL {
+  const distJs = path.resolve(here, "../../../dist/application/parsing/parsePipeline.worker.js");
+  if (!fs.existsSync(distJs)) {
+    throw new Error(
+      "Нет dist/application/parsing/parsePipeline.worker.js — выполните: npm run build -w @radar/worker",
+    );
+  }
+  return pathToFileURL(distJs);
+}
 
 type WorkerRequest = {
   type: "parse";
@@ -32,11 +51,7 @@ export class ParseWorkerPool {
 
   private spawnWorker(): Worker {
     const execArgv = process.execArgv.filter((arg) => !arg.startsWith("--inspect"));
-    // worker_threads не наследуют tsx — подключаем загрузчик TypeScript явно.
-    if (!execArgv.some((arg) => arg.includes("tsx"))) {
-      execArgv.push("--import", "tsx");
-    }
-    return new Worker(new URL("./parsePipeline.worker.ts", import.meta.url), {
+    return new Worker(resolveParseWorkerEntry(), {
       workerData: { config: this.workerConfig },
       execArgv,
     });

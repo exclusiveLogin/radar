@@ -7,8 +7,12 @@
   "scripts": {
     "up": "docker compose up -d && npm run dev:app",
     "cold:up": "node scripts/cold-up.mjs",
+    "predev:app": "npm run build -w @radar/shared && npm run build -w @radar/api",
+    "predev": "npm run predev:app && npm run build -w @radar/worker",
     "dev": "node scripts/dev-stack.mjs --full",
     "dev:app": "node scripts/dev-stack.mjs",
+    "preworker:dev": "npm run predev",
+    "prestart:api": "npm run predev:app",
     "build": "npm run build -w @radar/shared && npm run build -w @radar/api && npm run build -w @radar/web && npm run build -w @radar/worker && npm run build -w @radar/admin-bot",
     "lint": "eslint \"packages/*/src/**/*.{ts,tsx}\" --max-warnings 0",
     "typecheck": "npm run typecheck --workspaces --if-present",
@@ -39,7 +43,9 @@
     "worker:session:invalidate": "npm run worker:session:invalidate -w @radar/worker --",
     "ingest:manifest:import": "npm run ingest:manifest:import -w @radar/worker",
     "ingest:manifest:export": "npm run ingest:manifest:export -w @radar/worker",
-    "worker:ingest:backfill": "npm run worker:ingest:backfill -w @radar/worker --"
+    "worker:ingest:backfill": "npm run worker:ingest:backfill -w @radar/worker --",
+    "worker:reparse:raw": "npm run worker:reparse:raw -w @radar/worker",
+    "worker:map-state:expire": "npm run worker:map-state:expire -w @radar/worker"
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",

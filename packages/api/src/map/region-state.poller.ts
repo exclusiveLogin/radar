@@ -2,11 +2,14 @@ import { Injectable } from "@nestjs/common";
 import { InjectDataSource } from "@nestjs/typeorm";
 import type { WsServerMessage } from "@radar/shared";
 import type { DataSource } from "typeorm";
-import { MoreThan } from "typeorm";
+import { In, MoreThan } from "typeorm";
 import {
   RegionStateActiveEntity,
   RegionStateHistoryEntity,
 } from "../events/entities";
+import { RegionEntity } from "../geo/entities";
+import { resolveRegionCentroid } from "./map-centroid.resolver";
+import { loadLayout } from "./layout.loader";
 
 type Emit = (message: WsServerMessage) => void;
 
@@ -54,7 +57,23 @@ export class RegionStatePoller {
     if (rows.length === 0) return;
 
     const activity = await this.loadActivity();
+    const layout = loadLayout();
+    const regionById = await this.loadRegions(rows.map((row) => row.regionId));
+
     for (const row of rows) {
+      const region = regionById.get(row.regionId);
+      const code = row.regionCode;
+      const centroid = region
+        ? resolveRegionCentroid({
+            region,
+            code,
+            tile: layout.tiles[code],
+            layoutCols: layout.cols,
+            layoutRows: layout.rows,
+            stateLevel: row.stateLevel,
+          })
+        : undefined;
+
       emit({
         type: "region-state",
         payload: {
@@ -65,6 +84,8 @@ export class RegionStatePoller {
           activity: activity.get(row.regionId) ?? 0,
           reason: row.reason ?? undefined,
           changedAt: row.changedAt.toISOString(),
+          centroidLat: centroid?.lat,
+          centroidLon: centroid?.lon,
         },
       });
       emit({
@@ -81,6 +102,15 @@ export class RegionStatePoller {
       });
     }
     this.cursor = rows[rows.length - 1].changedAt;
+  }
+
+  private async loadRegions(ids: string[]): Promise<Map<string, RegionEntity>> {
+    const unique = [...new Set(ids)];
+    if (unique.length === 0) return new Map();
+    const rows = await this.dataSource.getRepository(RegionEntity).find({
+      where: { id: In(unique) },
+    });
+    return new Map(rows.map((row) => [row.id, row]));
   }
 
   private async loadActivity(): Promise<Map<string, number>> {
