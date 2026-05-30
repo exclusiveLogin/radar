@@ -6,6 +6,8 @@
 
 **Запуск локально:** [docs/getting-started.md](docs/getting-started.md) · **Доки:** [docs/README.md](docs/README.md) · **План:** [docs/plan.md](docs/plan.md) · **Домен:** [docs/domain/README.md](docs/domain/README.md) · **Trust мест:** [docs/place-trust-explained.md](docs/place-trust-explained.md)
 
+![Radar — OSINT-дашборд: гео-карта, KPI, схема, лента и системные виджеты](docs/assets/dashboard-osint-shell.png)
+
 ---
 
 ## Что это
@@ -125,17 +127,15 @@ flowchart LR
   PROBE --> REST
 ```
 
-### Макет UI (текущий)
+### Макет UI
+
+Скриншот актуального shell — в шапке README. Схема зон:
 
 ```
-┌──────────────────────────────────────────────────────────────────────────┐
-│ ◈ RADAR          [UTC clock]              [LIVE|SYNC|OFFLINE]  🌓  ⚙    │
-├──────────────┬───────────────────────────────────────────┬───────────────┤
-│ Обзор KPI    │                                           │ Актив. угрозы │
-│ Схема        │         Гео-карта (MapLibre)              │ Лента измен.  │
-│              │                                           │ Топ / Динамика│
-│              │                                           │ Каналы / Sys  │
-└──────────────┴───────────────────────────────────────────┴───────────────┘
+header: UTC · LiveBadge · theme · widget toggles
+left rail:   Обзор (KPI + donut) · Схема
+background:  Гео-карта (MapLibre)
+right rail:  Угрозы · Лента · Топ · Динамика · Каналы · Система
 ```
 
 ---
