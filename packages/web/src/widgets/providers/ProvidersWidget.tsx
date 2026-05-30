@@ -19,12 +19,14 @@ const statusLabel: Record<ProviderStatus, string> = {
   draft: "Черновик",
 };
 
+import type { WidgetProps } from "../widgetProps";
+
 /** Статус ingest-провайдеров (каналы): heartbeat, ошибки. */
-export function ProvidersWidget() {
+export function ProvidersWidget({ defaultCollapsed = false }: WidgetProps) {
   const providers = useObservable(providers$, []);
 
   return (
-    <Panel title="Каналы" variant="glass" collapsible>
+    <Panel title="Каналы" variant="glass" collapsible defaultCollapsed={defaultCollapsed}>
       {providers.length === 0 ? (
         <p className="ds-muted">Нет провайдеров или API недоступен.</p>
       ) : (

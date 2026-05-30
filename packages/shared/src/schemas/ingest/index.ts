@@ -46,6 +46,10 @@ export {
   timelineResponseSchema,
   fetchHistoryBatchSchema,
 } from "./ingest-timeline";
+export {
+  messageFeedItemSchema,
+  messageFeedResponseSchema,
+} from "./message-feed";
 export { ingestManifestEntrySchema, ingestManifestSchema } from "./ingest-manifest";
 export {
   sessionKindSchema,
@@ -94,6 +98,7 @@ export type {
   BackfillJobRecord,
   TimelineResponse,
 } from "./ingest-timeline";
+export type { MessageFeedItem, MessageFeedResponse } from "./message-feed";
 export type { IngestManifestEntry, IngestManifest } from "./ingest-manifest";
 export type {
   SessionKind,

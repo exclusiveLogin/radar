@@ -1,0 +1,27 @@
+import { BehaviorSubject } from "rxjs";
+import { messageFeedResponseSchema, type MessageFeedItem } from "@radar/shared";
+import { mapApi } from "../api/mapApi";
+
+/** Лента сырых сообщений (REST poll). */
+export const messagesFeed$ = new BehaviorSubject<MessageFeedItem[]>([]);
+
+const POLL_MS = 20_000;
+let started = false;
+
+/** Периодический опрос GET /api/map/messages/recent. */
+export function startMessagesStore(): void {
+  if (started) return;
+  started = true;
+
+  void refreshMessages();
+  setInterval(() => void refreshMessages(), POLL_MS);
+}
+
+async function refreshMessages(): Promise<void> {
+  try {
+    const data = await mapApi.recentMessages();
+    messagesFeed$.next(messageFeedResponseSchema.parse(data).items);
+  } catch (error) {
+    console.error("[messagesStore]", error);
+  }
+}

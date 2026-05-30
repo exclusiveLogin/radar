@@ -4,7 +4,7 @@
 
 Не BI и не «ещё один чат-агрегатор». Это **Common Operational Picture (COP)** для текстового шума: ingest, parse, trust-aware geo, липкий автомат статусов, WebSocket-дельты и glass-дашборд поверх MapLibre. По духу — узкий slice **Palantir Gotham** / situational awareness, без enterprise-обвеса.
 
-**Запуск локально:** [docs/getting-started.md](docs/getting-started.md) · **Доки:** [docs/README.md](docs/README.md) · **План:** [docs/plan.md](docs/plan.md) · **Домен:** [docs/domain/README.md](docs/domain/README.md) · **Trust мест:** [docs/place-trust-explained.md](docs/place-trust-explained.md)
+**Запуск локально:** [docs/getting-started.md](docs/getting-started.md) · **Шпаргалка:** [docs/cheatsheet.md](docs/cheatsheet.md) · **Доки:** [docs/README.md](docs/README.md) · **План:** [docs/plan.md](docs/plan.md) · **Домен:** [docs/domain/README.md](docs/domain/README.md) · **Trust мест:** [docs/place-trust-explained.md](docs/place-trust-explained.md)
 
 ![Radar — OSINT-дашборд: гео-карта, KPI, схема, лента и системные виджеты](docs/assets/dashboard-osint-shell.png)
 
@@ -51,16 +51,17 @@
 
 ### Web — OSINT-оболочка
 
-- **Layout:** карта фоном, glass-рейлы слева/справа, ломаный header (UTC-часы, **LiveBadge** = WS + API/БД).
+- **Layout:** карта фоном, glass-рейлы слева/справа, ломаный header (UTC-часы, **LiveBadge** = WS + API/БД). Правый рейл — панели **свёрнуты по умолчанию**.
 - **Виджеты** (реестр `widgetRegistry`, toggles в ⚙):
   - **Гео-карта** — MapLibre, контуры субъектов (fill + inset outline), маркеры places.
   - **Схема** — layout.json, heat по `stateLevel`.
   - **Обзор** — KPI по уровням + donut.
   - **Активные угрозы**, **Лента изменений** — live feed из `region_state_history`.
+  - **Сообщения** — лента raw ingest (канал, время MSK, parse status).
   - **Топ активности**, **Динамика событий** — sparkline + BarMini по журналу.
   - **Каналы**, **Система** — ingest providers, worker probe, WS/db health.
 - **Realtime:** `mapStore` — snapshot + WS `region-state` | `place-state` | `warning`.
-- **Тема:** light/dark (`data-theme`), design-system primitives.
+- **Тема:** light/dark (`data-theme`), design-system primitives, тонкие accent-скроллбары.
 
 ### Backend / worker
 
@@ -133,10 +134,56 @@ flowchart LR
 
 ```
 header: UTC · LiveBadge · theme · widget toggles
-left rail:   Обзор (KPI + donut) · Схема
+left rail:   Обзор (KPI + donut) · Схема          [развёрнуты]
 background:  Гео-карта (MapLibre)
-right rail:  Угрозы · Лента · Топ · Динамика · Каналы · Система
+right rail:  Угрозы · Лента · Сообщения · Топ · Динамика · Каналы · Система  [свёрнуты по умолчанию]
 ```
+
+---
+
+## Шпаргалка (операции)
+
+Полная версия: **[docs/cheatsheet.md](docs/cheatsheet.md)**.
+
+### Запуск
+
+| Команда | Что |
+|---------|-----|
+| `npm run cold:up` | Docker + install + migrations (первый раз) |
+| `npm run up` | Docker + API + web |
+| `npm run dev` | API + web + worker (БД уже есть) |
+
+### Ingest (Telegram → БД)
+
+```powershell
+npm run worker:session:deploy
+npm run worker:session:probe
+npm run ingest:manifest:import    # bootstrap manifest если нет .radar/ingest.manifest.json
+npm run worker:dev                # RADAR_STORAGE_MODE=db в .env
+```
+
+**Каналы по умолчанию:** `@Radarpf`, `@radarrussiia`, `@radar_rvk`, `@RRPFO` — шаблон `docs/examples/ingest.manifest.radar-channels-mtproxy.json`.
+
+### Backfill (архив, CLI)
+
+```powershell
+# все enabled каналы, по 100 сообщений
+npm run worker:ingest:backfill -- --all-bindings --batch-size=100
+
+# один канал
+npm run worker:ingest:backfill -- --provider-id=<uuid> --binding-id=<uuid> --batch-size=100
+```
+
+UUID bindings: SQL в [cheatsheet § SQL](docs/cheatsheet.md#полезный-sql). Полная история — Backfill V2: [backfill-v2-pipeline.md](docs/backfill-v2-pipeline.md).
+
+### Карта / parse
+
+| Команда | Назначение |
+|---------|------------|
+| `npm run worker:reparse:raw` | пересчёт проекций из `raw_messages` |
+| `npm run worker:map-state:expire` | TTL-sweep статусов |
+| `node scripts/ws-smoke.mjs` | проверка WebSocket |
+| `node scripts/query-ingest-status.mjs` | providers / bindings / cursors |
 
 ---
 
@@ -255,7 +302,7 @@ Live:  region-state | place-state | warning  →  патч store (не refetch s
 |---------|-----------------|
 | **Гео-карта / схема** | `regionsByCode$`, `placesById$` (snapshot + WS) |
 | **KPI / donut / топ** | `regionsByCode$` (derivations) |
-| **Лента / динамика** | `stateChanges$` (REST warnings + WS `warning`) |
+| **Лента / динамика / сообщения** | `stateChanges$`, `messagesFeed$` (REST + WS / poll) |
 | **Каналы / система** | `providersStore` (REST poll 30s) + `connectionStatus$` (WS) |
 | **LiveBadge** | WS open + `/api/health` + `/api/ready` |
 
@@ -350,7 +397,7 @@ docker compose --profile llm-ui up -d
 - Admin: **`POST /api/admin/ingest/messages`** — ручной ingest; Swagger: `/api/docs` → `admin-ingest`.
 - CLI (все параметры): **[docs/ingest-providers.md](./docs/ingest-providers.md#cli--справочник-команд)** — session, manifest, backfill.
 - Backfill V2 (демон, схемы, эксплуатация): **[docs/backfill-v2-pipeline.md](./docs/backfill-v2-pipeline.md)**.
-- CLI: `npm run worker:session:deploy`, `npm run ingest:manifest:import`, `npm run worker:ingest:backfill`.
+- CLI: `npm run worker:session:deploy`, `npm run ingest:manifest:import`, `npm run worker:ingest:backfill -- --all-bindings --batch-size=100`.
 - Docker worker (profile): `docker compose --profile worker up -d worker`.
 
 ## Секреты и dotenv-vault
@@ -385,6 +432,8 @@ npm run migration:run
 | `npm run dev:app` | shared + API + web (**без** worker) |
 | `npm run worker:reparse:raw` | перепарсить `raw_messages` и обновить проекции карты |
 | `npm run worker:map-state:expire` | одноразовый TTL-sweep регионов/places (без полного worker) |
+| `npm run ingest:manifest:import` | import провайдеров/каналов из `.radar/ingest.manifest.json` (auto-bootstrap из examples) |
+| `npm run worker:ingest:backfill -- --all-bindings --batch-size=100` | backfill по всем enabled каналам (CLI chunk) |
 | `npm run bot:dev` | запуск HLD-каркаса admin-bot |
 | `npm run start:api` | прод: `node dist/main.js` у API (**нужен** предварительный `npm run build`) |
 | `npm run db:up`   | `docker compose up -d` (Postgres + **pgAdmin**) |

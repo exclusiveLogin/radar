@@ -13,8 +13,10 @@ function formatTime(iso: string): string {
   });
 }
 
+import type { WidgetProps } from "../widgetProps";
+
 /** Лента смен состояния регионов (region_state_history + WS). */
-export function StateChangesWidget() {
+export function StateChangesWidget({ defaultCollapsed = false }: WidgetProps) {
   const changes = useObservable(stateChanges$, [] as Warning[]);
   const selected = useObservable(selectedRegion$, null);
 
@@ -54,7 +56,7 @@ export function StateChangesWidget() {
   ) : null;
 
   return (
-    <Panel title="Лента изменений" actions={filterAction} variant="glass" collapsible>
+    <Panel title="Лента изменений" actions={filterAction} variant="glass" collapsible defaultCollapsed={defaultCollapsed}>
       {items.length === 0 ? (
         <p className="ds-muted">Нет записей в журнале.</p>
       ) : (

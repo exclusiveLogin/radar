@@ -84,6 +84,30 @@ export function warningsTimeBuckets(
   return buckets;
 }
 
+const MSK = "Europe/Moscow";
+
+/** Время сообщения: только часы если <24ч, иначе дата + время (MSK). */
+export function formatMessagePostedAt(iso: string, nowMs = Date.now()): string {
+  const ageMs = nowMs - new Date(iso).getTime();
+  const timeOpts: Intl.DateTimeFormatOptions = {
+    timeZone: MSK,
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  };
+  if (ageMs >= 0 && ageMs < 24 * 60 * 60 * 1000) {
+    return new Date(iso).toLocaleTimeString("ru-RU", timeOpts);
+  }
+  return new Date(iso).toLocaleString("ru-RU", {
+    timeZone: MSK,
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+}
+
 /** Форматирует возраст ISO-даты в человекочитаемый вид. */
 export function formatAge(iso: string | null | undefined): string {
   if (!iso) return "—";

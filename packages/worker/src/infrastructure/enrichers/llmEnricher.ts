@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { LLM_GEOCODER_SYSTEM_PROMPT } from "./llmGeocoderSystemPrompt.js";
 import type { LlmRuntimeConfig } from "./llmRuntimeConfig.js";
+import { normalizeLlmConfidence } from "./normalizeLlmConfidence.js";
 
 // ─── Response schema (multi-place) ────────────────────────────────────────
 
@@ -16,7 +17,7 @@ const llmPlaceSchema = z.object({
 const llmResponseSchema = z.object({
   places: z.array(llmPlaceSchema).default([]),
   regionCode: z.string().min(1).nullable().catch(null).optional(),
-  confidence: z.number().min(0).max(1).default(0),
+  confidence: z.preprocess(normalizeLlmConfidence, z.number().min(0).max(1)),
   reason: z.string().max(400).nullable().catch("").transform((v) => v ?? ""),
 });
 

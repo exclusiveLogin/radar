@@ -5,6 +5,7 @@ import { LEVEL_COLORS } from "../../shared/config/mapConfig.service";
 import { useObservable } from "../../shared/hooks/useObservable";
 import { regionsByCode$ } from "../../shared/state/mapStore";
 import { selectRegion, selectedRegion$ } from "../../shared/state/selectionStore";
+import type { WidgetProps } from "../widgetProps";
 
 const CELL = 46;
 const PADDING = 18;
@@ -16,7 +17,7 @@ function radiusFor(activity: number): number {
 }
 
 /** Схематичная карта-сетка: регион = кружок в тайле layout, цвет = уровень. */
-export function SchematicMapWidget() {
+export function SchematicMapWidget(_props: WidgetProps) {
   const regions = useObservable(regionsByCode$, new Map<string, MapRegionSnapshot>());
   const selected = useObservable(selectedRegion$, null);
 

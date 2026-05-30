@@ -5,14 +5,16 @@ import { topRegionsByActivity } from "../../shared/state/derivations";
 import { regionsByCode$ } from "../../shared/state/mapStore";
 import { selectRegion } from "../../shared/state/selectionStore";
 
+import type { WidgetProps } from "../widgetProps";
+
 /** Топ регионов по activity (trending-список). */
-export function TopActivityWidget() {
+export function TopActivityWidget({ defaultCollapsed = false }: WidgetProps) {
   const regions = useObservable(regionsByCode$, new Map());
 
   const top = useMemo(() => topRegionsByActivity(regions, 10), [regions]);
 
   return (
-    <Panel title="Топ активности" variant="glass" collapsible>
+    <Panel title="Топ активности" variant="glass" collapsible defaultCollapsed={defaultCollapsed}>
       {top.length === 0 ? (
         <p className="ds-muted">Нет активных регионов.</p>
       ) : (

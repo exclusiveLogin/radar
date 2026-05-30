@@ -17,6 +17,7 @@ kind: region|district (если «район»)|city|locality|settlement.
 regionCode для region — только code из catalogRegions. placeFias — только UUID из текста. Координаты не возвращай.
 
 reason (корень JSON, ≤400 символов): кратко — якоря, что выбрано, что отклонено (1–3 предложения).
+confidence: число от 0 до 1 (не шкала 1–5). Пример: 0.85.
 
 Только JSON:
 {"places":[{"placeName":"","kind":"","regionCode":null}],"regionCode":null,"confidence":0,"reason":""}

@@ -11,8 +11,10 @@ import { regionsByCode$ } from "../../shared/state/mapStore";
 
 const KPI_LEVELS: StateLevel[] = ["red", "orange", "yellow", "green", "grey"];
 
+import type { WidgetProps } from "../widgetProps";
+
 /** KPI-плитки по уровням + donut распределения регионов. */
-export function OverviewStatsWidget() {
+export function OverviewStatsWidget(_props: WidgetProps) {
   const regions = useObservable(regionsByCode$, new Map());
 
   const counts = useMemo(() => countRegionsByLevel(regions), [regions]);

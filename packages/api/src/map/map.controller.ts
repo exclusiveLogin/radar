@@ -2,6 +2,7 @@ import { Controller, Get, NotFoundException, Param, Query } from "@nestjs/common
 import { ApiQuery } from "@nestjs/swagger";
 import {
   mapSnapshotSchema,
+  messageFeedResponseSchema,
   statusDictionarySchema,
   warningSchema,
 } from "@radar/shared";
@@ -97,5 +98,14 @@ export class MapController {
       limit: parseLimit(limit, 100),
     });
     return z.array(warningSchema).parse(warnings);
+  }
+
+  /** Лента сырых сообщений (все каналы) для дашборда. */
+  @Get("map/messages/recent")
+  @ApiQuery({ name: "limit", required: false })
+  async recentMessages(@Query("limit") limit?: string) {
+    return messageFeedResponseSchema.parse({
+      items: await this.map.getRecentMessages(parseLimit(limit, 80)),
+    });
   }
 }

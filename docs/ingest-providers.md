@@ -164,6 +164,8 @@ npm run worker:session:deploy -- --slot tg-user-1 --kind mtproto_user
 
 Файл по умолчанию: `.radar/ingest.manifest.json` (можно переопределить `RADAR_INGEST_MANIFEST`).
 
+**Bootstrap:** при `ingest:manifest:import`, если локального файла нет, worker **копирует** bundled-шаблон `docs/examples/ingest.manifest.radar-channels-mtproxy.json` → `.radar/ingest.manifest.json` (4 канала: PF, Russia, RVK, RRPFO). Ручной `Copy-Item` не нужен.
+
 **Важно:** worker в runtime читает **только БД**. Manifest — черновик для import/export.
 
 ### `npm run ingest:manifest:import`
@@ -588,8 +590,9 @@ npm run ingest:manifest:export
 
 | Параметр | Обяз. | Default | За что отвечает |
 |----------|-------|---------|----------------|
-| `--provider-id` | **да** | — | UUID строки в `ingest_providers` (кто качает) |
-| `--binding-id` | **да** | — | UUID в `ingest_bindings` (какой чат) |
+| `--provider-id` | **да*** | — | UUID строки в `ingest_providers` (кто качает) |
+| `--binding-id` | **да*** | — | UUID в `ingest_bindings` (какой чат) |
+| `--all-bindings` | нет | — | Прогнать backfill по всем enabled bindings (вместо пары id) |
 | `--batch-size` | нет | `200` | Сколько сообщений за один проход |
 | `--from-posted-at` | нет | — | Не брать сообщения **раньше** этой даты (ISO UTC) |
 | `--to-posted-at` | нет | — | Не брать сообщения **позже** этой даты |
@@ -613,7 +616,7 @@ JOIN ingest_providers p ON p.id = b.provider_id
 LEFT JOIN channels c ON c.id = b.channel_id;
 ```
 
-**Пример (PowerShell):**
+**Пример (PowerShell) — один binding:**
 
 ```powershell
 npm run worker:ingest:backfill -- `
@@ -621,6 +624,12 @@ npm run worker:ingest:backfill -- `
   --binding-id="11111111-2222-3333-4444-555555555555" `
   --batch-size=100 `
   --from-posted-at="2026-01-01T00:00:00.000Z"
+```
+
+**Пример — все enabled bindings (по 100 сообщений на канал):**
+
+```powershell
+npm run worker:ingest:backfill -- --all-bindings --batch-size=100
 ```
 
 **Выход:** `Backfill chunk: { inserted: 42, duplicates: 3 }` — вставлено 42 новых, 3 уже были.

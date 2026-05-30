@@ -12,6 +12,7 @@ import {
 } from "../../shared/config/mapConfig.service";
 import { placesById$, regionsByCode$ } from "../../shared/state/mapStore";
 import { selectRegion } from "../../shared/state/selectionStore";
+import type { WidgetProps } from "../widgetProps";
 import { insetRegionGeometry } from "./regionInsetOutline";
 
 const REGIONS_SOURCE = "regions";
@@ -166,7 +167,7 @@ function fitMapView(
 /**
  * Гео-карта: заливка + внутренний контур региона (цвет stateLevel) + точки places.
  */
-export function GeoMapWidget() {
+export function GeoMapWidget(_props: WidgetProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const baseRegionsRef = useRef<GeoJsonCollection | null>(null);
   const didFitRef = useRef(false);

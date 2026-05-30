@@ -22,7 +22,7 @@ export class StatusDictionaryStateLevel1747200000000 implements MigrationInterfa
         ('impact',              'Поражение/сбитие',  true, ARRAY['impact'],              'red',    true, 15),
         ('rocket_threat',       'Ракетная опасность',true, ARRAY['rocket_threat'],       'orange', true, 20),
         ('mass_warning',        'Тревога',           true, ARRAY['mass_warning'],        'yellow', true, 32),
-        ('danger',              'Опасность по БПЛА', true, ARRAY['danger'],              'yellow', true, 30),
+        ('danger',              'Опасность по БПЛА', true, ARRAY['danger'],              'red',    true, 25),
         ('attention',           'Внимание',          true, ARRAY['attention'],           'yellow', true, 35),
         ('safety_measures',     'Меры безопасности', true, ARRAY['safety_measures'],     'yellow', true, 40),
         ('airspace_restriction','Ограничение ИВП',   true, ARRAY['airspace_restriction'],'yellow', true, 45),

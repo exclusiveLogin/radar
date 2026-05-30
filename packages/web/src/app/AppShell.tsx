@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { LiveBadge, LiveClock, ThemeToggle } from "../shared/ds";
 import { startMapStore } from "../shared/state/mapStore";
+import { startMessagesStore } from "../shared/state/messagesStore";
 import { startProvidersStore } from "../shared/state/providersStore";
 import { WIDGETS, type WidgetZone } from "./widgetRegistry";
 
@@ -23,6 +24,7 @@ export function AppShell() {
   useEffect(() => {
     startMapStore();
     startProvidersStore();
+    startMessagesStore();
   }, []);
 
   const toggle = (id: string): void =>
@@ -93,9 +95,9 @@ export function AppShell() {
         </aside>
 
         <aside className="shell__rail shell__rail--right">
-          {right.map(({ id, component: Widget }) => (
+          {right.map(({ id, component: Widget, defaultCollapsed }) => (
             <div key={id} className="shell__rail-item">
-              <Widget />
+              <Widget defaultCollapsed={defaultCollapsed} />
             </div>
           ))}
         </aside>

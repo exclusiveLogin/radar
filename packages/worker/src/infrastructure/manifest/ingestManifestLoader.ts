@@ -11,6 +11,12 @@ import type {
 import { ingestManifestSchema } from "@radar/shared";
 
 const DEFAULT_REL = path.join(".radar", "ingest.manifest.json");
+/** Bundled шаблон с каналами Radar (PF, Russia, RVK, RRPFO) — bootstrap при первом import. */
+const BUNDLED_DEFAULT_REL = path.join(
+  "docs",
+  "examples",
+  "ingest.manifest.radar-channels-mtproxy.json",
+);
 
 export function resolveIngestManifestPath(repoRoot: string): string {
   const fromEnv = process.env.RADAR_INGEST_MANIFEST?.trim();
@@ -20,10 +26,29 @@ export function resolveIngestManifestPath(repoRoot: string): string {
   return path.join(repoRoot, DEFAULT_REL);
 }
 
+/**
+ * Если локального `.radar/ingest.manifest.json` нет — создаём из bundled шаблона.
+ * Файл gitignored; шаблон в репозитории — SSOT для dev/bootstrap.
+ */
+function ensureIngestManifestFile(repoRoot: string): string | null {
+  const abs = resolveIngestManifestPath(repoRoot);
+  if (fs.existsSync(abs)) return abs;
+
+  const bundled = path.join(repoRoot, BUNDLED_DEFAULT_REL);
+  if (!fs.existsSync(bundled)) return null;
+
+  fs.mkdirSync(path.dirname(abs), { recursive: true });
+  fs.copyFileSync(bundled, abs);
+  console.warn(
+    `Ingest manifest: создан ${DEFAULT_REL} из ${BUNDLED_DEFAULT_REL}. Отредактируйте при необходимости.`,
+  );
+  return abs;
+}
+
 /** Загрузка ingest manifest v2 (JSON + Zod). */
 export function loadIngestManifest(repoRoot: string): IngestManifest | null {
-  const abs = resolveIngestManifestPath(repoRoot);
-  if (!fs.existsSync(abs)) {
+  const abs = ensureIngestManifestFile(repoRoot);
+  if (!abs) {
     return null;
   }
   const raw: unknown = JSON.parse(fs.readFileSync(abs, "utf8"));

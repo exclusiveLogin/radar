@@ -23,6 +23,10 @@
   --gap: 10px;
   --rail-width: 320px;
   --header-height: 52px;
+  --scrollbar-size: 6px;
+  --scrollbar-track: transparent;
+  --scrollbar-thumb: rgba(0, 229, 255, 0.22);
+  --scrollbar-thumb-hover: rgba(0, 229, 255, 0.42);
 }
 
 /* ── Светлая тема ── */
@@ -44,6 +48,10 @@
   --status-ok: #2e7d32;
   --status-warn: #f57c00;
   --status-error: #d32f2f;
+  --scrollbar-size: 6px;
+  --scrollbar-track: transparent;
+  --scrollbar-thumb: rgba(0, 136, 170, 0.28);
+  --scrollbar-thumb-hover: rgba(0, 136, 170, 0.48);
 }
 
 * {
@@ -63,6 +71,52 @@ body {
   font-family: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
   font-size: 13px;
   line-height: 1.4;
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}
+
+/* ── Скроллбары в стиле DS (WebKit + Firefox) ── */
+.shell__rail,
+.shell__settings,
+.ds-panel__body,
+.ds-message-feed,
+.ds-accordion {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}
+
+.shell__rail::-webkit-scrollbar,
+.shell__settings::-webkit-scrollbar,
+.ds-panel__body::-webkit-scrollbar,
+.ds-message-feed::-webkit-scrollbar,
+.ds-accordion::-webkit-scrollbar {
+  width: var(--scrollbar-size);
+  height: var(--scrollbar-size);
+}
+
+.shell__rail::-webkit-scrollbar-track,
+.shell__settings::-webkit-scrollbar-track,
+.ds-panel__body::-webkit-scrollbar-track,
+.ds-message-feed::-webkit-scrollbar-track,
+.ds-accordion::-webkit-scrollbar-track {
+  background: var(--scrollbar-track);
+}
+
+.shell__rail::-webkit-scrollbar-thumb,
+.shell__settings::-webkit-scrollbar-thumb,
+.ds-panel__body::-webkit-scrollbar-thumb,
+.ds-message-feed::-webkit-scrollbar-thumb,
+.ds-accordion::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 999px;
+}
+
+.shell__rail::-webkit-scrollbar-thumb:hover,
+.shell__settings::-webkit-scrollbar-thumb:hover,
+.ds-panel__body::-webkit-scrollbar-thumb:hover,
+.ds-message-feed::-webkit-scrollbar-thumb:hover,
+.ds-accordion::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
 }
 
 /* ── Панели ── */
@@ -412,4 +466,66 @@ body {
   margin-left: auto;
   font-variant-numeric: tabular-nums;
   color: var(--text-muted);
+}
+
+/* ── Лента сообщений ── */
+.ds-message-feed {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.ds-message-feed__item {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.ds-message-feed__item:last-child {
+  border-bottom: none;
+}
+
+.ds-message-feed__meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+  font-size: 10px;
+}
+
+.ds-message-feed__source {
+  color: var(--accent);
+  font-weight: 600;
+  max-width: 45%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ds-message-feed__time {
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.ds-message-feed__pending {
+  color: var(--text-muted);
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.ds-message-feed__text {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--text);
+  word-break: break-word;
+}
+
+.ds-message-feed__regions {
+  margin-top: 4px;
+  font-size: 9px;
+  color: var(--text-muted);
+  letter-spacing: 0.04em;
 }

@@ -1,12 +1,13 @@
 import {
   healthResponseSchema,
+  messageFeedResponseSchema,
   readyResponseSchema,
   workerStatusResponseSchema,
   mapSnapshotSchema,
   statusDictionarySchema,
   warningSchema,
 } from "@radar/shared";
-import type { MapSnapshot, StatusDictionary, Warning } from "@radar/shared";
+import type { MapSnapshot, MessageFeedResponse, StatusDictionary, Warning } from "@radar/shared";
 import { z } from "zod";
 
 const warningsSchema = z.array(warningSchema);
@@ -75,6 +76,9 @@ export const mapApi = {
   health: () => getJson("/api/health", healthResponseSchema),
   ready: () => getJson("/api/ready", readyResponseSchema),
   workerStatus: () => getJson("/api/worker/status", workerStatusResponseSchema),
+  /** Лента сырых сообщений всех каналов. */
+  recentMessages: (limit = 80): Promise<MessageFeedResponse> =>
+    getJson(`/api/map/messages/recent?limit=${limit}`, messageFeedResponseSchema),
 };
 
 const geoJsonFeatureCollectionSchema = z.object({

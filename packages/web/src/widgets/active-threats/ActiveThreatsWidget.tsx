@@ -5,6 +5,7 @@ import type { AccordionItem } from "../../shared/ds";
 import { useObservable } from "../../shared/hooks/useObservable";
 import { placesById$, regionsByCode$ } from "../../shared/state/mapStore";
 import { selectRegion, selectedRegion$ } from "../../shared/state/selectionStore";
+import type { WidgetProps } from "../widgetProps";
 
 const LEVEL_RANK: Record<StateLevel, number> = {
   red: 5,
@@ -28,7 +29,7 @@ function compareRegions(a: MapRegionSnapshot, b: MapRegionSnapshot): number {
 }
 
 /** Текущие активные угрозы: region_state_active ≠ grey и place_status_active. */
-export function ActiveThreatsWidget() {
+export function ActiveThreatsWidget({ defaultCollapsed = false }: WidgetProps) {
   const regions = useObservable(regionsByCode$, new Map<string, MapRegionSnapshot>());
   const places = useObservable(placesById$, new Map<string, MapPlaceSnapshot>());
   const selected = useObservable(selectedRegion$, null);
@@ -117,7 +118,7 @@ export function ActiveThreatsWidget() {
   ) : null;
 
   return (
-    <Panel title="Активные угрозы" actions={filterAction} variant="glass" collapsible>
+    <Panel title="Активные угрозы" actions={filterAction} variant="glass" collapsible defaultCollapsed={defaultCollapsed}>
       {items.length === 0 ? (
         <p className="ds-muted">Нет активных угроз.</p>
       ) : (

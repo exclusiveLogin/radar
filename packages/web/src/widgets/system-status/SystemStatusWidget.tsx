@@ -14,8 +14,10 @@ import {
 } from "../../shared/state/mapStore";
 import { systemHealth$, workerStatus$ } from "../../shared/state/providersStore";
 
+import type { WidgetProps } from "../widgetProps";
+
 /** WS-соединение, DB ready, счётчики активных регионов/мест. */
-export function SystemStatusWidget() {
+export function SystemStatusWidget({ defaultCollapsed = false }: WidgetProps) {
   const wsStatus = useObservable(connectionStatus$, "connecting");
   const health = useObservable(systemHealth$, {
     apiOk: false,
@@ -40,7 +42,7 @@ export function SystemStatusWidget() {
         : "Отключено";
 
   return (
-    <Panel title="Система" variant="glass" collapsible>
+    <Panel title="Система" variant="glass" collapsible defaultCollapsed={defaultCollapsed}>
       <div className="ds-metric-row">
         <span className="ds-metric-row__label">WebSocket</span>
         <StatusDot kind={wsKind} label={wsLabel} pulse={wsStatus === "open"} />

@@ -139,13 +139,17 @@ SELECT count(*) FROM raw_messages WHERE ingest_mode = 'backfill';
 Разовый chunk, **не** V2 job:
 
 ```powershell
+# один binding
 npm run worker:ingest:backfill -- `
   --provider-id="<uuid>" `
   --binding-id="<uuid>" `
-  --batch-size=200
+  --batch-size=100
+
+# все enabled bindings (по N сообщений на канал)
+npm run worker:ingest:backfill -- --all-bindings --batch-size=100
 ```
 
-См. [ingest-providers.md § CLI backfill](./ingest-providers.md#3-backfill--докачка-истории).
+См. [ingest-providers.md § CLI backfill](./ingest-providers.md#3-backfill--докачка-истории) и [cheatsheet.md § Backfill](./cheatsheet.md#backfill-архив-сообщений).
 
 ### Чеклист «не работает»
 
@@ -177,7 +181,7 @@ npm run worker:ingest:backfill -- `
 ├─────────────────────────────────────┼──────────────────────────────────────┤
 │ Задача в БД → демон worker          │ npm run worker:ingest:backfill       │
 │ Поток iterMessages + чекпоинты      │ Одна пачка getMessages (batch)       │
-│ До конца истории / по стратегии     │ Оператор сам повторяет запуск        │
+│ До конца истории / по стратегии     │ `--all-bindings` — все каналы сразу  │
 └─────────────────────────────────────┴──────────────────────────────────────┘
 ```
 

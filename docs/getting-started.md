@@ -43,7 +43,7 @@ flowchart LR
 | **Только UI + API** (без Telegram) | `cold:up` → `npm run dev:app` | не нужен | `DATABASE_URL` |
 | **Полный dev-стек** | `cold:up` → `npm run dev` | memory (по умолчанию) | как выше |
 | **Продукт с live ingest** | + session + manifest + `RADAR_STORAGE_MODE=db` | `worker:dev` db | см. § Ingest |
-| **+ архив канала** | + `POST backfill-jobs` | демон в worker | [backfill-v2-pipeline.md](./backfill-v2-pipeline.md) |
+| **+ архив канала** | + `POST backfill-jobs` или CLI `--all-bindings` | демон / CLI chunk | [backfill-v2-pipeline.md](./backfill-v2-pipeline.md), [cheatsheet.md](./cheatsheet.md) |
 
 ---
 
@@ -83,7 +83,7 @@ npm run dev
 | http://127.0.0.1:3000/api/health | `ok` без БД |
 | http://127.0.0.1:3000/api/ready | БД доступна |
 | http://127.0.0.1:3000/api/docs | Swagger |
-| http://127.0.0.1:5173 | Фронт (тумблеры: схема, гео-карта, предупреждения) |
+| http://127.0.0.1:5173 | OSINT-дашборд (geo, KPI, ленты; правый рейл свёрнут по умолчанию) |
 | http://127.0.0.1:5050 | pgAdmin (логин из `.env`) |
 | `GET /api/map/snapshot` | Снапшот карты (регионы + places) |
 | `WS /ws` | Realtime: snapshot + `region-state` / `place-state` |
@@ -126,11 +126,18 @@ npm run worker:session:probe
 
 ### Шаг B — провайдеры и bindings в PostgreSQL
 
-Шаблон: [ingest.manifest.example.json](./examples/ingest.manifest.example.json) → `.radar/ingest.manifest.json` (канал + `mtprotoSessionSlot`), затем:
+Шаблон каналов (PF, Russia, RVK, RRPFO) подхватывается автоматически при первом `ingest:manifest:import` — если `.radar/ingest.manifest.json` нет, worker **создаёт** его из [ingest.manifest.radar-channels-mtproxy.json](./examples/ingest.manifest.radar-channels-mtproxy.json). Либо положите свой manifest в `.radar/ingest.manifest.json`. Затем:
 
 ```powershell
 npm run ingest:manifest:import
 ```
+
+| key | Telegram |
+|-----|----------|
+| `radar-pf` | `@Radarpf` |
+| `radar-russia` | `@radarrussiia` |
+| `radar-rvk` | `@radar_rvk` |
+| `radar-rrpfo` | `@RRPFO` |
 
 Или создать через Admin API (`/api/docs` → `admin-ingest`).
 
@@ -161,6 +168,19 @@ POST /api/admin/ingest/messages
 или дождаться сообщения в привязанном канале → `raw_messages` → `parsed_events`.
 
 Подробный CLI-справочник: [ingest-providers.md § CLI](./ingest-providers.md#cli--справочник-команд).
+
+### Шаг E — backfill архива (CLI, разовая пачка)
+
+Без job в БД — удобно для первичного наполнения:
+
+```powershell
+# все enabled каналы, по 100 сообщений
+npm run worker:ingest:backfill -- --all-bindings --batch-size=100
+```
+
+Один канал: `--provider-id` + `--binding-id` (UUID — SQL в [cheatsheet.md § SQL](./cheatsheet.md#полезный-sql)).
+
+Полная история через демон: [backfill-v2-pipeline.md](./backfill-v2-pipeline.md). Кратко: [cheatsheet § Backfill](./cheatsheet.md#backfill-архив-сообщений).
 
 ---
 
@@ -204,6 +224,7 @@ npm run cold:up -- -Geo
 | `npm run dev:app` | Без Docker и без worker (только UI + API) |
 | `npm run migration:run` | Миграции TypeORM |
 | `npm run worker:parse:report -- --input tests` | Оффлайн-тест парсера без Telegram |
+| `npm run worker:ingest:backfill -- --all-bindings --batch-size=100` | Backfill всех каналов (CLI chunk) |
 | `npm run build` | Production build всех пакетов |
 
 ---
@@ -222,6 +243,7 @@ npm run cold:up -- -Geo
 
 ## Дальше по документации
 
+- [cheatsheet.md](./cheatsheet.md) — шпаргалка: ingest, backfill, SQL, UI  
 - [ingest-providers.md](./ingest-providers.md) — binding modes, manifest, bot vs MTProto  
 - [backfill-v2-pipeline.md](./backfill-v2-pipeline.md) — задачи архива  
 - [domain/README.md](./domain/README.md) — агрегаты, события, транзакции  

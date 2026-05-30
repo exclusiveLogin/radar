@@ -6,6 +6,7 @@ import type {
   MapPlaceSnapshot,
   MapRegionSnapshot,
   MapSnapshot,
+  MessageFeedItem,
   StateLevel,
   StatusDictionary,
   Warning,
@@ -17,7 +18,7 @@ import {
   StatusDictionaryEntity,
 } from "../events/entities";
 import { PlaceEntity, RegionEntity } from "../geo/entities";
-import { resolveRegionCentroid } from "./map-centroid.resolver";
+import { resolvePlaceMapCentroid, resolveRegionCentroid } from "./map-centroid.resolver";
 import { loadLayout } from "./layout.loader";
 import { maxStateLevel } from "@radar/shared";
 import type { GeoRegionRef, PlaceRef } from "./map.dto";
@@ -231,6 +232,8 @@ export class MapQueryService {
   private async loadMapPlaces(
     levelByStatus: Map<string, StateLevel>,
   ): Promise<MapPlaceSnapshot[]> {
+    const layout = loadLayout();
+    const placeCentroidByRegion = await this.loadPlaceCentroidByRegion();
     const rows = await this.dataSource.getRepository(PlaceStatusActiveEntity).find({
       relations: { place: { region: true } },
     });
@@ -248,11 +251,19 @@ export class MapQueryService {
     for (const row of rows) {
       const place = row.place;
       if (!place?.region) continue;
-      const lat = toNumber(place.centroidLat);
-      const lon = toNumber(place.centroidLon);
-      if (lat === undefined || lon === undefined) continue;
 
       const regionCode = place.region.iso ?? place.region.name;
+      const coords = resolvePlaceMapCentroid({
+        place,
+        region: place.region,
+        regionCode,
+        tile: layout.tiles[regionCode],
+        layoutCols: layout.cols,
+        layoutRows: layout.rows,
+        placeFallback: placeCentroidByRegion.get(place.regionId),
+      });
+      if (!coords) continue;
+
       const bucket = byPlace.get(place.id) ?? {
         place,
         regionCode,
@@ -269,8 +280,17 @@ export class MapQueryService {
       const stateLevel = maxStateLevel(entry.statusCodes, levelByStatus);
       if (stateLevel === "grey") continue;
 
-      const lat = toNumber(entry.place.centroidLat)!;
-      const lon = toNumber(entry.place.centroidLon)!;
+      const coords = resolvePlaceMapCentroid({
+        place: entry.place,
+        region: entry.place.region,
+        regionCode: entry.regionCode,
+        tile: layout.tiles[entry.regionCode],
+        layoutCols: layout.cols,
+        layoutRows: layout.rows,
+        placeFallback: placeCentroidByRegion.get(entry.place.regionId),
+      });
+      if (!coords) continue;
+
       items.push({
         placeId: entry.place.id,
         placeName: entry.place.name,
@@ -278,8 +298,8 @@ export class MapQueryService {
         regionCode: entry.regionCode,
         statusCode: entry.statusCodes[0]!,
         stateLevel,
-        lat,
-        lon,
+        lat: coords.lat,
+        lon: coords.lon,
         updatedAt: entry.updatedAt.toISOString(),
       });
     }
@@ -303,6 +323,57 @@ export class MapQueryService {
       red: "Опасность",
     };
     return titles[level];
+  }
+
+  /** Последние raw_messages всех каналов + parse/уровень для ленты дашборда. */
+  async getRecentMessages(limit: number): Promise<MessageFeedItem[]> {
+    const rows = (await this.dataSource.query(
+      `SELECT rm.id,
+              c.key AS channel_key,
+              c.title AS channel_title,
+              rm.posted_at,
+              rm.raw_text,
+              rm.ingest_mode,
+              pe.event_type,
+              sd.state_level,
+              COALESCE(
+                array_agg(DISTINCT r.iso) FILTER (WHERE r.iso IS NOT NULL),
+                '{}'
+              ) AS region_codes
+       FROM raw_messages rm
+       INNER JOIN channels c ON c.id = rm.channel_id
+       LEFT JOIN parsed_events pe ON pe.raw_message_id = rm.id
+       LEFT JOIN status_dictionary sd ON sd.code = pe.event_type AND sd.is_active = true
+       LEFT JOIN event_locations el ON el.parsed_event_id = pe.id
+       LEFT JOIN regions r ON r.id = el.region_id
+       GROUP BY rm.id, c.key, c.title, rm.posted_at, rm.raw_text, rm.ingest_mode,
+                pe.event_type, sd.state_level
+       ORDER BY rm.posted_at DESC
+       LIMIT $1`,
+      [limit],
+    )) as Array<{
+      id: string;
+      channel_key: string;
+      channel_title: string | null;
+      posted_at: Date;
+      raw_text: string;
+      ingest_mode: MessageFeedItem["ingestMode"];
+      event_type: string | null;
+      state_level: StateLevel | null;
+      region_codes: string[];
+    }>;
+
+    return rows.map((row) => ({
+      id: row.id,
+      channelKey: row.channel_key,
+      channelTitle: row.channel_title ?? undefined,
+      postedAt: row.posted_at.toISOString(),
+      rawText: row.raw_text,
+      ingestMode: row.ingest_mode,
+      eventType: row.event_type ?? undefined,
+      stateLevel: row.state_level ?? undefined,
+      regionCodes: row.region_codes ?? [],
+    }));
   }
 
   private toGeoRef(region: RegionEntity): GeoRegionRef {
