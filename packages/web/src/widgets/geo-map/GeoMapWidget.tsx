@@ -5,12 +5,18 @@ import { mapApi } from "../../shared/api/mapApi";
 import {
   LEVEL_COLORS,
   MAP_INITIAL_VIEW,
+  REGION_MAP_FILL_OPACITY,
+  REGION_MAP_INSET_FACTOR,
+  REGION_MAP_STROKE_WIDTH,
   resolveMapBasemapStyle,
 } from "../../shared/config/mapConfig.service";
 import { placesById$, regionsByCode$ } from "../../shared/state/mapStore";
 import { selectRegion } from "../../shared/state/selectionStore";
+import { insetRegionGeometry } from "./regionInsetOutline";
 
 const REGIONS_SOURCE = "regions";
+const REGIONS_OUTLINE_SOURCE = "regions-outline-inset";
+const REGIONS_FILL = "regions-fill";
 const REGIONS_OUTLINE = "regions-outline";
 const PLACES_SOURCE = "places";
 const PLACES_LAYER = "places-circles";
@@ -61,6 +67,22 @@ function paintRegionOutlines(
         };
       })
       .filter((feature): feature is PolygonFeature => feature !== null),
+  };
+}
+
+/** Line-слой: inset-контур (строго внутри полигона, без line-offset). */
+function paintRegionInsetOutlines(
+  painted: GeoJsonCollection,
+): GeoJsonCollection {
+  return {
+    type: "FeatureCollection",
+    features: painted.features.map((feature) => ({
+      ...feature,
+      geometry: insetRegionGeometry(
+        feature.geometry as { type: string; coordinates: unknown },
+        REGION_MAP_INSET_FACTOR,
+      ) as PolygonFeature["geometry"],
+    })),
   };
 }
 
@@ -142,7 +164,7 @@ function fitMapView(
 }
 
 /**
- * Гео-карта: контур региона (line, цвет статуса) + точки places.
+ * Гео-карта: заливка + внутренний контур региона (цвет stateLevel) + точки places.
  */
 export function GeoMapWidget() {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -194,10 +216,14 @@ export function GeoMapWidget() {
           regionsByCode$.value,
         );
         setRegionOutlines(painted.features.length);
-        const source = map.getSource(REGIONS_SOURCE) as
+        const fillSource = map.getSource(REGIONS_SOURCE) as
           | import("maplibre-gl").GeoJSONSource
           | undefined;
-        source?.setData(painted as never);
+        fillSource?.setData(painted as never);
+        const outlineSource = map.getSource(REGIONS_OUTLINE_SOURCE) as
+          | import("maplibre-gl").GeoJSONSource
+          | undefined;
+        outlineSource?.setData(paintRegionInsetOutlines(painted) as never);
         const placeFeatures = placesToFeatures(placesById$.value);
         fitIfNeeded(painted.features, placeFeatures);
       });
@@ -279,14 +305,28 @@ export function GeoMapWidget() {
           type: "geojson",
           data: { type: "FeatureCollection", features: [] },
         });
+        map.addSource(REGIONS_OUTLINE_SOURCE, {
+          type: "geojson",
+          data: { type: "FeatureCollection", features: [] },
+        });
         map.addLayer({
-          id: REGIONS_OUTLINE,
-          type: "line",
+          id: REGIONS_FILL,
+          type: "fill",
           source: REGIONS_SOURCE,
           filter: ["==", ["get", "kind"], "region"],
           paint: {
+            "fill-color": ["coalesce", ["get", "color"], LEVEL_COLORS.grey],
+            "fill-opacity": REGION_MAP_FILL_OPACITY,
+          },
+        });
+        map.addLayer({
+          id: REGIONS_OUTLINE,
+          type: "line",
+          source: REGIONS_OUTLINE_SOURCE,
+          filter: ["==", ["get", "kind"], "region"],
+          paint: {
             "line-color": ["coalesce", ["get", "color"], LEVEL_COLORS.grey],
-            "line-width": 2.8,
+            "line-width": REGION_MAP_STROKE_WIDTH,
             "line-opacity": 0.95,
           },
         });
@@ -344,6 +384,7 @@ export function GeoMapWidget() {
           placePopup = null;
         };
 
+        map.on("click", REGIONS_FILL, onPick);
         map.on("click", REGIONS_OUTLINE, onPick);
         map.on("click", PLACES_LAYER, onPick);
         map.on("mouseenter", PLACES_LAYER, onPlaceHover);
@@ -375,19 +416,19 @@ export function GeoMapWidget() {
   }, []);
 
   return (
-    <Panel title="Гео-карта" className="geo-map-panel">
-      {geoError ? (
-        <p className="ds-muted geo-map-panel__hint">Геометрия: {geoError}</p>
-      ) : null}
-      {regionOutlines === 0 && placeCount === 0 ? (
-        <p className="ds-muted geo-map-panel__hint">
-          Нет активных регионов/мест. Проверьте ingest и{" "}
-          <code>npm run worker:reparse:raw</code>.
-        </p>
-      ) : (
-        <p className="ds-muted geo-map-panel__hint">
-          Контуров: {regionOutlines}, мест: {placeCount}
-        </p>
+    <Panel variant="bare" className="geo-map-panel">
+      {!geoError && (regionOutlines > 0 || placeCount > 0) && (
+        <div className="geo-map-panel__stats">
+          Контуров: {regionOutlines} · мест: {placeCount}
+        </div>
+      )}
+      {geoError && (
+        <div className="geo-map-panel__stats">Геометрия: {geoError}</div>
+      )}
+      {regionOutlines === 0 && placeCount === 0 && !geoError && (
+        <div className="geo-map-panel__stats">
+          Нет активных регионов/мест
+        </div>
       )}
       <div ref={containerRef} className="geo-map-panel__canvas" />
     </Panel>

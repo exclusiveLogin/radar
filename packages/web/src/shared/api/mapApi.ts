@@ -1,4 +1,7 @@
 import {
+  healthResponseSchema,
+  readyResponseSchema,
+  workerStatusResponseSchema,
   mapSnapshotSchema,
   statusDictionarySchema,
   warningSchema,
@@ -17,6 +20,23 @@ const geoRegionRefSchema = z.object({
   geometryArtifactKey: z.string().optional(),
 });
 const geoRegionsResponseSchema = z.object({ regions: z.array(geoRegionRefSchema) });
+
+/** Схема ingest-провайдера (read-only для дашборда). */
+export const ingestProviderSchema = z.object({
+  id: z.string(),
+  key: z.string(),
+  title: z.string(),
+  adapterKind: z.string(),
+  status: z.enum(["draft", "active", "paused", "error"]),
+  lastError: z.string().nullable(),
+  lastHeartbeatAt: z.string().nullable(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+
+export type IngestProvider = z.infer<typeof ingestProviderSchema>;
+
+const ingestProvidersSchema = z.array(ingestProviderSchema);
 
 export type GeoRegionRef = z.infer<typeof geoRegionRefSchema>;
 
@@ -49,6 +69,12 @@ export const mapApi = {
   /** Полигоны субъектов РФ (OSM artifacts) с regionCode/stateLevel. */
   regionsGeoJson: (): Promise<GeoJsonFeatureCollection> =>
     getJson("/api/map/regions-geojson", geoJsonFeatureCollectionSchema),
+  /** Список ingest-провайдеров (статус каналов). */
+  providers: (): Promise<IngestProvider[]> =>
+    getJson("/api/admin/ingest/providers", ingestProvidersSchema),
+  health: () => getJson("/api/health", healthResponseSchema),
+  ready: () => getJson("/api/ready", readyResponseSchema),
+  workerStatus: () => getJson("/api/worker/status", workerStatusResponseSchema),
 };
 
 const geoJsonFeatureCollectionSchema = z.object({

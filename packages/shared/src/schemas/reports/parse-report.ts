@@ -1,5 +1,9 @@
 ﻿import { z } from "zod";
-import { geoEnrichmentArtifactSchema, geoPipelineReportSchema } from "../geo/enrichment-artifact";
+import {
+  geoEnrichmentArtifactSchema,
+  geoEnrichmentSourceSchema,
+  geoPipelineReportSchema,
+} from "../geo/enrichment-artifact";
 import { eventTypeSchema } from "../ingest/event-type";
 import { macroZoneSchema } from "../ingest/macro-zone";
 import { severitySchema } from "../ingest/severity";
@@ -47,7 +51,7 @@ export const parseReportGeoSchema = z.object({
     "locality_with_coords",
   ]),
   completeness: z.number().min(0).max(1),
-  source: z.enum(["local", "cache", "dadata", "nominatim", "llm"]),
+  source: geoEnrichmentSourceSchema,
 });
 
 export const parseReportEnrichSchema = z.object({

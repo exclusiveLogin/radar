@@ -8,7 +8,7 @@ import type {
   StreamHistoryParams,
   TelegramAdapterConfig,
 } from "@radar/shared";
-import { TelegramClient } from "telegram";
+import { TelegramClient, utils } from "telegram";
 import { StringSession } from "telegram/sessions/StringSession.js";
 import { NewMessage } from "telegram/events/NewMessage.js";
 import type { SessionResolver } from "../../../application/sessions/sessionResolver.js";
@@ -59,6 +59,8 @@ export class TelegramRawIngestAdapter implements IRawIngestAdapter {
   private dutyAbort: AbortController | null = null;
   private readonly hybridSeen = new Set<string>();
   private channelKeys = new Map<string, string>();
+  /** Последний увиденный message.id per binding — watermark для poll-fallback. */
+  private readonly mtprotoLiveWatermark = new Map<string, number>();
 
   constructor(private readonly sessionResolver: SessionResolver) {}
 
@@ -129,21 +131,47 @@ export class TelegramRawIngestAdapter implements IRawIngestAdapter {
       if (isMtprotoMode(binding.bindingMode) && this.mtproto) {
         const { client } = this.mtproto;
         const target = binding.externalTarget;
+
+        // getEntity — для poll/getMessages; в NewMessage только peer id (GramJS ломает object → "[object Object]").
+        let entity;
+        try {
+          entity = await client.getEntity(target);
+        } catch (err) {
+          console.error(`Binding ${binding.bindingKey}: getEntity(${target}) failed:`, err);
+          continue;
+        }
+        const chatPeerId = utils.getPeerId(entity);
+
         client.addEventHandler(
           async (event) => {
             if (this.dutyAbort?.signal.aborted) return;
             const message = event.message;
             if (!message) return;
-            const normalized = mapTelegramMessage({
-              msg: message,
-              channelKey,
-              providerKey: this.ctx!.provider.key,
-              ingestMode: "live",
-            });
-            await emit(normalized);
+            try {
+              const normalized = mapTelegramMessage({
+                msg: message,
+                channelKey,
+                providerKey: this.ctx!.provider.key,
+                ingestMode: "live",
+              });
+              await emit(normalized);
+            } catch (err) {
+              console.error(`[ingest:live:event] ${channelKey}:`, err);
+            }
           },
-          new NewMessage({ chats: [target] }),
+          new NewMessage({ chats: [chatPeerId], incoming: true }),
         );
+
+        console.log(`Live MTProto: ${channelKey} ← ${target} (event + poll ${pollMs}ms)`);
+
+        void this.runMtprotoLivePoll({
+          bindingId: binding.id,
+          channelKey,
+          providerKey: this.ctx.provider.key,
+          entity,
+          pollMs,
+          emit,
+        });
       }
 
       if (isBotMode(binding.bindingMode)) {
@@ -165,6 +193,73 @@ export class TelegramRawIngestAdapter implements IRawIngestAdapter {
           parentAbort: this.dutyAbort,
           emit,
         });
+      }
+    }
+  }
+
+  /**
+   * Poll-fallback для MTProto: getMessages по watermark.
+   * Push-updates через MTProxy/каналы не всегда доходят — poll гарантирует live ingest.
+   */
+  private async runMtprotoLivePoll(input: {
+    bindingId: string;
+    channelKey: string;
+    providerKey: string;
+    entity: unknown;
+    pollMs: number;
+    emit: (msg: IngestNormalizedMessage | null) => Promise<void>;
+  }): Promise<void> {
+    if (!this.mtproto || !this.dutyAbort) return;
+    const { client } = this.mtproto;
+    const abort = this.dutyAbort;
+
+    try {
+      const latest = await client.getMessages(input.entity as Parameters<typeof client.getMessages>[0], { limit: 1 });
+      const topId = latest[0]?.id;
+      if (typeof topId === "number") {
+        this.mtprotoLiveWatermark.set(input.bindingId, topId);
+      }
+    } catch (err) {
+      console.warn(`Live poll bootstrap ${input.channelKey}:`, err);
+    }
+
+    while (!abort.signal.aborted) {
+      await sleep(input.pollMs);
+      if (abort.signal.aborted) break;
+
+      try {
+        const watermark = this.mtprotoLiveWatermark.get(input.bindingId) ?? 0;
+        const batch = await client.getMessages(input.entity as Parameters<typeof client.getMessages>[0], { limit: 10 });
+        const fresh = batch
+          .filter((msg) => typeof msg.id === "number" && msg.id > watermark)
+          .sort((a, b) => a.id - b.id);
+
+        for (const msg of fresh) {
+          const normalized = mapTelegramMessage({
+            msg,
+            channelKey: input.channelKey,
+            providerKey: input.providerKey,
+            ingestMode: "live",
+          });
+          await input.emit(normalized);
+          if (typeof msg.id === "number") {
+            this.mtprotoLiveWatermark.set(input.bindingId, msg.id);
+          }
+        }
+
+        const top = batch[0]?.id;
+        if (typeof top === "number" && top > watermark && fresh.length === 0) {
+          this.mtprotoLiveWatermark.set(input.bindingId, top);
+        }
+      } catch (err) {
+        if (abort.signal.aborted) break;
+        const seconds = getFloodWaitSeconds(err);
+        if (seconds != null) {
+          console.warn(`Live poll FloodWait ${input.channelKey}: ${seconds}s`);
+          await sleep(seconds * 1000);
+          continue;
+        }
+        console.warn(`Live poll ${input.channelKey}:`, err);
       }
     }
   }
@@ -237,6 +332,7 @@ export class TelegramRawIngestAdapter implements IRawIngestAdapter {
     }
     this.botPolls.clear();
     this.hybridSeen.clear();
+    this.mtprotoLiveWatermark.clear();
 
     if (this.mtproto) {
       await this.mtproto.client.disconnect();

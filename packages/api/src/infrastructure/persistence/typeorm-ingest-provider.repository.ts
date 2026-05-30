@@ -14,7 +14,8 @@ export class TypeOrmIngestProviderRepository implements IIngestProviderRepositor
 
   async listActive(): Promise<IngestProviderRecord[]> {
     const rows = await this.dataSource.getRepository(IngestProviderEntity).find({
-      where: { status: "active" },
+      // active + error: worker перезапускает ingest после сбоя duty (auto-retry).
+      where: [{ status: "active" }, { status: "error" }],
       order: { key: "ASC" },
     });
     return rows.map(toProviderRecord);

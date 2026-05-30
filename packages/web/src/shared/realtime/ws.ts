@@ -1,6 +1,11 @@
-import { Observable } from "rxjs";
+import { BehaviorSubject, Observable } from "rxjs";
 import { wsServerMessageSchema } from "@radar/shared";
 import type { WsServerMessage } from "@radar/shared";
+
+export type WsConnectionStatus = "connecting" | "open" | "closed";
+
+/** Текущий статус WS-соединения карты. */
+export const connectionStatus$ = new BehaviorSubject<WsConnectionStatus>("connecting");
 
 /** Подключение к WS карты с авто-переподключением; отдаёт валидированные серверные сообщения. */
 export function connectMapWs(): Observable<WsServerMessage> {
@@ -12,6 +17,7 @@ export function connectMapWs(): Observable<WsServerMessage> {
     const url = `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws`;
 
     const open = (): void => {
+      connectionStatus$.next("connecting");
       socket = new WebSocket(url);
       socket.onmessage = (event) => {
         try {
@@ -23,8 +29,10 @@ export function connectMapWs(): Observable<WsServerMessage> {
       };
       socket.onopen = () => {
         retryMs = 3000;
+        connectionStatus$.next("open");
       };
       socket.onclose = () => {
+        connectionStatus$.next(closedByClient ? "closed" : "connecting");
         if (!closedByClient) {
           retryTimer = setTimeout(open, retryMs);
           retryMs = Math.min(retryMs * 2, 30_000);
@@ -38,6 +46,7 @@ export function connectMapWs(): Observable<WsServerMessage> {
       closedByClient = true;
       if (retryTimer) clearTimeout(retryTimer);
       socket?.close();
+      connectionStatus$.next("closed");
     };
   });
 }

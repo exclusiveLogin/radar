@@ -8,6 +8,7 @@ import type {
 } from "@radar/shared";
 import { ingestMessageHash } from "@radar/shared";
 import { randomUUID } from "node:crypto";
+import { workerRuntimeStatus } from "../workerRuntimeStatus.js";
 
 /**
  * Use case: upsert сырого сообщения, duplicate-safe events, live cursor advance.
@@ -70,6 +71,11 @@ export class IngestRawMessageHandler {
       },
     };
     await this.events.publish([event]);
+    workerRuntimeStatus.recordIngest({
+      ingestMode: normalized.ingestMode ?? "live",
+      inserted: result.inserted,
+      channelKey: normalized.channelKey,
+    });
     return { inserted: result.inserted, rawMessageId: result.id };
   }
 }

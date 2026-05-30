@@ -13,6 +13,7 @@ import { createRawIngestAdapter } from "../../infrastructure/ingest-adapters/ada
 import type { SessionResolver } from "../sessions/sessionResolver.js";
 import { buildIngestAdapterConnectContext } from "./buildIngestAdapterConnectContext.js";
 import { ingestNormalizedToRaw } from "./ingestMessageMapper.js";
+import { workerRuntimeStatus } from "../workerRuntimeStatus.js";
 
 /**
  * Use case: загрузить active providers, подключить adapters, sink → IngestRawMessageHandler.
@@ -20,6 +21,7 @@ import { ingestNormalizedToRaw } from "./ingestMessageMapper.js";
 export class IngestOrchestrator {
   private running = false;
   private adapters: Array<{ providerId: string; stop: () => Promise<void> }> = [];
+  private heartbeatTimer: ReturnType<typeof setInterval> | undefined;
 
   constructor(
     private readonly providers: IIngestProviderRepository,
@@ -38,6 +40,8 @@ export class IngestOrchestrator {
     const activeProviders = await this.providers.listActive();
     console.log(`Ingest orchestrator: ${activeProviders.length} active provider(s).`);
 
+    let totalBindings = 0;
+
     for (const provider of activeProviders) {
       try {
         const providerBindings = (await this.bindings.listByProvider(provider.id)).filter(
@@ -47,6 +51,7 @@ export class IngestOrchestrator {
           console.log(`Provider ${provider.key}: нет enabled bindings.`);
           continue;
         }
+        totalBindings += providerBindings.length;
 
         const channelKeyByBinding = new Map<string, string>();
         for (const binding of providerBindings) {
@@ -80,21 +85,24 @@ export class IngestOrchestrator {
           await this.ingestHandler.handle(raw, extension);
         };
 
-        void adapter
-          .startDuty(providerBindings, sink)
-          .catch(async (err) => {
-            const message = err instanceof Error ? err.message : String(err);
-            await this.providers.updateStatus(provider.id, "error", message);
-            await this.events.publish([
-              buildDomainEvent({
-                type: "IngestSourceUnavailable",
-                aggregateType: "ingest_provider",
-                aggregateId: provider.id,
-                payload: { providerKey: provider.key, reason: message },
-              }),
-            ]);
-            console.error(`Provider ${provider.key} duty failed:`, err);
-          });
+        try {
+          await adapter.startDuty(providerBindings, sink);
+          await this.providers.updateStatus(provider.id, "active", null);
+          workerRuntimeStatus.clearError();
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          await this.providers.updateStatus(provider.id, "error", message);
+          workerRuntimeStatus.setError(message);
+          await this.events.publish([
+            buildDomainEvent({
+              type: "IngestSourceUnavailable",
+              aggregateType: "ingest_provider",
+              aggregateId: provider.id,
+              payload: { providerKey: provider.key, reason: message },
+            }),
+          ]);
+          console.error(`Provider ${provider.key} duty failed:`, err);
+        }
 
         await this.providers.touchHeartbeat(provider.id);
 
@@ -105,13 +113,44 @@ export class IngestOrchestrator {
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         await this.providers.updateStatus(provider.id, "error", message);
+        workerRuntimeStatus.setError(message);
         console.error(`Provider ${provider.key} connect failed:`, err);
+      }
+    }
+
+    workerRuntimeStatus.setOrchestrator({
+      running: true,
+      providerCount: activeProviders.length,
+      bindingCount: totalBindings,
+    });
+
+    this.heartbeatTimer = setInterval(() => {
+      void this.touchProviderHeartbeats(activeProviders.map((p) => p.id));
+    }, 30_000);
+  }
+
+  private async touchProviderHeartbeats(providerIds: string[]): Promise<void> {
+    workerRuntimeStatus.touchHeartbeat();
+    for (const id of providerIds) {
+      try {
+        await this.providers.touchHeartbeat(id);
+      } catch {
+        /* probe не должен падать из-за heartbeat */
       }
     }
   }
 
   async stop(): Promise<void> {
     this.running = false;
+    if (this.heartbeatTimer) {
+      clearInterval(this.heartbeatTimer);
+      this.heartbeatTimer = undefined;
+    }
+    workerRuntimeStatus.setOrchestrator({
+      running: false,
+      providerCount: 0,
+      bindingCount: 0,
+    });
     for (const entry of this.adapters) {
       await entry.stop();
     }

@@ -6,6 +6,7 @@ import { HealthModule } from "./health/health.module";
 import { IngestAdminModule } from "./ingest-admin/ingest-admin.module";
 import { MapModule } from "./map/map.module";
 import { ReadSideModule } from "./read-side/read-side.module";
+import { WorkerModule } from "./worker/worker.module";
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { ReadSideModule } from "./read-side/read-side.module";
     IngestAdminModule,
     MapModule,
     ReadSideModule,
+    WorkerModule,
   ],
 })
 export class AppModule {}

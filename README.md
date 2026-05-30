@@ -1,110 +1,144 @@
 # Radar
 
-**Radar** — продукт для переноса критичных оповещений о **БПЛА** и ракетных угрозах из хаотичных текстовых каналов в **понятный интерфейс принятия решений**: карта, таймлайн, time machine, уведомления, таймеры подлета и аналитика.
+**OSINT-платформа оперативной обстановки** по сигналам **БПЛА** и ракетных угроз: хаотичные Telegram-каналы → структурированные события → геопроекция → **live-карта** и интерфейс принятия решений.
 
-**Запуск всего продукта локально (API, web, worker, БД, ingest):** [docs/getting-started.md](docs/getting-started.md).  
-Индекс документации: [docs/README.md](docs/README.md).  
-Архитектурный и продуктовый план: [docs/plan.md](docs/plan.md).  
-Доменная модель (агрегаты-потоки, события, UoW, карта сущностей): [docs/domain/README.md](docs/domain/README.md).  
-Объяснение модели доверия мест (product view): [docs/place-trust-explained.md](docs/place-trust-explained.md).
+Не BI и не «ещё один чат-агрегатор». Это **Common Operational Picture (COP)** для текстового шума: ingest, parse, trust-aware geo, липкий автомат статусов, WebSocket-дельты и glass-дашборд поверх MapLibre. По духу — узкий slice **Palantir Gotham** / situational awareness, без enterprise-обвеса.
 
-## 🎯 Миссия
+**Запуск локально:** [docs/getting-started.md](docs/getting-started.md) · **Доки:** [docs/README.md](docs/README.md) · **План:** [docs/plan.md](docs/plan.md) · **Домен:** [docs/domain/README.md](docs/domain/README.md) · **Trust мест:** [docs/place-trust-explained.md](docs/place-trust-explained.md)
 
-- Превратить поток текстов из каналов в **структурированную оперативную картину** в реальном времени.
-- Сократить время от «увидел сообщение» до «понял, что происходит и где риск выше».
-- Дать понятный UI, где важное видно сразу: **география, время, динамика, прогноз, архив**.
+---
 
-## 💼 Назначение продукта
+## Что это
 
-| Для кого | Ценность |
-|----------|----------|
-| Граждане и локальные сообщества | Быстрое понимание обстановки по региону и времени |
-| Мониторинговые команды | Централизованный обзор сигналов, меньше ручной рутины |
-| Аналитики и редакторы | История событий, heatmap-накопление, фильтруемые выборки |
-| Разработка | Единый контур `worker -> API -> web -> data`, воспроизводимые geo-артефакты |
+| Измерение | Radar |
+|-----------|--------|
+| **Класс продукта** | OSINT / operational awareness / СППР-lite |
+| **Вход** | Telegram (MTProto), ручной admin-ingest, backfill |
+| **Ядро** | Parse pipeline + geo enrichers + region/place state projection |
+| **Выход** | REST + WS, карта, KPI-виджеты, журнал смен, probe worker |
+| **Не делает** | Не заменяет официальные оповещения; не юридическое «доказательство» |
 
-## 🧠 Бизнес-логика
+**Миссия:** сократить путь от «увидел сообщение в канале» до «понял, где риск и как менялась обстановка» — в секунды, на одном экране.
 
-1. **Сбор сигналов**: worker читает сообщения из выбранных каналов (например, региональные «радары», НФ и пр.).
-2. **Нормализация**: текст очищается, дедуплицируется и приводится к единой модели события.
-3. **Семантика события**: классификация статуса (угроза/подлет/отбой), типа цели, признаков достоверности.
-4. **Геопривязка**: извлечение локаций и привязка к геослоям, регионам и объектам.
-5. **Временная модель**: формирование таймлайна, life-cycle события и «time machine» по срезам времени.
-6. **Прогнозный слой**: ETA-таймеры, предполагаемое направление/курс, зона потенциального прохождения (по правилам и модели).
-7. **Подача в UI/API**: карта, лента, пуши/алерты, архив, отчеты и аналитические срезы.
+---
 
-> Важно: сервис повышает наблюдаемость и скорость понимания картины, но не заменяет официальные источники оповещения.
+## Для кого
 
-## 🚀 Возможности продукта (цель)
+| Аудитория | Ценность |
+|-----------|----------|
+| Граждане и локальные сообщества | Карта и лента по региону без ручного мониторинга десятков каналов |
+| Мониторинговые команды | Единый COP, ingest-провайдеры, heartbeat worker |
+| Аналитики | История `region_state_history`, срезы активности, batch parse reports |
+| Разработка | Монорепо `worker → API → web`, воспроизводимые geo-артефакты, Zod-контракты |
 
-- 🗺️ **Живая карта**: слой событий, фильтры по регионам/типам/достоверности, легенда интенсивности.
-- ⏱️ **Таймлайн + Time Machine**: прокрутка по минутам/часам/суткам и восстановление картины на момент времени.
-- 🔔 **Умные уведомления**: по геозоне, типу угрозы, уровню уверенности и критичности.
-- 🎯 **Таймер подлета и курс**: расчет ориентировочного ETA и направления с визуализацией траектории.
-- 🧾 **Архив событий**: полнотекстовый поиск, карточка события, связанные сообщения-источники.
-- 🔥 **Heatmap атак/активности**: накопительная тепловая карта по периодам и регионам.
-- 📊 **Аналитика**: пики активности, частота по типам, окна эскалации, экспорт срезов.
-- 🤖 **Качество данных**: антидубли, валидация источников, скоринг доверия, контроль шумов.
+---
 
-## 🧩 Схема системы
+## Конвейер данных
 
-### Поток данных (упрощенно)
+1. **Ingest** — GramJS live + poll fallback, backfill, dedup raw.
+2. **Parse** — классификация события (угроза / отбой / шум), извлечение локаций.
+3. **Geo** — artifacts-first, enrichers (`cache → dadata → nominatim → llm`), place trust.
+4. **Projection** — `place_status_active` + `region_state_active` (липкий автомат + соседи).
+5. **Delivery** — REST snapshot, WS `/ws`, поллеры history → UI.
+
+> Сервис повышает **наблюдаемость** и скорость понимания картины; решения пользователь принимает сам.
+
+---
+
+## Сейчас в продукте
+
+### Web — OSINT-оболочка
+
+- **Layout:** карта фоном, glass-рейлы слева/справа, ломаный header (UTC-часы, **LiveBadge** = WS + API/БД).
+- **Виджеты** (реестр `widgetRegistry`, toggles в ⚙):
+  - **Гео-карта** — MapLibre, контуры субъектов (fill + inset outline), маркеры places.
+  - **Схема** — layout.json, heat по `stateLevel`.
+  - **Обзор** — KPI по уровням + donut.
+  - **Активные угрозы**, **Лента изменений** — live feed из `region_state_history`.
+  - **Топ активности**, **Динамика событий** — sparkline + BarMini по журналу.
+  - **Каналы**, **Система** — ingest providers, worker probe, WS/db health.
+- **Realtime:** `mapStore` — snapshot + WS `region-state` | `place-state` | `warning`.
+- **Тема:** light/dark (`data-theme`), design-system primitives.
+
+### Backend / worker
+
+- NestJS API, Swagger `/api/docs`, PostgreSQL + TypeORM.
+- WS gateway, region/place state pollers.
+- Worker: parse pipeline, `RegionStateProjection`, outbox events.
+- **Live ingest fixes:** `getPeerId` для GramJS, poll fallback, orchestrator recovery.
+- **Worker probe:** HTTP `:3010/status`, REST `GET /api/worker/status`.
+- **Map state:** TTL expiry daemon; каскадный сброс place при региональном отбое.
+- Geo CLI: `vendor → sync → seed → db:apply`.
+
+---
+
+## Roadmap (ещё не в UI / в работе)
+
+- ⏱️ Time Machine — scrub по срезам времени.
+- 🎯 ETA / курс / траектория подлёта.
+- 🔔 Push / геозонные алерты.
+- 🔥 Heatmap накопительная по периодам.
+- 🧾 Архив с полнотext search и карточкой события.
+- 📊 Расширенная аналитика и экспорт срезов.
+
+---
+
+## Архитектура (упрощённо)
 
 ```mermaid
 flowchart LR
   subgraph src[Источники]
-    TG[Telegram каналы]
+    TG[Telegram]
   end
 
-  subgraph ingest[Ingest & Parse]
-    W[Worker GramJS]
-    NLP[Парсер и фильтры]
+  subgraph worker[Worker]
+    ING[Ingest MTProto]
+    PAR[Parse + Geo]
+    PRJ[State projection]
   end
 
-  subgraph data[Data Core]
-    DB[(PostgreSQL)]
-    GEO[Geo artifacts + manifest]
-    ANA[Агрегации и аналитика]
+  subgraph data[PostgreSQL]
+    RAW[raw_messages]
+    ST[state_active + history]
+    GEO[(places / regions)]
   end
 
-  subgraph api[NestJS API]
+  subgraph api[NestJS]
     REST[REST / Swagger]
     WS[WebSocket /ws]
+    PROBE[worker status]
   end
 
-  subgraph ui[Web UI]
-    MAP[Схема + гео-карта]
-    WARN[Предупреждения]
-    TL[Таймлайн + Time Machine]
-    ARC[Архив и heatmap]
+  subgraph ui[Web — OSINT shell]
+    MAP[Geo + schematic]
+    KPI[KPI / trend widgets]
+    FEED[State changes feed]
   end
 
-  TG --> W --> NLP --> DB
-  GEO --> DB
-  DB --> ANA --> REST
-  DB --> WS
-  REST --> MAP
-  WS --> MAP
-  REST --> WARN
-  WS --> WARN
-  REST --> TL
-  REST --> ARC
+  TG --> ING --> RAW
+  RAW --> PAR --> PRJ --> ST
+  GEO --> PAR
+  ST --> REST
+  ST --> WS
+  REST --> ui
+  WS --> ui
+  PROBE --> REST
 ```
 
-### Примерный макет интерфейса
+### Макет UI (текущий)
 
 ```
-┌───────────────────────────────────────────────────────────────────────────┐
-│ Radar  [Регион ▼] [Тип ▼] [Достоверность ▼]   [Time Machine: 04.05 06:10]│
-├──────────────────────┬────────────────────────────────────────────────────┤
-│ Лента событий        │ Карта                                               │
-│ • Подлет / ETA 08:12 │  • маркеры угроз                                    │
-│ • Отбой              │  • прогноз курса                                    │
-│ • Дубликат скрыт     │  • heatmap за период                                │
-├──────────────────────┴────────────────────────────────────────────────────┤
-│ Таймлайн: 05:40 ─── 06:00 ─── 06:20 ─── 06:40 (play / pause / scrub)      │
-└───────────────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────────┐
+│ ◈ RADAR          [UTC clock]              [LIVE|SYNC|OFFLINE]  🌓  ⚙    │
+├──────────────┬───────────────────────────────────────────┬───────────────┤
+│ Обзор KPI    │                                           │ Актив. угрозы │
+│ Схема        │         Гео-карта (MapLibre)              │ Лента измен.  │
+│              │                                           │ Топ / Динамика│
+│              │                                           │ Каналы / Sys  │
+└──────────────┴───────────────────────────────────────────┴───────────────┘
 ```
+
+---
 
 ## CQRS + Domain Events
 
@@ -135,13 +169,15 @@ flowchart LR
 - Базовые trust-score источников: `catalog=1.00`, `dadata=0.95`, `nominatim=0.80`, `llm=0.55`, `operator=1.00`, `system=0.70`.
 - Для UI/read-side неподтвержденные места должны помечаться предупреждением (`needsAttention` в итерации 2).
 
-## ⚙️ Текущий статус репозитория
+## ⚙️ Статус репозитория
 
-- Монорепо: `api`, `worker`, `web`, `shared` — cold start и dev-стек.
-- **Карта (MVP):** схема регионов (`layout.json`), гео-карта (MapLibre), лента предупреждений; состояние — `region_state_active` / `place_status_active`.
-- **Realtime:** WebSocket `/ws` — snapshot и дельты (`region-state`, `place-state`, `warning`); полигоны регионов — REST `GET /api/map/regions-geojson`.
-- Geo-пайплайн: `vendor → artifacts → manifest → geo:seed → geo:db:apply` (контуры субъектов в `data/geo/artifacts/`).
-- Ingest/parse в `db`-режиме, backfill, оффлайн-снапшоты в `tests/`.
+- **Монорепо:** `api`, `worker`, `web`, `shared` — cold start, dev-стек, TypeScript strict.
+- **Web:** OSINT glass-shell, 9 виджетов, dual-theme DS, LiveBadge (WS + health).
+- **Карта:** MapLibre + schematic layout; `region_state_active` / `place_status_active`; inset contours.
+- **Realtime:** WS `/ws` — `snapshot`, `region-state`, `place-state`, `warning`; GeoJSON — `GET /api/map/regions-geojson`.
+- **Worker:** live MTProto + poll, probe `:3010`, map-state TTL, cascade place clear on regional green.
+- **Geo:** `vendor → artifacts → manifest → geo:seed → geo:db:apply`.
+- **Ingest/parse:** db-mode, backfill V2, offline snapshots в `tests/`.
 
 ## Стек
 
@@ -195,7 +231,8 @@ npm run dev:app
 | [http://127.0.0.1:3000/api/health](http://127.0.0.1:3000/api/health) | health без БД |
 | [http://127.0.0.1:3000/api/ready](http://127.0.0.1:3000/api/ready) | `"status":"ready"` |
 | [http://127.0.0.1:3000/api/docs](http://127.0.0.1:3000/api/docs) | Swagger |
-| [http://127.0.0.1:5173](http://127.0.0.1:5173) | UI (виджеты: схема, гео-карта, предупреждения) |
+| [http://127.0.0.1:5173](http://127.0.0.1:5173) | OSINT-дашборд (geo + KPI + feed) |
+| [http://127.0.0.1:3000/api/worker/status](http://127.0.0.1:3000/api/worker/status) | probe worker (если поднят) |
 | [http://127.0.0.1:5050](http://127.0.0.1:5050) | pgAdmin |
 
 Проверка карты (PowerShell):
@@ -216,9 +253,11 @@ Live:  region-state | place-state | warning  →  патч store (не refetch s
 
 | Слой UI | Источник данных |
 |---------|-----------------|
-| **Схема** | `regionsByCode$` (layout + stateLevel) |
-| **Гео** | контур региона по статусу (GeoJSON) + **точки** places |
-| **Предупреждения** | `warnings$` (REST + WS `warning`) |
+| **Гео-карта / схема** | `regionsByCode$`, `placesById$` (snapshot + WS) |
+| **KPI / donut / топ** | `regionsByCode$` (derivations) |
+| **Лента / динамика** | `stateChanges$` (REST warnings + WS `warning`) |
+| **Каналы / система** | `providersStore` (REST poll 30s) + `connectionStatus$` (WS) |
+| **LiveBadge** | WS open + `/api/health` + `/api/ready` |
 
 Поллеры API читают `region_state_history` / `place_status_history` (раз в 1 с). События **до перезапуска API** по WS не переигрываются — только snapshot при connect.
 

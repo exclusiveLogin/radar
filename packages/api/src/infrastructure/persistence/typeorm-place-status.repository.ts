@@ -93,6 +93,17 @@ async upsertActive(input: PlaceStatusActiveRecord): Promise<void> {
     return rows.map((row) => this.toRecord(row));
   }
 
+  async listActiveByRegionId(regionId: string): Promise<PlaceStatusActiveRecord[]> {
+    const rows = await this.dataSource
+      .getRepository(PlaceStatusActiveEntity)
+      .createQueryBuilder("psa")
+      .innerJoin("psa.place", "place")
+      .where("place.region_id = :regionId", { regionId })
+      .orderBy("psa.updated_at", "ASC")
+      .getMany();
+    return rows.map((row) => this.toRecord(row));
+  }
+
   async listAllActive(): Promise<PlaceStatusActiveRecord[]> {
     const rows = await this.dataSource.getRepository(PlaceStatusActiveEntity).find({
       order: { updatedAt: "ASC" },

@@ -324,6 +324,8 @@ export interface IPlaceStatusRepository {
   upsertActive(input: PlaceStatusActiveRecord): Promise<void>;
   deactivate(placeId: string, statusCode: string, atIso: string): Promise<void>;
   listActive(placeId: string): Promise<PlaceStatusActiveRecord[]>;
+  /** Активные статусы всех НП внутри региона (каскадный сброс при отбое). */
+  listActiveByRegionId(regionId: string): Promise<PlaceStatusActiveRecord[]>;
   /** Все строки place_status_active (для полного сброса перед reparse). */
   listAllActive(): Promise<PlaceStatusActiveRecord[]>;
   /** Активные статусы, не обновлявшиеся с `updatedBefore` (для TTL-сброса). */

@@ -1,6 +1,11 @@
 ﻿// --- runtime exports (schemas, functions, classes) ---
 export { healthResponseSchema, readyResponseSchema } from "./health";
 export {
+  workerProbeStatusSchema,
+  workerStatusResponseSchema,
+} from "./worker-status";
+export type { WorkerProbeStatus, WorkerStatusResponse } from "./worker-status";
+export {
   channelManifestEntrySchema,
   channelManifestSchema,
   eventLocationSchema,

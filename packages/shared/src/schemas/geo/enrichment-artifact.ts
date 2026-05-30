@@ -56,6 +56,16 @@ export const geoEnrichmentNominatimSchema = z.object({
   nodes: z.array(geoNodeSchema),
 });
 
+/** SSOT: метка источника geo в finalizer и parse report. */
+export const geoEnrichmentSourceSchema = z.enum([
+  "local",
+  "cache",
+  "dadata",
+  "nominatim",
+  "llm",
+  "multi",
+]);
+
 export const geoEnrichmentFinalizerSchema = z.object({
   schemaVersion: z.literal(1),
   regions: z.array(
@@ -76,7 +86,7 @@ export const geoEnrichmentFinalizerSchema = z.object({
   ),
   precision: z.enum(["unknown", "region", "district", "locality", "locality_with_coords"]),
   completeness: z.number().min(0).max(1),
-  source: z.enum(["local", "cache", "dadata", "nominatim", "llm", "multi"]),
+  source: geoEnrichmentSourceSchema,
 });
 
 // ─── top-level artifact ────────────────────────────────────────────────────

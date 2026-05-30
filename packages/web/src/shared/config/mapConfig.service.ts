@@ -115,3 +115,12 @@ export const MAP_INITIAL_VIEW = {
   center: [37.6, 55.75] as [number, number],
   zoom: 4,
 };
+
+/** Inset-контур активного региона (отдельная геометрия, не line-offset). */
+export const REGION_MAP_STROKE_WIDTH = 2.8;
+
+/** Полупрозрачная заливка региона тем же цветом, что и контур. */
+export const REGION_MAP_FILL_OPACITY = 0.24;
+
+/** Сжатие полигона к центроиду для inset-контура (~0.4%). */
+export const REGION_MAP_INSET_FACTOR = 0.996;

@@ -8,6 +8,7 @@ import type {
   RegionRecord,
   StateLevel,
 } from "@radar/shared";
+import { planGreenPlaceStatusClear } from "../../domain/region-state/placeStatusClearPolicy.js";
 import {
   computeEffectiveLevel,
   computeSelfLevel,
@@ -103,15 +104,13 @@ export class RegionStateProjection {
     incoming: StateLevel,
     at: string,
   ): Promise<void> {
+    if (incoming === "green") {
+      await this.clearPlaceStatusesOnGreen(locations, at);
+      return;
+    }
+
     for (const location of locations) {
       if (!location.placeId) continue;
-      if (incoming === "green") {
-        const active = await this.deps.placeStatus.listActive(location.placeId);
-        for (const row of active) {
-          await this.deps.placeStatus.deactivate(location.placeId, row.statusCode, at);
-        }
-        continue;
-      }
       await this.deps.placeStatus.upsertActive({
         placeId: location.placeId,
         statusCode,
@@ -120,6 +119,34 @@ export class RegionStateProjection {
         updatedAt: at,
         meta: {},
       });
+    }
+  }
+
+  /**
+   * Отбой: явные НП — точечно; регион без НП в сообщении — каскад по всем детям.
+   */
+  private async clearPlaceStatusesOnGreen(
+    locations: ParsedLocation[],
+    at: string,
+  ): Promise<void> {
+    const { regionCascadeIds, explicitPlaceIds } = planGreenPlaceStatusClear(locations);
+
+    for (const placeId of explicitPlaceIds) {
+      await this.deactivateAllPlaceStatuses(placeId, at);
+    }
+
+    for (const regionId of regionCascadeIds) {
+      const active = await this.deps.placeStatus.listActiveByRegionId(regionId);
+      for (const row of active) {
+        await this.deps.placeStatus.deactivate(row.placeId, row.statusCode, at);
+      }
+    }
+  }
+
+  private async deactivateAllPlaceStatuses(placeId: string, at: string): Promise<void> {
+    const active = await this.deps.placeStatus.listActive(placeId);
+    for (const row of active) {
+      await this.deps.placeStatus.deactivate(placeId, row.statusCode, at);
     }
   }
 

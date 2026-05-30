@@ -1,13 +1,49 @@
-:root {
-  --bg: #0d0f14;
-  --bg-panel: #161a22;
-  --bg-elev: #1d222c;
-  --border: #2a2f3a;
-  --text: #e6e9ef;
-  --text-muted: #8b92a0;
-  --accent: #4c8bf5;
-  --radius: 10px;
-  --gap: 12px;
+/* ── Токены: тёмная тема (по умолчанию) ── */
+:root,
+[data-theme="dark"] {
+  --bg: #0a0e14;
+  --bg-panel: rgba(16, 22, 32, 0.82);
+  --bg-elev: rgba(24, 32, 48, 0.9);
+  --bg-glass: rgba(12, 18, 28, 0.72);
+  --border: rgba(0, 229, 255, 0.18);
+  --border-strong: rgba(0, 229, 255, 0.35);
+  --text: #e8ecf2;
+  --text-muted: #7a8494;
+  --accent: #00e5ff;
+  --accent-dim: rgba(0, 229, 255, 0.15);
+  --accent-glow: rgba(0, 229, 255, 0.4);
+  --header-bg: linear-gradient(135deg, rgba(10, 14, 20, 0.95) 0%, rgba(16, 24, 36, 0.92) 100%);
+  --shadow-panel: 0 4px 24px rgba(0, 0, 0, 0.45), 0 0 1px rgba(0, 229, 255, 0.2);
+  --live-dot: #00e676;
+  --status-ok: #00e676;
+  --status-warn: #ffab00;
+  --status-error: #ff5252;
+  --radius: 8px;
+  --radius-sm: 4px;
+  --gap: 10px;
+  --rail-width: 320px;
+  --header-height: 52px;
+}
+
+/* ── Светлая тема ── */
+[data-theme="light"] {
+  --bg: #eef1f6;
+  --bg-panel: rgba(255, 255, 255, 0.88);
+  --bg-elev: rgba(245, 247, 250, 0.95);
+  --bg-glass: rgba(255, 255, 255, 0.78);
+  --border: rgba(0, 120, 160, 0.2);
+  --border-strong: rgba(0, 120, 160, 0.4);
+  --text: #1a2332;
+  --text-muted: #5a6478;
+  --accent: #0088aa;
+  --accent-dim: rgba(0, 136, 170, 0.12);
+  --accent-glow: rgba(0, 136, 170, 0.25);
+  --header-bg: linear-gradient(135deg, rgba(240, 244, 248, 0.98) 0%, rgba(230, 236, 244, 0.95) 100%);
+  --shadow-panel: 0 4px 20px rgba(0, 0, 0, 0.08), 0 0 1px rgba(0, 120, 160, 0.15);
+  --live-dot: #2e7d32;
+  --status-ok: #2e7d32;
+  --status-warn: #f57c00;
+  --status-error: #d32f2f;
 }
 
 * {
@@ -24,10 +60,12 @@ body,
 body {
   background: var(--bg);
   color: var(--text);
-  font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
-  font-size: 14px;
+  font-family: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+  font-size: 13px;
+  line-height: 1.4;
 }
 
+/* ── Панели ── */
 .ds-panel {
   background: var(--bg-panel);
   border: 1px solid var(--border);
@@ -35,36 +73,93 @@ body {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  box-shadow: var(--shadow-panel);
+}
+
+.ds-panel--glass {
+  background: var(--bg-glass);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-color: var(--border-strong);
+}
+
+.ds-panel--bare {
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.ds-panel--bare .ds-panel__head {
+  display: none;
+}
+
+.ds-panel--bare .ds-panel__body {
+  padding: 0;
 }
 
 .ds-panel__head {
-  padding: 10px 14px;
+  padding: 8px 12px;
   border-bottom: 1px solid var(--border);
   font-weight: 600;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.ds-panel__head-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ds-panel__collapse-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 2px 4px;
+  font-size: 12px;
+  line-height: 1;
+}
+
+.ds-panel__collapse-btn:hover {
+  color: var(--accent);
 }
 
 .ds-panel__body {
-  padding: 12px 14px;
+  padding: 10px 12px;
   overflow: auto;
   flex: 1;
+  min-height: 0;
 }
 
+/* ── Бейдж ── */
 .ds-badge {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   padding: 2px 8px;
   border-radius: 999px;
-  font-size: 12px;
-  color: #0d0f14;
+  font-size: 11px;
+  color: #0a0e14;
   font-weight: 600;
+  white-space: nowrap;
 }
 
+/* ── Аккордеон ── */
 .ds-accordion__item {
   border-bottom: 1px solid var(--border);
+}
+
+.ds-accordion__item:last-child {
+  border-bottom: none;
 }
 
 .ds-accordion__head {
@@ -73,18 +168,248 @@ body {
   background: transparent;
   border: 0;
   color: var(--text);
-  padding: 10px 4px;
+  padding: 8px 2px;
   cursor: pointer;
   display: flex;
   align-items: center;
   gap: 8px;
+  font-size: 13px;
+}
+
+.ds-accordion__head:hover {
+  color: var(--accent);
 }
 
 .ds-accordion__body {
   padding: 0 4px 10px;
   color: var(--text-muted);
+  font-size: 12px;
 }
 
 .ds-muted {
+  color: var(--text-muted);
+}
+
+/* ── KPI-плитка ── */
+.ds-stat-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  background: var(--accent-dim);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  min-width: 0;
+}
+
+.ds-stat-tile__value {
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--text);
+}
+
+.ds-stat-tile__label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+
+.ds-stat-tile__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.ds-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+  gap: 6px;
+}
+
+/* ── Donut / Sparkline / BarMini ── */
+.ds-donut {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.ds-donut__legend {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+}
+
+.ds-donut__legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ds-donut__legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.ds-sparkline,
+.ds-bar-mini {
+  display: block;
+  width: 100%;
+}
+
+/* ── Статус-точка ── */
+.ds-status-dot {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+}
+
+.ds-status-dot__circle {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.ds-status-dot__circle--pulse {
+  animation: ds-pulse 2s ease-in-out infinite;
+}
+
+@keyframes ds-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+/* ── Часы ── */
+.ds-live-clock {
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+  color: var(--text);
+  letter-spacing: 0.04em;
+}
+
+.ds-live-clock__date {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+/* ── LIVE-бейдж ── */
+.ds-live-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border: 1px solid var(--live-dot);
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--live-dot);
+}
+
+.ds-live-badge--ok {
+  --live-dot: var(--status-ok);
+}
+
+.ds-live-badge--warn {
+  --live-dot: var(--status-warn);
+}
+
+.ds-live-badge--error {
+  --live-dot: var(--status-error);
+}
+
+.ds-live-badge__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--live-dot);
+}
+
+.ds-live-badge__dot--pulse {
+  animation: ds-pulse 1.5s ease-in-out infinite;
+}
+
+/* ── Переключатель темы ── */
+.ds-theme-toggle {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 4px 8px;
+  font-size: 16px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ds-theme-toggle:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* ── Список метрик ── */
+.ds-metric-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+}
+
+.ds-metric-row:last-child {
+  border-bottom: none;
+}
+
+.ds-metric-row__label {
+  color: var(--text-muted);
+}
+
+.ds-metric-row__value {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Трендовый список ── */
+.ds-trend-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.ds-trend-list__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.ds-trend-list__item:hover {
+  color: var(--accent);
+}
+
+.ds-trend-list__rank {
+  font-weight: 700;
+  color: var(--accent);
+  min-width: 18px;
+}
+
+.ds-trend-list__activity {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
   color: var(--text-muted);
 }

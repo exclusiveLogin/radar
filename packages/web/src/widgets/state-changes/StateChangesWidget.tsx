@@ -3,7 +3,7 @@ import type { Warning } from "@radar/shared";
 import { Accordion, Badge, Panel } from "../../shared/ds";
 import type { AccordionItem } from "../../shared/ds";
 import { useObservable } from "../../shared/hooks/useObservable";
-import { warnings$ } from "../../shared/state/mapStore";
+import { stateChanges$ } from "../../shared/state/mapStore";
 import { selectRegion, selectedRegion$ } from "../../shared/state/selectionStore";
 
 function formatTime(iso: string): string {
@@ -13,31 +13,31 @@ function formatTime(iso: string): string {
   });
 }
 
-/** Лента предупреждений: аккордеон, фильтруется по выбранному региону. */
-export function WarningsWidget() {
-  const warnings = useObservable(warnings$, [] as Warning[]);
+/** Лента смен состояния регионов (region_state_history + WS). */
+export function StateChangesWidget() {
+  const changes = useObservable(stateChanges$, [] as Warning[]);
   const selected = useObservable(selectedRegion$, null);
 
   const visible = useMemo(
-    () => (selected ? warnings.filter((w) => w.regionCode === selected) : warnings),
-    [warnings, selected],
+    () => (selected ? changes.filter((row) => row.regionCode === selected) : changes),
+    [changes, selected],
   );
 
-  const items: AccordionItem[] = visible.map((warning) => ({
-    id: warning.id,
+  const items: AccordionItem[] = visible.map((row) => ({
+    id: row.id,
     head: (
       <>
-        <Badge level={warning.stateLevel ?? "grey"} />
-        <span>{warning.regionCode ?? "—"}</span>
+        <Badge level={row.stateLevel ?? "grey"} />
+        <span>{row.regionCode ?? "—"}</span>
         <span className="ds-muted" style={{ marginLeft: "auto" }}>
-          {formatTime(warning.eventAt)}
+          {formatTime(row.eventAt)}
         </span>
       </>
     ),
     body: (
       <>
-        <div>{warning.title}</div>
-        {warning.text && <div className="ds-muted">{warning.text}</div>}
+        <div>{row.title}</div>
+        {row.text && <div className="ds-muted">{row.text}</div>}
       </>
     ),
   }));
@@ -54,9 +54,9 @@ export function WarningsWidget() {
   ) : null;
 
   return (
-    <Panel title="Предупреждения" actions={filterAction}>
+    <Panel title="Лента изменений" actions={filterAction} variant="glass" collapsible>
       {items.length === 0 ? (
-        <p className="ds-muted">Нет предупреждений.</p>
+        <p className="ds-muted">Нет записей в журнале.</p>
       ) : (
         <Accordion items={items} />
       )}

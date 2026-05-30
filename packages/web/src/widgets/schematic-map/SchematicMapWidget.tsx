@@ -35,7 +35,7 @@ export function SchematicMapWidget() {
   const height = dims.rows * CELL + PADDING * 2;
 
   return (
-    <Panel title="Схема обстановки">
+    <Panel title="Схема обстановки" variant="glass" className="schematic-panel" collapsible>
       {tiles.length === 0 ? (
         <p className="ds-muted">Нет регионов с раскладкой (layout.json).</p>
       ) : (
