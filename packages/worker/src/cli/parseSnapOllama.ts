@@ -42,15 +42,26 @@ function resolveInputPath(input: string): string {
   return path.resolve(MONOREPO_ROOT, input);
 }
 
-async function probeOllama(baseUrl: string): Promise<{ ok: boolean; status?: number }> {
+async function probeOllama(
+  baseUrl: string,
+  model: string,
+): Promise<{ ok: boolean; status?: number; models: string[] }> {
   const url = new URL("/api/tags", baseUrl).toString();
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 5000);
   try {
     const response = await fetch(url, { method: "GET", signal: controller.signal });
-    return { ok: response.ok, status: response.status };
+    if (!response.ok) {
+      return { ok: false, status: response.status, models: [] };
+    }
+    const body = (await response.json()) as { models?: Array<{ name?: string }> };
+    const models = (body.models ?? []).map((m) => m.name).filter(Boolean) as string[];
+    const hasModel =
+      models.includes(model) ||
+      models.some((name) => name.startsWith(`${model}:`) || name === model);
+    return { ok: hasModel, status: response.status, models };
   } catch {
-    return { ok: false };
+    return { ok: false, models: [] };
   } finally {
     clearTimeout(timer);
   }
@@ -77,10 +88,16 @@ async function main(): Promise<void> {
   }
 
   const { baseUrl, model } = applyLlmEnv(options);
-  const probe = await probeOllama(baseUrl);
+  const probe = await probeOllama(baseUrl, model);
   if (!probe.ok) {
+    const modelsHint =
+      probe.models.length > 0
+        ? `Доступные модели: ${probe.models.join(", ")}`
+        : "Список моделей пуст.";
     throw new Error(
-      `Ollama probe failed for ${baseUrl} (status=${probe.status ?? "n/a"}). Start Docker profile llm first.`,
+      `Ollama: модель "${model}" не найдена на ${baseUrl} (status=${probe.status ?? "n/a"}). ${modelsHint}\n` +
+        "Частая причина на Windows: локальный ollama.exe на 127.0.0.1:11434 (пустой), а Docker с моделями на другом порту.\n" +
+        "Fix: 1) закрой Ollama Desktop, или 2) OLLAMA_PORT=11435 в .env + RADAR_LLM_BASE_URL=http://127.0.0.1:11435/v1 + docker compose --profile llm up -d ollama, или 3) ollama pull в локальный Ollama.",
     );
   }
 

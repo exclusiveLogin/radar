@@ -112,6 +112,10 @@ export class LlmEnricher {
         });
 
         if (!response.ok) {
+          const errBody = await response.text().catch(() => "");
+          process.stderr.write(
+            `[llm] HTTP ${response.status}${errBody ? `: ${errBody.slice(0, 300)}` : ""}\n`,
+          );
           if (attempt >= attempts) return null;
           continue;
         }
