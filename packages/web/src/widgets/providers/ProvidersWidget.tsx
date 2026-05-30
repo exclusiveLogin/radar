@@ -1,7 +1,8 @@
-import { Panel, StatusDot } from "../../shared/ds";
+import { EllipsisText, Panel, StatusDot } from "../../shared/ds";
 import { useObservable } from "../../shared/hooks/useObservable";
 import { formatAge } from "../../shared/state/derivations";
 import { providers$ } from "../../shared/state/providersStore";
+import type { WidgetProps } from "../widgetProps";
 
 type ProviderStatus = "draft" | "active" | "paused" | "error";
 
@@ -19,8 +20,6 @@ const statusLabel: Record<ProviderStatus, string> = {
   draft: "Черновик",
 };
 
-import type { WidgetProps } from "../widgetProps";
-
 /** Статус ingest-провайдеров (каналы): heartbeat, ошибки. */
 export function ProvidersWidget({ defaultCollapsed = false }: WidgetProps) {
   const providers = useObservable(providers$, []);
@@ -32,8 +31,13 @@ export function ProvidersWidget({ defaultCollapsed = false }: WidgetProps) {
       ) : (
         providers.map((p) => (
           <div key={p.id} className="ds-metric-row" style={{ flexDirection: "column", alignItems: "stretch" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <strong style={{ fontSize: 12 }}>{p.title}</strong>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+              <EllipsisText
+                text={p.title}
+                className="ds-ellipsis"
+                style={{ fontSize: 12, fontWeight: 600, flex: 1, minWidth: 0 }}
+                tip={`${p.title}\n${p.key} · ${p.adapterKind}`}
+              />
               <StatusDot
                 kind={statusKind[p.status]}
                 label={statusLabel[p.status]}
@@ -44,9 +48,12 @@ export function ProvidersWidget({ defaultCollapsed = false }: WidgetProps) {
               {p.adapterKind} · heartbeat: {formatAge(p.lastHeartbeatAt)}
             </div>
             {p.lastError && (
-              <div style={{ fontSize: 11, color: "var(--status-error)", marginTop: 2 }}>
-                {p.lastError}
-              </div>
+              <EllipsisText
+                text={p.lastError}
+                className="ds-ellipsis"
+                style={{ fontSize: 11, color: "var(--status-error)", marginTop: 2 }}
+                tip={p.lastError}
+              />
             )}
           </div>
         ))

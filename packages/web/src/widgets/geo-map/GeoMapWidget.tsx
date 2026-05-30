@@ -4,6 +4,7 @@ import { Panel } from "../../shared/ds";
 import { mapApi } from "../../shared/api/mapApi";
 import {
   LEVEL_COLORS,
+  LEVEL_LABELS,
   MAP_INITIAL_VIEW,
   REGION_MAP_FILL_OPACITY,
   REGION_MAP_INSET_FACTOR,
@@ -100,6 +101,8 @@ function placesToFeatures(places: Map<string, MapPlaceSnapshot>): PointFeature[]
       placeId: place.placeId,
       placeName: place.placeName,
       regionCode: place.regionCode,
+      statusCode: place.statusCode,
+      stateLabel: LEVEL_LABELS[place.stateLevel],
       color: LEVEL_COLORS[place.stateLevel],
       radius: 9,
     },
@@ -366,6 +369,16 @@ export function GeoMapWidget(_props: WidgetProps) {
           const name = props?.placeName;
           if (typeof name !== "string" || !name) return;
 
+          const regionCode = props?.regionCode;
+          const stateLabel = props?.stateLabel;
+          const statusCode = props?.statusCode;
+          const lines = [
+            name,
+            typeof regionCode === "string" ? regionCode : null,
+            typeof stateLabel === "string" ? stateLabel : null,
+            typeof statusCode === "string" ? statusCode : null,
+          ].filter(Boolean);
+
           placePopup?.remove();
           placePopup = new maplibre.Popup({
             closeButton: false,
@@ -374,7 +387,7 @@ export function GeoMapWidget(_props: WidgetProps) {
             offset: 12,
           })
             .setLngLat(event.lngLat)
-            .setText(name)
+            .setText(lines.join("\n"))
             .addTo(map);
         };
 

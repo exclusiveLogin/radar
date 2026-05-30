@@ -10,3 +10,5 @@ export { BarMini } from "./BarMini";
 export { LiveClock, LiveBadge } from "./LiveClock";
 export { StatusDot } from "./StatusDot";
 export { ThemeToggle } from "./ThemeToggle";
+export { Tip } from "./Tip";
+export { EllipsisText, previewText, flattenText } from "./EllipsisText";

@@ -9,7 +9,8 @@ const LAYOUT_BBOX = {
 } as const;
 
 /**
- * Центроид региона по тайлу схемы (layout.json), если в БД нет координат.
+ * Центроид региона по тайлу схемы (layout.json).
+ * Только SchematicMapWidget — не использовать для MapLibre / WGS84-маркеров.
  * col → восток, row → юг.
  */
 export function layoutTileToCentroid(

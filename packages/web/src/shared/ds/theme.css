@@ -450,6 +450,12 @@ body {
   border-bottom: 1px solid var(--border);
   cursor: pointer;
   font-size: 12px;
+  min-width: 0;
+}
+
+.ds-trend-list__name {
+  flex: 1;
+  min-width: 0;
 }
 
 .ds-trend-list__item:hover {
@@ -521,6 +527,10 @@ body {
   line-height: 1.35;
   color: var(--text);
   word-break: break-word;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .ds-message-feed__regions {
@@ -528,4 +538,24 @@ body {
   font-size: 9px;
   color: var(--text-muted);
   letter-spacing: 0.04em;
+}
+
+/* ── Подсказки (native title + лёгкий hint) ── */
+.ds-ellipsis {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+}
+
+.ds-tip {
+  max-width: 100%;
+  min-width: 0;
+}
+
+.ds-tip--hint {
+  cursor: help;
+  border-bottom: 1px dotted color-mix(in srgb, var(--text-muted) 55%, transparent);
 }

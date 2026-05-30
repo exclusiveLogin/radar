@@ -4,6 +4,8 @@ type StatusDotProps = {
   kind: StatusKind;
   label: string;
   pulse?: boolean;
+  /** Расширенная подсказка (если label сокращён). */
+  tip?: string;
 };
 
 const kindColor: Record<StatusKind, string> = {
@@ -14,9 +16,9 @@ const kindColor: Record<StatusKind, string> = {
 };
 
 /** Цветная точка + подпись статуса. */
-export function StatusDot({ kind, label, pulse = false }: StatusDotProps) {
+export function StatusDot({ kind, label, pulse = false, tip }: StatusDotProps) {
   return (
-    <span className="ds-status-dot">
+    <span className="ds-status-dot" title={tip ?? label}>
       <span
         className={`ds-status-dot__circle${pulse ? " ds-status-dot__circle--pulse" : ""}`}
         style={{ background: kindColor[kind] }}

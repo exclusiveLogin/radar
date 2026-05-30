@@ -100,12 +100,7 @@ export class MapQueryService {
       const tile = layout.tiles[code];
       const centroid = resolveRegionCentroid({
         region,
-        code,
-        tile,
-        layoutCols: layout.cols,
-        layoutRows: layout.rows,
         placeFallback: placeCentroidByRegion.get(region.id),
-        stateLevel: (state?.stateLevel ?? "grey") as RegionStateLevel,
       });
       items.push({
         regionId: region.id,
@@ -232,7 +227,6 @@ export class MapQueryService {
   private async loadMapPlaces(
     levelByStatus: Map<string, StateLevel>,
   ): Promise<MapPlaceSnapshot[]> {
-    const layout = loadLayout();
     const placeCentroidByRegion = await this.loadPlaceCentroidByRegion();
     const rows = await this.dataSource.getRepository(PlaceStatusActiveEntity).find({
       relations: { place: { region: true } },
@@ -256,10 +250,6 @@ export class MapQueryService {
       const coords = resolvePlaceMapCentroid({
         place,
         region: place.region,
-        regionCode,
-        tile: layout.tiles[regionCode],
-        layoutCols: layout.cols,
-        layoutRows: layout.rows,
         placeFallback: placeCentroidByRegion.get(place.regionId),
       });
       if (!coords) continue;
@@ -283,10 +273,6 @@ export class MapQueryService {
       const coords = resolvePlaceMapCentroid({
         place: entry.place,
         region: entry.place.region,
-        regionCode: entry.regionCode,
-        tile: layout.tiles[entry.regionCode],
-        layoutCols: layout.cols,
-        layoutRows: layout.rows,
         placeFallback: placeCentroidByRegion.get(entry.place.regionId),
       });
       if (!coords) continue;

@@ -27,6 +27,7 @@ export function StateChangesWidget({ defaultCollapsed = false }: WidgetProps) {
 
   const items: AccordionItem[] = visible.map((row) => ({
     id: row.id,
+    headTip: [row.title, row.text].filter(Boolean).join("\n"),
     head: (
       <>
         <Badge level={row.stateLevel ?? "grey"} />

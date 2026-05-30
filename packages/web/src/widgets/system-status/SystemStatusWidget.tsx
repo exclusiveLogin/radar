@@ -41,6 +41,19 @@ export function SystemStatusWidget({ defaultCollapsed = false }: WidgetProps) {
         ? "Переподключение…"
         : "Отключено";
 
+  const workerTip = workerStatus?.worker
+    ? [
+        `Статус: ${workerStatus.worker.status ?? "?"}`,
+        `Orchestrator: ${workerStatus.worker.orchestrator.running ? "running" : "stopped"}`,
+        `Live inserted: ${workerStatus.worker.ingest.liveInserted ?? 0}`,
+        workerStatus.worker.ingest.lastLiveAt
+          ? `Последний live: ${workerStatus.worker.ingest.lastLiveAt}`
+          : null,
+      ]
+        .filter(Boolean)
+        .join("\n")
+    : "Worker недоступен";
+
   return (
     <Panel title="Система" variant="glass" collapsible defaultCollapsed={defaultCollapsed}>
       <div className="ds-metric-row">
@@ -70,6 +83,7 @@ export function SystemStatusWidget({ defaultCollapsed = false }: WidgetProps) {
               ? `${workerStatus.worker?.status ?? "?"} · live ${workerStatus.worker?.ingest.liveInserted ?? 0}`
               : "Недоступен"
           }
+          tip={workerTip}
           pulse={workerStatus?.worker?.orchestrator.running ?? false}
         />
       </div>

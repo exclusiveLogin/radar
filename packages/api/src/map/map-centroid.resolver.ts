@@ -1,5 +1,3 @@
-import { layoutTileToCentroid } from "@radar/shared";
-import type { LayoutTile, StateLevel } from "@radar/shared";
 import type { RegionEntity } from "../geo/entities";
 
 function toNumber(value: string | null): number | undefined {
@@ -13,15 +11,13 @@ type CentroidInput = {
   centroidLon: string | null;
 };
 
-/** Центроид региона: БД → fallback places → layout (для активных без coords). */
+/**
+ * WGS84-центроид региона для гео-карты: только БД или средний центроид мест.
+ * Layout-тайлы — только для SchematicMapWidget, не подставлять сюда.
+ */
 export function resolveRegionCentroid(input: {
   region: RegionEntity;
-  code: string;
-  tile?: LayoutTile;
-  layoutCols: number;
-  layoutRows: number;
   placeFallback?: { lat: number; lon: number };
-  stateLevel: StateLevel;
 }): { lat: number; lon: number } | undefined {
   const fromDb = {
     lat: toNumber(input.region.centroidLat),
@@ -30,24 +26,16 @@ export function resolveRegionCentroid(input: {
   if (fromDb.lat !== undefined && fromDb.lon !== undefined) {
     return { lat: fromDb.lat, lon: fromDb.lon };
   }
-  if (input.placeFallback) return input.placeFallback;
-  if (input.stateLevel !== "grey" && input.tile) {
-    return layoutTileToCentroid(input.tile, input.layoutCols, input.layoutRows);
-  }
-  return undefined;
+  return input.placeFallback;
 }
 
 /**
- * Координаты маркера place на гео-карте: place → region → layout.
- * Активный place без coords всё равно рисуется (fallback layout региона).
+ * WGS84-координаты маркера place: place → region → средний центроид мест региона.
+ * Без coords place на гео-карте не рисуется (layout ≠ реальная география).
  */
 export function resolvePlaceMapCentroid(input: {
   place: CentroidInput;
   region: RegionEntity;
-  regionCode: string;
-  tile?: LayoutTile;
-  layoutCols: number;
-  layoutRows: number;
   placeFallback?: { lat: number; lon: number };
 }): { lat: number; lon: number } | undefined {
   const fromPlace = {
@@ -66,11 +54,5 @@ export function resolvePlaceMapCentroid(input: {
     return { lat: fromRegion.lat, lon: fromRegion.lon };
   }
 
-  if (input.placeFallback) return input.placeFallback;
-
-  if (input.tile) {
-    return layoutTileToCentroid(input.tile, input.layoutCols, input.layoutRows);
-  }
-
-  return undefined;
+  return input.placeFallback;
 }

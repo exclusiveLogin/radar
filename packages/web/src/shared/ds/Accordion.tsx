@@ -5,6 +5,8 @@ export type AccordionItem = {
   id: string;
   head: ReactNode;
   body: ReactNode;
+  /** Полный текст при наведении на заголовок секции. */
+  headTip?: string;
 };
 
 type AccordionProps = {
@@ -24,6 +26,7 @@ export function Accordion({ items, defaultOpenId }: AccordionProps) {
             <button
               type="button"
               className="ds-accordion__head"
+              title={item.headTip}
               onClick={() => setOpenId(isOpen ? null : item.id)}
             >
               <span>{isOpen ? "▾" : "▸"}</span>

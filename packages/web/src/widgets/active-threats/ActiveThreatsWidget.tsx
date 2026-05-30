@@ -55,6 +55,7 @@ export function ActiveThreatsWidget({ defaultCollapsed = false }: WidgetProps) {
   const items: AccordionItem[] = [
     ...regionRows.map((row) => ({
       id: `region:${row.regionCode}`,
+      headTip: `${row.regionCode} — ${row.name}`,
       head: (
         <>
           <Badge level={row.stateLevel} />
@@ -80,6 +81,7 @@ export function ActiveThreatsWidget({ defaultCollapsed = false }: WidgetProps) {
     })),
     ...placeRows.map((row) => ({
       id: `place:${row.placeId}`,
+      headTip: `${row.placeName}\n${row.regionCode} · ${row.statusCode}`,
       head: (
         <>
           <Badge level={row.stateLevel} />

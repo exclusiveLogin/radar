@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import type { MapRegionSnapshot } from "@radar/shared";
 import { Panel } from "../../shared/ds";
-import { LEVEL_COLORS } from "../../shared/config/mapConfig.service";
+import { LEVEL_COLORS, LEVEL_LABELS } from "../../shared/config/mapConfig.service";
 import { useObservable } from "../../shared/hooks/useObservable";
 import { regionsByCode$ } from "../../shared/state/mapStore";
 import { selectRegion, selectedRegion$ } from "../../shared/state/selectionStore";
@@ -51,6 +51,9 @@ export function SchematicMapWidget(_props: WidgetProps) {
                 onClick={() => selectRegion(region.regionCode)}
                 style={{ cursor: "pointer" }}
               >
+                <title>
+                  {`${region.regionCode} — ${region.name}\n${LEVEL_LABELS[region.stateLevel]} · ×${region.activity}`}
+                </title>
                 <circle
                   cx={cx}
                   cy={cy}

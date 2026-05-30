@@ -32,6 +32,7 @@ export function LevelTrendWidget({ defaultCollapsed = false }: WidgetProps) {
     return TREND_LEVELS.filter((level) => (counts[level] ?? 0) > 0).map((level) => ({
       key: level,
       label: levelBarLabel(level),
+      tip: LEVEL_LABELS[level],
       value: counts[level] ?? 0,
       color: LEVEL_COLORS[level],
     }));

@@ -1,22 +1,36 @@
 import { useMemo } from "react";
 import type { MessageFeedItem } from "@radar/shared";
-import { Badge, Panel } from "../../shared/ds";
+import { Badge, EllipsisText, Panel, Tip, flattenText } from "../../shared/ds";
 import { useObservable } from "../../shared/hooks/useObservable";
 import { formatMessagePostedAt } from "../../shared/state/derivations";
 import { messagesFeed$ } from "../../shared/state/messagesStore";
 import { selectRegion, selectedRegion$ } from "../../shared/state/selectionStore";
-
-/** Однострочный preview текста без лишних переносов. */
-function previewText(text: string, max = 140): string {
-  const flat = text.replace(/\s+/g, " ").trim();
-  return flat.length <= max ? flat : `${flat.slice(0, max - 1)}…`;
-}
+import type { WidgetProps } from "../widgetProps";
 
 function sourceLabel(row: MessageFeedItem): string {
   return row.channelTitle?.trim() || row.channelKey;
 }
 
-import type { WidgetProps } from "../widgetProps";
+function formatPostedAtFull(iso: string): string {
+  return new Date(iso).toLocaleString("ru-RU", {
+    dateStyle: "medium",
+    timeStyle: "medium",
+    timeZone: "Europe/Moscow",
+  });
+}
+
+function messageTip(row: MessageFeedItem): string {
+  const parts = [
+    sourceLabel(row),
+    formatPostedAtFull(row.postedAt),
+    row.rawText.trim(),
+  ];
+  if (row.eventType) parts.push(`parse: ${row.eventType}`);
+  if (row.regionCodes.length > 0) {
+    parts.push(`регионы: ${[...new Set(row.regionCodes)].join(", ")}`);
+  }
+  return parts.join("\n\n");
+}
 
 /** Лента ingest-сообщений: источник, время MSK, parse/уровень. */
 export function MessagesFeedWidget({ defaultCollapsed = false }: WidgetProps) {
@@ -45,29 +59,46 @@ export function MessagesFeedWidget({ defaultCollapsed = false }: WidgetProps) {
         <p className="ds-muted">Нет сообщений или API недоступен.</p>
       ) : (
         <ul className="ds-message-feed">
-          {visible.map((row) => (
-            <li key={row.id} className="ds-message-feed__item">
-              <div className="ds-message-feed__meta">
-                <span className="ds-message-feed__source">{sourceLabel(row)}</span>
-                <span className="ds-message-feed__time" title={row.postedAt}>
-                  {formatMessagePostedAt(row.postedAt)}
-                </span>
-                {row.stateLevel ? (
-                  <Badge level={row.stateLevel} />
-                ) : row.eventType ? (
-                  <span className="ds-message-feed__pending">parse</span>
-                ) : (
-                  <span className="ds-message-feed__pending">raw</span>
-                )}
-              </div>
-              <p className="ds-message-feed__text">{previewText(row.rawText)}</p>
-              {row.regionCodes.length > 0 && (
-                <div className="ds-message-feed__regions">
-                  {[...new Set(row.regionCodes)].join(" · ")}
+          {visible.map((row) => {
+            const regionsLabel = [...new Set(row.regionCodes)].join(" · ");
+            return (
+              <li key={row.id} className="ds-message-feed__item">
+                <div className="ds-message-feed__meta">
+                  <EllipsisText
+                    text={sourceLabel(row)}
+                    className="ds-message-feed__source ds-ellipsis"
+                    tip={sourceLabel(row)}
+                  />
+                  <Tip label={formatPostedAtFull(row.postedAt)}>
+                    <span className="ds-message-feed__time">
+                      {formatMessagePostedAt(row.postedAt)}
+                    </span>
+                  </Tip>
+                  {row.stateLevel ? (
+                    <Badge level={row.stateLevel} />
+                  ) : row.eventType ? (
+                    <Tip label={`Тип события: ${row.eventType}`}>
+                      <span className="ds-message-feed__pending">parse</span>
+                    </Tip>
+                  ) : (
+                    <Tip label="Сообщение без parse — только raw">
+                      <span className="ds-message-feed__pending">raw</span>
+                    </Tip>
+                  )}
                 </div>
-              )}
-            </li>
-          ))}
+                <Tip label={messageTip(row)} className="ds-tip--hint">
+                  <p className="ds-message-feed__text">{flattenText(row.rawText)}</p>
+                </Tip>
+                {regionsLabel && (
+                  <EllipsisText
+                    text={regionsLabel}
+                    className="ds-message-feed__regions ds-ellipsis"
+                    tip={regionsLabel}
+                  />
+                )}
+              </li>
+            );
+          })}
         </ul>
       )}
     </Panel>

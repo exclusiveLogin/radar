@@ -7,13 +7,13 @@ import {
   PlaceStatusHistoryEntity,
   StatusDictionaryEntity,
 } from "../events/entities";
-import { loadLayout } from "./layout.loader";
 import { resolvePlaceMapCentroid } from "./map-centroid.resolver";
+
 type Emit = (message: WsServerMessage) => void;
 
 /**
  * Realtime по местам: опрашивает place_status_history и эмитит place-state.
- * Координаты: place → region → layout (см. resolvePlaceMapCentroid).
+ * Координаты: place → region (только WGS84 из БД).
  */
 @Injectable()
 export class PlaceStatePoller {
@@ -61,8 +61,6 @@ export class PlaceStatePoller {
       });
     if (rows.length === 0) return;
 
-    const layout = loadLayout();
-
     for (const row of rows) {
       const stateLevel = this.levelByStatus.get(row.statusCode) ?? "grey";
       const place = row.place;
@@ -70,14 +68,7 @@ export class PlaceStatePoller {
       if (!place || !region) continue;
 
       const regionCode = region.iso ?? region.name;
-      const coords = resolvePlaceMapCentroid({
-        place,
-        region,
-        regionCode,
-        tile: layout.tiles[regionCode],
-        layoutCols: layout.cols,
-        layoutRows: layout.rows,
-      });
+      const coords = resolvePlaceMapCentroid({ place, region });
 
       const payload: PlaceStateEvent = {
         placeId: row.placeId,

@@ -9,7 +9,6 @@ import {
 } from "../events/entities";
 import { RegionEntity } from "../geo/entities";
 import { resolveRegionCentroid } from "./map-centroid.resolver";
-import { loadLayout } from "./layout.loader";
 
 type Emit = (message: WsServerMessage) => void;
 
@@ -57,21 +56,12 @@ export class RegionStatePoller {
     if (rows.length === 0) return;
 
     const activity = await this.loadActivity();
-    const layout = loadLayout();
     const regionById = await this.loadRegions(rows.map((row) => row.regionId));
 
     for (const row of rows) {
       const region = regionById.get(row.regionId);
-      const code = row.regionCode;
       const centroid = region
-        ? resolveRegionCentroid({
-            region,
-            code,
-            tile: layout.tiles[code],
-            layoutCols: layout.cols,
-            layoutRows: layout.rows,
-            stateLevel: row.stateLevel,
-          })
+        ? resolveRegionCentroid({ region })
         : undefined;
 
       emit({

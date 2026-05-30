@@ -1,6 +1,5 @@
 type BarMiniProps = {
-  /** Подписи и значения столбцов. */
-  bars: { key?: string; label: string; value: number; color?: string }[];
+  bars: { key?: string; label: string; value: number; color?: string; tip?: string }[];
   width?: number;
   height?: number;
 };
@@ -21,6 +20,7 @@ export function BarMini({ bars, width = 200, height = 48 }: BarMiniProps) {
         const y = height - barH - 12;
         return (
           <g key={bar.key ?? bar.label}>
+            <title>{`${bar.tip ?? bar.label}: ${bar.value}`}</title>
             <rect
               x={x}
               y={y}
