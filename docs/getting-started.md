@@ -172,7 +172,7 @@ API (admin) → domain_events (outbox) → OutboxRelay → та же шина в
 BackfillDaemon (отдельно от Orchestrator) → streamHistory → тот же ingest/parse
 ```
 
-Схемы: [domain/how-it-works.md](./domain/how-it-works.md), backfill: [backfill-v2-pipeline.md](./backfill-v2-pipeline.md).
+Схемы: [architecture-layers-and-wiring.md](./architecture-layers-and-wiring.md), [domain/how-it-works.md](./domain/how-it-works.md), backfill: [backfill-v2-pipeline.md](./backfill-v2-pipeline.md).
 
 ---
 
