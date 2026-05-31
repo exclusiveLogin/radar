@@ -93,6 +93,25 @@ test("isBlockedRegionCatalogLookup: Приморский vs край при як
   );
 });
 
+const NN_MSG = "‼️Аэропорт НИЖНИЙ НОВГОРОД (Чкалов)\nУгроза БПЛА";
+
+test("якорь Нижний Новгород подавляет ложную Новгородскую (53→52)", () => {
+  const anchors = findLocalityAnchorsInText(NN_MSG, ANCHORS);
+  assert.equal(anchors[0]?.regionCode, "52");
+
+  // catalog по adjective-stem «новгород» ложно цепляет Новгородскую (53)
+  const novgorodskaya = {
+    code: "53",
+    name: "Новгородская область",
+    aliases: ["новгородская", "новгородская область", "новгород"],
+  };
+  assert.equal(
+    shouldSuppressFederalSubjectMatch(NN_MSG, novgorodskaya, anchors),
+    true,
+  );
+  assert.equal(inferPreferredRegionCode(NN_MSG, anchors), "52");
+});
+
 const NIKOLAEVSKY_ULY_MSG =
   "Николаевский район\nУльяновская область\nФиксация БПЛА";
 

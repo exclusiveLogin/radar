@@ -240,6 +240,7 @@ export class ParseRawMessageHandler {
           regionId: location.regionId,
           regionCode: location.regionCode,
           placeId: location.placeId,
+          precision: location.precision,
         })),
       },
     });

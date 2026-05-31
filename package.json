@@ -27,6 +27,7 @@
     "geo:seed": "npm run geo:seed -w @radar/api",
     "geo:db:plan": "npm run geo:db:plan -w @radar/api",
     "geo:db:apply": "npm run geo:db:apply -w @radar/api",
+    "geo:db:dedup": "npm run geo:db:dedup -w @radar/api",
     "migration:run": "npm run migration:run -w @radar/api",
     "migration:generate": "npm run migration:generate -w @radar/api",
     "shared:dev": "npm run dev -w @radar/shared",

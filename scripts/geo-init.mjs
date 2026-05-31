@@ -32,6 +32,9 @@ async function main() {
   step("apply db sync");
   runNpm(["run", "geo:db:apply"]);
 
+  step("dedup duplicate places (repoint, идемпотентно)");
+  runNpm(["run", "geo:db:dedup"]);
+
   console.log("\n\x1b[32mgeo:init completed\x1b[0m");
 }
 

@@ -5,6 +5,7 @@ import type {
   IRegionRepository,
   IRegionStateRepository,
   IStatusDictionaryRepository,
+  LocationPrecision,
   RegionRecord,
   StateLevel,
 } from "@radar/shared";
@@ -14,7 +15,12 @@ import {
   computeSelfLevel,
 } from "../../domain/region-state/regionStateMachine.js";
 
-type ParsedLocation = { regionId: string; regionCode: string; placeId?: string };
+type ParsedLocation = {
+  regionId: string;
+  regionCode: string;
+  placeId?: string;
+  precision: LocationPrecision;
+};
 
 type MessageParsedPayload = {
   eventType: string;

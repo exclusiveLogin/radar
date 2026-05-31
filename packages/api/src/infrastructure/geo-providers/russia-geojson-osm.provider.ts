@@ -64,8 +64,9 @@ function appendRegionDraft(options: {
 
   const regionCode = normalizeName(regionName);
   const centroid = centroidFromGeoJsonGeometry(options.geometry);
+  // iso НЕ задаём: geojson не несёт настоящего ISO. Identity (ISO/FIAS) добавит hflabs
+  // в канонизаторе; здесь источник вкладывает только имя+геометрию.
   options.regions.push({
-    iso: regionCode,
     name: regionName,
     nameWithType: regionName,
     geometryArtifactKey: options.file,

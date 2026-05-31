@@ -153,3 +153,6 @@ vite.config.ts.timestamp-*
 
 # Сторонние geo-репозитории (git clone из scripts/fetch-geo-vendor.mjs)
 data/geo/vendor/
+
+# Времянки: ад-хок диагностика/однократные проверки (не коммитить)
+tmp/

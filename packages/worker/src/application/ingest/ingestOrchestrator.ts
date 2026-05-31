@@ -203,7 +203,7 @@ export class IngestOrchestrator {
 
       const sink = async (normalized: IngestNormalizedMessage) => {
         const { raw, extension } = ingestNormalizedToRaw(normalized, "backfill");
-        await this.ingestHandler.handle(raw, extension);
+        return await this.ingestHandler.handle(raw, extension);
       };
 
       totals = await adapter.fetchHistoryBatch(

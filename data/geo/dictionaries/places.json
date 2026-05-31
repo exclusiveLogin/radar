@@ -88,5 +88,11 @@
     "centroidLat": 46.1186,
     "centroidLon": 32.9089,
     "aliases": ["Скадовск"]
+  },
+  {
+    "regionCode": "52",
+    "kind": "city",
+    "name": "Нижний Новгород",
+    "aliases": ["Нижний Новгород"]
   }
 ]

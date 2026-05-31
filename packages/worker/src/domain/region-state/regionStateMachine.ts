@@ -22,17 +22,22 @@ export function computeSelfLevel(
 export type EffectiveLevel = { level: StateLevel; reason: string };
 
 /**
- * Эффективный уровень с учётом соседей: красный сосед даёт превентивный yellow.
- * Собственный уровень имеет приоритет, если он не ниже превентивного.
+ * Эффективный уровень с учётом соседей.
+ *
+ * Превентивный yellow от красного соседа применяется ТОЛЬКО к региону без
+ * собственного статуса (grey = «нет данных»). Любой собственный сигнал —
+ * включая green (явный отбой) — приоритетнее соседской подсветки и не
+ * перекрашивается.
  */
 export function computeEffectiveLevel(
   selfLevel: StateLevel,
   neighborSelfLevels: StateLevel[],
 ): EffectiveLevel {
-  const hasRedNeighbor = neighborSelfLevels.includes("red");
-  const boost: StateLevel = hasRedNeighbor ? "yellow" : "grey";
-  if (STATE_LEVEL_RANK[selfLevel] >= STATE_LEVEL_RANK[boost]) {
+  if (selfLevel !== "grey") {
     return { level: selfLevel, reason: `self:${selfLevel}` };
   }
-  return { level: boost, reason: "neighbor-red" };
+  const hasRedNeighbor = neighborSelfLevels.includes("red");
+  return hasRedNeighbor
+    ? { level: "yellow", reason: "neighbor-red" }
+    : { level: "grey", reason: "self:grey" };
 }

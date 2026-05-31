@@ -412,8 +412,14 @@ export class TelegramRawIngestAdapter implements IRawIngestAdapter {
         continue;
       }
       this.hybridSeen.add(key);
-      await sink(normalized);
-      inserted += 1;
+      
+      // sink возвращает { inserted: boolean }, используем это для честной статистики
+      const result = await sink(normalized);
+      if (result && result.inserted === false) {
+        duplicates += 1;
+      } else {
+        inserted += 1;
+      }
     }
 
     return { inserted, duplicates };
@@ -467,8 +473,14 @@ export class TelegramRawIngestAdapter implements IRawIngestAdapter {
         continue;
       }
       this.hybridSeen.add(key);
-      await sink(normalized);
-      inserted += 1;
+      
+      // sink возвращает { inserted: boolean }, используем это для честной статистики
+      const result = await sink(normalized);
+      if (result && result.inserted === false) {
+        duplicates += 1;
+      } else {
+        inserted += 1;
+      }
     }
 
     return { inserted, duplicates };

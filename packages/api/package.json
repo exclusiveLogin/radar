@@ -11,6 +11,7 @@
     "geo:seed": "ts-node --transpile-only src/scripts/seed-geo-dataset.ts",
     "geo:db:plan": "ts-node --transpile-only src/scripts/geo-sync/cli.ts plan",
     "geo:db:apply": "ts-node --transpile-only src/scripts/geo-sync/cli.ts apply",
+    "geo:db:dedup": "ts-node --transpile-only src/scripts/geo-dedup/cli.ts",
     "typecheck": "tsc -p tsconfig.build.json --noEmit",
     "lint": "eslint \"src/**/*.ts\" --max-warnings 0"
   },

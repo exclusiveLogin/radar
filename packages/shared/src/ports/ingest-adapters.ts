@@ -32,7 +32,7 @@ export type IngestAdapterContext = {
   telegramMtprotoApp?: TelegramMtprotoAppCredentials;
 };
 
-export type IngestMessageSink = (msg: IngestNormalizedMessage) => Promise<void>;
+export type IngestMessageSink = (msg: IngestNormalizedMessage) => Promise<{ inserted: boolean } | void>;
 
 export interface IRawIngestAdapter {
   readonly kind: IngestAdapterKind;

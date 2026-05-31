@@ -1,5 +1,6 @@
-import type { AliasDraft, GeoProviderSnapshot, IGeoSourceProvider, PlaceDraft, RegionDraft } from "@radar/shared";
+import type { AliasDraft, GeoProviderSnapshot, IGeoSourceProvider, PlaceDraft } from "@radar/shared";
 import { normalizeName } from "./geo-provider-utils";
+import { canonicalizeRegions } from "./region-canonicalization";
 
 /** Deduplicates rows by stable string key while preserving first occurrence. */
 function dedupeByKey<T>(
@@ -39,10 +40,17 @@ export class CompositeGeoProvider implements IGeoSourceProvider {
   async loadSnapshot(): Promise<GeoProviderSnapshot> {
     const snapshots = await this.loadProviderSnapshots();
     const sourceMeta = this.buildSourceMeta(snapshots);
-    const regions = dedupeByKey<RegionDraft>(
+    // Регионы сводятся к одному канон-региону на субъект: identity (настоящий ISO)
+    // из hflabs, геометрия доливается из geojson. Источник без ISO не плодит фантом.
+    const { regions, dropped } = canonicalizeRegions(
       snapshots.flatMap((s) => s.regions),
-      (row) => row.fiasId ?? row.iso ?? normalizeName(row.name),
     );
+    if (dropped.length > 0) {
+      console.warn(
+        `[geo:composite] регионов без канон-ISO отброшено: ${dropped.length}`,
+        dropped.slice(0, 20).map((d) => d.name),
+      );
+    }
     const places = dedupeByKey<PlaceDraft>(
       snapshots.flatMap((s) => s.places),
       (row) => row.fiasId ?? `${row.regionCode}:${row.kind}:${normalizeName(row.name)}`,

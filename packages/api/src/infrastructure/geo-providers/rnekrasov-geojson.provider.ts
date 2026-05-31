@@ -41,8 +41,9 @@ function appendSubjectRegion(options: {
       ? options.props.NL_NAME_1
       : options.fallbackName;
   const regionCode = normalizeName(regionNameRu);
+  // iso НЕ задаём: geojson не несёт настоящего ISO (раньше клали имя → фантом-регионы).
+  // Identity добавит hflabs в канонизаторе; здесь — только имя+геометрия.
   options.regions.push({
-    iso: regionCode,
     name: regionNameRu,
     nameWithType:
       typeof options.props.TYPE_1 === "string"

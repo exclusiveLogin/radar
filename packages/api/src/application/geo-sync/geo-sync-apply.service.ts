@@ -13,6 +13,7 @@ import type {
 } from "@radar/shared";
 import { randomUUID } from "node:crypto";
 import { normalizeName, placeDraftKey } from "./diff-engine";
+import { regionStemKey } from "../../infrastructure/geo-providers/region-canonicalization";
 import { GeoSyncPlanService } from "./geo-sync-plan.service";
 
 export class GeoSyncApplyService {
@@ -63,6 +64,10 @@ export class GeoSyncApplyService {
       if (region.kladrId) keys.add(region.kladrId);
       if (region.iso) keys.add(region.iso);
       if (region.nameWithType) keys.add(normalizeName(region.nameWithType));
+      // Стем-ключи: позволяют geojson-привязкам («воронежская область») и местам
+      // найти канон-регион hflabs («Воронежская») без фантомов.
+      keys.add(regionStemKey(region.name));
+      if (region.nameWithType) keys.add(regionStemKey(region.nameWithType));
       for (const key of keys) {
         index.set(key, region);
       }
@@ -75,7 +80,11 @@ export class GeoSyncApplyService {
     index: Map<string, RegionRecord>,
     regionCode: string,
   ): RegionRecord | undefined {
-    return index.get(regionCode) ?? index.get(normalizeName(regionCode));
+    return (
+      index.get(regionCode) ??
+      index.get(normalizeName(regionCode)) ??
+      index.get(regionStemKey(regionCode))
+    );
   }
 
   /** Maps place draft into persistence record bound to region id. */
