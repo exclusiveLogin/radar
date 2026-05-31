@@ -15,7 +15,22 @@ const geoNodeSchema = z.object({
   lat: z.number().finite().optional(),
   lon: z.number().finite().optional(),
   confidence: z.number().min(0).max(1).optional(),
+  /** Краткое обоснование привязки (per-place reason от LLM). */
+  reason: z.string().optional(),
 });
+
+/**
+ * Семантическая группа события по версии LLM (не «умный регэксп», а классификация).
+ * Захватывается как сигнал/метаданные; не подменяет правило-классификатор.
+ */
+export const geoEventCategorySchema = z.enum([
+  "threat",
+  "impact",
+  "all_clear",
+  "movement",
+  "other",
+]);
+export type GeoEventCategory = z.infer<typeof geoEventCategorySchema>;
 
 export const geoEnrichmentCatalogSchema = z.object({
   schemaVersion: z.literal(1),
@@ -42,6 +57,8 @@ export const geoEnrichmentLlmSchema = z.object({
   nodes: z.array(geoNodeSchema),
   confidence: z.number().min(0).max(1),
   reason: z.string(),
+  /** Семантическая группа события (опциональный сигнал LLM). */
+  eventCategory: geoEventCategorySchema.optional(),
 });
 
 export const geoEnrichmentDadataSchema = z.object({

@@ -14,6 +14,9 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint \"src/**/*.ts\" --max-warnings 0",
     "parse:report": "tsx src/cli/parseReport.ts",
+    "parse:ab": "tsx src/cli/parseAb.ts",
+    "parse:golden:bootstrap": "tsx src/cli/goldenBootstrap.ts",
+    "parse:score": "tsx src/cli/parseScore.ts",
     "worker:session:deploy": "tsx src/cli/sessionCli.ts deploy",
     "worker:session:probe": "tsx src/cli/sessionCli.ts probe",
     "worker:session:invalidate": "tsx src/cli/sessionCli.ts invalidate",
@@ -21,6 +24,7 @@
     "ingest:manifest:export": "tsx src/cli/ingestManifestCli.ts export",
     "worker:ingest:backfill": "tsx src/cli/ingestBackfillCli.ts",
     "worker:reparse:raw": "tsx src/cli/reparseRawCli.ts",
+    "worker:enrich:run": "tsx src/cli/enrichRunCli.ts",
     "worker:backfill:place-status-history": "tsx src/cli/backfillPlaceStatusHistoryCli.ts",
     "worker:map-state:expire": "tsx src/cli/mapStateExpireCli.ts",
     "verify:parse-threads": "tsx scripts/verify-parse-threads.mjs",
@@ -28,6 +32,7 @@
   },
   "dependencies": {
     "@radar/shared": "*",
+    "cli-progress": "^3.12.0",
     "dotenv": "^16.4.7",
     "pg": "^8.13.1",
     "reflect-metadata": "^0.2.2",
@@ -35,6 +40,7 @@
     "typeorm": "^0.3.20"
   },
   "devDependencies": {
+    "@types/cli-progress": "^3.11.6",
     "@types/node": "^22.10.2",
     "tsc-alias": "^1.8.10",
     "tsx": "^4.19.2",

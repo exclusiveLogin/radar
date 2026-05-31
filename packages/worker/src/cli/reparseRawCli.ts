@@ -4,6 +4,7 @@ import { MapStateFullReset } from "../application/map-state/mapStateFullReset.js
 import { createWorkerDbRepositories } from "../infrastructure/persistence/workerDbRepos.js";
 import { WorkerStorageMode } from "../infrastructure/persistence/storageMode.js";
 import { loadRootEnv } from "../infrastructure/config/loadRootEnv.js";
+import { createProgress } from "./progress.js";
 
 /**
  * Перепарсить все raw_messages из БД (после фикса резолва kladr → ISO).
@@ -38,9 +39,13 @@ async function main(): Promise<void> {
 
   let ok = 0;
   let failed = 0;
+  const progress = createProgress("reparse", rows.length);
   for (const row of rows) {
     const raw = await repos.rawMessages.findById(row.id);
-    if (!raw?.id) continue;
+    if (!raw?.id) {
+      progress.tick();
+      continue;
+    }
     try {
       await runtime.parseRawMessageHandler.handle(raw);
       ok += 1;
@@ -48,7 +53,9 @@ async function main(): Promise<void> {
       failed += 1;
       console.error(`reparse failed ${row.id}:`, err);
     }
+    progress.tick(1, { ok, failed });
   }
+  progress.stop();
 
   console.log(`Reparse done: ${ok} ok, ${failed} failed, ${rows.length} total`);
   await runtime.shutdown?.();

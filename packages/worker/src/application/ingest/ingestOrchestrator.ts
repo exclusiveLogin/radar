@@ -184,7 +184,7 @@ export class IngestOrchestrator {
     }
 
     // Читаем historyBatchSize из adapterConfig, если не передан явно
-    const config = provider.adapterConfig as any;
+    const config = (provider.adapterConfig ?? {}) as { historyBatchSize?: number };
     const effectiveBatchSize = input.batchSize ?? config.historyBatchSize ?? 200;
 
     await adapter.connect(

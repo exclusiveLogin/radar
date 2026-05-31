@@ -1,4 +1,11 @@
 import { useEffect, useRef, useState } from "react";
+import type {
+  GeoJSONSource,
+  Map as MapLibreMap,
+  MapLayerMouseEvent,
+  Popup,
+} from "maplibre-gl";
+import type { Subscription } from "rxjs";
 import type { MapPlaceSnapshot, MapRegionSnapshot, StateLevel } from "@radar/shared";
 import { Panel } from "../../shared/ds";
 import { mapApi } from "../../shared/api/mapApi";
@@ -51,13 +58,13 @@ function paintRegionOutlines(
 ): GeoJsonCollection {
   return {
     type: "FeatureCollection",
-    features: base.features
-      .map((feature) => {
-        const code = String(feature.properties.regionCode ?? "");
-        const region = regions.get(code);
-        const stateLevel = (region?.stateLevel ?? "grey") as StateLevel;
-        if (stateLevel === "grey") return null;
-        return {
+    features: base.features.flatMap((feature): PolygonFeature[] => {
+      const code = String(feature.properties.regionCode ?? "");
+      const region = regions.get(code);
+      const stateLevel = (region?.stateLevel ?? "grey") as StateLevel;
+      if (stateLevel === "grey") return [];
+      return [
+        {
           ...feature,
           properties: {
             ...feature.properties,
@@ -66,9 +73,9 @@ function paintRegionOutlines(
             color: LEVEL_COLORS[stateLevel],
             kind: "region",
           },
-        };
-      })
-      .filter((feature): feature is PolygonFeature => feature !== null),
+        },
+      ];
+    }),
   };
 }
 
@@ -111,7 +118,7 @@ function placesToFeatures(places: Map<string, MapPlaceSnapshot>): PointFeature[]
 
 /** Выполняет fn, когда стиль MapLibre готов (иначе setData теряется). */
 function whenStyleReady(
-  map: import("maplibre-gl").Map,
+  map: MapLibreMap,
   fn: () => void,
 ): void {
   if (map.isStyleLoaded()) {
@@ -126,7 +133,7 @@ function placesCollection(places: Map<string, MapPlaceSnapshot>) {
 }
 
 function fitMapView(
-  map: import("maplibre-gl").Map,
+  map: MapLibreMap,
   regionFeatures: PolygonFeature[],
   placeFeatures: PointFeature[],
 ): void {
@@ -180,14 +187,14 @@ export function GeoMapWidget(_props: WidgetProps) {
   const [geoError, setGeoError] = useState<string | null>(null);
 
   useEffect(() => {
-    let map: import("maplibre-gl").Map | null = null;
+    let map: MapLibreMap | null = null;
     let disposed = false;
-    let unsubRegions: (() => void) | undefined;
-    let unsubPlaces: (() => void) | undefined;
+    let unsubRegions: Subscription | undefined;
+    let unsubPlaces: Subscription | undefined;
     let lastActiveCodes = "";
     let geoReloadTimer: ReturnType<typeof setTimeout> | undefined;
-    let placePopup: import("maplibre-gl").Popup | null = null;
-    let regionPopup: import("maplibre-gl").Popup | null = null;
+    let placePopup: Popup | null = null;
+    let regionPopup: Popup | null = null;
 
     const activeRegionCodes = (): string =>
       [...regionsByCode$.value.values()]
@@ -222,11 +229,11 @@ export function GeoMapWidget(_props: WidgetProps) {
         );
         setRegionOutlines(painted.features.length);
         const fillSource = map.getSource(REGIONS_SOURCE) as
-          | import("maplibre-gl").GeoJSONSource
+          | GeoJSONSource
           | undefined;
         fillSource?.setData(painted as never);
         const outlineSource = map.getSource(REGIONS_OUTLINE_SOURCE) as
-          | import("maplibre-gl").GeoJSONSource
+          | GeoJSONSource
           | undefined;
         outlineSource?.setData(paintRegionInsetOutlines(painted) as never);
         const placeFeatures = placesToFeatures(placesById$.value);
@@ -242,7 +249,7 @@ export function GeoMapWidget(_props: WidgetProps) {
         setPlaceCount(collection.features.length);
         lastPlaceFeaturesRef.current = collection.features.length;
         const source = map.getSource(PLACES_SOURCE) as
-          | import("maplibre-gl").GeoJSONSource
+          | GeoJSONSource
           | undefined;
         source?.setData(collection as never);
 
@@ -357,13 +364,13 @@ export function GeoMapWidget(_props: WidgetProps) {
           map.moveLayer(PLACES_LAYER);
         }
 
-        const onPick = (event: import("maplibre-gl").MapMouseEvent): void => {
+        const onPick = (event: MapLayerMouseEvent): void => {
           const props = event.features?.[0]?.properties;
           const code = props?.regionCode;
           if (typeof code === "string") selectRegion(code);
         };
 
-        const onPlaceHover = (event: import("maplibre-gl").MapMouseEvent): void => {
+        const onPlaceHover = (event: MapLayerMouseEvent): void => {
           if (!map) return;
           map.getCanvas().style.cursor = "pointer";
           const props = event.features?.[0]?.properties;
@@ -399,7 +406,7 @@ export function GeoMapWidget(_props: WidgetProps) {
           placePopup = null;
         };
 
-        const onRegionHover = (event: import("maplibre-gl").MapMouseEvent): void => {
+        const onRegionHover = (event: MapLayerMouseEvent): void => {
           if (!map) return;
           map.getCanvas().style.cursor = "pointer";
           const code = event.features?.[0]?.properties?.regionCode;
@@ -459,8 +466,8 @@ export function GeoMapWidget(_props: WidgetProps) {
       placePopup = null;
       regionPopup?.remove();
       regionPopup = null;
-      unsubRegions?.();
-      unsubPlaces?.();
+      unsubRegions?.unsubscribe();
+      unsubPlaces?.unsubscribe();
       map?.remove();
     };
   }, []);

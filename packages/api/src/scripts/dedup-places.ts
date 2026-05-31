@@ -21,8 +21,6 @@ dotenv.config({ path: path.resolve(__dirname, "../../../../.env") });
 
 const APPLY = process.argv.includes("--apply");
 
-type PlaceRow = { id: string; fias_id: string | null };
-
 async function main(): Promise<void> {
   const url = process.env.DATABASE_URL ?? "postgresql://radar:radar@127.0.0.1:5432/radar";
   const client = new Client({ connectionString: url });

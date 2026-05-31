@@ -1,5 +1,6 @@
 ﻿import type {
   EventLocation,
+  GeoEnrichmentArtifact,
   GeoPipelineReport,
   IEventClassifier,
   ParseReport,
@@ -17,6 +18,8 @@ export type ParsePipelineResult = {
   parsedEvent?: ParsedEvent;
   locations: EventLocation[];
   geoPipeline?: GeoPipelineReport;
+  /** Полный гео-артефакт (нужен для LLM-сигналов: per-node confidence/reason). */
+  artifact?: GeoEnrichmentArtifact;
 };
 
 export type ParsePipelineInput = {
@@ -64,6 +67,7 @@ export class ParsePipelineService {
       parsedEvent,
       locations: resolved.locations,
       geoPipeline: resolved.geoPipeline,
+      artifact: resolved.artifact,
     };
   }
 }

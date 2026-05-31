@@ -112,6 +112,44 @@ test("якорь Нижний Новгород подавляет ложную �
   assert.equal(inferPreferredRegionCode(NN_MSG, anchors), "52");
 });
 
+const MATVEEV_KURGAN_MSG = "‼️ Матвеев Курган и близлежащие\nУгроза БПЛА";
+
+test("якорь Матвеев Курган подавляет ложную Курганскую (45→61)", () => {
+  const anchors = findLocalityAnchorsInText(MATVEEV_KURGAN_MSG, ANCHORS);
+  assert.equal(anchors[0]?.regionCode, "61");
+
+  // catalog по adjective-stem «курган» (от Курганской) ловит хвост «…Курган»
+  const kurganskaya = {
+    code: "45",
+    name: "Курганская область",
+    aliases: ["курганская", "курганская область", "курган"],
+  };
+  assert.equal(
+    shouldSuppressFederalSubjectMatch(MATVEEV_KURGAN_MSG, kurganskaya, anchors),
+    true,
+  );
+  assert.equal(inferPreferredRegionCode(MATVEEV_KURGAN_MSG, anchors), "61");
+});
+
+const ROSTOV_MSG = "‼️ Ростов-на-Дону\nУгроза БПЛА";
+
+test("якорь Ростов-на-Дону подавляет ложную Ярославскую (76→61)", () => {
+  const anchors = findLocalityAnchorsInText(ROSTOV_MSG, ANCHORS);
+  assert.equal(anchors[0]?.regionCode, "61");
+
+  // путаница с Ростовом Великим (Ярославская, 76)
+  const yaroslavskaya = {
+    code: "76",
+    name: "Ярославская область",
+    aliases: ["ярославская", "ярославская область"],
+  };
+  assert.equal(
+    shouldSuppressFederalSubjectMatch(ROSTOV_MSG, yaroslavskaya, anchors),
+    true,
+  );
+  assert.equal(inferPreferredRegionCode(ROSTOV_MSG, anchors), "61");
+});
+
 const NIKOLAEVSKY_ULY_MSG =
   "Николаевский район\nУльяновская область\nФиксация БПЛА";
 

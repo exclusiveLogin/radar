@@ -391,3 +391,36 @@ export interface ISyncAuditRepository {
 export interface IDomainEventRepository {
   append(events: DomainEvent[]): Promise<void>;
 }
+
+/** Статус задачи фонового гео-обогащения. */
+export type EnrichmentTaskStatus = "pending" | "processing" | "done" | "failed";
+
+/** Задача очереди фонового обогащения (по одной на raw_message). */
+export type EnrichmentTask = {
+  id: string;
+  rawMessageId: string;
+  parsedEventId: string | null;
+  status: EnrichmentTaskStatus;
+  attempts: number;
+  lastError?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+/**
+ * Очередь фонового обогащения: синхронный catalog-парсинг ставит задачу,
+ * фоновый потребитель догоняет её полным пайплайном (llm/dadata/nominatim).
+ * Enqueue идемпотентен по `rawMessageId` (одна задача на сообщение).
+ */
+export interface IEnrichmentQueueRepository {
+  /** Поставить задачу (idempotent: ON CONFLICT(raw_message_id) DO NOTHING). */
+  enqueue(input: { rawMessageId: string; parsedEventId?: string | null }): Promise<void>;
+  /** Атомарно забрать пачку pending → processing (FOR UPDATE SKIP LOCKED). */
+  claimBatch(limit: number): Promise<EnrichmentTask[]>;
+  /** Пометить задачу выполненной. */
+  markDone(id: string): Promise<void>;
+  /** Пометить задачу проваленной (attempts++, last_error). */
+  markFailed(id: string, error: string): Promise<void>;
+  /** Счётчики по статусам (для прогресса/диагностики). */
+  countByStatus(): Promise<Record<EnrichmentTaskStatus, number>>;
+}

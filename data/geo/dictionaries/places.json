@@ -94,5 +94,17 @@
     "kind": "city",
     "name": "Нижний Новгород",
     "aliases": ["Нижний Новгород"]
+  },
+  {
+    "regionCode": "61",
+    "kind": "city",
+    "name": "Ростов-на-Дону",
+    "aliases": ["Ростов-на-Дону"]
+  },
+  {
+    "regionCode": "61",
+    "kind": "settlement",
+    "name": "Матвеев Курган",
+    "aliases": ["Матвеев Курган"]
   }
 ]

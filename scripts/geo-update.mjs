@@ -1,8 +1,12 @@
 #!/usr/bin/env node
 import { run } from "./utils.mjs";
 
+const TOTAL_STEPS = 7;
+let stepNo = 0;
+
 function step(title) {
-  console.log(`\n\x1b[36m[geo:update] ${title}\x1b[0m`);
+  stepNo += 1;
+  console.log(`\n\x1b[36m[geo:update ${stepNo}/${TOTAL_STEPS}] ${title}\x1b[0m`);
 }
 
 function runNpm(args) {

@@ -16,6 +16,25 @@ import { buildDomainEvent } from "./domainEventFactory.js";
 
 type EnricherProvider = "dadata" | "nominatim" | "llm";
 
+/** Нормализация имени для сопоставления локации с LLM-нодой. */
+function normalizeNodeName(value: string): string {
+  return value.toLowerCase().replace(/ё/g, "е").trim();
+}
+
+/** Индекс LLM-сигналов (confidence/reason) по нормализованному имени места. */
+function buildLlmSignalIndex(
+  artifact: { llm?: { nodes: Array<{ name: string; confidence?: number; reason?: string }> } } | undefined,
+): Map<string, { confidence?: number; reason?: string }> {
+  const index = new Map<string, { confidence?: number; reason?: string }>();
+  for (const node of artifact?.llm?.nodes ?? []) {
+    index.set(normalizeNodeName(node.name), {
+      confidence: node.confidence,
+      reason: node.reason,
+    });
+  }
+  return index;
+}
+
 function toProviderHint(
   provider: EnricherProvider | undefined,
 ): GeoValidationContext["providerHint"] | undefined {
@@ -111,11 +130,18 @@ export class ParseRawMessageHandler {
     rawText: string,
     locations: EventLocation[],
     primaryProvider: EnricherProvider | undefined,
+    llmSignals: Map<string, { confidence?: number; reason?: string }>,
   ) {
     const validatedLocations = [];
     for (const location of locations) {
+      const signal =
+        location.source === "llm" && location.placeName
+          ? llmSignals.get(normalizeNodeName(location.placeName))
+          : undefined;
       const validated = await this.validation.validate(rawText, location, {
         providerHint: toProviderHint(primaryProvider),
+        confidence: signal?.confidence,
+        reason: signal?.reason,
       });
       if (validated.location) {
         validatedLocations.push(validated.location);
@@ -182,10 +208,12 @@ export class ParseRawMessageHandler {
       providersTried: [] as string[],
     };
     const primaryProvider = toPrimaryProvider(enrich.providersTried);
+    const llmSignals = buildLlmSignalIndex(pipelineResult.artifact);
     const validatedLocations = await this.validateLocations(
       raw.rawText,
       pipelineResult.locations,
       primaryProvider,
+      llmSignals,
     );
 
     const parsed = {

@@ -1,5 +1,6 @@
 // --- runtime exports (schemas, functions, classes) ---
 export { DomainEventEntity } from "./domain-event.entity";
+export { EnrichmentQueueEntity } from "./enrichment-queue.entity";
 export { EventLocationEntity } from "./event-location.entity";
 export { EventSubscriptionEntity } from "./event-subscription.entity";
 export { ParseAttemptEntity } from "./parse-attempt.entity";

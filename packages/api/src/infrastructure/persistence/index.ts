@@ -1,6 +1,7 @@
 // --- runtime exports (schemas, functions, classes) ---
 export { TypeOrmDomainEventRepository } from "./typeorm-domain-event.repository";
 export { TypeOrmDomainEventOutbox } from "./typeorm-raw-message.repository";
+export { TypeOrmEnrichmentQueueRepository } from "./typeorm-enrichment-queue.repository";
 export { TypeOrmEventLocationRepository } from "./typeorm-event-location.repository";
 export { TypeOrmIngestCursorRepository } from "./typeorm-ingest-cursor.repository";
 export { TypeOrmIngestProviderRepository } from "./typeorm-ingest-provider.repository";

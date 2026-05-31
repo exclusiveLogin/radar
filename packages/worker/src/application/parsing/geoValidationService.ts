@@ -26,6 +26,8 @@ export type GeoValidationContext = {
   providerHint?: PlaceProvider;
   confidence?: number;
   traceId?: string;
+  /** Обоснование привязки от LLM (персистится в place_evidence для анализа). */
+  reason?: string;
 };
 
 const TRUSTED_PROVIDERS = new Set<PlaceProvider>([
@@ -132,6 +134,7 @@ export class GeoValidationService {
         reason: "matched_existing",
         rawQuery,
         locationSource: location.source,
+        ...(context.reason ? { llmReason: context.reason } : {}),
       },
     };
   }
@@ -240,6 +243,7 @@ export class GeoValidationService {
         rawQuery,
         reason: "created_from_validation",
         locationSource: location.source,
+        ...(context.reason ? { llmReason: context.reason } : {}),
       },
       createdAt: new Date().toISOString(),
     });

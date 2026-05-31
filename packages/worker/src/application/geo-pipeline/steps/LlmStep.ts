@@ -100,6 +100,8 @@ export class LlmStep implements GeoPipelineStep {
         kind: isRegion ? "region" : place.kind,
         regionCode: placeRegionCode ?? undefined,
         fiasId: place.placeFias ?? undefined,
+        confidence: place.confidence ?? result.confidence,
+        reason: place.reason ?? undefined,
       });
     }
 
@@ -108,6 +110,7 @@ export class LlmStep implements GeoPipelineStep {
       nodes,
       confidence: result.confidence,
       reason: result.reason,
+      eventCategory: result.eventCategory ?? undefined,
     };
   }
 }

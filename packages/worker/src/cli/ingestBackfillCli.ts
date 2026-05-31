@@ -3,6 +3,7 @@ import { createWorkerCompositionRoot } from "../application/createWorkerComposit
 import { WorkerStorageMode } from "../infrastructure/persistence/storageMode.js";
 import { loadRootEnv } from "../infrastructure/config/loadRootEnv.js";
 import { createWorkerDbRepositories } from "../infrastructure/persistence/workerDbRepos.js";
+import { createProgress } from "./progress.js";
 import {
   hasAnyFlag,
   parseLongFlagsMap,
@@ -63,6 +64,7 @@ async function main(): Promise<void> {
 
       let totalInserted = 0;
       let totalDuplicates = 0;
+      const progress = createProgress("backfill", bindings.length);
 
       for (const binding of bindings) {
         const stats = await runtime.ingestOrchestrator.runBackfillChunk({
@@ -70,10 +72,11 @@ async function main(): Promise<void> {
           bindingId: binding.id,
           ...range,
         });
-        console.log(`Backfill ${binding.bindingKey}:`, stats);
         totalInserted += stats.inserted;
         totalDuplicates += stats.duplicates;
+        progress.tick(1, { inserted: totalInserted, dups: totalDuplicates });
       }
+      progress.stop();
 
       console.log("Backfill all:", {
         bindings: bindings.length,

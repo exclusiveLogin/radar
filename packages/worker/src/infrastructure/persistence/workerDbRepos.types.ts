@@ -3,6 +3,7 @@ import type { IEventPublisher } from "@radar/shared";
 import type {
   IChannelRepository,
   IDomainEventRepository,
+  IEnrichmentQueueRepository,
   IEventLocationRepository,
   IIngestBackfillJobRepository,
   IIngestBindingRepository,
@@ -38,6 +39,7 @@ export type WorkerDbRepositories = {
   statusDictionary: IStatusDictionaryRepository;
   domainEvents: IDomainEventRepository;
   parseAttempts: IParseAttemptRepository;
+  enrichmentQueue: IEnrichmentQueueRepository;
 };
 
 /** Structural typing для runtime import API persistence (без компиляции api в worker). */
@@ -59,6 +61,9 @@ export type ApiPersistenceModule = {
   TypeOrmStatusDictionaryRepository: new (dataSource: DataSource) => IStatusDictionaryRepository;
   TypeOrmDomainEventRepository: new (dataSource: DataSource) => IDomainEventRepository;
   TypeOrmParseAttemptRepository: new (dataSource: DataSource) => IParseAttemptRepository;
+  TypeOrmEnrichmentQueueRepository: new (
+    dataSource: DataSource,
+  ) => IEnrichmentQueueRepository;
 };
 
 export type ApiOutboxModule = {

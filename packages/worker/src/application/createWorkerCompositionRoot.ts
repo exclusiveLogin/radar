@@ -44,11 +44,6 @@ import {
   loadLlmRuntimeConfig,
   type LlmRuntimeConfig,
 } from "../infrastructure/enrichers/llmRuntimeConfig.js";
-import {
-  DEFAULT_PIPELINE_ORDER,
-  resolveEnricherFlagsFromEnv,
-  resolvePipelineOrderFromEnv,
-} from "../infrastructure/enrichers/enricherChainFactory.js";
 import type {
   PipelineStepId,
   ResolvedEnricherFlags,
@@ -63,6 +58,7 @@ import {
 import { MapStateExpiryDaemon } from "./map-state/mapStateExpiryDaemon.js";
 import { MapStateExpirySweep } from "./map-state/mapStateExpirySweep.js";
 import { RegionStateProjection } from "./subscribers/regionStateProjection.js";
+import { createEnrichmentEnqueueHandler } from "./subscribers/enrichmentEnqueueSubscriber.js";
 import { GeoValidationService } from "./parsing/geoValidationService.js";
 import { createParsePipeline } from "./parsing/createParsePipeline.js";
 import { isParseWorkerPoolEnabled, ParseWorkerPool } from "./parsing/parseWorkerPool.js";
@@ -90,13 +86,14 @@ export type WorkerCompositionOptions = {
   placeCacheRepository?: IPlaceCacheRepository;
   geoCatalog?: GeoCatalog;
   /**
-   * Полная замена env-флагов enrichers (например parse:snap задаёт три булева из CLI).
-   * Если false — отключает все внешние провайдеры (только каталог + финалайзер).
+   * Явные флаги enrichers (например parse:snap/report задают три булева из CLI).
+   * Не задано или false → catalog-only синхронный путь (SSOT для ingest/reparse).
+   * Внешние провайдеры (llm/dadata/nominatim) выполняются в фоновом worker:enrich:run.
    */
   explicitEnricherFlags?: ResolvedEnricherFlags | false;
   /**
    * Явный порядок шагов пайплайна (CLI override).
-   * Если не задан — читается из env RADAR_GEO_PIPELINE_ORDER, иначе DEFAULT_PIPELINE_ORDER.
+   * Если не задан — синхронный путь ограничен ["catalog"].
    * `FinalizerStep` всегда добавляется последним в runGeoPipeline автоматически.
    */
   pipelineOrder?: PipelineStepId[];
@@ -104,19 +101,32 @@ export type WorkerCompositionOptions = {
   llmRuntimeOverride?: Partial<LlmRuntimeConfig>;
 };
 
+/** Дешёвый детерминированный синхронный путь: только каталог, без внешних провайдеров. */
+const SYNC_ONLY_FLAGS: ResolvedEnricherFlags = {
+  dadata: false,
+  nominatim: false,
+  llm: false,
+};
+const SYNC_ONLY_ORDER: PipelineStepId[] = ["catalog"];
+
+/**
+ * Флаги энричеров для инлайн-пайплайна.
+ * По умолчанию (ingest/reparse) — catalog-only; llm/dadata/nominatim живут
+ * в фоновом обогащении (worker:enrich:run). Явные флаги (parse:snap/report) уважаются.
+ */
 function resolveEnricherFlags(
   explicit: WorkerCompositionOptions["explicitEnricherFlags"],
 ): ResolvedEnricherFlags {
-  if (explicit === false) {
-    return { dadata: false, nominatim: false, llm: false };
+  if (explicit === false || explicit === undefined) {
+    return SYNC_ONLY_FLAGS;
   }
-  return explicit ?? resolveEnricherFlagsFromEnv();
+  return explicit;
 }
 
 function resolvePipelineOrder(
   override: WorkerCompositionOptions["pipelineOrder"],
 ): PipelineStepId[] {
-  return override ?? resolvePipelineOrderFromEnv() ?? DEFAULT_PIPELINE_ORDER;
+  return override ?? SYNC_ONLY_ORDER;
 }
 
 export async function createWorkerCompositionRoot(
@@ -189,6 +199,12 @@ export async function createWorkerCompositionRoot(
       adjacency: loadRegionAdjacency(),
     });
     bus.subscribe("MessageParsed", regionStateProjection.handler);
+
+    // Постановка задачи фонового обогащения (идемпотентно по raw_message_id).
+    bus.subscribe(
+      "MessageParsed",
+      createEnrichmentEnqueueHandler(repos.enrichmentQueue),
+    );
 
     if (isMapStateExpiryEnabled()) {
       const sweep = new MapStateExpirySweep({

@@ -12,6 +12,12 @@ const llmPlaceSchema = z.object({
     .default("locality"),
   regionCode: z.string().min(1).nullable().catch(null).optional(),
   placeFias: z.string().min(1).nullable().catch(null).optional(),
+  /** Уверенность LLM в этой привязке (0..1). */
+  confidence: z
+    .preprocess(normalizeLlmConfidence, z.number().min(0).max(1))
+    .optional(),
+  /** Краткое обоснование именно этой привязки. */
+  reason: z.string().max(200).nullable().catch(null).optional(),
 });
 
 const llmResponseSchema = z.object({
@@ -19,6 +25,12 @@ const llmResponseSchema = z.object({
   regionCode: z.string().min(1).nullable().catch(null).optional(),
   confidence: z.preprocess(normalizeLlmConfidence, z.number().min(0).max(1)),
   reason: z.string().max(400).nullable().catch("").transform((v) => v ?? ""),
+  /** Семантическая группа события (сигнал, не подменяет классификатор). */
+  eventCategory: z
+    .enum(["threat", "impact", "all_clear", "movement", "other"])
+    .nullable()
+    .catch(null)
+    .optional(),
 });
 
 export type LlmGeoResponse = z.infer<typeof llmResponseSchema>;

@@ -6,6 +6,7 @@ export {
   geoEnrichmentFinalizerSchema,
   geoEnrichmentLlmSchema,
   geoEnrichmentNominatimSchema,
+  geoEventCategorySchema,
   geoPipelineReportSchema,
   geoPipelineStepLogSchema,
 } from "./enrichment-artifact";
@@ -52,6 +53,7 @@ export type {
   GeoEnrichmentFinalizer,
   GeoEnrichmentLlm,
   GeoEnrichmentNominatim,
+  GeoEventCategory,
   GeoNode,
   GeoPipelineReport,
 } from "./enrichment-artifact";
