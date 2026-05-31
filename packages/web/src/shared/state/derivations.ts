@@ -108,6 +108,116 @@ export function formatMessagePostedAt(iso: string, nowMs = Date.now()): string {
   });
 }
 
+/** Порог устаревания heartbeat (worker шлёт каждые 30с). */
+export const INGEST_HEARTBEAT_STALE_MS = 90_000;
+
+export type IngestProviderDisplayStatus = {
+  kind: "ok" | "warn" | "error" | "neutral";
+  label: string;
+  pulse: boolean;
+  tip: string;
+};
+
+/**
+ * Live-статус канала для UI: DB status + worker probe + свежесть heartbeat.
+ * `active` в PostgreSQL ≠ worker сейчас слушает Telegram.
+ */
+export function resolveIngestProviderDisplayStatus(
+  provider: {
+    status: "draft" | "active" | "paused" | "error";
+    lastHeartbeatAt: string | null;
+    lastError: string | null;
+    title: string;
+    key: string;
+  },
+  ctx: {
+    apiOk: boolean;
+    dbReady: boolean;
+    workerReachable: boolean;
+    orchestratorRunning: boolean;
+  },
+): IngestProviderDisplayStatus {
+  const hbAge = provider.lastHeartbeatAt
+    ? Date.now() - new Date(provider.lastHeartbeatAt).getTime()
+    : Number.POSITIVE_INFINITY;
+  const hbLabel = formatAge(provider.lastHeartbeatAt);
+  const heartbeatStale = hbAge > INGEST_HEARTBEAT_STALE_MS;
+
+  if (!ctx.apiOk) {
+    return {
+      kind: "error",
+      label: "API недоступен",
+      pulse: false,
+      tip: "Статус канала из БД может быть устаревшим — API не отвечает.",
+    };
+  }
+  if (!ctx.dbReady) {
+    return {
+      kind: "error",
+      label: "БД не готова",
+      pulse: false,
+      tip: "Без PostgreSQL ingest не работает.",
+    };
+  }
+  if (!ctx.workerReachable) {
+    return {
+      kind: "error",
+      label: "Worker offline",
+      pulse: false,
+      tip: `В БД: ${provider.status}. Probe worker недоступен — канал не слушается.`,
+    };
+  }
+  if (!ctx.orchestratorRunning) {
+    return {
+      kind: "warn",
+      label: "Orchestrator off",
+      pulse: false,
+      tip: `Worker запущен, но IngestOrchestrator не работает. DB status: ${provider.status}.`,
+    };
+  }
+
+  if (provider.status === "error") {
+    return {
+      kind: "error",
+      label: "Ошибка",
+      pulse: false,
+      tip: provider.lastError ?? "Ошибка провайдера в БД",
+    };
+  }
+  if (provider.status === "paused") {
+    return {
+      kind: "warn",
+      label: "Пауза",
+      pulse: false,
+      tip: "Провайдер остановлен через admin API.",
+    };
+  }
+  if (provider.status === "draft") {
+    return {
+      kind: "neutral",
+      label: "Черновик",
+      pulse: false,
+      tip: "Запустите: POST /providers/:id/start",
+    };
+  }
+
+  if (heartbeatStale) {
+    return {
+      kind: "warn",
+      label: "Нет heartbeat",
+      pulse: false,
+      tip: `Последний heartbeat: ${hbLabel}. Worker не обновляет статус >90с.`,
+    };
+  }
+
+  return {
+    kind: "ok",
+    label: "Live",
+    pulse: true,
+    tip: `${provider.title} (${provider.key}) · heartbeat ${hbLabel}`,
+  };
+}
+
 /** Форматирует возраст ISO-даты в человекочитаемый вид. */
 export function formatAge(iso: string | null | undefined): string {
   if (!iso) return "—";

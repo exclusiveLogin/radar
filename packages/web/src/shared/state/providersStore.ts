@@ -48,6 +48,7 @@ async function refreshProviders(): Promise<void> {
     providers$.next(list);
   } catch (error) {
     console.error("[providersStore]", error);
+    providers$.next([]);
   }
 }
 
