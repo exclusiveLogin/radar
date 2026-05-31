@@ -22,6 +22,9 @@ export class ParseAttemptEntity {
   @Column({ name: "parser_version", type: "text" })
   parserVersion!: string;
 
+  @Column({ name: "channel_key", type: "text", nullable: true })
+  channelKey!: string | null;
+
   @Column({ name: "status", type: "text" })
   status!: "ok" | "failed" | "skipped";
 

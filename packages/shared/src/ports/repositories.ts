@@ -282,16 +282,39 @@ export interface IIngestBindingRepository {
   updateEnabled(id: string, enabled: boolean): Promise<void>;
 }
 
+export type BackfillJobFilter = {
+  status?: BackfillJobRecord["status"];
+  bindingId?: string;
+  limit?: number;
+};
+
 export interface IIngestBackfillJobRepository {
   create(input: CreateBackfillJob & { providerId: string }): Promise<BackfillJobRecord>;
   findById(id: string): Promise<BackfillJobRecord | null>;
+  /** Список задач для мониторинга (order createdAt DESC), с фильтром по статусу/binding. */
+  findMany(filter?: BackfillJobFilter): Promise<BackfillJobRecord[]>;
   /** Следующая задача pending или running (resume после рестарта). */
   findRunnable(): Promise<BackfillJobRecord | null>;
   updateStatus(id: string, status: BackfillJobRecord["status"], stats?: BackfillJobRecord["stats"]): Promise<void>;
+  /** Запросить отмену: pending/running → canceled (демон прервёт стрим). */
+  requestCancel(id: string): Promise<BackfillJobRecord | null>;
   updateProgress(
     id: string,
     patch: { stats?: BackfillJobRecord["stats"]; params?: Record<string, unknown> },
   ): Promise<void>;
+}
+
+/** Запись технического следа парсинга (parse_attempts). */
+export type ParseAttemptInput = {
+  rawMessageId: string;
+  channelKey: string | null;
+  parserVersion: string;
+  status: "ok" | "failed" | "skipped";
+  errors?: Record<string, unknown> | null;
+};
+
+export interface IParseAttemptRepository {
+  append(input: ParseAttemptInput): Promise<void>;
 }
 
 export interface IRawMessageTelegramExtensionRepository {

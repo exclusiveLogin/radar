@@ -1,6 +1,15 @@
+import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { AppShell } from "./app/AppShell";
+import { AdminAppShell } from "./admin/AdminAppShell";
 
-/** Корень приложения: оболочка карты операционной обстановки. */
+/** Корень приложения: `/` — карта обстановки, `/admin` — админ-панель. */
 export function App() {
-  return <AppShell />;
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<AppShell />} />
+        <Route path="/admin" element={<AdminAppShell />} />
+      </Routes>
+    </BrowserRouter>
+  );
 }

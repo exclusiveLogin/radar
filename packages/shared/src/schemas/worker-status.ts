@@ -1,5 +1,18 @@
 import { z } from "zod";
 
+/** Метрики процесса Node.js (heap/cpu/uptime) для дашбордов телеметрии. */
+export const processMetricsSchema = z.object({
+  rssBytes: z.number().int().nonnegative(),
+  heapUsedBytes: z.number().int().nonnegative(),
+  heapTotalBytes: z.number().int().nonnegative(),
+  externalBytes: z.number().int().nonnegative(),
+  uptimeSec: z.number().nonnegative(),
+  cpuUserSec: z.number().nonnegative(),
+  cpuSystemSec: z.number().nonnegative(),
+});
+
+export type ProcessMetrics = z.infer<typeof processMetricsSchema>;
+
 /** Снимок runtime worker (probe HTTP на WORKER_PROBE_PORT). */
 export const workerProbeStatusSchema = z.object({
   status: z.enum(["running", "starting", "stopped"]),
@@ -7,6 +20,7 @@ export const workerProbeStatusSchema = z.object({
   pid: z.number().int(),
   startedAt: z.string().datetime(),
   heartbeatAt: z.string().datetime(),
+  process: processMetricsSchema,
   orchestrator: z.object({
     running: z.boolean(),
     providerCount: z.number().int(),

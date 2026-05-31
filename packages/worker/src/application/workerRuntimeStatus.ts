@@ -93,12 +93,23 @@ export const workerRuntimeStatus = {
   },
 
   snapshot(): WorkerProbeStatus {
+    const mem = process.memoryUsage();
+    const cpu = process.cpuUsage();
     return workerProbeStatusSchema.parse({
       status: state.status,
       storageMode: state.storageMode,
       pid: process.pid,
       startedAt: state.startedAt,
       heartbeatAt: state.heartbeatAt,
+      process: {
+        rssBytes: mem.rss,
+        heapUsedBytes: mem.heapUsed,
+        heapTotalBytes: mem.heapTotal,
+        externalBytes: mem.external,
+        uptimeSec: process.uptime(),
+        cpuUserSec: cpu.user / 1_000_000,
+        cpuSystemSec: cpu.system / 1_000_000,
+      },
       orchestrator: {
         running: state.orchestratorRunning,
         providerCount: state.providerCount,

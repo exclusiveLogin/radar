@@ -8,6 +8,7 @@ import type {
   IIngestBindingRepository,
   IIngestCursorRepository,
   IIngestProviderRepository,
+  IParseAttemptRepository,
   IParsedEventRepository,
   IPlaceAliasRepository,
   IPlaceEvidenceRepository,
@@ -36,6 +37,7 @@ export type WorkerDbRepositories = {
   placeStatus: IPlaceStatusRepository;
   statusDictionary: IStatusDictionaryRepository;
   domainEvents: IDomainEventRepository;
+  parseAttempts: IParseAttemptRepository;
 };
 
 /** Structural typing для runtime import API persistence (без компиляции api в worker). */
@@ -56,6 +58,7 @@ export type ApiPersistenceModule = {
   TypeOrmPlaceStatusRepository: new (dataSource: DataSource) => IPlaceStatusRepository;
   TypeOrmStatusDictionaryRepository: new (dataSource: DataSource) => IStatusDictionaryRepository;
   TypeOrmDomainEventRepository: new (dataSource: DataSource) => IDomainEventRepository;
+  TypeOrmParseAttemptRepository: new (dataSource: DataSource) => IParseAttemptRepository;
 };
 
 export type ApiOutboxModule = {

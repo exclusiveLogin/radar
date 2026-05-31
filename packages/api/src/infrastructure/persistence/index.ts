@@ -9,6 +9,7 @@ export { TypeOrmIngestBackfillJobRepository } from "./typeorm-ingest-backfill-jo
 export { TypeOrmChannelRepository } from "./typeorm-channel.repository";
 export { TypeOrmRawMessageTelegramExtensionRepository } from "./typeorm-raw-message-telegram.repository";
 export { TypeOrmParsedEventRepository } from "./typeorm-parsed-event.repository";
+export { TypeOrmParseAttemptRepository } from "./typeorm-parse-attempt.repository";
 export { TypeOrmPlaceAliasRepository } from "./typeorm-place-alias.repository";
 export { TypeOrmPlaceCacheRepository } from "./typeorm-place-cache.repository";
 export { TypeOrmPlaceEvidenceRepository } from "./typeorm-place-evidence.repository";

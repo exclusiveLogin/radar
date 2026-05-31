@@ -1,5 +1,5 @@
 import { Controller, Get, Param, Query } from "@nestjs/common";
-import { ApiQuery } from "@nestjs/swagger";
+import { ApiOperation, ApiQuery } from "@nestjs/swagger";
 import { ReadSideQueryService } from "./read-side-query.service";
 
 function parseLimit(value: string | undefined, fallback: number): number {
@@ -42,8 +42,28 @@ export class ReadSideController {
     required: false,
     schema: { type: "integer", default: 200, minimum: 1 },
   })
-  async parseAttempts(@Query("limit") limit?: string) {
-    return this.readSide.getParseAttempts(parseLimit(limit, 200));
+  @ApiQuery({
+    name: "status",
+    required: false,
+    schema: { type: "string", enum: ["ok", "failed", "skipped"] },
+  })
+  @ApiQuery({ name: "channelKey", required: false, schema: { type: "string" } })
+  async parseAttempts(
+    @Query("limit") limit?: string,
+    @Query("status") status?: "ok" | "failed" | "skipped",
+    @Query("channelKey") channelKey?: string,
+  ) {
+    return this.readSide.getParseAttempts({
+      limit: parseLimit(limit, 200),
+      status,
+      channelKey,
+    });
+  }
+
+  @Get("admin/stats/overview")
+  @ApiOperation({ summary: "Глобальные агрегаты для админ-дашборда" })
+  async statsOverview() {
+    return this.readSide.getStatsOverview();
   }
 
   @Get("admin/geo-sync")

@@ -29,6 +29,7 @@ export async function createWorkerDbRepositories(
     placeStatus: new persistence.TypeOrmPlaceStatusRepository(dataSource),
     statusDictionary: new persistence.TypeOrmStatusDictionaryRepository(dataSource),
     domainEvents: new persistence.TypeOrmDomainEventRepository(dataSource),
+    parseAttempts: new persistence.TypeOrmParseAttemptRepository(dataSource),
   };
 }
 

@@ -1,10 +1,15 @@
 ﻿// --- runtime exports (schemas, functions, classes) ---
 export { healthResponseSchema, readyResponseSchema } from "./health";
 export {
+  processMetricsSchema,
   workerProbeStatusSchema,
   workerStatusResponseSchema,
 } from "./worker-status";
-export type { WorkerProbeStatus, WorkerStatusResponse } from "./worker-status";
+export type {
+  ProcessMetrics,
+  WorkerProbeStatus,
+  WorkerStatusResponse,
+} from "./worker-status";
 export {
   channelManifestEntrySchema,
   channelManifestSchema,
@@ -107,6 +112,21 @@ export {
   parseReportGeoSchema,
   parseReportSchema,
 } from "./reports";
+export {
+  backfillJobProgressSchema,
+  backfillJobListItemSchema,
+  backfillJobsQuerySchema,
+  channelAdminItemSchema,
+  channelStatsSchema,
+  statsOverviewSchema,
+  parseAttemptStatusSchema,
+  parseAttemptItemSchema,
+  apiProcessTelemetrySchema,
+  adminTelemetrySchema,
+  adminWsChannelSchema,
+  adminWsClientMessageSchema,
+  adminWsServerMessageSchema,
+} from "./admin";
 
 // --- type-only exports ---
 export type { HealthResponse, ReadyResponse } from "./health";
@@ -213,4 +233,19 @@ export type {
   ParseReportGeo,
   ParseReportGeoPipeline,
 } from "./reports";
+export type {
+  BackfillJobProgress,
+  BackfillJobListItem,
+  BackfillJobsQuery,
+  ChannelAdminItem,
+  ChannelStats,
+  StatsOverview,
+  ParseAttemptStatus,
+  ParseAttemptItem,
+  ApiProcessTelemetry,
+  AdminTelemetry,
+  AdminWsChannel,
+  AdminWsClientMessage,
+  AdminWsServerMessage,
+} from "./admin";
 

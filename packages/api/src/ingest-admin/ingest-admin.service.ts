@@ -5,7 +5,11 @@ import {
 } from "@nestjs/common";
 import { InjectDataSource } from "@nestjs/typeorm";
 import {
+  backfillJobListItemSchema,
   backfillJobRecordSchema,
+  backfillJobsQuerySchema,
+  channelAdminItemSchema,
+  channelStatsSchema,
   createBackfillJobSchema,
   createIngestBindingSchema,
   createIngestProviderSchema,
@@ -17,6 +21,10 @@ import {
   timelineQuerySchema,
   timelineResponseSchema,
   updateIngestProviderSchema,
+  type BackfillJobListItem,
+  type BackfillJobRecord,
+  type ChannelAdminItem,
+  type ChannelStats,
   type CreateIngestBinding,
   type CreateIngestProvider,
   type CreateBackfillJob,
@@ -61,7 +69,7 @@ export class IngestAdminService {
 
   constructor(
     @InjectDataSource()
-    dataSource: DataSource,
+    private readonly dataSource: DataSource,
   ) {
     this.providers = new TypeOrmIngestProviderRepository(dataSource);
     this.bindings = new TypeOrmIngestBindingRepository(dataSource);
@@ -196,6 +204,136 @@ export class IngestAdminService {
       providerId: binding.providerId,
     });
     return backfillJobRecordSchema.parse(created);
+  }
+
+  /** Список backfill-задач с прогрессом и каналом (мониторинг в админке). */
+  async listBackfillJobs(query: Record<string, unknown>): Promise<BackfillJobListItem[]> {
+    const filter = backfillJobsQuerySchema.parse(query);
+    const rows = await this.backfillJobs.findMany(filter);
+    return Promise.all(rows.map((row) => this.toJobListItem(row)));
+  }
+
+  /** Карточка одной backfill-задачи. */
+  async getBackfillJob(id: string): Promise<BackfillJobListItem> {
+    const row = await this.backfillJobs.findById(id);
+    if (!row) {
+      throw new NotFoundException(`Backfill job not found: ${id}`);
+    }
+    return this.toJobListItem(row);
+  }
+
+  /** Запрос отмены: pending/running → canceled (демон прервёт стрим). */
+  async cancelBackfillJob(id: string): Promise<BackfillJobListItem> {
+    const updated = await this.backfillJobs.requestCancel(id);
+    if (!updated) {
+      throw new NotFoundException(`Backfill job not found: ${id}`);
+    }
+    return this.toJobListItem(updated);
+  }
+
+  /** Список каналов со статусом «слушается» (provider active + binding enabled + channel enabled). */
+  async listChannels(): Promise<ChannelAdminItem[]> {
+    const rows = await this.channels.findAllForAdmin();
+    return rows.map((row) =>
+      channelAdminItemSchema.parse({
+        id: row.id,
+        key: row.key,
+        title: row.title,
+        telegramTarget: row.telegramTarget,
+        enabled: row.enabled,
+        sourceKind: row.sourceKind,
+        providerId: row.providerId,
+        bindingId: row.bindingId,
+        providerStatus: row.providerStatus,
+        bindingEnabled: row.bindingEnabled,
+        listening: row.enabled && row.hasActiveEnabledBinding,
+        lastRawPostedAt: row.lastRawPostedAt,
+      }),
+    );
+  }
+
+  /** Агрегаты сообщений/парсинга по одному каналу. */
+  async getChannelStats(channelKey: string): Promise<ChannelStats> {
+    const [raw] = await this.dataSource.query<
+      Array<{
+        raw_total: string;
+        live: string;
+        backfill: string;
+        manual: string;
+        last_posted_at: Date | null;
+      }>
+    >(
+      `SELECT
+         COUNT(*) AS raw_total,
+         COUNT(*) FILTER (WHERE rm.ingest_mode = 'live') AS live,
+         COUNT(*) FILTER (WHERE rm.ingest_mode = 'backfill') AS backfill,
+         COUNT(*) FILTER (WHERE rm.ingest_mode = 'manual') AS manual,
+         MAX(rm.posted_at) AS last_posted_at
+       FROM raw_messages rm
+       JOIN channels c ON c.id = rm.channel_id
+       WHERE c.key = $1`,
+      [channelKey],
+    );
+
+    const [parse] = await this.dataSource.query<
+      Array<{ parsed_ok: string; parse_failed: string; parse_skipped: string }>
+    >(
+      `SELECT
+         COUNT(*) FILTER (WHERE pa.status = 'ok') AS parsed_ok,
+         COUNT(*) FILTER (WHERE pa.status = 'failed') AS parse_failed,
+         COUNT(*) FILTER (WHERE pa.status = 'skipped') AS parse_skipped
+       FROM parse_attempts pa
+       JOIN raw_messages rm ON rm.id = pa.raw_message_id
+       JOIN channels c ON c.id = rm.channel_id
+       WHERE c.key = $1`,
+      [channelKey],
+    );
+
+    return channelStatsSchema.parse({
+      channelKey,
+      rawTotal: Number(raw?.raw_total ?? 0),
+      live: Number(raw?.live ?? 0),
+      backfill: Number(raw?.backfill ?? 0),
+      manual: Number(raw?.manual ?? 0),
+      parsedOk: Number(parse?.parsed_ok ?? 0),
+      parseFailed: Number(parse?.parse_failed ?? 0),
+      parseSkipped: Number(parse?.parse_skipped ?? 0),
+      lastPostedAt: raw?.last_posted_at?.toISOString() ?? null,
+    });
+  }
+
+  /** Маппинг записи job → элемент списка: канал + развёрнутый прогресс. */
+  private async toJobListItem(row: BackfillJobRecord): Promise<BackfillJobListItem> {
+    const checkpoint = this.readCheckpoint(row.params);
+    const channelKey = await this.resolveJobChannelKey(row.bindingId);
+    return backfillJobListItemSchema.parse({
+      ...row,
+      channelKey,
+      progress: {
+        inserted: row.stats.inserted,
+        duplicates: row.stats.duplicates,
+        parsed: row.stats.parsed,
+        checkpointOffsetId: checkpoint?.offsetId ?? null,
+        checkpointPostedAt: checkpoint?.postedAt ?? null,
+      },
+    });
+  }
+
+  private async resolveJobChannelKey(bindingId: string): Promise<string | null> {
+    const binding = await this.bindings.findById(bindingId);
+    if (!binding?.channelId) return null;
+    const channel = await this.channels.findById(binding.channelId);
+    return channel?.key ?? null;
+  }
+
+  private readCheckpoint(
+    params: Record<string, unknown>,
+  ): { offsetId: string; postedAt: string } | null {
+    const raw = params.checkpoint;
+    if (!raw || typeof raw !== "object") return null;
+    const cp = raw as { offsetId?: unknown; postedAt?: unknown };
+    if (typeof cp.offsetId !== "string" || typeof cp.postedAt !== "string") return null;
+    return { offsetId: cp.offsetId, postedAt: cp.postedAt };
   }
 
   private async requireProvider(id: string): Promise<IngestProviderRecord> {

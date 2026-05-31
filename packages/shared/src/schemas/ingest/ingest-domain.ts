@@ -31,6 +31,8 @@ export const backfillJobStatusSchema = z.enum([
   "running",
   "completed",
   "failed",
+  /** Запрошена отмена оператором: демон не подхватывает и прерывает стрим. */
+  "canceled",
 ]);
 
 export type IngestAdapterKind = z.infer<typeof ingestAdapterKindSchema>;

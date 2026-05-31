@@ -16,8 +16,86 @@ function toChannelRecord(row: ChannelEntity): ChannelRecord {
   };
 }
 
+/** Строка канала для админки: метаданные + агрегаты по binding/provider. */
+export type ChannelAdminRow = {
+  id: string;
+  key: string;
+  title: string | null;
+  telegramTarget: string;
+  enabled: boolean;
+  sourceKind: string;
+  providerId: string | null;
+  bindingId: string | null;
+  providerStatus: string | null;
+  bindingEnabled: boolean | null;
+  hasActiveEnabledBinding: boolean;
+  lastRawPostedAt: string | null;
+};
+
+type ChannelAdminSqlRow = {
+  id: string;
+  key: string;
+  title: string | null;
+  telegram_target: string;
+  enabled: boolean;
+  source_kind: string;
+  provider_id: string | null;
+  binding_id: string | null;
+  provider_status: string | null;
+  binding_enabled: boolean | null;
+  has_active_enabled_binding: boolean | null;
+  last_raw_posted_at: Date | null;
+};
+
 export class TypeOrmChannelRepository implements IChannelRepository {
   constructor(private readonly dataSource: DataSource) {}
+
+  /**
+   * Каналы для админки с представительным binding/provider и временем последнего raw.
+   * `hasActiveEnabledBinding` — есть ли хотя бы один enabled binding с active provider.
+   */
+  async findAllForAdmin(): Promise<ChannelAdminRow[]> {
+    const rows = await this.dataSource.query<ChannelAdminSqlRow[]>(
+      `SELECT
+         c.id, c.key, c.title, c.telegram_target, c.enabled, c.source_kind,
+         c.provider_id, c.binding_id,
+         agg.provider_status,
+         agg.binding_enabled,
+         COALESCE(agg.has_active_enabled_binding, false) AS has_active_enabled_binding,
+         lr.last_raw_posted_at
+       FROM channels c
+       LEFT JOIN LATERAL (
+         SELECT
+           bool_or(b.enabled AND p.status = 'active') AS has_active_enabled_binding,
+           (array_agg(p.status ORDER BY (p.status = 'active') DESC))[1] AS provider_status,
+           (array_agg(b.enabled ORDER BY b.enabled DESC))[1] AS binding_enabled
+         FROM ingest_bindings b
+         JOIN ingest_providers p ON p.id = b.provider_id
+         WHERE b.channel_id = c.id
+       ) agg ON true
+       LEFT JOIN LATERAL (
+         SELECT MAX(rm.posted_at) AS last_raw_posted_at
+         FROM raw_messages rm
+         WHERE rm.channel_id = c.id
+       ) lr ON true
+       ORDER BY c.key ASC`,
+    );
+
+    return rows.map((row) => ({
+      id: row.id,
+      key: row.key,
+      title: row.title,
+      telegramTarget: row.telegram_target,
+      enabled: row.enabled,
+      sourceKind: row.source_kind,
+      providerId: row.provider_id,
+      bindingId: row.binding_id,
+      providerStatus: row.provider_status,
+      bindingEnabled: row.binding_enabled,
+      hasActiveEnabledBinding: Boolean(row.has_active_enabled_binding),
+      lastRawPostedAt: row.last_raw_posted_at?.toISOString() ?? null,
+    }));
+  }
 
   async findByKey(key: string): Promise<ChannelRecord | null> {
     const row = await this.dataSource.getRepository(ChannelEntity).findOne({ where: { key } });

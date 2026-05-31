@@ -1,5 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { InjectDataSource } from "@nestjs/typeorm";
+import { statsOverviewSchema, type StatsOverview } from "@radar/shared";
 import type { DataSource } from "typeorm";
 import {
   EventLocationEntity,
@@ -41,10 +42,116 @@ export class ReadSideQueryService {
     });
   }
 
-  async getParseAttempts(limit = 200): Promise<ParseAttemptEntity[]> {
+  async getParseAttempts(params: {
+    limit: number;
+    status?: "ok" | "failed" | "skipped";
+    channelKey?: string;
+  }): Promise<ParseAttemptEntity[]> {
     return this.dataSource.getRepository(ParseAttemptEntity).find({
+      where: {
+        ...(params.status ? { status: params.status } : {}),
+        ...(params.channelKey ? { channelKey: params.channelKey } : {}),
+      },
       order: { createdAt: "DESC" },
-      take: limit,
+      take: params.limit,
+    });
+  }
+
+  /** Глобальные агрегаты для админ-дашборда (сообщения, парсинг, каналы, job'ы). */
+  async getStatsOverview(): Promise<StatsOverview> {
+    const [raw] = await this.dataSource.query<
+      Array<{
+        raw_total: string;
+        live: string;
+        backfill: string;
+        manual: string;
+        last_posted_at: Date | null;
+      }>
+    >(
+      `SELECT
+         COUNT(*) AS raw_total,
+         COUNT(*) FILTER (WHERE ingest_mode = 'live') AS live,
+         COUNT(*) FILTER (WHERE ingest_mode = 'backfill') AS backfill,
+         COUNT(*) FILTER (WHERE ingest_mode = 'manual') AS manual,
+         MAX(posted_at) AS last_posted_at
+       FROM raw_messages`,
+    );
+
+    const [parsedEvents] = await this.dataSource.query<Array<{ total: string }>>(
+      `SELECT COUNT(*) AS total FROM parsed_events`,
+    );
+
+    const [parse] = await this.dataSource.query<
+      Array<{ ok: string; failed: string; skipped: string }>
+    >(
+      `SELECT
+         COUNT(*) FILTER (WHERE status = 'ok') AS ok,
+         COUNT(*) FILTER (WHERE status = 'failed') AS failed,
+         COUNT(*) FILTER (WHERE status = 'skipped') AS skipped
+       FROM parse_attempts`,
+    );
+
+    const [channels] = await this.dataSource.query<
+      Array<{ total: string; listening: string }>
+    >(
+      `SELECT
+         COUNT(*) AS total,
+         COUNT(*) FILTER (WHERE c.enabled AND EXISTS (
+           SELECT 1 FROM ingest_bindings b
+           JOIN ingest_providers p ON p.id = b.provider_id
+           WHERE b.channel_id = c.id AND b.enabled AND p.status = 'active'
+         )) AS listening
+       FROM channels c`,
+    );
+
+    const [providers] = await this.dataSource.query<
+      Array<{ total: string; active: string }>
+    >(
+      `SELECT
+         COUNT(*) AS total,
+         COUNT(*) FILTER (WHERE status = 'active') AS active
+       FROM ingest_providers`,
+    );
+
+    const [jobs] = await this.dataSource.query<
+      Array<{
+        pending: string;
+        running: string;
+        completed: string;
+        failed: string;
+        canceled: string;
+      }>
+    >(
+      `SELECT
+         COUNT(*) FILTER (WHERE status = 'pending') AS pending,
+         COUNT(*) FILTER (WHERE status = 'running') AS running,
+         COUNT(*) FILTER (WHERE status = 'completed') AS completed,
+         COUNT(*) FILTER (WHERE status = 'failed') AS failed,
+         COUNT(*) FILTER (WHERE status = 'canceled') AS canceled
+       FROM ingest_backfill_jobs`,
+    );
+
+    return statsOverviewSchema.parse({
+      rawTotal: Number(raw?.raw_total ?? 0),
+      live: Number(raw?.live ?? 0),
+      backfill: Number(raw?.backfill ?? 0),
+      manual: Number(raw?.manual ?? 0),
+      parsedEvents: Number(parsedEvents?.total ?? 0),
+      parseOk: Number(parse?.ok ?? 0),
+      parseFailed: Number(parse?.failed ?? 0),
+      parseSkipped: Number(parse?.skipped ?? 0),
+      channelsTotal: Number(channels?.total ?? 0),
+      channelsListening: Number(channels?.listening ?? 0),
+      providersTotal: Number(providers?.total ?? 0),
+      providersActive: Number(providers?.active ?? 0),
+      backfillJobs: {
+        pending: Number(jobs?.pending ?? 0),
+        running: Number(jobs?.running ?? 0),
+        completed: Number(jobs?.completed ?? 0),
+        failed: Number(jobs?.failed ?? 0),
+        canceled: Number(jobs?.canceled ?? 0),
+      },
+      lastRawPostedAt: raw?.last_posted_at?.toISOString() ?? null,
     });
   }
 

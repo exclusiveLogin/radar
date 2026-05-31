@@ -29,6 +29,7 @@ export const getRegionGeometryQuerySchema = z.object({
 export const getParseAttemptsQuerySchema = z.object({
   limit: z.number().int().min(1).max(1000).default(100),
   status: z.enum(["ok", "failed", "skipped"]).optional(),
+  channelKey: z.string().min(1).optional(),
 });
 
 export const getGeoSyncHistoryQuerySchema = z.object({

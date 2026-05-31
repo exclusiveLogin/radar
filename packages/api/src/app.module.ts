@@ -2,6 +2,7 @@ import { Module } from "@nestjs/common";
 import { ConfigModule, ConfigService } from "@nestjs/config";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import * as path from "path";
+import { AdminModule } from "./admin/admin.module";
 import { HealthModule } from "./health/health.module";
 import { IngestAdminModule } from "./ingest-admin/ingest-admin.module";
 import { MapModule } from "./map/map.module";
@@ -27,6 +28,7 @@ import { WorkerModule } from "./worker/worker.module";
       }),
       inject: [ConfigService],
     }),
+    AdminModule,
     HealthModule,
     IngestAdminModule,
     MapModule,

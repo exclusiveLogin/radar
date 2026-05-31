@@ -11,6 +11,7 @@ import {
   ApiCreatedResponse,
   ApiOkResponse,
   ApiOperation,
+  ApiQuery,
   ApiTags,
 } from "@nestjs/swagger";
 import { IngestAdminService } from "./ingest-admin.service";
@@ -113,10 +114,43 @@ export class IngestAdminController {
     return this.ingestAdmin.listMessages(query);
   }
 
+  @Get("channels")
+  @ApiOperation({ summary: "Каналы со статусом слушания и последним сообщением" })
+  listChannels() {
+    return this.ingestAdmin.listChannels();
+  }
+
+  @Get("channels/:key/stats")
+  @ApiOperation({ summary: "Агрегаты сообщений/парсинга по каналу" })
+  channelStats(@Param("key") key: string) {
+    return this.ingestAdmin.getChannelStats(key);
+  }
+
   @Post("backfill-jobs")
   @ApiOperation({ summary: "Создать задачу backfill по binding" })
   @ApiCreatedResponse({ type: BackfillJobResponseDto })
   createBackfillJob(@Body() body: CreateBackfillJobBodyDto): Promise<BackfillJobResponseDto> {
     return this.ingestAdmin.createBackfillJob(body);
+  }
+
+  @Get("backfill-jobs")
+  @ApiOperation({ summary: "Список backfill-задач с прогрессом" })
+  @ApiQuery({ name: "status", required: false })
+  @ApiQuery({ name: "bindingId", required: false })
+  @ApiQuery({ name: "limit", required: false, schema: { type: "integer", default: 50 } })
+  listBackfillJobs(@Query() query: Record<string, unknown>) {
+    return this.ingestAdmin.listBackfillJobs(query);
+  }
+
+  @Get("backfill-jobs/:id")
+  @ApiOperation({ summary: "Карточка backfill-задачи" })
+  getBackfillJob(@Param("id") id: string) {
+    return this.ingestAdmin.getBackfillJob(id);
+  }
+
+  @Post("backfill-jobs/:id/cancel")
+  @ApiOperation({ summary: "Запросить отмену backfill-задачи" })
+  cancelBackfillJob(@Param("id") id: string) {
+    return this.ingestAdmin.cancelBackfillJob(id);
   }
 }

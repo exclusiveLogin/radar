@@ -5,5 +5,6 @@ import { WorkerStatusService } from "./worker-status.service";
 @Module({
   controllers: [WorkerStatusController],
   providers: [WorkerStatusService],
+  exports: [WorkerStatusService],
 })
 export class WorkerModule {}

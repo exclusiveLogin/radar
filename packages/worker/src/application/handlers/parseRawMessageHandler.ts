@@ -11,6 +11,7 @@ import type { GeoValidationService } from "../parsing/geoValidationService.js";
 import type { GeoValidationContext } from "../parsing/geoValidationService.js";
 import type { ParsePipelineService } from "../parsing/parsePipelineService.js";
 import type { ParseWorkerPool } from "../parsing/parseWorkerPool.js";
+import { PARSER_VERSION } from "../../domain/parsing/version.js";
 import { buildDomainEvent } from "./domainEventFactory.js";
 
 type EnricherProvider = "dadata" | "nominatim" | "llm";
@@ -128,14 +129,37 @@ export class ParseRawMessageHandler {
       throw new Error("ParseRawMessageHandler: raw.id (uuid) обязателен");
     }
     const rawMessageId = raw.id;
-    const pipelineResult = await this.runPipeline({
-      rawText: raw.rawText,
-      postedAt: raw.postedAt,
-      channelKey: raw.channelKey,
-      rawMessageId,
-    });
+    let pipelineResult;
+    try {
+      pipelineResult = await this.runPipeline({
+        rawText: raw.rawText,
+        postedAt: raw.postedAt,
+        channelKey: raw.channelKey,
+        rawMessageId,
+      });
+    } catch (err) {
+      // Реальная ошибка парсера: фиксируем технический след (parse_attempts) и пробрасываем дальше.
+      const message = err instanceof Error ? err.message : String(err);
+      await this.events.publish([
+        buildDomainEvent({
+          type: "MessageParseFailed",
+          aggregateType: "raw_message",
+          aggregateId: rawMessageId,
+          payload: {
+            reason: `error:${message}`,
+            channelKey: raw.channelKey,
+            rawMessageId,
+            parserVersion: PARSER_VERSION,
+            outcome: "failed",
+            errors: { message },
+          },
+        }),
+      ]);
+      throw err;
+    }
 
     if (!pipelineResult.parsedEvent) {
+      // Не ошибка, а «не событие» (noise/meta): помечаем как skipped.
       const failed = buildDomainEvent({
         type: "MessageParseFailed",
         aggregateType: "raw_message",
@@ -143,6 +167,9 @@ export class ParseRawMessageHandler {
         payload: {
           reason: pipelineResult.report.classification.reason ?? "not_event",
           channelKey: raw.channelKey,
+          rawMessageId,
+          parserVersion: PARSER_VERSION,
+          outcome: "skipped",
         },
       });
       await this.events.publish([failed]);
@@ -201,6 +228,9 @@ export class ParseRawMessageHandler {
       aggregateType: "parsed_event",
       aggregateId: persisted.id,
       payload: {
+        rawMessageId,
+        channelKey: raw.channelKey,
+        parserVersion: PARSER_VERSION,
         eventType: parsed.eventType,
         severity: parsed.severity,
         direction: parsed.direction,

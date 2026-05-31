@@ -21,6 +21,17 @@ type BackfillCheckpoint = {
   postedAt: string;
 };
 
+/** Сигнал «оператор отменил job»: прерывает стрим без перевода в failed. */
+class BackfillCanceledError extends Error {
+  constructor(jobId: string) {
+    super(`Backfill job canceled: ${jobId}`);
+    this.name = "BackfillCanceledError";
+  }
+}
+
+/** Каждые N сообщений перечитываем статус job, чтобы заметить отмену. */
+const CANCEL_CHECK_EVERY = 10;
+
 function normalizeStrategy(strategy: string): BackfillStrategy {
   if (strategy === "all") return "full_history";
   return strategy as BackfillStrategy;
@@ -107,6 +118,12 @@ export class BackfillDaemonService {
     }
   }
 
+  /** Перечитывает статус job: true, если оператор запросил отмену. */
+  private async isCanceled(jobId: string): Promise<boolean> {
+    const fresh = await this.jobs.findById(jobId);
+    return fresh?.status === "canceled";
+  }
+
   private async runJob(job: BackfillJobRecord): Promise<void> {
     if (job.status === "pending") {
       await this.jobs.updateStatus(job.id, "running", job.stats);
@@ -155,6 +172,8 @@ export class BackfillDaemonService {
         }),
       );
 
+      let processedSinceCancelCheck = 0;
+
       const sink = async (normalized: IngestNormalizedMessage) => {
         const { raw, extension } = ingestNormalizedToRaw(normalized, "backfill");
         const ingestResult = await this.ingestHandler.handle(raw, extension);
@@ -183,15 +202,27 @@ export class BackfillDaemonService {
           stats,
           params,
         };
+
+        if (++processedSinceCancelCheck >= CANCEL_CHECK_EVERY) {
+          processedSinceCancelCheck = 0;
+          if (await this.isCanceled(currentJob.id)) {
+            throw new BackfillCanceledError(currentJob.id);
+          }
+        }
       };
 
       await adapter.streamHistory(binding, streamParams, sink);
       await this.jobs.updateStatus(currentJob.id, "completed", currentJob.stats);
       console.log(`BackfillDaemon: job ${currentJob.id} completed`, currentJob.stats);
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      console.error(`BackfillDaemon: job ${currentJob.id} failed:`, message);
-      await this.jobs.updateStatus(currentJob.id, "failed", currentJob.stats);
+      if (err instanceof BackfillCanceledError) {
+        console.log(`BackfillDaemon: job ${currentJob.id} canceled (stats:`, currentJob.stats, ")");
+        await this.jobs.updateProgress(currentJob.id, { stats: currentJob.stats });
+      } else {
+        const message = err instanceof Error ? err.message : String(err);
+        console.error(`BackfillDaemon: job ${currentJob.id} failed:`, message);
+        await this.jobs.updateStatus(currentJob.id, "failed", currentJob.stats);
+      }
     } finally {
       await adapter.stop();
     }

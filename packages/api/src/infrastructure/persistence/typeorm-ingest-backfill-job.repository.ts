@@ -1,12 +1,16 @@
 import type {
+  BackfillJobFilter,
   BackfillJobRecord,
   CreateBackfillJob,
   IIngestBackfillJobRepository,
 } from "@radar/shared";
 import { randomUUID } from "node:crypto";
-import type { DataSource } from "typeorm";
+import { In, type DataSource } from "typeorm";
 import { IngestBackfillJobEntity } from "../../ingest/entities";
 import { toBackfillJobRecord } from "./ingest-mappers";
+
+/** Статусы, которые ещё можно отменить (демон их не завершил). */
+const CANCELABLE_STATUSES = ["pending", "running"];
 
 export class TypeOrmIngestBackfillJobRepository implements IIngestBackfillJobRepository {
   constructor(private readonly dataSource: DataSource) {}
@@ -29,6 +33,31 @@ export class TypeOrmIngestBackfillJobRepository implements IIngestBackfillJobRep
   async findById(id: string): Promise<BackfillJobRecord | null> {
     const row = await this.dataSource.getRepository(IngestBackfillJobEntity).findOne({ where: { id } });
     return row ? toBackfillJobRecord(row) : null;
+  }
+
+  async findMany(filter: BackfillJobFilter = {}): Promise<BackfillJobRecord[]> {
+    const repo = this.dataSource.getRepository(IngestBackfillJobEntity);
+    const rows = await repo.find({
+      where: {
+        ...(filter.status ? { status: filter.status } : {}),
+        ...(filter.bindingId ? { bindingId: filter.bindingId } : {}),
+      },
+      order: { createdAt: "DESC" },
+      take: filter.limit ?? 50,
+    });
+    return rows.map(toBackfillJobRecord);
+  }
+
+  async requestCancel(id: string): Promise<BackfillJobRecord | null> {
+    const repo = this.dataSource.getRepository(IngestBackfillJobEntity);
+    const row = await repo.findOne({ where: { id } });
+    if (!row) return null;
+    if (CANCELABLE_STATUSES.includes(row.status)) {
+      await repo.update({ id, status: In(CANCELABLE_STATUSES) }, { status: "canceled" });
+      const updated = await repo.findOne({ where: { id } });
+      return updated ? toBackfillJobRecord(updated) : null;
+    }
+    return toBackfillJobRecord(row);
   }
 
   async findRunnable(): Promise<BackfillJobRecord | null> {

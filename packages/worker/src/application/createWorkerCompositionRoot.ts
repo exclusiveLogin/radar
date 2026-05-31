@@ -22,7 +22,11 @@ import type {
   IRegionRepository,
 } from "@radar/shared";
 import { InProcessEventBus } from "@radar/shared";
-import { ParseAttemptLogger, MetricsAggregator } from "./subscribers/index.js";
+import {
+  ParseAttemptLogger,
+  ParseAttemptWriter,
+  MetricsAggregator,
+} from "./subscribers/index.js";
 import { createRawMessageIngestedHandler } from "./subscribers/rawMessageIngestedSubscriber.js";
 import { IngestRawMessageHandler } from "./handlers/ingestRawMessageHandler.js";
 import { ParseRawMessageHandler } from "./handlers/parseRawMessageHandler.js";
@@ -170,6 +174,11 @@ export async function createWorkerCompositionRoot(
     ingestBindings = repos.ingestBindings;
     channels = repos.channels;
     backfillJobs = repos.backfillJobs;
+
+    // Технический след парсинга в БД (parse_attempts) для лога/агрегатов админки.
+    const parseAttemptWriter = new ParseAttemptWriter(repos.parseAttempts);
+    bus.subscribe("MessageParsed", parseAttemptWriter.handler);
+    bus.subscribe("MessageParseFailed", parseAttemptWriter.handler);
 
     // Проекция операционного состояния регионов: MessageParsed -> place_status + region_state.
     const regionStateProjection = new RegionStateProjection({
