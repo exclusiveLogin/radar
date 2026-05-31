@@ -47,6 +47,18 @@ function dedupKey(msg: IngestNormalizedMessage): string {
   return `${msg.channelKey}:${msg.externalMessageId}:${msg.revisionKey ?? ""}`;
 }
 
+/** GramJS шлёт TIMEOUT из ping-loop при обрыве; не спамим stack trace — loop сам reconnect. */
+function wireMtprotoClientErrorHandler(client: TelegramClient): void {
+  client.onError = async (err) => {
+    const message = err instanceof Error ? err.message : String(err);
+    if (message === "TIMEOUT") {
+      console.warn("[mtproto] ping timeout, reconnecting");
+      return;
+    }
+    console.error("[mtproto]", err);
+  };
+}
+
 /**
  * Telegram raw ingest: user MTProto NewMessage, bot getUpdates long-poll, hybrid dedup, MTProxy, history backfill.
  */
@@ -100,6 +112,7 @@ export class TelegramRawIngestAdapter implements IRawIngestAdapter {
             : {}),
         },
       );
+      wireMtprotoClientErrorHandler(client);
       await client.connect();
       this.mtproto = { client, apiId, apiHash };
     }
@@ -335,7 +348,8 @@ export class TelegramRawIngestAdapter implements IRawIngestAdapter {
     this.mtprotoLiveWatermark.clear();
 
     if (this.mtproto) {
-      await this.mtproto.client.disconnect();
+      // destroy() останавливает _updateLoop; disconnect() оставляет zombie ping-loop (backfill × N bindings).
+      await this.mtproto.client.destroy();
       this.mtproto = null;
     }
   }
