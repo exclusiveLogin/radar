@@ -187,6 +187,7 @@ export function GeoMapWidget(_props: WidgetProps) {
     let lastActiveCodes = "";
     let geoReloadTimer: ReturnType<typeof setTimeout> | undefined;
     let placePopup: import("maplibre-gl").Popup | null = null;
+    let regionPopup: import("maplibre-gl").Popup | null = null;
 
     const activeRegionCodes = (): string =>
       [...regionsByCode$.value.values()]
@@ -398,11 +399,44 @@ export function GeoMapWidget(_props: WidgetProps) {
           placePopup = null;
         };
 
+        const onRegionHover = (event: import("maplibre-gl").MapMouseEvent): void => {
+          if (!map) return;
+          map.getCanvas().style.cursor = "pointer";
+          const code = event.features?.[0]?.properties?.regionCode;
+          if (typeof code !== "string" || !code) return;
+
+          const region = regionsByCode$.value.get(code);
+          const lines = [
+            `${code} — ${region?.name ?? code}`,
+            region ? `${LEVEL_LABELS[region.stateLevel]} · ×${region.activity}` : null,
+          ].filter(Boolean);
+
+          regionPopup?.remove();
+          regionPopup = new maplibre.Popup({
+            closeButton: false,
+            closeOnClick: false,
+            className: "geo-map-region-popup",
+            offset: 12,
+          })
+            .setLngLat(event.lngLat)
+            .setText(lines.join("\n"))
+            .addTo(map);
+        };
+
+        const onRegionHoverEnd = (): void => {
+          if (!map) return;
+          map.getCanvas().style.cursor = "";
+          regionPopup?.remove();
+          regionPopup = null;
+        };
+
         map.on("click", REGIONS_FILL, onPick);
         map.on("click", REGIONS_OUTLINE, onPick);
         map.on("click", PLACES_LAYER, onPick);
         map.on("mouseenter", PLACES_LAYER, onPlaceHover);
         map.on("mouseleave", PLACES_LAYER, onPlaceHoverEnd);
+        map.on("mousemove", REGIONS_FILL, onRegionHover);
+        map.on("mouseleave", REGIONS_FILL, onRegionHoverEnd);
 
         lastActiveCodes = activeRegionCodes();
         loadRegionGeometry();
@@ -423,6 +457,8 @@ export function GeoMapWidget(_props: WidgetProps) {
       clearTimeout(geoReloadTimer);
       placePopup?.remove();
       placePopup = null;
+      regionPopup?.remove();
+      regionPopup = null;
       unsubRegions?.();
       unsubPlaces?.();
       map?.remove();

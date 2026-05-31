@@ -13,7 +13,7 @@ type Emit = (message: WsServerMessage) => void;
 
 /**
  * Realtime по местам: опрашивает place_status_history и эмитит place-state.
- * Координаты: place → region (только WGS84 из БД).
+ * Координаты: только собственный центроид места (без coords — точка не эмитится).
  */
 @Injectable()
 export class PlaceStatePoller {
@@ -68,7 +68,7 @@ export class PlaceStatePoller {
       if (!place || !region) continue;
 
       const regionCode = region.iso ?? region.name;
-      const coords = resolvePlaceMapCentroid({ place, region });
+      const coords = resolvePlaceMapCentroid({ place });
 
       const payload: PlaceStateEvent = {
         placeId: row.placeId,

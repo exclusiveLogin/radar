@@ -227,7 +227,6 @@ export class MapQueryService {
   private async loadMapPlaces(
     levelByStatus: Map<string, StateLevel>,
   ): Promise<MapPlaceSnapshot[]> {
-    const placeCentroidByRegion = await this.loadPlaceCentroidByRegion();
     const rows = await this.dataSource.getRepository(PlaceStatusActiveEntity).find({
       relations: { place: { region: true } },
     });
@@ -247,11 +246,7 @@ export class MapQueryService {
       if (!place?.region) continue;
 
       const regionCode = place.region.iso ?? place.region.name;
-      const coords = resolvePlaceMapCentroid({
-        place,
-        region: place.region,
-        placeFallback: placeCentroidByRegion.get(place.regionId),
-      });
+      const coords = resolvePlaceMapCentroid({ place });
       if (!coords) continue;
 
       const bucket = byPlace.get(place.id) ?? {
@@ -270,11 +265,7 @@ export class MapQueryService {
       const stateLevel = maxStateLevel(entry.statusCodes, levelByStatus);
       if (stateLevel === "grey") continue;
 
-      const coords = resolvePlaceMapCentroid({
-        place: entry.place,
-        region: entry.place.region,
-        placeFallback: placeCentroidByRegion.get(entry.place.regionId),
-      });
+      const coords = resolvePlaceMapCentroid({ place: entry.place });
       if (!coords) continue;
 
       items.push({

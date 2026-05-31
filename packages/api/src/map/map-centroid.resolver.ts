@@ -30,29 +30,16 @@ export function resolveRegionCentroid(input: {
 }
 
 /**
- * WGS84-координаты маркера place: place → region → средний центроид мест региона.
- * Без coords place на гео-карте не рисуется (layout ≠ реальная география).
+ * WGS84-координаты маркера place: ТОЛЬКО собственный центроид места.
+ * Инвариант карты: region = контур, place = точка с реальной геопозицией.
+ * Без своих coords место не рисуется точкой (его уровень отражает контур региона) —
+ * иначе fallback на центр региона даёт фантомные точки (двойники регионов, мусорные топонимы).
  */
 export function resolvePlaceMapCentroid(input: {
   place: CentroidInput;
-  region: RegionEntity;
-  placeFallback?: { lat: number; lon: number };
 }): { lat: number; lon: number } | undefined {
-  const fromPlace = {
-    lat: toNumber(input.place.centroidLat),
-    lon: toNumber(input.place.centroidLon),
-  };
-  if (fromPlace.lat !== undefined && fromPlace.lon !== undefined) {
-    return { lat: fromPlace.lat, lon: fromPlace.lon };
-  }
-
-  const fromRegion = {
-    lat: toNumber(input.region.centroidLat),
-    lon: toNumber(input.region.centroidLon),
-  };
-  if (fromRegion.lat !== undefined && fromRegion.lon !== undefined) {
-    return { lat: fromRegion.lat, lon: fromRegion.lon };
-  }
-
-  return input.placeFallback;
+  const lat = toNumber(input.place.centroidLat);
+  const lon = toNumber(input.place.centroidLon);
+  if (lat === undefined || lon === undefined) return undefined;
+  return { lat, lon };
 }
