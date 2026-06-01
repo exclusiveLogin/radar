@@ -8,7 +8,7 @@
 # 1. Миграции (один раз)
 npm run migration:run
 
-# 2. Манифест фаз → БД (upsert; enabled в БД не затирается)
+# 2. Манифест фаз → БД (upsert, в т.ч. `enabled` + catch-up для включённых фаз)
 npm run phase:manifest:import
 
 # 3. Worker в db-режиме

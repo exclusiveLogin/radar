@@ -14,7 +14,7 @@
       "trigger": "scheduled",
       "enrichers": ["llm"],
       "policy": { "batchSize": 50, "intervalMs": 60000, "minIntervalMs": 5000 },
-      "enabled": false,
+      "enabled": true,
       "order": 1
     },
     {

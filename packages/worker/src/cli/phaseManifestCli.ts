@@ -25,6 +25,13 @@ async function main(): Promise<void> {
         process.exit(1);
       }
       const stats = await importPhaseManifest(manifest, db.phaseDefinitions);
+      for (const phase of manifest.phases) {
+        if (!phase.enabled) continue;
+        const catchUp = await db.phaseCoverage.enqueueCatchUp(phase.id);
+        if (catchUp.enqueued > 0) {
+          console.log(`catch-up ${phase.id}: +${catchUp.enqueued} pending`);
+        }
+      }
       console.log("Import OK:", stats);
       return;
     }

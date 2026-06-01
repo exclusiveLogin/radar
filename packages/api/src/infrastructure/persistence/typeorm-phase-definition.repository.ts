@@ -64,6 +64,7 @@ export class TypeOrmPhaseDefinitionRepository implements IPhaseDefinitionReposit
          trigger = EXCLUDED.trigger,
          enrichers = EXCLUDED.enrichers,
          policy = EXCLUDED.policy,
+         enabled = EXCLUDED.enabled,
          order_index = EXCLUDED.order_index,
          updated_at = now()`,
       [
