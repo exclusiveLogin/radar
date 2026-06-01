@@ -1,0 +1,152 @@
+[
+  {
+    "index": 0,
+    "file": "tmp_multi_region.txt",
+    "raw": {
+      "text": "Рязанская область\nУльяновская область\nРеспублика Мордовия\nОпасность по БПЛА",
+      "hash": "26b463b7c7391e44d0552969618fee53409c67c0baf0e1e7eb186cb06ff01964",
+      "channelKey": "tmp_multi_region",
+      "postedAt": "2026-06-01T12:51:50.068Z",
+      "rawMessageId": "00000000-0000-0000-0000-000000000000"
+    },
+    "classification": {
+      "kind": "event"
+    },
+    "event": {
+      "eventType": "danger",
+      "severity": "danger",
+      "repeat": false
+    },
+    "geo": {
+      "regions": [
+        {
+          "code": "62",
+          "name": "Рязанская обл",
+          "fiasId": "963073ee-4dfc-48bd-9a70-d2dfc6bd1f31"
+        },
+        {
+          "code": "73",
+          "name": "Ульяновская обл",
+          "fiasId": "fee76045-fe22-43a4-ad58-ad99e903bd58"
+        },
+        {
+          "code": "13",
+          "name": "Респ Мордовия",
+          "fiasId": "37a0c60a-9240-48b5-a87f-0d8c86cdb6e1"
+        }
+      ],
+      "places": [],
+      "precision": "region",
+      "completeness": 0.25,
+      "source": "llm"
+    },
+    "enrich": {
+      "invoked": true,
+      "providersTried": [
+        "llm"
+      ],
+      "hits": 3,
+      "misses": 0,
+      "cacheHit": false
+    },
+    "diagnostics": {
+      "parserVersion": "0.1.0",
+      "warnings": []
+    },
+    "geoPipeline": {
+      "steps": [
+        {
+          "id": "catalog",
+          "ok": true,
+          "durationMs": 5
+        },
+        {
+          "id": "llm",
+          "ok": true,
+          "durationMs": 10403
+        },
+        {
+          "id": "finalizer",
+          "ok": true,
+          "durationMs": 1
+        }
+      ]
+    },
+    "geoArtifact": {
+      "catalog": {
+        "schemaVersion": 1,
+        "regions": [
+          {
+            "code": "62",
+            "name": "Рязанская обл",
+            "fiasId": "963073ee-4dfc-48bd-9a70-d2dfc6bd1f31"
+          },
+          {
+            "code": "73",
+            "name": "Ульяновская обл",
+            "fiasId": "fee76045-fe22-43a4-ad58-ad99e903bd58"
+          },
+          {
+            "code": "13",
+            "name": "Респ Мордовия",
+            "fiasId": "37a0c60a-9240-48b5-a87f-0d8c86cdb6e1"
+          }
+        ],
+        "places": []
+      },
+      "llm": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "name": "Рязанская область",
+            "kind": "region",
+            "regionCode": "62",
+            "confidence": 0.95,
+            "reason": "Явное упоминание Рязанской области в тексте."
+          },
+          {
+            "name": "Ульяновская область",
+            "kind": "region",
+            "regionCode": "73",
+            "confidence": 0.95,
+            "reason": "Явное упоминание Ульяновской области в тексте."
+          },
+          {
+            "name": "Республика Мордовия",
+            "kind": "region",
+            "regionCode": "13",
+            "confidence": 0.95,
+            "reason": "Явное упоминание Республики Мордовия в тексте."
+          }
+        ],
+        "confidence": 0.85,
+        "reason": "В тексте указаны три региона: Рязанская область, Ульяновская область и Республика Мордовия. Нет явного якоря для определения основного региона.",
+        "eventCategory": "threat"
+      },
+      "finalizer": {
+        "schemaVersion": 1,
+        "regions": [
+          {
+            "code": "62",
+            "name": "Рязанская обл",
+            "fiasId": "963073ee-4dfc-48bd-9a70-d2dfc6bd1f31"
+          },
+          {
+            "code": "73",
+            "name": "Ульяновская обл",
+            "fiasId": "fee76045-fe22-43a4-ad58-ad99e903bd58"
+          },
+          {
+            "code": "13",
+            "name": "Респ Мордовия",
+            "fiasId": "37a0c60a-9240-48b5-a87f-0d8c86cdb6e1"
+          }
+        ],
+        "places": [],
+        "precision": "region",
+        "completeness": 0.25,
+        "source": "llm"
+      }
+    }
+  }
+]
