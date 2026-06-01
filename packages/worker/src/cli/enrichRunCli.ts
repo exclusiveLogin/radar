@@ -2,61 +2,69 @@
  * ---
  * layer: worker/cli
  * kind: enrichment-consumer
- * purpose: Фоновое порционное гео-обогащение: догоняет catalog-only события полным пайплайном.
+ * purpose: Per-provider фоновое обогащение (ADR-003): догоняет один stage и мержит вклад.
  * ---
  *
- * Берёт пачку задач из enrichment_queue, прогоняет полный geo-пайплайн
- * (llm/dadata/nominatim по env/CLI), ре-валидирует и обновляет parsed_events/
- * event_locations через тот же ParseRawMessageHandler. Re-эмит MessageParsed
- * пересчитывает проекцию карты; enqueue при этом идемпотентен (no-op).
+ * Берёт пачку задач выбранного stage (llm|dadata|nominatim) из enrichment_queue,
+ * прогоняет фазу этого прохода (catalog + stage) через тот же
+ * ParseRawMessageHandler (единое ядро исполнения с eager-путём), мержит вклад в
+ * накопитель и пересчитывает статус (re-эмит MessageParsed → проекция/WS).
+ * Enqueue идемпотентен по (raw_message_id, stage) — петли ре-энкью нет.
  *
  * Usage:
- *   RADAR_LLM_GEOCODER_ENABLED=1 npm run worker:enrich:run -- --batch=100 [--watch]
- *     [--enrich-llm] [--enrich-dadata] [--enrich-nominatim] [--pipeline-order=catalog,llm,dadata,nominatim]
+ *   npm run worker:enrich:run -- --stage=llm --batch=100 [--watch]
+ *   npm run worker:enrich:run -- --stage=dadata
  */
 import { MONOREPO_ROOT } from "@repo/root";
+import type { EnrichStage } from "@radar/shared";
 import { createWorkerCompositionRoot } from "../application/createWorkerCompositionRoot.js";
 import { createWorkerDbRepositories } from "../infrastructure/persistence/workerDbRepos.js";
 import { WorkerStorageMode } from "../infrastructure/persistence/storageMode.js";
 import { loadRootEnv } from "../infrastructure/config/loadRootEnv.js";
 import {
-  DEFAULT_PIPELINE_ORDER,
-  resolveEnricherFlagsFromEnv,
-  resolvePipelineOrderFromEnv,
+  type PipelineStepId,
   type ResolvedEnricherFlags,
 } from "../infrastructure/enrichers/enricherChainFactory.js";
 import { createProgress } from "./progress.js";
-import {
-  hasAnyFlag,
-  parseLongFlagsMap,
-  parsePipelineOrder,
-  readStringFlag,
-} from "./workerCliArgs.js";
+import { hasAnyFlag, parseLongFlagsMap, readStringFlag } from "./workerCliArgs.js";
 
-/** Флаги энричеров: env как база, CLI-флаги включают поверх. */
-function resolveConsumerFlags(map: ReturnType<typeof parseLongFlagsMap>): ResolvedEnricherFlags {
-  const env = resolveEnricherFlagsFromEnv();
+const VALID_STAGES: readonly EnrichStage[] = ["llm", "dadata", "nominatim"];
+
+/** Флаги энричеров для одного прохода: включён только сам stage. */
+function stageFlags(stage: EnrichStage): ResolvedEnricherFlags {
   return {
-    dadata: env.dadata || hasAnyFlag(map, ["enrich-dadata", "dadataEnrich"]),
-    nominatim: env.nominatim || hasAnyFlag(map, ["enrich-nominatim", "nominatimEnrich"]),
-    llm: env.llm || hasAnyFlag(map, ["enrich-llm", "llmEnrich"]),
+    dadata: stage === "dadata",
+    nominatim: stage === "nominatim",
+    llm: stage === "llm",
   };
+}
+
+/** Порядок шагов фазы прохода: catalog задаёт regionCode-контекст, затем stage. */
+function stageOrder(stage: EnrichStage): PipelineStepId[] {
+  return ["catalog", stage];
 }
 
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
+function parseStage(value: string | undefined): EnrichStage {
+  const stage = value?.trim().toLowerCase() as EnrichStage | undefined;
+  if (!stage || !VALID_STAGES.includes(stage)) {
+    console.error(`worker:enrich:run: нужен --stage=<${VALID_STAGES.join("|")}>`);
+    process.exit(1);
+  }
+  return stage;
+}
+
 async function main(): Promise<void> {
   loadRootEnv(MONOREPO_ROOT);
   const map = parseLongFlagsMap(process.argv);
+  const stage = parseStage(readStringFlag(map, ["stage"]));
   const batchSize = Number(readStringFlag(map, ["batch", "batch-size"]) ?? "100");
   const watch = hasAnyFlag(map, ["watch"]);
   const watchIdleMs = Number(readStringFlag(map, ["watch-idle-ms"]) ?? "5000");
 
-  const flags = resolveConsumerFlags(map);
-  const order =
-    parsePipelineOrder(readStringFlag(map, ["pipeline-order"])) ??
-    resolvePipelineOrderFromEnv() ??
-    DEFAULT_PIPELINE_ORDER;
+  const flags = stageFlags(stage);
+  const order = stageOrder(stage);
 
   const runtime = await createWorkerCompositionRoot({
     storageMode: WorkerStorageMode.Db,
@@ -71,19 +79,17 @@ async function main(): Promise<void> {
   }
 
   const repos = await createWorkerDbRepositories(runtime.dataSource);
-  console.log(
-    `enrich:run flags=${JSON.stringify(flags)} order=[${order.join(",")}] batch=${batchSize} watch=${watch}`,
-  );
+  console.log(`enrich:run stage=${stage} order=[${order.join(",")}] batch=${batchSize} watch=${watch}`);
 
-  const initial = await repos.enrichmentQueue.countByStatus();
-  console.log(`Очередь: ${JSON.stringify(initial)}`);
+  const initial = await repos.enrichmentQueue.countByStatus(stage);
+  console.log(`Очередь[${stage}]: ${JSON.stringify(initial)}`);
 
   let ok = 0;
   let failed = 0;
-  const progress = createProgress("enrich", watch ? 0 : initial.pending);
+  const progress = createProgress(`enrich:${stage}`, watch ? 0 : initial.pending);
 
   for (;;) {
-    const tasks = await repos.enrichmentQueue.claimBatch(batchSize);
+    const tasks = await repos.enrichmentQueue.claimBatch(stage, batchSize);
     if (tasks.length === 0) {
       if (!watch) break;
       await sleep(watchIdleMs);
@@ -111,8 +117,8 @@ async function main(): Promise<void> {
   }
 
   progress.stop();
-  const finalCounts = await repos.enrichmentQueue.countByStatus();
-  console.log(`\nenrich:run done: ok=${ok}, failed=${failed}; очередь=${JSON.stringify(finalCounts)}`);
+  const finalCounts = await repos.enrichmentQueue.countByStatus(stage);
+  console.log(`\nenrich:run[${stage}] done: ok=${ok}, failed=${failed}; очередь=${JSON.stringify(finalCounts)}`);
   await runtime.shutdown?.();
 }
 

@@ -1,5 +1,7 @@
 import { z } from "zod";
+import type { ILlmChatClient } from "@radar/shared";
 import { LLM_GEOCODER_SYSTEM_PROMPT } from "./llmGeocoderSystemPrompt.js";
+import { createLlmChatClient } from "./llmChatClient.js";
 import type { LlmRuntimeConfig } from "./llmRuntimeConfig.js";
 import { normalizeLlmConfidence } from "./normalizeLlmConfidence.js";
 
@@ -36,54 +38,23 @@ const llmResponseSchema = z.object({
 export type LlmGeoResponse = z.infer<typeof llmResponseSchema>;
 export type LlmGeoPlace = z.infer<typeof llmPlaceSchema>;
 
-// ─── OpenAI-compat response wrapper ───────────────────────────────────────
-
-const openAiCompatResponseSchema = z.object({
-  model: z.string().optional(),
-  usage: z
-    .object({
-      prompt_tokens: z.number().int().nonnegative().optional(),
-      completion_tokens: z.number().int().nonnegative().optional(),
-      total_tokens: z.number().int().nonnegative().optional(),
-    })
-    .optional(),
-  choices: z
-    .array(
-      z.object({
-        message: z.object({
-          content: z.union([
-            z.string(),
-            z.array(
-              z.object({
-                type: z.string(),
-                text: z.string().optional(),
-              }),
-            ),
-          ]),
-        }),
-      }),
-    )
-    .min(1),
-});
 function unwrapJsonPayload(value: string): string {
   const trimmed = value.trim();
   if (!trimmed.startsWith("```")) return trimmed;
   return trimmed.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
 }
-function extractContent(
-  content: string | Array<{ type: string; text?: string }>,
-): string {
-  if (typeof content === "string") return content;
-  return content
-    .map((part) => part.text ?? "")
-    .join("")
-    .trim();
-}
 
 // ─── Enricher ─────────────────────────────────────────────────────────────
 
 export class LlmEnricher {
-  constructor(private readonly config: LlmRuntimeConfig) {}
+  private readonly client: ILlmChatClient;
+
+  constructor(
+    private readonly config: LlmRuntimeConfig,
+    client?: ILlmChatClient,
+  ) {
+    this.client = client ?? createLlmChatClient(config);
+  }
 async enrich(input: {
     rawText: string;
     regionCode?: string;
@@ -98,8 +69,17 @@ async enrich(input: {
 
     const attempts = Math.max(1, this.config.retryCount + 1);
 
+    const userPayload = JSON.stringify({
+      rawText: input.rawText,
+      regionCodeHint: input.regionCode ?? null,
+      catalogRegions: input.catalogRegions ?? null,
+      localityAnchors:
+        input.localityAnchors && input.localityAnchors.length > 0
+          ? input.localityAnchors
+          : null,
+    });
+
     for (let attempt = 1; attempt <= attempts; attempt += 1) {
-      const startedAt = Date.now();
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), this.config.timeoutMs);
 
@@ -108,55 +88,25 @@ async enrich(input: {
           `[llm] attempt ${attempt}/${attempts} — ${input.rawText.slice(0, 120).replace(/\n/g, " ")}\n model: ${this.config.model}`,
         );
 
-        const response = await fetch(`${this.config.baseUrl}/chat/completions`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          signal: controller.signal,
-          body: JSON.stringify({
+        const result = await this.client.chat(
+          [
+            { role: "system", content: LLM_GEOCODER_SYSTEM_PROMPT },
+            { role: "user", content: userPayload },
+          ],
+          {
             model: this.config.model,
             temperature: this.config.temperature,
-            max_tokens: this.config.maxTokens,
-            stream: false,
-            ...(this.config.jsonMode ? { response_format: { type: "json_object" } } : {}),
-            messages: [
-              { role: "system", content: LLM_GEOCODER_SYSTEM_PROMPT },
-              {
-                role: "user",
-                content: JSON.stringify({
-                  rawText: input.rawText,
-                  regionCodeHint: input.regionCode ?? null,
-                  catalogRegions: input.catalogRegions ?? null,
-                  localityAnchors:
-                    input.localityAnchors && input.localityAnchors.length > 0
-                      ? input.localityAnchors
-                      : null,
-                }),
-              },
-            ],
-          }),
-        });
+            maxTokens: this.config.maxTokens,
+            jsonMode: this.config.jsonMode,
+            signal: controller.signal,
+          },
+        );
 
-        if (!response.ok) {
-          const errBody = await response.text().catch(() => "");
-          process.stderr.write(
-            `[llm] HTTP ${response.status}${errBody ? `: ${errBody.slice(0, 300)}` : ""}\n`,
-          );
-          if (attempt >= attempts) return null;
-          continue;
-        }
-
-        const envelope = openAiCompatResponseSchema.safeParse(await response.json());
-        if (!envelope.success) {
-          if (attempt >= attempts) return null;
-          continue;
-        }
-
-        const raw = extractContent(envelope.data.choices[0].message.content);
-        process.stderr.write(`[llm] raw response: ${raw.slice(0, 300)}\n`);
+        process.stderr.write(`[llm] raw response: ${result.content.slice(0, 300)}\n`);
 
         let parsedJson: unknown = null;
         try {
-          parsedJson = JSON.parse(unwrapJsonPayload(raw));
+          parsedJson = JSON.parse(unwrapJsonPayload(result.content));
         } catch (parseErr) {
           process.stderr.write(`[llm] JSON parse failed: ${String(parseErr)}\n`);
           if (attempt >= attempts) return null;
@@ -177,19 +127,14 @@ async enrich(input: {
           return null;
         }
 
-        const latencyMs = Date.now() - startedAt;
         process.stderr.write(
-          `[llm] ok — ${latencyMs}ms places=${data.places.length} confidence=${data.confidence}\n`,
+          `[llm] ok — ${result.latencyMs}ms places=${data.places.length} confidence=${data.confidence}\n`,
         );
-        return {
-          ...data,
-          model: envelope.data.model ?? this.config.model,
-          latencyMs,
-        };
+        return { ...data, model: result.model, latencyMs: result.latencyMs };
       } catch (err) {
         const isAbort = err instanceof Error && err.name === "AbortError";
         process.stderr.write(
-          `[llm] ${isAbort ? "timeout" : "error"} attempt ${attempt}/${attempts}\n`,
+          `[llm] ${isAbort ? "timeout" : "error"} attempt ${attempt}/${attempts}: ${err instanceof Error ? err.message : String(err)}\n`,
         );
         if (attempt >= attempts) return null;
       } finally {

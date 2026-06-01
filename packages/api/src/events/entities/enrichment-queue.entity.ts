@@ -1,20 +1,24 @@
 /**
- * Очередь фонового гео-обогащения: одна задача на raw_message.
- * Синхронный catalog-парсинг ставит задачу, фоновый worker:enrich:run
- * догоняет её полным пайплайном (llm/dadata/nominatim) и обновляет проекцию.
+ * Per-provider очередь фонового обогащения (ADR-003): строка на пару
+ * `(raw_message_id, stage)`. Eager catalog-парсинг ставит задачи по включённым
+ * lazy-фазам, ранер `worker:enrich:run --stage` догоняет проход и мержит вклад.
  */
 import { Column, Entity, PrimaryGeneratedColumn, Unique } from "typeorm";
 
 type EnrichmentStatus = "pending" | "processing" | "done" | "failed";
+type EnrichStage = "llm" | "dadata" | "nominatim";
 
 @Entity({ name: "enrichment_queue" })
-@Unique("uq_enrichment_queue_raw_message", ["rawMessageId"])
+@Unique("uq_enrichment_queue_raw_stage", ["rawMessageId", "stage"])
 export class EnrichmentQueueEntity {
   @PrimaryGeneratedColumn("uuid")
   id!: string;
 
   @Column({ name: "raw_message_id", type: "uuid" })
   rawMessageId!: string;
+
+  @Column({ name: "stage", type: "text" })
+  stage!: EnrichStage;
 
   @Column({ name: "parsed_event_id", type: "uuid", nullable: true })
   parsedEventId!: string | null;

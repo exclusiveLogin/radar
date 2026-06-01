@@ -31,6 +31,9 @@ export async function createWorkerDbRepositories(
     domainEvents: new persistence.TypeOrmDomainEventRepository(dataSource),
     parseAttempts: new persistence.TypeOrmParseAttemptRepository(dataSource),
     enrichmentQueue: new persistence.TypeOrmEnrichmentQueueRepository(dataSource),
+    phaseDefinitions: new persistence.TypeOrmPhaseDefinitionRepository(dataSource),
+    jobDefinitions: new persistence.TypeOrmJobDefinitionRepository(dataSource),
+    jobRuns: new persistence.TypeOrmJobRunRepository(dataSource),
   };
 }
 

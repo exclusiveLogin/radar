@@ -60,7 +60,7 @@ node scripts/build-parser-gap-analysis.mjs
 ### Привязка к местам (place-parsing)
 Гео-обогащение собрано как последовательный конвейер шагов
 `GeoPipelineStep` (см. `application/geo-pipeline/runGeoPipeline.ts`,
-`FinalizerStep` всегда добавляется последним). Новый источник топонимов
+терминальный `MergeStep` всегда добавляется последним, ADR-003). Новый источник топонимов
 добавляется одним из двух способов:
 
 1. **Новый шаг** — класс, реализующий интерфейс `GeoPipelineStep`

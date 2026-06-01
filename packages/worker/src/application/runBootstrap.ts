@@ -38,6 +38,11 @@ export async function runWorkerBootstrap(): Promise<void> {
       console.log("MapStateExpiryDaemon запущен (TTL статусов карты).");
     }
 
+    if (runtime.jobDaemon) {
+      runtime.jobDaemon.start();
+      console.log("JobDaemon запущен (job_definitions/job_runs).");
+    }
+
     const shutdown = async () => {
       console.log("Остановка worker...");
       workerRuntimeStatus.setStopped();

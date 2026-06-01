@@ -216,11 +216,17 @@ export class ParseRawMessageHandler {
       llmSignals,
     );
 
+    // LLM-категория события (атрибут-энричер): персист в extras и проброс в проекцию.
+    const eventCategory = pipelineResult.artifact?.llm?.eventCategory;
     const parsed = {
       ...pipelineResult.parsedEvent,
       rawMessageId,
       postedAt: raw.postedAt,
       locations: validatedLocations,
+      extras: {
+        ...pipelineResult.parsedEvent.extras,
+        ...(eventCategory ? { eventCategory } : {}),
+      },
     };
 
     const telemetryEvents = buildEnricherTelemetry(
@@ -260,6 +266,7 @@ export class ParseRawMessageHandler {
         channelKey: raw.channelKey,
         parserVersion: PARSER_VERSION,
         eventType: parsed.eventType,
+        eventCategory,
         severity: parsed.severity,
         direction: parsed.direction,
         postedAt: parsed.postedAt,

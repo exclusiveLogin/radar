@@ -163,8 +163,72 @@ ORDER BY rm.posted_at DESC LIMIT 10;
 | TTL-sweep статусов | `npm run worker:map-state:expire` |
 | Оффлайн-тест парсера | `npm run worker:parse:report -- --input tests` |
 | Snap + LLM | `npm run worker:parse:snap:ollama -- --input tests/snap_001.txt` |
+| A/B catalog vs llm | `npm run parse:ab -- --input tests` |
+| Bootstrap golden set | `npm run parse:golden:bootstrap -- --input tests` |
+| Скоринг по golden | `npm run parse:score -- --input tests` |
 
 **TTL:** `RADAR_MAP_STATE_TTL_HOURS` (default 24), daemon в worker db mode.
+
+---
+
+## Async-обогащение (фазы, ADR-003)
+
+Модель: **Phase = `enrichers[]` + терминальный MergeStep**, два триггера — eager
+(событие `MessageParsed`, обычно `[catalog]`) и lazy (job/queue: `llm`/`dadata`/
+`nominatim`). Накопитель — весь parsed event с per-field provenance; слияние —
+идемпотентный `mergeContribution` по trust+precision. Подробно:
+[adr-003-phase-enrichment-accumulator.md](./adr-003-phase-enrichment-accumulator.md),
+[domain/how-it-works.md](./domain/how-it-works.md).
+
+**Манифест фаз** (паттерн ingest-манифеста): SSOT структуры —
+`docs/examples/phase.manifest.default.json` → таблица `phase_definitions`.
+
+```powershell
+npm run phase:manifest:import   # JSON → phase_definitions (upsert; enabled не перезатирается)
+npm run phase:manifest:export   # phase_definitions → .radar/phase.manifest.json
+```
+
+Eager-подписчик ставит задачи только по **включённым lazy-фазам**
+(`phase_definitions.enabled`). По умолчанию lazy-фазы выключены → дешёвый
+catalog-only parse; LLM/Dadata/Nominatim включаются тумблером.
+
+**Stage-ранеры** (per-provider, порционно; прогресс через `progress.ts`):
+
+```powershell
+npm run worker:enrich:run -- --stage=llm --batch=100 [--watch]
+npm run worker:enrich:run -- --stage=dadata
+npm run worker:enrich:run -- --stage=nominatim
+```
+
+Очередь `enrichment_queue` — строка на `(raw_message_id, stage)`; enqueue
+идемпотентен (done-задачи не сбрасываются → нет петли ре-энкью). «Обновить
+позже» — явный повторный enqueue.
+
+**LLM-адаптер:** провайдер выбирается `RADAR_LLM_PROVIDER` (`ollama` |
+`openai-compatible`). Для облака (OpenRouter): `RADAR_LLM_API_KEY`,
+`RADAR_LLM_HTTP_REFERER`, `RADAR_LLM_X_TITLE`.
+
+> Ломающих изменений в существующих командах нет: имена/флаги прежние;
+> `worker:enrich:run` теперь требует `--stage`.
+
+### Планировщик задач (job_definitions / job_runs)
+
+В `db`-режиме воркер поднимает `JobDaemon`: материализует запуски из cron
+включённых определений и исполняет их **теми же npm-CLI** (SSOT исполнения).
+Типы: `reparse`, `enrich-llm`, `enrich-dadata`, `enrich-nominatim`.
+
+Управление — из админки (виджет «Планировщик задач») или REST:
+
+```http
+GET    /api/admin/jobs/definitions
+POST   /api/admin/jobs/definitions           # { type, cron?, params?, enabled?, priority? }
+PATCH  /api/admin/jobs/definitions/{id}       # { enabled?, cron?, priority?, params? }
+POST   /api/admin/jobs/definitions/{id}/trigger
+GET    /api/admin/jobs/runs?definitionId&limit
+```
+
+Env: `RADAR_JOB_DAEMON_ENABLED` (default on в db mode), `RADAR_JOB_DAEMON_POLL_MS`
+(default 15000). Прогресс запусков админка читает поллингом `job_runs`.
 
 ---
 

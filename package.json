@@ -44,8 +44,14 @@
     "worker:session:invalidate": "npm run worker:session:invalidate -w @radar/worker --",
     "ingest:manifest:import": "npm run ingest:manifest:import -w @radar/worker",
     "ingest:manifest:export": "npm run ingest:manifest:export -w @radar/worker",
+    "phase:manifest:import": "npm run phase:manifest:import -w @radar/worker",
+    "phase:manifest:export": "npm run phase:manifest:export -w @radar/worker",
     "worker:ingest:backfill": "npm run worker:ingest:backfill -w @radar/worker --",
     "worker:reparse:raw": "npm run worker:reparse:raw -w @radar/worker",
+    "worker:enrich:run": "npm run worker:enrich:run -w @radar/worker --",
+    "parse:ab": "npm run parse:ab -w @radar/worker --",
+    "parse:score": "npm run parse:score -w @radar/worker --",
+    "parse:golden:bootstrap": "npm run parse:golden:bootstrap -w @radar/worker --",
     "worker:map-state:expire": "npm run worker:map-state:expire -w @radar/worker"
   },
   "devDependencies": {

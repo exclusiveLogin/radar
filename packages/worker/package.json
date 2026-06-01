@@ -22,6 +22,8 @@
     "worker:session:invalidate": "tsx src/cli/sessionCli.ts invalidate",
     "ingest:manifest:import": "tsx src/cli/ingestManifestCli.ts import",
     "ingest:manifest:export": "tsx src/cli/ingestManifestCli.ts export",
+    "phase:manifest:import": "tsx src/cli/phaseManifestCli.ts import",
+    "phase:manifest:export": "tsx src/cli/phaseManifestCli.ts export",
     "worker:ingest:backfill": "tsx src/cli/ingestBackfillCli.ts",
     "worker:reparse:raw": "tsx src/cli/reparseRawCli.ts",
     "worker:enrich:run": "tsx src/cli/enrichRunCli.ts",
@@ -33,6 +35,7 @@
   "dependencies": {
     "@radar/shared": "*",
     "cli-progress": "^3.12.0",
+    "cron-parser": "^5.5.0",
     "dotenv": "^16.4.7",
     "pg": "^8.13.1",
     "reflect-metadata": "^0.2.2",

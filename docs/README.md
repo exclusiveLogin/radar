@@ -21,6 +21,7 @@
 | Потоки в коде | [domain/how-it-works.md](./domain/how-it-works.md) |
 | Geo-артефакты | [data/geo/README.md](../data/geo/README.md) (в репо) |
 | LLM / Ollama | [ollama-sampling-and-model-tuning.md](./ollama-sampling-and-model-tuning.md) |
-| Доверие к местам | [place-trust-explained.md](./place-trust-explained.md) |
+| Доверие к местам | [place-trust-explained.md](./place-trust-explained.md), [adr-002-place-trust-provenance.md](./adr-002-place-trust-provenance.md) |
+| Phase-обогащение / накопитель | [adr-003-phase-enrichment-accumulator.md](./adr-003-phase-enrichment-accumulator.md) |
 
 Корневой [README.md](../README.md) — обзор продукта и полный список npm-скриптов.

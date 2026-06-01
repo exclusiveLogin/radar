@@ -14,6 +14,15 @@ import type {
   RawMessageTelegramExtension,
 } from "../schemas/ingest/raw-message";
 import type { TimelineQuery } from "../schemas/ingest/ingest-timeline";
+import type { EnrichStage, PhaseKind, PhaseManifestEntry } from "../schemas/enrichment/phase";
+import type {
+  CreateJobDefinition,
+  JobDefinition,
+  JobRun,
+  JobRunStatus,
+  JobType,
+  UpdateJobDefinition,
+} from "../schemas/jobs/job";
 
 export type RegionRecord = {
   id: string;
@@ -395,11 +404,13 @@ export interface IDomainEventRepository {
 /** Статус задачи фонового гео-обогащения. */
 export type EnrichmentTaskStatus = "pending" | "processing" | "done" | "failed";
 
-/** Задача очереди фонового обогащения (по одной на raw_message). */
+/** Задача очереди фонового обогащения (одна на пару raw_message × stage). */
 export type EnrichmentTask = {
   id: string;
   rawMessageId: string;
   parsedEventId: string | null;
+  /** Провайдерный проход (llm/dadata/nominatim) — ключ фазы (ADR-003). */
+  stage: EnrichStage;
   status: EnrichmentTaskStatus;
   attempts: number;
   lastError?: string;
@@ -408,19 +419,78 @@ export type EnrichmentTask = {
 };
 
 /**
- * Очередь фонового обогащения: синхронный catalog-парсинг ставит задачу,
- * фоновый потребитель догоняет её полным пайплайном (llm/dadata/nominatim).
- * Enqueue идемпотентен по `rawMessageId` (одна задача на сообщение).
+ * Очередь фонового обогащения per-provider (ADR-003, Фаза D): строка на пару
+ * `(raw_message_id, stage)`. Eager catalog-парсинг ставит задачи по включённым
+ * lazy-фазам; ранер `worker:enrich:run --stage` догоняет проход и мержит вклад
+ * в накопитель. Enqueue идемпотентен по `(raw_message_id, stage)`
+ * (ON CONFLICT DO NOTHING) — ре-эмит MessageParsed не сбрасывает done-задачи.
  */
 export interface IEnrichmentQueueRepository {
-  /** Поставить задачу (idempotent: ON CONFLICT(raw_message_id) DO NOTHING). */
-  enqueue(input: { rawMessageId: string; parsedEventId?: string | null }): Promise<void>;
-  /** Атомарно забрать пачку pending → processing (FOR UPDATE SKIP LOCKED). */
-  claimBatch(limit: number): Promise<EnrichmentTask[]>;
+  /** Поставить задачу stage (idempotent: ON CONFLICT(raw_message_id, stage) DO NOTHING). */
+  enqueue(input: {
+    rawMessageId: string;
+    stage: EnrichStage;
+    parsedEventId?: string | null;
+  }): Promise<void>;
+  /** Атомарно забрать пачку pending → processing по stage (FOR UPDATE SKIP LOCKED). */
+  claimBatch(stage: EnrichStage, limit: number): Promise<EnrichmentTask[]>;
   /** Пометить задачу выполненной. */
   markDone(id: string): Promise<void>;
   /** Пометить задачу проваленной (attempts++, last_error). */
   markFailed(id: string, error: string): Promise<void>;
-  /** Счётчики по статусам (для прогресса/диагностики). */
-  countByStatus(): Promise<Record<EnrichmentTaskStatus, number>>;
+  /** Счётчики по статусам (опционально по stage) — для прогресса/диагностики. */
+  countByStatus(stage?: EnrichStage): Promise<Record<EnrichmentTaskStatus, number>>;
+}
+
+/** Запись фазы из БД (`phase_definitions`); авторинг — в коде-манифесте. */
+export type PhaseDefinitionRecord = PhaseManifestEntry & { updatedAt: string };
+
+/**
+ * Операционный реестр фаз (ADR-003). Манифест из кода upsert-ится сюда
+ * (`phase:manifest:import`); админка только переключает `enabled`.
+ */
+export interface IPhaseDefinitionRepository {
+  listAll(): Promise<PhaseDefinitionRecord[]>;
+  /** Включённые фазы заданного типа (eager-подписчик / lazy-планировщик). */
+  listEnabled(kind?: PhaseKind): Promise<PhaseDefinitionRecord[]>;
+  upsert(entry: PhaseManifestEntry): Promise<void>;
+  setEnabled(id: string, enabled: boolean): Promise<void>;
+}
+
+/** Реестр определений задач планировщика (что и по какому cron). */
+export interface IJobDefinitionRepository {
+  listAll(): Promise<JobDefinition[]>;
+  listEnabled(): Promise<JobDefinition[]>;
+  findById(id: string): Promise<JobDefinition | null>;
+  create(input: CreateJobDefinition): Promise<JobDefinition>;
+  update(id: string, patch: UpdateJobDefinition): Promise<JobDefinition | null>;
+  remove(id: string): Promise<void>;
+}
+
+export type JobRunFilter = {
+  definitionId?: string;
+  type?: JobType;
+  status?: JobRunStatus;
+  limit?: number;
+};
+
+/** Запуски задач (instances) с прогрессом — durable-журнал планировщика. */
+export interface IJobRunRepository {
+  /** Создать запуск (pending) — материализация из cron либо ручной триггер. */
+  create(input: {
+    definitionId?: string | null;
+    type: JobType;
+    params?: Record<string, unknown>;
+  }): Promise<JobRun>;
+  findById(id: string): Promise<JobRun | null>;
+  /** Следующий pending к исполнению (по priority, затем по дате). */
+  findRunnable(): Promise<JobRun | null>;
+  /** Последний запуск определения (для cron-«due»-расчёта). */
+  latestForDefinition(definitionId: string): Promise<JobRun | null>;
+  updateStatus(
+    id: string,
+    status: JobRunStatus,
+    patch?: { stats?: Record<string, unknown>; error?: string | null },
+  ): Promise<void>;
+  list(filter?: JobRunFilter): Promise<JobRun[]>;
 }

@@ -182,8 +182,13 @@ UUID bindings: SQL в [cheatsheet § SQL](docs/cheatsheet.md#полезный-sq
 |---------|------------|
 | `npm run worker:reparse:raw` | пересчёт проекций из `raw_messages` |
 | `npm run worker:map-state:expire` | TTL-sweep статусов |
+| `npm run phase:manifest:import` | манифест фаз → `phase_definitions` (ADR-003) |
+| `npm run worker:enrich:run -- --stage=<llm\|dadata\|nominatim>` | lazy-обогащение по провайдеру |
+| `npm run parse:ab -- --input tests` | A/B catalog vs llm по фикстурам |
 | `node scripts/ws-smoke.mjs` | проверка WebSocket |
 | `node scripts/query-ingest-status.mjs` | providers / bindings / cursors |
+
+Модель async-обогащения и команды — в [docs/cheatsheet.md](./docs/cheatsheet.md#async-обогащение-фазы-adr-003) и [docs/adr-003-phase-enrichment-accumulator.md](./docs/adr-003-phase-enrichment-accumulator.md).
 
 ---
 

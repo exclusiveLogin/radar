@@ -24,6 +24,13 @@ export type {
   ISessionBootstrapService,
 } from "./session-store";
 export type {
+  ILlmChatClient,
+  LlmChatMessage,
+  LlmChatOptions,
+  LlmChatResult,
+  LlmChatRole,
+} from "./llmChatClient";
+export type {
   IDomainEventRepository,
   IDomainEventOutbox,
   IEventLocationRepository,
@@ -51,6 +58,11 @@ export type {
   IEnrichmentQueueRepository,
   EnrichmentTask,
   EnrichmentTaskStatus,
+  IPhaseDefinitionRepository,
+  PhaseDefinitionRecord,
+  IJobDefinitionRepository,
+  IJobRunRepository,
+  JobRunFilter,
   ChannelRecord,
   PlaceStatusActiveRecord,
   PlaceStatusHistoryRecord,

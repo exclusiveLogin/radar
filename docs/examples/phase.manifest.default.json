@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "phases": [
+    {
+      "id": "parse",
+      "kind": "eager",
+      "enrichers": ["catalog"],
+      "enabled": true,
+      "order": 0
+    },
+    {
+      "id": "enrich-llm",
+      "kind": "lazy",
+      "stage": "llm",
+      "enrichers": ["llm"],
+      "enabled": false,
+      "order": 0
+    },
+    {
+      "id": "enrich-dadata",
+      "kind": "lazy",
+      "stage": "dadata",
+      "enrichers": ["dadata"],
+      "enabled": false,
+      "order": 1
+    },
+    {
+      "id": "enrich-nominatim",
+      "kind": "lazy",
+      "stage": "nominatim",
+      "enrichers": ["nominatim"],
+      "enabled": false,
+      "order": 2
+    }
+  ]
+}

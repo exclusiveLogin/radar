@@ -102,6 +102,36 @@ export {
   warningSchema,
 } from "./geo";
 export {
+  enrichmentSourceSchema,
+  mergePrecisionSchema,
+  provenanceMetaSchema,
+  fieldProvenance,
+  SOURCE_TRUST,
+  PRECISION_RANK,
+  enricherIdSchema,
+  phaseKindSchema,
+  enrichStageSchema,
+  phaseManifestEntrySchema,
+  phaseManifestSchema,
+  phaseDefinitionSchema,
+} from "./enrichment";
+export {
+  jobTypeSchema,
+  jobRunStatusSchema,
+  jobDefinitionSchema,
+  createJobDefinitionSchema,
+  updateJobDefinitionSchema,
+  jobRunSchema,
+} from "./jobs";
+export type {
+  JobType,
+  JobRunStatus,
+  JobDefinition,
+  CreateJobDefinition,
+  UpdateJobDefinition,
+  JobRun,
+} from "./jobs";
+export {
   wsChannelSchema,
   wsClientMessageSchema,
   wsServerMessageSchema,
@@ -222,6 +252,18 @@ export type {
   RegionAdjacency,
   Warning,
 } from "./geo";
+export type {
+  EnrichmentSource,
+  MergePrecision,
+  ProvenanceMeta,
+  FieldProvenance,
+  EnricherId,
+  PhaseKind,
+  EnrichStage,
+  PhaseManifestEntry,
+  PhaseManifest,
+  PhaseDefinition,
+} from "./enrichment";
 export type {
   WsChannel,
   WsClientMessage,

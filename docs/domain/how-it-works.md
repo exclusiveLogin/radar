@@ -156,6 +156,57 @@ flowchart TD
 
 ---
 
+## Phase / async-enrich-flow {#enrich-flow}
+
+**Модель (ADR-003):** парсинг и обогащение — одна абстракция **Phase =
+упорядоченный `enrichers[]` + терминальный `MergeStep`**. Два триггера:
+
+- ⚡ **eager** — по событию `MessageParsed`, быстрый синхронный путь (обычно `[catalog]`).
+- 🐌 **lazy** — по job/queue, отложенно и порционно (`[llm]` / `[dadata]` / `[nominatim]`).
+
+**Накопитель** — весь parsed event (гео-поля + атрибуты события) с per-field
+provenance `{ value, source, trust, precision }`. Слияние вклада фазы —
+`mergeContribution` (SSOT): пофайльно по precision-рангу, при равенстве — по trust,
+затем детерминированный тай-брейк по источнику. Свойства: **идемпотентность**
+(повтор прохода — no-op) и **независимость от порядка** проходов (покрыто тестом
+`mergeContribution.test.ts`).
+
+### Шаги lazy-прохода
+
+1. **Enqueue policy** — eager-подписчик читает включённые lazy-фазы из
+   `phase_definitions` и ставит по задаче на каждый `(raw_message_id, stage)`.
+   Enqueue идемпотентен → нет петли ре-энкью.
+2. **Stage-ранер** `worker:enrich:run --stage=<llm|dadata|nominatim>` забирает
+   пачку (`FOR UPDATE SKIP LOCKED`), прогоняет фазу прохода через тот же
+   `ParseRawMessageHandler` (единое ядро eager/lazy), мержит вклад в накопитель.
+3. **Пересчёт статуса** — ре-эмит `MessageParsed` → `RegionStateProjection` →
+   WS только при изменении уровня.
+4. **markDone(stage)**.
+
+### Атрибуты события и статус
+
+Rule-классификатор и LLM — **энричеры атрибутов**: rule даёт `event_type` (выше
+trust), LLM-категория (`eventCategory`) заполняет статус, когда правило не
+распознало (grey). Мост `eventCategory → status_dictionary.code` data-driven
+(словарь — SSOT), решение принимает тот же `mergeContribution`.
+
+### LLM за adapter-портом
+
+`ILlmChatClient` (`OllamaChatClient` / `OpenAiCompatibleChatClient`) изолирует
+энричер от провайдера. Выбор по `RADAR_LLM_PROVIDER`; для облака — `RADAR_LLM_API_KEY`
++ заголовки `HTTP-Referer`/`X-Title`.
+
+| Шаг | Файл |
+|-----|------|
+| Merge SSOT | `packages/shared/src/domain/mergeContribution.ts` |
+| MergeStep | `packages/worker/.../geo-pipeline/steps/MergeStep.ts` |
+| Очередь per-stage | `packages/worker/.../cli/enrichRunCli.ts` + `typeorm-enrichment-queue.repository.ts` |
+| Enqueue policy | `packages/worker/.../subscribers/enrichmentEnqueueSubscriber.ts` |
+| LLM-адаптер | `packages/worker/.../enrichers/llmChatClient.ts` |
+| Манифест фаз | `packages/worker/.../manifest/phaseManifestLoader.ts` |
+
+---
+
 ## Events-flow {#events-flow}
 
 **Два канала публикации:**

@@ -5,6 +5,7 @@ import * as path from "path";
 import { AdminModule } from "./admin/admin.module";
 import { HealthModule } from "./health/health.module";
 import { IngestAdminModule } from "./ingest-admin/ingest-admin.module";
+import { JobsAdminModule } from "./jobs-admin/jobs-admin.module";
 import { MapModule } from "./map/map.module";
 import { ReadSideModule } from "./read-side/read-side.module";
 import { WorkerModule } from "./worker/worker.module";
@@ -31,6 +32,7 @@ import { WorkerModule } from "./worker/worker.module";
     AdminModule,
     HealthModule,
     IngestAdminModule,
+    JobsAdminModule,
     MapModule,
     ReadSideModule,
     WorkerModule,

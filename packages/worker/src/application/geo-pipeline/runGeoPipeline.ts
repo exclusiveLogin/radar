@@ -1,6 +1,6 @@
 import type { EventLocation, GeoEnrichmentArtifact, GeoPipelineReport } from "@radar/shared";
 import type { GeoPipelineContext, GeoPipelineStep } from "./GeoPipelineContext.js";
-import { FinalizerStep } from "./steps/FinalizerStep.js";
+import { MergeStep } from "./steps/MergeStep.js";
 
 export type GeoPipelineResult = {
   locations: EventLocation[];
@@ -11,7 +11,7 @@ export type GeoPipelineResult = {
 /**
  * Runs every enabled step sequentially, passing the mutable artifact context.
  * Steps write only their own namespace and may read any already-populated ones.
- * The FinalizerStep is always appended last.
+ * The terminal MergeStep is always appended last (ADR-003).
  */
 export async function runGeoPipeline(
   rawText: string,
@@ -21,8 +21,8 @@ export async function runGeoPipeline(
   const artifact: GeoEnrichmentArtifact = {};
   const stepLog: GeoPipelineReport["steps"] = [];
 
-  const finalizer = new FinalizerStep(locations);
-  const allSteps = [...steps, finalizer];
+  const mergeStep = new MergeStep(locations);
+  const allSteps = [...steps, mergeStep];
 
   const ctx: GeoPipelineContext = { rawText, artifact, stepLog };
 

@@ -1,14 +1,19 @@
 import type {
   DomainEvent,
   EventHandler,
+  GeoEventCategory,
   IPlaceStatusRepository,
   IRegionRepository,
   IRegionStateRepository,
   IStatusDictionaryRepository,
   LocationPrecision,
+  ProvenanceAccumulator,
   RegionRecord,
   StateLevel,
+  StatusDictionaryRecord,
 } from "@radar/shared";
+import { SOURCE_TRUST, mergeContribution } from "@radar/shared";
+import { bridgeEventCategoryToCode } from "../../domain/region-state/eventCategoryBridge.js";
 import { planGreenPlaceStatusClear } from "../../domain/region-state/placeStatusClearPolicy.js";
 import {
   computeEffectiveLevel,
@@ -24,6 +29,8 @@ type ParsedLocation = {
 
 type MessageParsedPayload = {
   eventType: string;
+  /** LLM-категория события (атрибут-энричер, ADR-003). Fallback к rule-коду. */
+  eventCategory?: GeoEventCategory;
   direction?: string;
   postedAt?: string;
   locations?: ParsedLocation[];
@@ -48,6 +55,7 @@ type ProjectionDeps = {
  */
 export class RegionStateProjection {
   private dictLevelByCode: Map<string, StateLevel> | null = null;
+  private dictionary: StatusDictionaryRecord[] | null = null;
 
   constructor(private readonly deps: ProjectionDeps) {}
 
@@ -57,9 +65,13 @@ export class RegionStateProjection {
     const locations = payload.locations ?? [];
     if (locations.length === 0) return;
 
-    const incoming = await this.resolveIncomingLevel(payload.eventType);
+    await this.ensureDictionary();
+    const statusCode = this.resolveEffectiveStatusCode(
+      payload.eventType,
+      payload.eventCategory,
+    );
+    const incoming = this.levelOf(statusCode);
     const at = payload.postedAt ?? event.occurredAt;
-    const statusCode = payload.eventType;
 
     const regionIndex = await this.buildRegionIndex();
     await this.writePlaceStatuses(locations, statusCode, incoming, at);
@@ -79,13 +91,52 @@ export class RegionStateProjection {
     });
   };
 
-  /** Уровень состояния, который привносит тип события (через словарь статусов). */
-  private async resolveIncomingLevel(eventType: string): Promise<StateLevel> {
-    if (!this.dictLevelByCode) {
-      const entries = await this.deps.statusDictionary.listActive();
-      this.dictLevelByCode = new Map(entries.map((e) => [e.code, e.stateLevel]));
+  /** Лениво грузит активный словарь статусов (code→level + полный список для моста). */
+  private async ensureDictionary(): Promise<void> {
+    if (this.dictionary) return;
+    this.dictionary = await this.deps.statusDictionary.listActive();
+    this.dictLevelByCode = new Map(this.dictionary.map((e) => [e.code, e.stateLevel]));
+  }
+
+  /** Уровень состояния по коду статуса (grey, если код не из словаря). */
+  private levelOf(code: string): StateLevel {
+    return this.dictLevelByCode?.get(code) ?? "grey";
+  }
+
+  /**
+   * Эффективный код статуса как результат merge атрибут-энричеров (SSOT):
+   * rule (выше trust) имеет приоритет; LLM-категория заполняет, когда правило
+   * не дало значимого статуса (grey). Совпадение precision — решает trust.
+   */
+  private resolveEffectiveStatusCode(
+    ruleEventType: string,
+    eventCategory: GeoEventCategory | undefined,
+  ): string {
+    let merged: ProvenanceAccumulator = {};
+    if (this.levelOf(ruleEventType) !== "grey") {
+      merged = mergeContribution(merged, {
+        eventType: {
+          value: ruleEventType,
+          source: "rule",
+          trust: SOURCE_TRUST.rule,
+          precision: "attribute",
+        },
+      });
     }
-    return this.dictLevelByCode.get(eventType) ?? "grey";
+    const llmCode = eventCategory
+      ? bridgeEventCategoryToCode(eventCategory, this.dictionary ?? [])
+      : null;
+    if (llmCode) {
+      merged = mergeContribution(merged, {
+        eventType: {
+          value: llmCode,
+          source: "llm",
+          trust: SOURCE_TRUST.llm,
+          precision: "attribute",
+        },
+      });
+    }
+    return (merged.eventType?.value as string | undefined) ?? ruleEventType;
   }
 
   /** Индексы регионов: id -> запись и iso -> запись (для соседей и persist). */

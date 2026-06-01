@@ -10,6 +10,8 @@ import type {
   IChannelRepository,
   IEventLocationRepository,
   IIngestBackfillJobRepository,
+  IJobDefinitionRepository,
+  IJobRunRepository,
   IIngestBindingRepository,
   IIngestCursorRepository,
   IIngestProviderRepository,
@@ -59,6 +61,7 @@ import { MapStateExpiryDaemon } from "./map-state/mapStateExpiryDaemon.js";
 import { MapStateExpirySweep } from "./map-state/mapStateExpirySweep.js";
 import { RegionStateProjection } from "./subscribers/regionStateProjection.js";
 import { createEnrichmentEnqueueHandler } from "./subscribers/enrichmentEnqueueSubscriber.js";
+import { createEnabledStagesProvider } from "./enrichment/enabledStagesProvider.js";
 import { GeoValidationService } from "./parsing/geoValidationService.js";
 import { createParsePipeline } from "./parsing/createParsePipeline.js";
 import { isParseWorkerPoolEnabled, ParseWorkerPool } from "./parsing/parseWorkerPool.js";
@@ -66,6 +69,8 @@ import {
   BackfillDaemonService,
   isBackfillDaemonEnabled,
 } from "./ingest/backfillDaemonService.js";
+import { JobDaemonService, isJobDaemonEnabled } from "./jobs/jobDaemonService.js";
+import { MONOREPO_ROOT } from "@repo/root";
 import {
   WorkerStorageMode,
   resolveWorkerStorageModeFromEnv,
@@ -94,7 +99,7 @@ export type WorkerCompositionOptions = {
   /**
    * Явный порядок шагов пайплайна (CLI override).
    * Если не задан — синхронный путь ограничен ["catalog"].
-   * `FinalizerStep` всегда добавляется последним в runGeoPipeline автоматически.
+   * Терминальный `MergeStep` всегда добавляется последним в runGeoPipeline автоматически.
    */
   pipelineOrder?: PipelineStepId[];
   /** Поверх `loadLlmRuntimeConfig()` (например `enabled: true` при `--enrich-llm`). */
@@ -147,6 +152,7 @@ export async function createWorkerCompositionRoot(
   let ingestOrchestrator: IngestOrchestrator | undefined;
   let backfillDaemon: BackfillDaemonService | undefined;
   let mapStateExpiryDaemon: MapStateExpiryDaemon | undefined;
+  let jobDaemon: JobDaemonService | undefined;
   let parseWorkerPool: ParseWorkerPool | undefined;
   let shutdown: (() => Promise<void>) | undefined;
 
@@ -162,6 +168,8 @@ export async function createWorkerCompositionRoot(
   let ingestBindings: IIngestBindingRepository | undefined;
   let channels: IChannelRepository | undefined;
   let backfillJobs: IIngestBackfillJobRepository | undefined;
+  let jobDefinitions: IJobDefinitionRepository | undefined;
+  let jobRuns: IJobRunRepository | undefined;
 
   if (storageMode === WorkerStorageMode.Db) {
     dataSource = await createWorkerDataSource();
@@ -184,6 +192,8 @@ export async function createWorkerCompositionRoot(
     ingestBindings = repos.ingestBindings;
     channels = repos.channels;
     backfillJobs = repos.backfillJobs;
+    jobDefinitions = repos.jobDefinitions;
+    jobRuns = repos.jobRuns;
 
     // Технический след парсинга в БД (parse_attempts) для лога/агрегатов админки.
     const parseAttemptWriter = new ParseAttemptWriter(repos.parseAttempts);
@@ -200,10 +210,13 @@ export async function createWorkerCompositionRoot(
     });
     bus.subscribe("MessageParsed", regionStateProjection.handler);
 
-    // Постановка задачи фонового обогащения (идемпотентно по raw_message_id).
+    // Постановка задач фонового обогащения по включённым lazy-фазам (ADR-003).
     bus.subscribe(
       "MessageParsed",
-      createEnrichmentEnqueueHandler(repos.enrichmentQueue),
+      createEnrichmentEnqueueHandler(
+        repos.enrichmentQueue,
+        createEnabledStagesProvider(repos.phaseDefinitions),
+      ),
     );
 
     if (isMapStateExpiryEnabled()) {
@@ -226,6 +239,7 @@ export async function createWorkerCompositionRoot(
     shutdown = async () => {
       outboxRelay?.stop();
       mapStateExpiryDaemon?.stop();
+      jobDaemon?.stop();
       await backfillDaemon?.stop();
       await parseWorkerPool?.shutdown();
       await ingestOrchestrator?.stop();
@@ -311,6 +325,10 @@ export async function createWorkerCompositionRoot(
         telegramMtprotoApp,
       );
     }
+
+    if (jobDefinitions && jobRuns && isJobDaemonEnabled()) {
+      jobDaemon = new JobDaemonService(jobDefinitions, jobRuns, MONOREPO_ROOT);
+    }
   }
 
   return {
@@ -326,6 +344,7 @@ export async function createWorkerCompositionRoot(
     ingestOrchestrator,
     backfillDaemon,
     mapStateExpiryDaemon,
+    jobDaemon,
     outboxRelay,
     dataSource,
     shutdown,

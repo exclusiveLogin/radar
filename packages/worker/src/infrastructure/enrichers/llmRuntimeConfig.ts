@@ -12,9 +12,23 @@ const llmRuntimeConfigSchema = z.object({
   temperature: z.number().min(0).max(1),
   jsonMode: z.boolean(),
   retryCount: z.number().int().min(0).max(3),
+  /** Bearer-токен для облачных провайдеров (OpenRouter и т.п.). */
+  apiKey: z.string().optional(),
+  /** Доп. заголовки (напр. HTTP-Referer/X-Title для OpenRouter). */
+  headers: z.record(z.string()).default({}),
 });
 
 export type LlmRuntimeConfig = z.infer<typeof llmRuntimeConfigSchema>;
+
+/** Собирает доп. заголовки провайдера из env (без пустых значений). */
+function resolveHeaders(env: NodeJS.ProcessEnv): Record<string, string> {
+  const headers: Record<string, string> = {};
+  const referer = env.RADAR_LLM_HTTP_REFERER?.trim();
+  const title = env.RADAR_LLM_X_TITLE?.trim();
+  if (referer) headers["HTTP-Referer"] = referer;
+  if (title) headers["X-Title"] = title;
+  return headers;
+}
 function parseBoolean(value: string | undefined, fallback: boolean): boolean {
   if (!value) return fallback;
   return truthy.has(value.trim().toLowerCase());
@@ -37,5 +51,7 @@ export function loadLlmRuntimeConfig(env = process.env): LlmRuntimeConfig {
     temperature: parseNumber(env.RADAR_LLM_TEMPERATURE, 0),
     jsonMode: parseBoolean(env.RADAR_LLM_JSON_MODE, true),
     retryCount: parseNumber(env.RADAR_LLM_RETRY_COUNT, 0),
+    apiKey: env.RADAR_LLM_API_KEY?.trim() || undefined,
+    headers: resolveHeaders(env),
   });
 }
