@@ -2,35 +2,36 @@
   "version": 1,
   "phases": [
     {
-      "id": "parse",
-      "kind": "eager",
+      "id": "catalog",
+      "trigger": "eager",
       "enrichers": ["catalog"],
+      "policy": { "batchSize": 100, "eagerMode": "inline" },
       "enabled": true,
       "order": 0
     },
     {
-      "id": "enrich-llm",
-      "kind": "lazy",
-      "stage": "llm",
+      "id": "llm",
+      "trigger": "scheduled",
       "enrichers": ["llm"],
-      "enabled": false,
-      "order": 0
-    },
-    {
-      "id": "enrich-dadata",
-      "kind": "lazy",
-      "stage": "dadata",
-      "enrichers": ["dadata"],
+      "policy": { "batchSize": 50, "intervalMs": 60000, "minIntervalMs": 5000 },
       "enabled": false,
       "order": 1
     },
     {
-      "id": "enrich-nominatim",
-      "kind": "lazy",
-      "stage": "nominatim",
-      "enrichers": ["nominatim"],
+      "id": "dadata",
+      "trigger": "scheduled",
+      "enrichers": ["dadata"],
+      "policy": { "batchSize": 100, "intervalMs": 120000 },
       "enabled": false,
       "order": 2
+    },
+    {
+      "id": "nominatim",
+      "trigger": "scheduled",
+      "enrichers": ["nominatim"],
+      "policy": { "batchSize": 100, "intervalMs": 180000 },
+      "enabled": false,
+      "order": 3
     }
   ]
 }

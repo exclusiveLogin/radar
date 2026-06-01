@@ -49,6 +49,7 @@
     "worker:ingest:backfill": "npm run worker:ingest:backfill -w @radar/worker --",
     "worker:reparse:raw": "npm run worker:reparse:raw -w @radar/worker",
     "worker:enrich:run": "npm run worker:enrich:run -w @radar/worker --",
+    "worker:phase:run": "npm run worker:phase:run -w @radar/worker --",
     "parse:ab": "npm run parse:ab -w @radar/worker --",
     "parse:score": "npm run parse:score -w @radar/worker --",
     "parse:golden:bootstrap": "npm run parse:golden:bootstrap -w @radar/worker --",

@@ -1,27 +1,27 @@
 /**
- * Операционный реестр фаз обогащения (ADR-003). Авторинг — в коде-манифесте
- * (`docs/examples/phase.manifest.default.json` → `phase:manifest:import`),
- * админка только переключает `enabled`. Eager-подписчик и lazy-планировщик
- * читают включённые фазы из этой таблицы, а не из хардкода.
+ * Операционный реестр фаз (ADR-003 v2). Манифест → import; админка — enabled/policy.
  */
 import { Column, Entity, PrimaryColumn } from "typeorm";
-
-type PhaseKind = "eager" | "lazy";
-type EnrichStage = "llm" | "dadata" | "nominatim";
 
 @Entity({ name: "phase_definitions" })
 export class PhaseDefinitionEntity {
   @PrimaryColumn({ name: "id", type: "text" })
   id!: string;
 
-  @Column({ name: "kind", type: "text" })
-  kind!: PhaseKind;
+  @Column({ name: "trigger", type: "text" })
+  trigger!: string;
+
+  @Column({ name: "kind", type: "text", nullable: true })
+  kind!: string | null;
 
   @Column({ name: "stage", type: "text", nullable: true })
-  stage!: EnrichStage | null;
+  stage!: string | null;
 
   @Column({ name: "enrichers", type: "jsonb", default: () => "'[]'::jsonb" })
   enrichers!: string[];
+
+  @Column({ name: "policy", type: "jsonb", default: () => "'{}'::jsonb" })
+  policy!: Record<string, unknown>;
 
   @Column({ name: "enabled", type: "boolean", default: true })
   enabled!: boolean;

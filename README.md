@@ -176,19 +176,29 @@ npm run worker:ingest:backfill -- --provider-id=<uuid> --binding-id=<uuid> --bat
 
 UUID bindings: SQL в [cheatsheet § SQL](docs/cheatsheet.md#полезный-sql). Полная история — Backfill V2: [backfill-v2-pipeline.md](docs/backfill-v2-pipeline.md).
 
-### Карта / parse
+### Phase-pipeline v2 (обогащение)
 
 | Команда | Назначение |
 |---------|------------|
-| `npm run worker:reparse:raw` | пересчёт проекций из `raw_messages` |
-| `npm run worker:map-state:expire` | TTL-sweep статусов |
-| `npm run phase:manifest:import` | манифест фаз → `phase_definitions` (ADR-003) |
-| `npm run worker:enrich:run -- --stage=<llm\|dadata\|nominatim>` | lazy-обогащение по провайдеру |
-| `npm run parse:ab -- --input tests` | A/B catalog vs llm по фикстурам |
-| `node scripts/ws-smoke.mjs` | проверка WebSocket |
-| `node scripts/query-ingest-status.mjs` | providers / bindings / cursors |
+| `npm run migration:run` | миграции БД (в т.ч. `phase_coverage`, `phase_runs`) |
+| `npm run phase:manifest:import` | манифест фаз → `phase_definitions` |
+| `npm run worker:dev` | ingest + PhaseDaemon (scheduled) |
+| `npm run worker:phase:run -- --phase=llm` | ручной прогон фазы |
+| `npm run worker:reparse:raw` | invalidate parsed + coverage, ingest-поток (eager) |
 
-Модель async-обогащения и команды — в [docs/cheatsheet.md](./docs/cheatsheet.md#async-обогащение-фазы-adr-003) и [docs/adr-003-phase-enrichment-accumulator.md](./docs/adr-003-phase-enrichment-accumulator.md).
+Документация: [docs/phase-pipeline.md](./docs/phase-pipeline.md) · [cheatsheet](./docs/cheatsheet.md) · [статус внедрения](./docs/phase-pipeline-status.md).
+
+### Карта / parse (лаборатория)
+
+| Команда | Назначение |
+|---------|------------|
+| `npm run worker:map-state:expire` | TTL-sweep статусов |
+| `npm run parse:snap` / `parse:report` | офлайн-проверка парсера (вне phase pipeline) |
+| `npm run parse:ab -- --input tests` | A/B catalog vs llm |
+| `node scripts/ws-smoke.mjs` | WebSocket |
+| `node scripts/query-ingest-status.mjs` | ingest status |
+
+ADR: [docs/adr-003-phase-enrichment-accumulator.md](./docs/adr-003-phase-enrichment-accumulator.md).
 
 ---
 

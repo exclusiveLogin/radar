@@ -43,6 +43,10 @@ export async function runWorkerBootstrap(): Promise<void> {
       console.log("JobDaemon запущен (job_definitions/job_runs).");
     }
 
+    if (runtime.phaseDaemon) {
+      console.log("PhaseDaemon запущен (scheduled-фазы → phase_coverage).");
+    }
+
     const shutdown = async () => {
       console.log("Остановка worker...");
       workerRuntimeStatus.setStopped();

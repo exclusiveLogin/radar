@@ -4,6 +4,8 @@ import type {
   IChannelRepository,
   IDomainEventRepository,
   IEnrichmentQueueRepository,
+  IPhaseCoverageRepository,
+  IPhaseRunRepository,
   IEventLocationRepository,
   IIngestBackfillJobRepository,
   IIngestBindingRepository,
@@ -42,8 +44,11 @@ export type WorkerDbRepositories = {
   statusDictionary: IStatusDictionaryRepository;
   domainEvents: IDomainEventRepository;
   parseAttempts: IParseAttemptRepository;
+  /** @deprecated Используйте phaseCoverage */
   enrichmentQueue: IEnrichmentQueueRepository;
+  phaseCoverage: IPhaseCoverageRepository;
   phaseDefinitions: IPhaseDefinitionRepository;
+  phaseRuns: IPhaseRunRepository;
   jobDefinitions: IJobDefinitionRepository;
   jobRuns: IJobRunRepository;
 };
@@ -67,12 +72,11 @@ export type ApiPersistenceModule = {
   TypeOrmStatusDictionaryRepository: new (dataSource: DataSource) => IStatusDictionaryRepository;
   TypeOrmDomainEventRepository: new (dataSource: DataSource) => IDomainEventRepository;
   TypeOrmParseAttemptRepository: new (dataSource: DataSource) => IParseAttemptRepository;
-  TypeOrmEnrichmentQueueRepository: new (
-    dataSource: DataSource,
-  ) => IEnrichmentQueueRepository;
+  TypeOrmPhaseCoverageRepository: new (dataSource: DataSource) => IPhaseCoverageRepository;
   TypeOrmPhaseDefinitionRepository: new (
     dataSource: DataSource,
   ) => IPhaseDefinitionRepository;
+  TypeOrmPhaseRunRepository: new (dataSource: DataSource) => IPhaseRunRepository;
   TypeOrmJobDefinitionRepository: new (dataSource: DataSource) => IJobDefinitionRepository;
   TypeOrmJobRunRepository: new (dataSource: DataSource) => IJobRunRepository;
 };

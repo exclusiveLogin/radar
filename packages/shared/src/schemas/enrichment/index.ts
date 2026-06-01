@@ -9,12 +9,26 @@ export {
 } from "./provenance";
 export {
   enricherIdSchema,
+  phaseTriggerSchema,
   phaseKindSchema,
   enrichStageSchema,
+  phasePolicySchema,
+  DEFAULT_PHASE_POLICY,
   phaseManifestEntrySchema,
   phaseManifestSchema,
   phaseDefinitionSchema,
+  manualRunScopeSchema,
+  LEGACY_PHASE_ID_MAP,
+  normalizePhaseManifestEntry,
 } from "./phase";
+export {
+  phaseRunStatusSchema,
+  phaseRunControlSchema,
+  phaseRunLogEntrySchema,
+  phaseRunStatsSchema,
+  phaseRunSchema,
+  phaseReplayRequestSchema,
+} from "./phase-run";
 
 // --- type-only exports ---
 export type {
@@ -25,9 +39,20 @@ export type {
 } from "./provenance";
 export type {
   EnricherId,
+  PhaseTrigger,
   PhaseKind,
   EnrichStage,
+  PhasePolicy,
   PhaseManifestEntry,
   PhaseManifest,
   PhaseDefinition,
+  ManualRunScope,
 } from "./phase";
+export type {
+  PhaseRunStatus,
+  PhaseRunControl,
+  PhaseRunLogEntry,
+  PhaseRunStats,
+  PhaseRun,
+  PhaseReplayRequest,
+} from "./phase-run";

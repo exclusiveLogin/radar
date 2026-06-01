@@ -104,3 +104,23 @@
 Итерация D: per-provider проходы (очередь по `stage` + ранеры).  
 Итерация E: LLM-структуризатор атрибутов + `eventCategory → status_dictionary`.  
 Итерация G: job-планировщик в админке (DB-dispatched, паттерн backfill).
+
+---
+
+## Дополнение v2 (2026-06): унифицированный pipeline
+
+Реализовано поверх итераций A–D:
+
+| Было (v1) | Стало (v2) |
+|-----------|------------|
+| `kind`: eager / lazy | `trigger`: `eager` \| `scheduled` \| `manual` |
+| `enrichment_queue.stage` | `phase_coverage.phase_id` (`catalog`, `llm`, …) |
+| `job_runs` | `phase_runs` (все триггеры) |
+| JobDaemon + cron | `PhaseDaemonService` + `policy.intervalMs` + selector |
+| `parse-catalog` / `enrich-llm` id | Короткие id без префикса |
+
+**Selector** в `policy`: `all-new`, `all-pending`, `head`, `tail`, `range`, `since-cursor` — выбор raw для scheduled/manual enqueue.
+
+**SSOT исполнения:** `PhaseRunner` (eager inline, daemon tick, CLI `worker:phase:run`, `worker:reparse:raw` → фаза `catalog`).
+
+Документация операций: [phase-pipeline.md](./phase-pipeline.md), REST: [api/phases-admin.md](./api/phases-admin.md).

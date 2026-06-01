@@ -29,7 +29,11 @@ import {
   ParseAttemptWriter,
   MetricsAggregator,
 } from "./subscribers/index.js";
+import { createPhaseIngestHandler } from "./subscribers/phaseIngestSubscriber.js";
 import { createRawMessageIngestedHandler } from "./subscribers/rawMessageIngestedSubscriber.js";
+import { CoverageEnqueuer } from "./phases/coverageEnqueuer.js";
+import { PhaseRunner } from "./phases/phaseRunner.js";
+import { PhaseDaemonService } from "./phases/phaseDaemonService.js";
 import { IngestRawMessageHandler } from "./handlers/ingestRawMessageHandler.js";
 import { ParseRawMessageHandler } from "./handlers/parseRawMessageHandler.js";
 import {
@@ -60,8 +64,6 @@ import {
 import { MapStateExpiryDaemon } from "./map-state/mapStateExpiryDaemon.js";
 import { MapStateExpirySweep } from "./map-state/mapStateExpirySweep.js";
 import { RegionStateProjection } from "./subscribers/regionStateProjection.js";
-import { createEnrichmentEnqueueHandler } from "./subscribers/enrichmentEnqueueSubscriber.js";
-import { createEnabledStagesProvider } from "./enrichment/enabledStagesProvider.js";
 import { GeoValidationService } from "./parsing/geoValidationService.js";
 import { createParsePipeline } from "./parsing/createParsePipeline.js";
 import { isParseWorkerPoolEnabled, ParseWorkerPool } from "./parsing/parseWorkerPool.js";
@@ -78,7 +80,10 @@ import {
 import { createWorkerDataSource } from "../infrastructure/persistence/createWorkerDataSource.js";
 import { createWorkerDbRepositories } from "../infrastructure/persistence/workerDbRepos.js";
 import { importApiDistModule } from "../infrastructure/persistence/resolveApiDistModule.js";
-import type { ApiOutboxModule } from "../infrastructure/persistence/workerDbRepos.types.js";
+import type {
+  ApiOutboxModule,
+  WorkerDbRepositories,
+} from "../infrastructure/persistence/workerDbRepos.types.js";
 import { IngestOrchestrator } from "./ingest/ingestOrchestrator.js";
 import { SessionResolver } from "./sessions/sessionResolver.js";
 import {
@@ -153,6 +158,9 @@ export async function createWorkerCompositionRoot(
   let backfillDaemon: BackfillDaemonService | undefined;
   let mapStateExpiryDaemon: MapStateExpiryDaemon | undefined;
   let jobDaemon: JobDaemonService | undefined;
+  let phaseDaemon: PhaseDaemonService | undefined;
+  let phaseRunner: PhaseRunner | undefined;
+  let coverageEnqueuer: CoverageEnqueuer | undefined;
   let parseWorkerPool: ParseWorkerPool | undefined;
   let shutdown: (() => Promise<void>) | undefined;
 
@@ -170,10 +178,12 @@ export async function createWorkerCompositionRoot(
   let backfillJobs: IIngestBackfillJobRepository | undefined;
   let jobDefinitions: IJobDefinitionRepository | undefined;
   let jobRuns: IJobRunRepository | undefined;
+  let workerRepos: WorkerDbRepositories | undefined;
 
   if (storageMode === WorkerStorageMode.Db) {
     dataSource = await createWorkerDataSource();
     const repos = await createWorkerDbRepositories(dataSource);
+    workerRepos = repos;
     const { OutboxRelay } = (await importApiDistModule(
       "infrastructure",
       "events",
@@ -210,15 +220,6 @@ export async function createWorkerCompositionRoot(
     });
     bus.subscribe("MessageParsed", regionStateProjection.handler);
 
-    // Постановка задач фонового обогащения по включённым lazy-фазам (ADR-003).
-    bus.subscribe(
-      "MessageParsed",
-      createEnrichmentEnqueueHandler(
-        repos.enrichmentQueue,
-        createEnabledStagesProvider(repos.phaseDefinitions),
-      ),
-    );
-
     if (isMapStateExpiryEnabled()) {
       const sweep = new MapStateExpirySweep({
         regionState: repos.regionState,
@@ -240,6 +241,7 @@ export async function createWorkerCompositionRoot(
       outboxRelay?.stop();
       mapStateExpiryDaemon?.stop();
       jobDaemon?.stop();
+      phaseDaemon?.stop();
       await backfillDaemon?.stop();
       await parseWorkerPool?.shutdown();
       await ingestOrchestrator?.stop();
@@ -285,13 +287,45 @@ export async function createWorkerCompositionRoot(
     parseWorkerPool,
   );
 
-  bus.subscribe(
-    "RawMessageIngested",
-    createRawMessageIngestedHandler({
-      rawMessages,
-      parseHandler: parseRawMessageHandler,
-    }),
-  );
+  if (workerRepos) {
+    phaseRunner = new PhaseRunner({
+      rawMessages: workerRepos.rawMessages,
+      coverage: workerRepos.phaseCoverage,
+      phaseDefinitions: workerRepos.phaseDefinitions,
+      phaseRuns: workerRepos.phaseRuns,
+      parsedEvents: workerRepos.parsedEvents,
+      eventLocations: workerRepos.eventLocations,
+      validation,
+      placeCache,
+      events: bus,
+      parseWorkerPool,
+    });
+    coverageEnqueuer = new CoverageEnqueuer(
+      workerRepos.phaseCoverage,
+      workerRepos.phaseDefinitions,
+    );
+    bus.subscribe(
+      "RawMessageIngested",
+      createPhaseIngestHandler({
+        rawMessages: workerRepos.rawMessages,
+        phases: workerRepos.phaseDefinitions,
+        enqueuer: coverageEnqueuer,
+        runner: phaseRunner,
+      }),
+    );
+    if (PhaseDaemonService.enabled()) {
+      phaseDaemon = new PhaseDaemonService(workerRepos.phaseDefinitions, phaseRunner);
+      phaseDaemon.start();
+    }
+  } else {
+    bus.subscribe(
+      "RawMessageIngested",
+      createRawMessageIngestedHandler({
+        rawMessages,
+        parseHandler: parseRawMessageHandler,
+      }),
+    );
+  }
 
   if (
     storageMode === WorkerStorageMode.Db &&
@@ -345,6 +379,10 @@ export async function createWorkerCompositionRoot(
     backfillDaemon,
     mapStateExpiryDaemon,
     jobDaemon,
+    phaseDaemon,
+    phaseRunner,
+    coverageEnqueuer,
+    workerRepos,
     outboxRelay,
     dataSource,
     shutdown,

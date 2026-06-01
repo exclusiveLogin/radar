@@ -4,7 +4,7 @@ import { BackfillRunnerWidget } from "./widgets/BackfillRunnerWidget";
 import { ChannelPickerWidget } from "./widgets/ChannelPickerWidget";
 import { ChannelStatsWidget } from "./widgets/ChannelStatsWidget";
 import { ChannelStatusWidget } from "./widgets/ChannelStatusWidget";
-import { JobsWidget } from "./widgets/JobsWidget";
+import { PhasesWidget } from "./widgets/PhasesWidget";
 import { MessagesStatsWidget } from "./widgets/MessagesStatsWidget";
 import { ParseErrorsWidget } from "./widgets/ParseErrorsWidget";
 import { TelemetryWidget } from "./widgets/TelemetryWidget";
@@ -29,7 +29,7 @@ export const ADMIN_WIDGETS: AdminWidgetDescriptor[] = [
   { id: "channel-stats", component: ChannelStatsWidget, span: 6 },
   { id: "backfill-runner", component: BackfillRunnerWidget, span: 6 },
   { id: "backfill-job-log", component: BackfillJobLogWidget, span: 6 },
-  { id: "jobs", component: JobsWidget, span: 6 },
+  { id: "phases", component: PhasesWidget, span: 8 },
   { id: "messages-stats", component: MessagesStatsWidget, span: 8 },
   { id: "worker-runners", component: WorkerRunnersWidget, span: 4 },
   { id: "telemetry", component: TelemetryWidget, span: 6 },

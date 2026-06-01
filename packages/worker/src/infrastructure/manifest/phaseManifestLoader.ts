@@ -1,13 +1,10 @@
 /**
- * Загрузка/import/export манифеста фаз обогащения (ADR-003, паттерн
- * ingest-манифеста). JSON-шаблон фаз — SSOT структуры в репо; import —
- * идемпотентный upsert в `phase_definitions` (без перезаписи `enabled`),
- * export — обратная выгрузка текущего состояния БД.
+ * Загрузка/import/export манифеста фаз (ADR-003 v2).
  */
 import * as fs from "node:fs";
 import * as path from "node:path";
 import type { IPhaseDefinitionRepository, PhaseManifest } from "@radar/shared";
-import { phaseManifestSchema } from "@radar/shared";
+import { normalizePhaseManifestEntry, phaseManifestSchema } from "@radar/shared";
 
 const DEFAULT_REL = path.join(".radar", "phase.manifest.json");
 const BUNDLED_DEFAULT_REL = path.join("docs", "examples", "phase.manifest.default.json");
@@ -20,7 +17,6 @@ export function resolvePhaseManifestPath(repoRoot: string): string {
   return path.join(repoRoot, DEFAULT_REL);
 }
 
-/** Если локального манифеста нет — создаём из bundled шаблона (gitignored). */
 function ensurePhaseManifestFile(repoRoot: string): string | null {
   const abs = resolvePhaseManifestPath(repoRoot);
   if (fs.existsSync(abs)) return abs;
@@ -34,14 +30,21 @@ function ensurePhaseManifestFile(repoRoot: string): string | null {
   return abs;
 }
 
+/** Парсит манифест с нормализацией legacy kind/stage/id. */
 export function loadPhaseManifest(repoRoot: string): PhaseManifest | null {
   const abs = ensurePhaseManifestFile(repoRoot);
   if (!abs) return null;
   const raw: unknown = JSON.parse(fs.readFileSync(abs, "utf8"));
-  return phaseManifestSchema.parse(raw);
+  const parsed = phaseManifestSchema.safeParse(raw);
+  if (parsed.success) return parsed.data;
+
+  const legacy = raw as { phases?: Record<string, unknown>[] };
+  const phases = (legacy.phases ?? []).map((entry) =>
+    normalizePhaseManifestEntry(entry as Record<string, unknown>),
+  );
+  return { version: 1, phases };
 }
 
-/** Import: идемпотентный upsert всех фаз манифеста. */
 export async function importPhaseManifest(
   manifest: PhaseManifest,
   repo: IPhaseDefinitionRepository,
@@ -52,7 +55,6 @@ export async function importPhaseManifest(
   return { phases: manifest.phases.length };
 }
 
-/** Export: текущее состояние `phase_definitions` → манифест. */
 export async function exportPhaseManifest(
   repo: IPhaseDefinitionRepository,
 ): Promise<PhaseManifest> {
@@ -61,9 +63,9 @@ export async function exportPhaseManifest(
     version: 1,
     phases: records.map((record) => ({
       id: record.id,
-      kind: record.kind,
-      stage: record.stage,
+      trigger: record.trigger,
       enrichers: record.enrichers,
+      policy: record.policy,
       enabled: record.enabled,
       order: record.order,
     })),

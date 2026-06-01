@@ -22,6 +22,6 @@
 | Geo-артефакты | [data/geo/README.md](../data/geo/README.md) (в репо) |
 | LLM / Ollama | [ollama-sampling-and-model-tuning.md](./ollama-sampling-and-model-tuning.md) |
 | Доверие к местам | [place-trust-explained.md](./place-trust-explained.md), [adr-002-place-trust-provenance.md](./adr-002-place-trust-provenance.md) |
-| Phase-обогащение / накопитель | [adr-003-phase-enrichment-accumulator.md](./adr-003-phase-enrichment-accumulator.md) |
+| Phase-pipeline v2 | [phase-pipeline.md](./phase-pipeline.md), [phase-pipeline-status.md](./phase-pipeline-status.md), [api/phases-admin.md](./api/phases-admin.md), [adr-003](./adr-003-phase-enrichment-accumulator.md) |
 
 Корневой [README.md](../README.md) — обзор продукта и полный список npm-скриптов.

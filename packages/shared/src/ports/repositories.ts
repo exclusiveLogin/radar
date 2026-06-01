@@ -14,7 +14,19 @@ import type {
   RawMessageTelegramExtension,
 } from "../schemas/ingest/raw-message";
 import type { TimelineQuery } from "../schemas/ingest/ingest-timeline";
-import type { EnrichStage, PhaseKind, PhaseManifestEntry } from "../schemas/enrichment/phase";
+import type {
+  PhaseManifestEntry,
+  PhasePolicy,
+  PhaseTrigger,
+} from "../schemas/enrichment/phase";
+import type {
+  PhaseRun,
+  PhaseRunControl,
+  PhaseRunLogEntry,
+  PhaseRunStats,
+  PhaseRunStatus,
+} from "../schemas/enrichment/phase-run";
+import type { ManualRunScope } from "../schemas/enrichment/phase";
 import type {
   CreateJobDefinition,
   JobDefinition,
@@ -401,60 +413,100 @@ export interface IDomainEventRepository {
   append(events: DomainEvent[]): Promise<void>;
 }
 
-/** Статус задачи фонового гео-обогащения. */
-export type EnrichmentTaskStatus = "pending" | "processing" | "done" | "failed";
+/** Статус покрытия сообщения фазой. */
+export type PhaseCoverageStatus = "pending" | "processing" | "done" | "failed";
 
-/** Задача очереди фонового обогащения (одна на пару raw_message × stage). */
-export type EnrichmentTask = {
+/** Строка phase_coverage: фаза X для raw_message. */
+export type PhaseCoverageTask = {
   id: string;
   rawMessageId: string;
+  phaseId: string;
   parsedEventId: string | null;
-  /** Провайдерный проход (llm/dadata/nominatim) — ключ фазы (ADR-003). */
-  stage: EnrichStage;
-  status: EnrichmentTaskStatus;
+  status: PhaseCoverageStatus;
   attempts: number;
   lastError?: string;
+  processedAt?: string;
   createdAt: string;
   updatedAt: string;
 };
 
 /**
- * Очередь фонового обогащения per-provider (ADR-003, Фаза D): строка на пару
- * `(raw_message_id, stage)`. Eager catalog-парсинг ставит задачи по включённым
- * lazy-фазам; ранер `worker:enrich:run --stage` догоняет проход и мержит вклад
- * в накопитель. Enqueue идемпотентен по `(raw_message_id, stage)`
- * (ON CONFLICT DO NOTHING) — ре-эмит MessageParsed не сбрасывает done-задачи.
+ * Покрытие per-phase (ADR-003 v2): `(raw_message_id, phase_id)`.
+ * Enqueue идемпотентен — done не сбрасывается.
  */
-export interface IEnrichmentQueueRepository {
-  /** Поставить задачу stage (idempotent: ON CONFLICT(raw_message_id, stage) DO NOTHING). */
-  enqueue(input: {
+export interface IPhaseCoverageRepository {
+  enqueuePending(input: {
     rawMessageId: string;
-    stage: EnrichStage;
+    phaseId: string;
     parsedEventId?: string | null;
   }): Promise<void>;
-  /** Атомарно забрать пачку pending → processing по stage (FOR UPDATE SKIP LOCKED). */
-  claimBatch(stage: EnrichStage, limit: number): Promise<EnrichmentTask[]>;
-  /** Пометить задачу выполненной. */
+  /** Catch-up: pending для всех raw без done по фазе. */
+  enqueueCatchUp(phaseId: string): Promise<{ enqueued: number }>;
+  /**
+   * Claim pending; при prerequisitePhaseIds — только строки, где все предшествующие фазы done.
+   */
+  claimBatch(
+    phaseId: string,
+    limit: number,
+    prerequisitePhaseIds?: string[],
+  ): Promise<PhaseCoverageTask[]>;
   markDone(id: string): Promise<void>;
-  /** Пометить задачу проваленной (attempts++, last_error). */
+  /** Пометить done по паре (после inline eager без claim). */
+  markDoneForMessage(rawMessageId: string, phaseId: string): Promise<void>;
   markFailed(id: string, error: string): Promise<void>;
-  /** Счётчики по статусам (опционально по stage) — для прогресса/диагностики. */
-  countByStatus(stage?: EnrichStage): Promise<Record<EnrichmentTaskStatus, number>>;
+  /** Сброс processing → pending для force-kill run. */
+  resetProcessingForPhase(phaseId: string): Promise<number>;
+  invalidateForPhases(phaseIds: string[]): Promise<number>;
+  countByStatus(phaseId?: string): Promise<Record<PhaseCoverageStatus, number>>;
 }
 
-/** Запись фазы из БД (`phase_definitions`); авторинг — в коде-манифесте. */
+/** @deprecated Используйте IPhaseCoverageRepository */
+export type EnrichmentTaskStatus = PhaseCoverageStatus;
+/** @deprecated Используйте PhaseCoverageTask */
+export type EnrichmentTask = PhaseCoverageTask & { stage: string };
+/** @deprecated Используйте IPhaseCoverageRepository */
+export type IEnrichmentQueueRepository = IPhaseCoverageRepository;
+
+/** Запись фазы из БД. */
 export type PhaseDefinitionRecord = PhaseManifestEntry & { updatedAt: string };
 
-/**
- * Операционный реестр фаз (ADR-003). Манифест из кода upsert-ится сюда
- * (`phase:manifest:import`); админка только переключает `enabled`.
- */
 export interface IPhaseDefinitionRepository {
   listAll(): Promise<PhaseDefinitionRecord[]>;
-  /** Включённые фазы заданного типа (eager-подписчик / lazy-планировщик). */
-  listEnabled(kind?: PhaseKind): Promise<PhaseDefinitionRecord[]>;
+  listEnabled(trigger?: PhaseTrigger): Promise<PhaseDefinitionRecord[]>;
+  findById(id: string): Promise<PhaseDefinitionRecord | null>;
   upsert(entry: PhaseManifestEntry): Promise<void>;
   setEnabled(id: string, enabled: boolean): Promise<void>;
+  updatePolicy(id: string, policy: Partial<PhasePolicy>): Promise<void>;
+}
+
+export type PhaseRunFilter = {
+  phaseId?: string;
+  status?: PhaseRunStatus;
+  trigger?: PhaseTrigger;
+  limit?: number;
+};
+
+export interface IPhaseRunRepository {
+  create(input: {
+    phaseId: string;
+    trigger: PhaseTrigger;
+    status?: PhaseRunStatus;
+  }): Promise<PhaseRun>;
+  findById(id: string): Promise<PhaseRun | null>;
+  listActive(): Promise<PhaseRun[]>;
+  list(filter?: PhaseRunFilter): Promise<PhaseRun[]>;
+  appendLog(id: string, entry: PhaseRunLogEntry): Promise<void>;
+  updateStats(id: string, stats: PhaseRunStats): Promise<void>;
+  requestControl(id: string, control: PhaseRunControl): Promise<void>;
+  clearControl(id: string): Promise<void>;
+  getControl(id: string): Promise<PhaseRunControl | null>;
+  updateStatus(
+    id: string,
+    status: PhaseRunStatus,
+    patch?: { stats?: PhaseRunStats; error?: string | null },
+  ): Promise<void>;
+  /** Сообщения для manual run с опциональным scope. */
+  findRawIdsForManualRun(phaseId: string, scope?: ManualRunScope): Promise<string[]>;
 }
 
 /** Реестр определений задач планировщика (что и по какому cron). */

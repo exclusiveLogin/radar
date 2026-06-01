@@ -173,62 +173,41 @@ ORDER BY rm.posted_at DESC LIMIT 10;
 
 ## Async-обогащение (фазы, ADR-003)
 
-Модель: **Phase = `enrichers[]` + терминальный MergeStep**, два триггера — eager
-(событие `MessageParsed`, обычно `[catalog]`) и lazy (job/queue: `llm`/`dadata`/
-`nominatim`). Накопитель — весь parsed event с per-field provenance; слияние —
-идемпотентный `mergeContribution` по trust+precision. Подробно:
-[adr-003-phase-enrichment-accumulator.md](./adr-003-phase-enrichment-accumulator.md),
-[domain/how-it-works.md](./domain/how-it-works.md).
-
-**Манифест фаз** (паттерн ingest-манифеста): SSOT структуры —
-`docs/examples/phase.manifest.default.json` → таблица `phase_definitions`.
+**Phase-pipeline v2:** фазы `catalog|llm|dadata|nominatim`, очередь `phase_coverage`,
+оркестратор `PhaseRunner` + `PhaseDaemon`. Подробно: [phase-pipeline.md](./phase-pipeline.md).
 
 ```powershell
-npm run phase:manifest:import   # JSON → phase_definitions (upsert; enabled не перезатирается)
-npm run phase:manifest:export   # phase_definitions → .radar/phase.manifest.json
+npm run migration:run
+npm run phase:manifest:import
+npm run phase:manifest:export
 ```
 
-Eager-подписчик ставит задачи только по **включённым lazy-фазам**
-(`phase_definitions.enabled`). По умолчанию lazy-фазы выключены → дешёвый
-catalog-only parse; LLM/Dadata/Nominatim включаются тумблером.
-
-**Stage-ранеры** (per-provider, порционно; прогресс через `progress.ts`):
+| trigger | Поведение |
+|---------|-----------|
+| `eager` | После ingest/reparse — inline catalog (по `order`) |
+| `scheduled` | PhaseDaemon, `intervalMs`, batch из coverage |
+| `manual` | `worker:phase:run`, админка Run |
 
 ```powershell
-npm run worker:enrich:run -- --stage=llm --batch=100 [--watch]
-npm run worker:enrich:run -- --stage=dadata
-npm run worker:enrich:run -- --stage=nominatim
+npm run worker:phase:run -- --phase=llm --batch=100 [--watch]
+npm run worker:enrich:run -- --stage=llm   # алиас
+npm run worker:reparse:raw                 # invalidate + ingest-поток (не прямой catalog)
 ```
 
-Очередь `enrichment_queue` — строка на `(raw_message_id, stage)`; enqueue
-идемпотентен (done-задачи не сбрасываются → нет петли ре-энкью). «Обновить
-позже» — явный повторный enqueue.
+**Прогресс:** `GET /api/admin/phases/runs/overview` (coverage per phase), виджет «Фазы».
 
-**LLM-адаптер:** провайдер выбирается `RADAR_LLM_PROVIDER` (`ollama` |
-`openai-compatible`). Для облака (OpenRouter): `RADAR_LLM_API_KEY`,
-`RADAR_LLM_HTTP_REFERER`, `RADAR_LLM_X_TITLE`.
+**Env:** `RADAR_STORAGE_MODE=db`, `RADAR_PHASE_DAEMON_ENABLED` (scheduled).
 
-> Ломающих изменений в существующих командах нет: имена/флаги прежние;
-> `worker:enrich:run` теперь требует `--stage`.
+**LLM:** `RADAR_LLM_PROVIDER`, `RADAR_LLM_API_KEY`, …
 
-### Планировщик задач (job_definitions / job_runs)
+Статус внедрения: [phase-pipeline-status.md](./phase-pipeline-status.md).
 
-В `db`-режиме воркер поднимает `JobDaemon`: материализует запуски из cron
-включённых определений и исполняет их **теми же npm-CLI** (SSOT исполнения).
-Типы: `reparse`, `enrich-llm`, `enrich-dadata`, `enrich-nominatim`.
+### Админка фаз
 
-Управление — из админки (виджет «Планировщик задач») или REST:
+Виджет **«Фазы обогащения»** + REST `/api/admin/phases/*` — см.
+[api/phases-admin.md](./api/phases-admin.md).
 
-```http
-GET    /api/admin/jobs/definitions
-POST   /api/admin/jobs/definitions           # { type, cron?, params?, enabled?, priority? }
-PATCH  /api/admin/jobs/definitions/{id}       # { enabled?, cron?, priority?, params? }
-POST   /api/admin/jobs/definitions/{id}/trigger
-GET    /api/admin/jobs/runs?definitionId&limit
-```
-
-Env: `RADAR_JOB_DAEMON_ENABLED` (default on в db mode), `RADAR_JOB_DAEMON_POLL_MS`
-(default 15000). Прогресс запусков админка читает поллингом `job_runs`.
+Legacy jobs API (`/api/admin/jobs/*`) сохранён для совместимости.
 
 ---
 
@@ -262,7 +241,7 @@ Env: `RADAR_JOB_DAEMON_ENABLED` (default on в db mode), `RADAR_JOB_DAEMON_POLL_
 | Ingest не в БД | `RADAR_STORAGE_MODE=db`, перезапуск worker |
 | Нет каналов | `npm run ingest:manifest:import`, provider `active` |
 | Backfill pending | worker db + `BackfillDaemon запущен` |
-| Карта пустая после ingest | `npm run worker:reparse:raw` |
+| Карта пустая после ingest | `npm run worker:reparse:raw` (инвалидация + ingest-поток, не прямой catalog) |
 | API_ID_INVALID | свои `TELEGRAM_API_ID/HASH` с my.telegram.org |
 
 ```powershell

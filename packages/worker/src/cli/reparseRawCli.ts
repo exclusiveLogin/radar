@@ -1,14 +1,14 @@
 import { MONOREPO_ROOT } from "@repo/root";
 import { createWorkerCompositionRoot } from "../application/createWorkerCompositionRoot.js";
 import { MapStateFullReset } from "../application/map-state/mapStateFullReset.js";
-import { createWorkerDbRepositories } from "../infrastructure/persistence/workerDbRepos.js";
+import { runFullReparseLikeIngest } from "../application/phases/reparseOrchestrator.js";
 import { WorkerStorageMode } from "../infrastructure/persistence/storageMode.js";
 import { loadRootEnv } from "../infrastructure/config/loadRootEnv.js";
 import { createProgress } from "./progress.js";
 
 /**
- * Перепарсить все raw_messages из БД (после фикса резолва kladr → ISO).
- * Перед прогоном — полный сброс region_state_active и place_status_active.
+ * Полный reparse: сброс карты + инвалидация parsed/coverage, затем ingest-поток (eager inline).
+ * Scheduled-фазы — PhaseDaemon, строго после eager по order в манифесте.
  */
 async function main(): Promise<void> {
   loadRootEnv(MONOREPO_ROOT);
@@ -16,12 +16,12 @@ async function main(): Promise<void> {
     storageMode: WorkerStorageMode.Db,
   });
 
-  if (!runtime.dataSource || !runtime.parseRawMessageHandler) {
+  if (!runtime.dataSource || !runtime.phaseRunner || !runtime.workerRepos || !runtime.coverageEnqueuer) {
     console.error("reparseRawCli: нужен RADAR_STORAGE_MODE=db");
     process.exit(1);
   }
 
-  const repos = await createWorkerDbRepositories(runtime.dataSource);
+  const repos = runtime.workerRepos;
 
   const reset = new MapStateFullReset({
     regionState: repos.regionState,
@@ -33,31 +33,29 @@ async function main(): Promise<void> {
     `Map state reset: places=${resetResult.placesCleared}, regions=${resetResult.regionsGrey}`,
   );
 
-  const rows = (await runtime.dataSource.query(
-    "SELECT id FROM raw_messages ORDER BY posted_at ASC",
-  )) as Array<{ id: string }>;
+  const countRows = (await runtime.dataSource.query(
+    `SELECT COUNT(*)::int AS count FROM raw_messages`,
+  )) as Array<{ count: number }>;
+  const total = countRows[0]?.count ?? 0;
+  const progress = createProgress("reparse:ingest-flow", total);
 
-  let ok = 0;
-  let failed = 0;
-  const progress = createProgress("reparse", rows.length);
-  for (const row of rows) {
-    const raw = await repos.rawMessages.findById(row.id);
-    if (!raw?.id) {
-      progress.tick();
-      continue;
-    }
-    try {
-      await runtime.parseRawMessageHandler.handle(raw);
-      ok += 1;
-    } catch (err) {
-      failed += 1;
-      console.error(`reparse failed ${row.id}:`, err);
-    }
-    progress.tick(1, { ok, failed });
-  }
+  const result = await runFullReparseLikeIngest({
+    dataSource: runtime.dataSource,
+    repos,
+    ingestFlow: {
+      rawMessages: repos.rawMessages,
+      phases: repos.phaseDefinitions,
+      enqueuer: runtime.coverageEnqueuer,
+      runner: runtime.phaseRunner,
+    },
+    onMessage: () => progress.tick(1),
+  });
   progress.stop();
 
-  console.log(`Reparse done: ${ok} ok, ${failed} failed, ${rows.length} total`);
+  console.log(
+    `Reparse done: messages=${result.messages}, coverageInvalidated=${result.phasesInvalidated}. ` +
+      "Scheduled-фазы догонит PhaseDaemon (после done eager по order).",
+  );
   await runtime.shutdown?.();
 }
 

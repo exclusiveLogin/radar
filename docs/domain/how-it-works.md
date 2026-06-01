@@ -70,7 +70,8 @@ sequenceDiagram
 | Use case ingest | `packages/worker/.../ingestRawMessageHandler.ts` |
 | Dedup + TX | `packages/api/.../typeorm-raw-message.repository.ts` |
 | Cursor | `packages/api/.../typeorm-ingest-cursor.repository.ts` |
-| Подписчик → parse | `packages/worker/.../rawMessageIngestedSubscriber.ts` |
+| Подписчик → фазы (db) | `packages/worker/.../subscribers/phaseIngestSubscriber.ts` |
+| Подписчик → parse (memory) | `packages/worker/.../rawMessageIngestedSubscriber.ts` |
 | Admin ingest + outbox | `packages/api/.../ingest-admin.service.ts` |
 
 Подробнее: [contexts/ingest.md](./contexts/ingest.md), инварианты — [docs/ingest-providers.md](../ingest-providers.md).
@@ -156,54 +157,41 @@ flowchart TD
 
 ---
 
-## Phase / async-enrich-flow {#enrich-flow}
+## Phase-pipeline v2 {#enrich-flow}
 
-**Модель (ADR-003):** парсинг и обогащение — одна абстракция **Phase =
-упорядоченный `enrichers[]` + терминальный `MergeStep`**. Два триггера:
+**Модель (ADR-003 v2):** всё — **фазы** (`catalog`, `llm`, `dadata`, `nominatim`).
+Фаза = `enrichers[]` + merge в **накопитель** (`parsed_events` + provenance).
 
-- ⚡ **eager** — по событию `MessageParsed`, быстрый синхронный путь (обычно `[catalog]`).
-- 🐌 **lazy** — по job/queue, отложенно и порционно (`[llm]` / `[dadata]` / `[nominatim]`).
+| trigger | Когда |
+|---------|--------|
+| `eager` | Сразу после ingest/reparse (`phaseIngestFlow`) |
+| `scheduled` | `PhaseDaemonService` по `policy.intervalMs` |
+| `manual` | CLI / админка Run |
 
-**Накопитель** — весь parsed event (гео-поля + атрибуты события) с per-field
-provenance `{ value, source, trust, precision }`. Слияние вклада фазы —
-`mergeContribution` (SSOT): пофайльно по precision-рангу, при равенстве — по trust,
-затем детерминированный тай-брейк по источнику. Свойства: **идемпотентность**
-(повтор прохода — no-op) и **независимость от порядка** проходов (покрыто тестом
-`mergeContribution.test.ts`).
+**Покрытие:** `phase_coverage (raw_message_id, phase_id)` → `pending|processing|done|failed`.
 
-### Шаги lazy-прохода
+**Порядок:** поле `order` в манифесте. `claimBatch` для фазы N только если все фазы с
+меньшим `order` = `done` для того же raw (конвейер per-message, не глобальный барьер).
 
-1. **Enqueue policy** — eager-подписчик читает включённые lazy-фазы из
-   `phase_definitions` и ставит по задаче на каждый `(raw_message_id, stage)`.
-   Enqueue идемпотентен → нет петли ре-энкью.
-2. **Stage-ранер** `worker:enrich:run --stage=<llm|dadata|nominatim>` забирает
-   пачку (`FOR UPDATE SKIP LOCKED`), прогоняет фазу прохода через тот же
-   `ParseRawMessageHandler` (единое ядро eager/lazy), мержит вклад в накопитель.
-3. **Пересчёт статуса** — ре-эмит `MessageParsed` → `RegionStateProjection` →
-   WS только при изменении уровня.
-4. **markDone(stage)**.
+### Поток после ingest (db)
 
-### Атрибуты события и статус
+1. `RawMessageIngested` → `runPostIngestPhaseFlow` ([phaseIngestFlow.ts](../packages/worker/src/application/phases/phaseIngestFlow.ts)).
+2. `CoverageEnqueuer` — `pending` для enabled `eager` + `scheduled`.
+3. Inline eager (по `order`) → `PhaseRunner.runInline` → `catalog` и др.
+4. Scheduled — daemon тикает → `claimBatch` → `PhaseRunner.runPhaseTick`.
+5. Reparse (`worker:reparse:raw`) — тот же ingest-поток после invalidate `parsed_events` + coverage.
 
-Rule-классификатор и LLM — **энричеры атрибутов**: rule даёт `event_type` (выше
-trust), LLM-категория (`eventCategory`) заполняет статус, когда правило не
-распознало (grey). Мост `eventCategory → status_dictionary.code` data-driven
-(словарь — SSOT), решение принимает тот же `mergeContribution`.
+Операторка: [phase-pipeline.md](../phase-pipeline.md), REST: [api/phases-admin.md](../api/phases-admin.md).
 
-### LLM за adapter-портом
-
-`ILlmChatClient` (`OllamaChatClient` / `OpenAiCompatibleChatClient`) изолирует
-энричер от провайдера. Выбор по `RADAR_LLM_PROVIDER`; для облака — `RADAR_LLM_API_KEY`
-+ заголовки `HTTP-Referer`/`X-Title`.
-
-| Шаг | Файл |
-|-----|------|
+| Компонент | Файл |
+|-----------|------|
+| Ingest SSOT | `packages/worker/.../phases/phaseIngestFlow.ts` |
+| Runner | `packages/worker/.../phases/phaseRunner.ts` |
+| Daemon | `packages/worker/.../phases/phaseDaemonService.ts` |
+| Coverage repo | `packages/api/.../typeorm-phase-coverage.repository.ts` |
 | Merge SSOT | `packages/shared/src/domain/mergeContribution.ts` |
-| MergeStep | `packages/worker/.../geo-pipeline/steps/MergeStep.ts` |
-| Очередь per-stage | `packages/worker/.../cli/enrichRunCli.ts` + `typeorm-enrichment-queue.repository.ts` |
-| Enqueue policy | `packages/worker/.../subscribers/enrichmentEnqueueSubscriber.ts` |
-| LLM-адаптер | `packages/worker/.../enrichers/llmChatClient.ts` |
-| Манифест фаз | `packages/worker/.../manifest/phaseManifestLoader.ts` |
+| CLI phase | `packages/worker/.../cli/phaseRunCli.ts` |
+| Reparse | `packages/worker/.../cli/reparseRawCli.ts` |
 
 ---
 
