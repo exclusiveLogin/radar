@@ -111,6 +111,8 @@ export const sourceMessageSchema = z.object({
   rawText: z.string(),
   postedAt: z.string().datetime(),
   channelKey: z.string().optional(),
+  /** Все ISO субъектов из того же parsed_event (мультирегион в одном raw). */
+  regionCodes: z.array(z.string()).default([]),
 });
 
 export const sourceMessageResponseSchema = z.object({

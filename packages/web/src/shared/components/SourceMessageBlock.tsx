@@ -13,6 +13,7 @@ export function SourceMessageBlock({ regionCode, placeId }: Props) {
   const [text, setText] = useState<string | null>(null);
   const [postedAt, setPostedAt] = useState<string | null>(null);
   const [channelKey, setChannelKey] = useState<string | null>(null);
+  const [regionCodes, setRegionCodes] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -33,6 +34,7 @@ export function SourceMessageBlock({ regionCode, placeId }: Props) {
         setText(msg?.rawText ?? null);
         setPostedAt(msg?.postedAt ?? null);
         setChannelKey(msg?.channelKey ?? null);
+        setRegionCodes(msg?.regionCodes ?? []);
       })
       .catch((err: unknown) => {
         if (cancelled) return;
@@ -51,12 +53,20 @@ export function SourceMessageBlock({ regionCode, placeId }: Props) {
   if (error) return <p className="ds-muted">{error}</p>;
   if (!text) return <p className="ds-muted">Исходное сообщение не найдено.</p>;
 
+  const regionsLabel =
+    regionCodes.length > 0 ? [...new Set(regionCodes)].join(" · ") : null;
+
   return (
     <div style={{ marginTop: 8 }}>
       <div className="ds-muted" style={{ fontSize: 11, marginBottom: 4 }}>
         {channelKey ? `@${channelKey} · ` : null}
         {formatDateTime(postedAt)}
       </div>
+      {regionsLabel && (
+        <div className="ds-muted" style={{ fontSize: 11, marginBottom: 6 }}>
+          Регионы: {regionsLabel}
+        </div>
+      )}
       <pre
         style={{
           margin: 0,

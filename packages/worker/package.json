@@ -41,7 +41,7 @@
     "dotenv": "^16.4.7",
     "pg": "^8.13.1",
     "reflect-metadata": "^0.2.2",
-    "telegram": "^2.26.22",
+    "telegram": "npm:teleproto@^1.225.3",
     "typeorm": "^0.3.20"
   },
   "devDependencies": {

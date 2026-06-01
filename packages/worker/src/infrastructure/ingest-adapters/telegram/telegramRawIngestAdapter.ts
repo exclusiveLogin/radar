@@ -47,12 +47,27 @@ function dedupKey(msg: IngestNormalizedMessage): string {
   return `${msg.channelKey}:${msg.externalMessageId}:${msg.revisionKey ?? ""}`;
 }
 
-/** GramJS шлёт TIMEOUT из ping-loop при обрыве; не спамим stack trace — loop сам reconnect. */
+function isTypeNotFoundError(err: unknown): boolean {
+  if (!(err instanceof Error)) return false;
+  return (
+    err.name === "TypeNotFoundError" ||
+    err.message.includes("Could not find a matching Constructor ID")
+  );
+}
+
+/** GramJS/Teleproto: TIMEOUT — тихий reconnect; TypeNotFound — устаревший TL layer. */
 function wireMtprotoClientErrorHandler(client: TelegramClient): void {
   client.onError = async (err) => {
     const message = err instanceof Error ? err.message : String(err);
     if (message === "TIMEOUT") {
       console.warn("[mtproto] ping timeout, reconnecting");
+      return;
+    }
+    if (isTypeNotFoundError(err)) {
+      console.error(
+        "[mtproto] TypeNotFound — Telegram прислал TL-тип, неизвестный клиенту. " +
+          "Проверьте teleproto (npm alias telegram) и что сессия не используется в двух процессах.",
+      );
       return;
     }
     console.error("[mtproto]", err);

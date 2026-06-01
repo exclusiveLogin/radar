@@ -72,6 +72,7 @@ session deploy  →  manifest import (или admin API)  →  provider start  �
 |------------|-------------|----------------|
 | `DATABASE_URL` | manifest, backfill, worker | Подключение к PostgreSQL |
 | `TELEGRAM_API_ID`, `TELEGRAM_API_HASH` | session | Ключи приложения с my.telegram.org |
+| MTProto client (`telegram` dep) | worker ingest | **teleproto** (npm alias `telegram`, layer 225+) — иначе `TypeNotFoundError` на новых TL-типах |
 | `RADAR_SESSIONS_DIR` | session | Папка слотов (default `.radar/sessions`) |
 | `RADAR_INGEST_MANIFEST` | manifest | Путь к JSON (default `.radar/ingest.manifest.json`) |
 | `RADAR_STORAGE_MODE=db` | backfill, worker | Worker пишет в БД, не в память |

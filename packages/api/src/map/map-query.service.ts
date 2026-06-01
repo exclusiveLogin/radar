@@ -300,17 +300,35 @@ export class MapQueryService {
   /** Последнее raw-сообщение, привязанное к региону (по ISO-коду). */
   async getRegionSourceMessage(regionCode: string): Promise<SourceMessage | null> {
     const rows = (await this.dataSource.query(
-      `SELECT rm.raw_text, rm.posted_at, c.key AS channel_key
-       FROM raw_messages rm
-       INNER JOIN channels c ON c.id = rm.channel_id
-       INNER JOIN parsed_events pe ON pe.raw_message_id = rm.id
-       INNER JOIN event_locations el ON el.parsed_event_id = pe.id
-       INNER JOIN regions r ON r.id = el.region_id
-       WHERE r.iso = $1 AND r.is_active = true
-       ORDER BY rm.posted_at DESC
-       LIMIT 1`,
+      `WITH hit AS (
+         SELECT rm.id AS raw_id, pe.id AS parsed_id, rm.raw_text, rm.posted_at, c.key AS channel_key
+         FROM raw_messages rm
+         INNER JOIN channels c ON c.id = rm.channel_id
+         INNER JOIN parsed_events pe ON pe.raw_message_id = rm.id
+         INNER JOIN event_locations el ON el.parsed_event_id = pe.id
+         INNER JOIN regions r ON r.id = el.region_id
+         WHERE r.iso = $1 AND r.is_active = true
+         ORDER BY rm.posted_at DESC
+         LIMIT 1
+       )
+       SELECT hit.raw_text,
+              hit.posted_at,
+              hit.channel_key,
+              COALESCE(
+                array_agg(DISTINCT r2.iso) FILTER (WHERE r2.iso IS NOT NULL),
+                '{}'
+              ) AS region_codes
+       FROM hit
+       INNER JOIN event_locations el2 ON el2.parsed_event_id = hit.parsed_id
+       INNER JOIN regions r2 ON r2.id = el2.region_id AND r2.is_active = true
+       GROUP BY hit.raw_text, hit.posted_at, hit.channel_key`,
       [regionCode],
-    )) as Array<{ raw_text: string; posted_at: Date; channel_key: string }>;
+    )) as Array<{
+      raw_text: string;
+      posted_at: Date;
+      channel_key: string;
+      region_codes: string[];
+    }>;
 
     const row = rows[0];
     if (!row) return null;
@@ -318,22 +336,41 @@ export class MapQueryService {
       rawText: row.raw_text,
       postedAt: row.posted_at.toISOString(),
       channelKey: row.channel_key,
+      regionCodes: row.region_codes ?? [],
     };
   }
 
   /** Последнее raw-сообщение, привязанное к населённому пункту. */
   async getPlaceSourceMessage(placeId: string): Promise<SourceMessage | null> {
     const rows = (await this.dataSource.query(
-      `SELECT rm.raw_text, rm.posted_at, c.key AS channel_key
-       FROM raw_messages rm
-       INNER JOIN channels c ON c.id = rm.channel_id
-       INNER JOIN parsed_events pe ON pe.raw_message_id = rm.id
-       INNER JOIN event_locations el ON el.parsed_event_id = pe.id
-       WHERE el.place_id = $1
-       ORDER BY rm.posted_at DESC
-       LIMIT 1`,
+      `WITH hit AS (
+         SELECT rm.id AS raw_id, pe.id AS parsed_id, rm.raw_text, rm.posted_at, c.key AS channel_key
+         FROM raw_messages rm
+         INNER JOIN channels c ON c.id = rm.channel_id
+         INNER JOIN parsed_events pe ON pe.raw_message_id = rm.id
+         INNER JOIN event_locations el ON el.parsed_event_id = pe.id
+         WHERE el.place_id = $1
+         ORDER BY rm.posted_at DESC
+         LIMIT 1
+       )
+       SELECT hit.raw_text,
+              hit.posted_at,
+              hit.channel_key,
+              COALESCE(
+                array_agg(DISTINCT r2.iso) FILTER (WHERE r2.iso IS NOT NULL),
+                '{}'
+              ) AS region_codes
+       FROM hit
+       INNER JOIN event_locations el2 ON el2.parsed_event_id = hit.parsed_id
+       INNER JOIN regions r2 ON r2.id = el2.region_id AND r2.is_active = true
+       GROUP BY hit.raw_text, hit.posted_at, hit.channel_key`,
       [placeId],
-    )) as Array<{ raw_text: string; posted_at: Date; channel_key: string }>;
+    )) as Array<{
+      raw_text: string;
+      posted_at: Date;
+      channel_key: string;
+      region_codes: string[];
+    }>;
 
     const row = rows[0];
     if (!row) return null;
@@ -341,6 +378,7 @@ export class MapQueryService {
       rawText: row.raw_text,
       postedAt: row.posted_at.toISOString(),
       channelKey: row.channel_key,
+      regionCodes: row.region_codes ?? [],
     };
   }
 
