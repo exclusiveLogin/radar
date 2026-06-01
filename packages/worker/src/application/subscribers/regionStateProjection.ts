@@ -12,7 +12,13 @@ import type {
   StateLevel,
   StatusDictionaryRecord,
 } from "@radar/shared";
-import { SOURCE_TRUST, mergeContribution } from "@radar/shared";
+import {
+  PLACE_STATUS_EVENT_AT_META_KEY,
+  SOURCE_TRUST,
+  isStaleStatusEvent,
+  mergeContribution,
+  readPlaceStatusEventAt,
+} from "@radar/shared";
 import { bridgeEventCategoryToCode } from "../../domain/region-state/eventCategoryBridge.js";
 import { planGreenPlaceStatusClear } from "../../domain/region-state/placeStatusClearPolicy.js";
 import {
@@ -71,23 +77,26 @@ export class RegionStateProjection {
       payload.eventCategory,
     );
     const incoming = this.levelOf(statusCode);
-    const at = payload.postedAt ?? event.occurredAt;
+    const messageAt = payload.postedAt ?? event.occurredAt;
+    /** Время записи в БД — для WS-поллеров (не postedAt сообщения из бэкфилла). */
+    const recordedAt = new Date().toISOString();
 
     const regionIndex = await this.buildRegionIndex();
-    await this.writePlaceStatuses(locations, statusCode, incoming, at);
+    await this.writePlaceStatuses(locations, statusCode, incoming, messageAt, recordedAt);
 
     const affectedIso = this.collectAffectedIso(locations, regionIndex.byId);
     if (affectedIso.size === 0) return;
 
     const state = await this.loadState();
-    this.applySelfLevels(affectedIso, incoming, state.selfByIso);
+    this.applySelfLevels(affectedIso, incoming, messageAt, state);
 
     await this.recomputeEffective({
       affectedIso,
       regionIndex,
       state,
       incoming,
-      at,
+      messageAt,
+      recordedAt,
     });
   };
 
@@ -159,10 +168,11 @@ export class RegionStateProjection {
     locations: ParsedLocation[],
     statusCode: string,
     incoming: StateLevel,
-    at: string,
+    messageAt: string,
+    recordedAt: string,
   ): Promise<void> {
     if (incoming === "green") {
-      await this.clearPlaceStatusesOnGreen(locations, at);
+      await this.clearPlaceStatusesOnGreen(locations, messageAt, recordedAt);
       return;
     }
 
@@ -172,9 +182,9 @@ export class RegionStateProjection {
         placeId: location.placeId,
         statusCode,
         source: "parser",
-        startedAt: at,
-        updatedAt: at,
-        meta: {},
+        startedAt: messageAt,
+        updatedAt: recordedAt,
+        meta: { [PLACE_STATUS_EVENT_AT_META_KEY]: messageAt },
       });
     }
   }
@@ -184,27 +194,54 @@ export class RegionStateProjection {
    */
   private async clearPlaceStatusesOnGreen(
     locations: ParsedLocation[],
-    at: string,
+    messageAt: string,
+    recordedAt: string,
   ): Promise<void> {
     const { regionCascadeIds, explicitPlaceIds } = planGreenPlaceStatusClear(locations);
 
     for (const placeId of explicitPlaceIds) {
-      await this.deactivateAllPlaceStatuses(placeId, at);
+      await this.deactivateAllPlaceStatuses(placeId, messageAt, recordedAt);
     }
 
     for (const regionId of regionCascadeIds) {
       const active = await this.deps.placeStatus.listActiveByRegionId(regionId);
       for (const row of active) {
-        await this.deps.placeStatus.deactivate(row.placeId, row.statusCode, at);
+        await this.deactivatePlaceIfNotStale(
+          row.placeId,
+          row.statusCode,
+          messageAt,
+          recordedAt,
+        );
       }
     }
   }
 
-  private async deactivateAllPlaceStatuses(placeId: string, at: string): Promise<void> {
+  private async deactivateAllPlaceStatuses(
+    placeId: string,
+    messageAt: string,
+    recordedAt: string,
+  ): Promise<void> {
     const active = await this.deps.placeStatus.listActive(placeId);
     for (const row of active) {
-      await this.deps.placeStatus.deactivate(placeId, row.statusCode, at);
+      await this.deactivatePlaceIfNotStale(
+        placeId,
+        row.statusCode,
+        messageAt,
+        recordedAt,
+      );
     }
+  }
+
+  private async deactivatePlaceIfNotStale(
+    placeId: string,
+    statusCode: string,
+    messageAt: string,
+    recordedAt: string,
+  ): Promise<void> {
+    const active = await this.deps.placeStatus.listActive(placeId);
+    const row = active.find((entry) => entry.statusCode === statusCode);
+    if (row && isStaleStatusEvent(messageAt, readPlaceStatusEventAt(row.meta))) return;
+    await this.deps.placeStatus.deactivate(placeId, statusCode, recordedAt);
   }
 
   /** ISO затронутых регионов (по regionId из локаций). */
@@ -225,28 +262,38 @@ export class RegionStateProjection {
     selfByIso: Map<string, StateLevel>;
     effectiveByIso: Map<string, StateLevel>;
     activityByIso: Map<string, number>;
+    statusEventAtByIso: Map<string, string>;
   }> {
     const rows = await this.deps.regionState.listAll();
     const selfByIso = new Map<string, StateLevel>();
     const effectiveByIso = new Map<string, StateLevel>();
     const activityByIso = new Map<string, number>();
+    const statusEventAtByIso = new Map<string, string>();
     for (const row of rows) {
       selfByIso.set(row.regionCode, row.selfLevel);
       effectiveByIso.set(row.regionCode, row.stateLevel);
       activityByIso.set(row.regionCode, row.activity);
+      if (row.statusEventAt) {
+        statusEventAtByIso.set(row.regionCode, row.statusEventAt);
+      }
     }
-    return { selfByIso, effectiveByIso, activityByIso };
+    return { selfByIso, effectiveByIso, activityByIso, statusEventAtByIso };
   }
 
   /** Обновляет собственные уровни затронутых регионов по автомату. */
   private applySelfLevels(
     affectedIso: Set<string>,
     incoming: StateLevel,
-    selfByIso: Map<string, StateLevel>,
+    messageAt: string,
+    state: {
+      selfByIso: Map<string, StateLevel>;
+      statusEventAtByIso: Map<string, string>;
+    },
   ): void {
     for (const iso of affectedIso) {
-      const current = selfByIso.get(iso) ?? "grey";
-      selfByIso.set(iso, computeSelfLevel(current, incoming));
+      if (isStaleStatusEvent(messageAt, state.statusEventAtByIso.get(iso))) continue;
+      const current = state.selfByIso.get(iso) ?? "grey";
+      state.selfByIso.set(iso, computeSelfLevel(current, incoming));
     }
   }
 
@@ -258,16 +305,19 @@ export class RegionStateProjection {
       selfByIso: Map<string, StateLevel>;
       effectiveByIso: Map<string, StateLevel>;
       activityByIso: Map<string, number>;
+      statusEventAtByIso: Map<string, string>;
     };
     incoming: StateLevel;
-    at: string;
+    messageAt: string;
+    recordedAt: string;
   }): Promise<void> {
-    const { affectedIso, regionIndex, state, incoming, at } = input;
+    const { affectedIso, regionIndex, state, incoming, messageAt, recordedAt } = input;
     const toRecompute = this.expandWithNeighbors(affectedIso);
 
     for (const iso of toRecompute) {
       const region = regionIndex.byIso.get(iso);
       if (!region) continue;
+      if (isStaleStatusEvent(messageAt, state.statusEventAtByIso.get(iso))) continue;
 
       const selfLevel = state.selfByIso.get(iso) ?? "grey";
       const neighborLevels = (this.deps.adjacency[iso] ?? []).map(
@@ -290,15 +340,17 @@ export class RegionStateProjection {
         selfLevel,
         activity,
         reason: effective.reason,
-        updatedAt: at,
+        updatedAt: recordedAt,
+        statusEventAt: messageAt,
       });
+      state.statusEventAtByIso.set(iso, messageAt);
       await this.deps.regionState.appendHistory({
         regionId: region.id,
         regionCode: iso,
         stateLevel: effective.level,
         previousLevel: previous,
         reason: effective.reason,
-        changedAt: at,
+        changedAt: recordedAt,
       });
     }
   }

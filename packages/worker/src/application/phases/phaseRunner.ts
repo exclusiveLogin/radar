@@ -16,7 +16,6 @@ import { loadLlmRuntimeConfig } from "../../infrastructure/enrichers/llmRuntimeC
 import { ParseRawMessageHandler } from "../handlers/parseRawMessageHandler.js";
 import { createParsePipeline } from "../parsing/createParsePipeline.js";
 import type { GeoValidationService } from "../parsing/geoValidationService.js";
-import type { ParseWorkerPool } from "../parsing/parseWorkerPool.js";
 import { pipelineConfigFromEnrichers } from "./phasePipelineConfig.js";
 import { prerequisitePhaseIds } from "./phaseOrder.js";
 
@@ -30,7 +29,6 @@ export type PhaseRunnerDeps = {
   validation: GeoValidationService;
   placeCache: IPlaceCacheRepository;
   events: IEventPublisher;
-  parseWorkerPool?: ParseWorkerPool;
 };
 
 /**
@@ -49,6 +47,7 @@ export class PhaseRunner {
       { enricherFlags: flags, pipelineOrder: order, llmRuntimeConfig },
       this.deps.placeCache,
     );
+    // Фазовый пайплайн (llm/catalog/…) — только inline; ingest pool = catalog-only.
     return new ParseRawMessageHandler(
       pipeline,
       this.deps.parsedEvents,
@@ -56,7 +55,6 @@ export class PhaseRunner {
       this.deps.validation,
       this.deps.placeCache,
       this.deps.events,
-      this.deps.parseWorkerPool,
     );
   }
 
@@ -124,21 +122,117 @@ export class PhaseRunner {
     return stats;
   }
 
+  /**
+   * Manual run из админки: тот же claim-batch, но цикл до пустой очереди
+   * (как `worker:phase:run` без --watch), один phase_run.
+   */
+  async runManualRunDrain(input: {
+    phase: PhaseDefinitionRecord;
+    runId: string;
+    batchSize: number;
+  }): Promise<PhaseRunStats> {
+    const run = await this.resolveRunForTick({
+      phase: input.phase,
+      trigger: "manual",
+      existingRunId: input.runId,
+    });
+    await this.deps.phaseRuns.appendLog(run.id, {
+      at: new Date().toISOString(),
+      level: "info",
+      message: `manual drain started phase=${input.phase.id} batchSize=${input.batchSize}`,
+    });
+
+    const enabledPhases = await this.deps.phaseDefinitions.listEnabled();
+    const prereqIds = prerequisitePhaseIds(input.phase, enabledPhases);
+    let totals: PhaseRunStats = {
+      claimed: 0,
+      processed: 0,
+      ok: 0,
+      failed: 0,
+    };
+
+    try {
+      for (;;) {
+        const controlBefore = await this.deps.phaseRuns.getControl(run.id);
+        if (controlBefore === "cancel") {
+          await this.finalizeRun(run.id, "canceled", totals);
+          return totals;
+        }
+        if (controlBefore === "pause") {
+          await this.finalizeRun(run.id, "paused", totals);
+          return totals;
+        }
+
+        const tasks = await this.deps.coverage.claimBatch(
+          input.phase.id,
+          input.batchSize,
+          prereqIds,
+        );
+        await this.deps.phaseRuns.appendLog(run.id, {
+          at: new Date().toISOString(),
+          level: "info",
+          message: `claimed batch=${tasks.length}`,
+        });
+
+        if (tasks.length === 0) {
+          const counts = await this.deps.coverage.countByStatus(input.phase.id);
+          totals.pendingRemaining = counts.pending + counts.processing;
+          totals.totalKnown =
+            counts.pending + counts.processing + counts.done + counts.failed;
+          await this.deps.phaseRuns.appendLog(run.id, {
+            at: new Date().toISOString(),
+            level: "info",
+            message: `drain idle pending=${totals.pendingRemaining ?? 0}`,
+          });
+          await this.finalizeRun(run.id, "completed", totals);
+          return totals;
+        }
+
+        const batchStats = await this.runBatch({
+          phase: input.phase,
+          runId: run.id,
+          trigger: "manual",
+          tasks,
+        });
+        totals = mergePhaseRunStats(totals, batchStats);
+
+        const controlAfter = await this.deps.phaseRuns.getControl(run.id);
+        if (controlAfter === "cancel") {
+          await this.finalizeRun(run.id, "canceled", totals);
+          return totals;
+        }
+        if (controlAfter === "pause") {
+          await this.finalizeRun(run.id, "paused", totals);
+          return totals;
+        }
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      await this.deps.phaseRuns.appendLog(run.id, {
+        at: new Date().toISOString(),
+        level: "error",
+        message,
+      });
+      await this.deps.phaseRuns.updateStatus(run.id, "failed", { error: message });
+      throw err;
+    }
+  }
+
   /** Полный тик scheduled/manual: claim → run → finalize run. */
   async runPhaseTick(input: {
     phase: PhaseDefinitionRecord;
     trigger: PhaseTrigger;
     batchSize: number;
+    /** Запись из админки (pending) — не создавать дубликат phase_run. */
+    existingRunId?: string;
   }): Promise<PhaseRunStats> {
-    const run = await this.deps.phaseRuns.create({
-      phaseId: input.phase.id,
-      trigger: input.trigger,
-      status: "running",
-    });
+    const run = await this.resolveRunForTick(input);
     await this.deps.phaseRuns.appendLog(run.id, {
       at: new Date().toISOString(),
       level: "info",
-      message: `run started phase=${input.phase.id} trigger=${input.trigger}`,
+      message: input.existingRunId
+        ? `run picked up phase=${input.phase.id} trigger=${input.trigger}`
+        : `run started phase=${input.phase.id} trigger=${input.trigger}`,
     });
 
     try {
@@ -204,4 +298,54 @@ export class PhaseRunner {
     }
   }
 
+  private async resolveRunForTick(input: {
+    phase: PhaseDefinitionRecord;
+    trigger: PhaseTrigger;
+    existingRunId?: string;
+  }) {
+    if (!input.existingRunId) {
+      return this.deps.phaseRuns.create({
+        phaseId: input.phase.id,
+        trigger: input.trigger,
+        status: "running",
+      });
+    }
+
+    const existing = await this.deps.phaseRuns.findById(input.existingRunId);
+    if (!existing) {
+      throw new Error(`phase run ${input.existingRunId} not found`);
+    }
+    if (existing.phaseId !== input.phase.id) {
+      throw new Error(
+        `phase run ${input.existingRunId} phase mismatch: ${existing.phaseId} vs ${input.phase.id}`,
+      );
+    }
+    if (existing.status !== "pending") {
+      throw new Error(
+        `phase run ${input.existingRunId} not executable (status=${existing.status})`,
+      );
+    }
+    await this.deps.phaseRuns.updateStatus(existing.id, "running");
+    return existing;
+  }
+
+  private async finalizeRun(
+    runId: string,
+    status: "completed" | "canceled" | "paused",
+    stats: PhaseRunStats,
+  ): Promise<void> {
+    await this.deps.phaseRuns.clearControl(runId);
+    await this.deps.phaseRuns.updateStatus(runId, status, { stats });
+  }
+}
+
+function mergePhaseRunStats(acc: PhaseRunStats, batch: PhaseRunStats): PhaseRunStats {
+  return {
+    claimed: (acc.claimed ?? 0) + (batch.claimed ?? 0),
+    processed: (acc.processed ?? 0) + (batch.processed ?? 0),
+    ok: (acc.ok ?? 0) + (batch.ok ?? 0),
+    failed: (acc.failed ?? 0) + (batch.failed ?? 0),
+    pendingRemaining: batch.pendingRemaining,
+    totalKnown: batch.totalKnown,
+  };
 }

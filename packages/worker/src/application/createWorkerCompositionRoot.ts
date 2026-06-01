@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Composition root worker: DataSource, repos, InProcessEventBus, OutboxRelay (db mode).
  * Это wiring зависимостей, не Unit of Work — см. docs.
  * @see ../../../../docs/domain/how-it-works.md#composition-root-flow
@@ -32,6 +32,7 @@ import { createRawMessageIngestedHandler } from "./subscribers/rawMessageIngeste
 import { CoverageEnqueuer } from "./phases/coverageEnqueuer.js";
 import { PhaseRunner } from "./phases/phaseRunner.js";
 import { PhaseDaemonService } from "./phases/phaseDaemonService.js";
+import { PhaseManualRunPoller } from "./phases/phaseManualRunPoller.js";
 import { IngestRawMessageHandler } from "./handlers/ingestRawMessageHandler.js";
 import { ParseRawMessageHandler } from "./handlers/parseRawMessageHandler.js";
 import {
@@ -159,6 +160,7 @@ export async function createWorkerCompositionRoot(
   let backfillDaemon: BackfillDaemonService | undefined;
   let mapStateExpiryDaemon: MapStateExpiryDaemon | undefined;
   let phaseDaemon: PhaseDaemonService | undefined;
+  let phaseManualRunPoller: PhaseManualRunPoller | undefined;
   let phaseRunner: PhaseRunner | undefined;
   let coverageEnqueuer: CoverageEnqueuer | undefined;
   let parseWorkerPool: ParseWorkerPool | undefined;
@@ -235,6 +237,7 @@ export async function createWorkerCompositionRoot(
     shutdown = async () => {
       outboxRelay?.stop();
       mapStateExpiryDaemon?.stop();
+      phaseManualRunPoller?.stop();
       phaseDaemon?.stop();
       await backfillDaemon?.stop();
       await parseWorkerPool?.shutdown();
@@ -292,7 +295,6 @@ export async function createWorkerCompositionRoot(
       validation,
       placeCache,
       events: bus,
-      parseWorkerPool,
     });
     coverageEnqueuer = new CoverageEnqueuer(
       workerRepos.phaseCoverage,
@@ -310,6 +312,12 @@ export async function createWorkerCompositionRoot(
     if (PhaseDaemonService.enabled() && options.startPhaseDaemon !== false) {
       phaseDaemon = new PhaseDaemonService(workerRepos.phaseDefinitions, phaseRunner);
       phaseDaemon.start();
+      phaseManualRunPoller = new PhaseManualRunPoller(
+        workerRepos.phaseDefinitions,
+        workerRepos.phaseRuns,
+        phaseRunner,
+      );
+      phaseManualRunPoller.start();
     }
   } else {
     bus.subscribe(

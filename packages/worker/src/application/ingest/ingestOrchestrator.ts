@@ -166,6 +166,8 @@ export class IngestOrchestrator {
     toPostedAt?: string;
     fromExternalId?: string;
     toExternalId?: string;
+    /** После каждого сообщения в чанке (CLI progress). */
+    onIngest?: (result: { inserted: boolean }) => void;
   }): Promise<{ inserted: number; duplicates: number }> {
     const provider = await this.providers.findById(input.providerId);
     if (!provider) throw new Error(`Provider not found: ${input.providerId}`);
@@ -203,7 +205,9 @@ export class IngestOrchestrator {
 
       const sink = async (normalized: IngestNormalizedMessage) => {
         const { raw, extension } = ingestNormalizedToRaw(normalized, "backfill");
-        return await this.ingestHandler.handle(raw, extension);
+        const result = await this.ingestHandler.handle(raw, extension);
+        input.onIngest?.(result);
+        return result;
       };
 
       totals = await adapter.fetchHistoryBatch(

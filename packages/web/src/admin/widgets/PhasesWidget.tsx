@@ -65,6 +65,11 @@ export function PhasesWidget() {
     <Panel title="Фазы обогащения">
       {error && <p style={{ color: "var(--status-error)" }}>{error}</p>}
 
+      <p style={{ fontSize: 10, color: "var(--text-muted)", margin: "0 0 6px", lineHeight: 1.35 }}>
+        ВКЛ/ВЫКЛ — <code>phase_definitions.enabled</code>. p/d/f — coverage. Run: enqueue всех
+        не-done + manual run; <code>worker:dev</code> гонит батчами до пустой claimable-очереди.
+        Scheduled (llm) — новый тик по interval, тоже по batchSize.
+      </p>
       <h4 style={{ fontSize: 11, color: "var(--text-muted)", margin: "8px 0 4px" }}>
         Фазы · {phases.length}
         {overview ? ` · активных runs: ${overview.runningCount}` : ""}
@@ -81,10 +86,22 @@ export function PhasesWidget() {
                   p:{cov.pending} d:{cov.done} f:{cov.failed}
                 </span>
               )}
-              <Button variant="ghost" onClick={() => void toggle(phase)}>
-                {phase.enabled ? "вкл" : "выкл"}
+              <Button
+                variant={phase.enabled ? "primary" : "ghost"}
+                title={
+                  phase.enabled
+                    ? "Фаза включена — нажмите, чтобы выключить"
+                    : "Фаза выключена — нажмите, чтобы включить"
+                }
+                onClick={() => void toggle(phase)}
+              >
+                {phase.enabled ? "ВКЛ" : "ВЫКЛ"}
               </Button>
-              <Button variant="primary" onClick={() => void runPhase(phase.id)}>
+              <Button
+                variant="ghost"
+                title="Ручной запуск (enqueue + phase_run; исполняет worker)"
+                onClick={() => void runPhase(phase.id)}
+              >
                 Run
               </Button>
             </li>

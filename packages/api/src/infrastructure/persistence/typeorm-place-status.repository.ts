@@ -3,6 +3,11 @@ import type {
   IPlaceStatusRepository,
   PlaceStatusActiveRecord,
 } from "@radar/shared";
+import {
+  PLACE_STATUS_EVENT_AT_META_KEY,
+  isStaleStatusEvent,
+  readPlaceStatusEventAt,
+} from "@radar/shared";
 import type { DataSource } from "typeorm";
 import { LessThan } from "typeorm";
 import {
@@ -18,9 +23,17 @@ async upsertActive(input: PlaceStatusActiveRecord): Promise<void> {
       where: { placeId: input.placeId, statusCode: input.statusCode },
     });
     if (existing) {
+      const incomingEventAt = readPlaceStatusEventAt(input.meta) ?? input.startedAt;
+      if (isStaleStatusEvent(incomingEventAt, readPlaceStatusEventAt(existing.meta))) {
+        return;
+      }
       existing.source = input.source;
       existing.updatedAt = new Date(input.updatedAt);
-      existing.meta = input.meta ?? {};
+      existing.meta = {
+        ...existing.meta,
+        ...input.meta,
+        [PLACE_STATUS_EVENT_AT_META_KEY]: incomingEventAt,
+      };
       if (!existing.startedAt) {
         existing.startedAt = new Date(input.startedAt);
       }
@@ -46,6 +59,7 @@ async upsertActive(input: PlaceStatusActiveRecord): Promise<void> {
       meta: input.meta,
     });
   }
+
   async deactivate(
     placeId: string,
     statusCode: string,

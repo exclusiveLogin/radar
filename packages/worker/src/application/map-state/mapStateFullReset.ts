@@ -68,6 +68,7 @@ export class MapStateFullReset {
         activity: 0,
         reason,
         updatedAt: atIso,
+        statusEventAt: null,
       });
       await this.deps.regionState.appendHistory({
         regionId: region.id,

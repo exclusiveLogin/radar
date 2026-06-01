@@ -25,6 +25,7 @@ export class TypeOrmRegionStateRepository implements IRegionStateRepository {
         activity: input.activity,
         reason: input.reason ?? null,
         updatedAt: new Date(input.updatedAt),
+        statusEventAt: input.statusEventAt ? new Date(input.statusEventAt) : null,
       }),
     );
   }
@@ -85,6 +86,7 @@ export class TypeOrmRegionStateRepository implements IRegionStateRepository {
       activity: row.activity,
       reason: row.reason ?? undefined,
       updatedAt: row.updatedAt.toISOString(),
+      statusEventAt: row.statusEventAt?.toISOString() ?? null,
     };
   }
 }

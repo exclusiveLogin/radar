@@ -63,7 +63,7 @@ export class TypeOrmPhaseCoverageRepository implements IPhaseCoverageRepository 
       prerequisitePhaseIds.length > 0
         ? `AND NOT EXISTS (
              SELECT 1 FROM phase_coverage prereq
-             WHERE prereq.raw_message_id = phase_coverage.raw_message_id
+             WHERE prereq.raw_message_id = pc.raw_message_id
                AND prereq.phase_id = ANY($3::text[])
                AND prereq.status <> 'done'
            )`
@@ -77,10 +77,11 @@ export class TypeOrmPhaseCoverageRepository implements IPhaseCoverageRepository 
       await this.dataSource.query(
         `UPDATE phase_coverage SET status = 'processing', updated_at = now()
        WHERE id IN (
-         SELECT id FROM phase_coverage
-         WHERE status = 'pending' AND phase_id = $1
+         SELECT pc.id FROM phase_coverage pc
+         INNER JOIN raw_messages rm ON rm.id = pc.raw_message_id
+         WHERE pc.status = 'pending' AND pc.phase_id = $1
          ${prereq}
-         ORDER BY created_at ASC
+         ORDER BY rm.posted_at ASC, pc.created_at ASC
          LIMIT $2
          FOR UPDATE SKIP LOCKED
        )

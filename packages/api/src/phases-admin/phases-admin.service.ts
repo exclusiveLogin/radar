@@ -100,7 +100,7 @@ export class PhasesAdminService {
     return { ...run, logTail: this.runs.logTail(run) };
   }
 
-  /** Manual run: создаёт phase_run; исполнение — воркером/CLI (pending для daemon). */
+  /** Manual run: enqueue всех не-done + drain батчами в воркере (PhaseManualRunPoller). */
   async startRun(phaseId: string, body: unknown): Promise<PhaseRun> {
     const phase = await this.getPhase(phaseId);
     const scope = manualRunScopeSchema.safeParse(body ?? {});
@@ -137,7 +137,7 @@ export class PhasesAdminService {
       throw new BadRequestException("run is not paused");
     }
     await this.runs.clearControl(run.id);
-    await this.runs.updateStatus(run.id, "running");
+    await this.runs.updateStatus(run.id, "pending");
     return { ok: true };
   }
 

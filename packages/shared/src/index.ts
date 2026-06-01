@@ -138,6 +138,11 @@ export { InProcessEventBus } from "./events/inProcessEventBus";
 export { mergePlaceContribution, monotonicTrustState } from "./ports/placeContributionMerge";
 export { mergeContribution } from "./domain/mergeContribution";
 export type { ProvenanceAccumulator } from "./domain/mergeContribution";
+export {
+  isStaleStatusEvent,
+  PLACE_STATUS_EVENT_AT_META_KEY,
+  readPlaceStatusEventAt,
+} from "./domain/region-state/statusEventOrdering";
 export { ingestMessageHash } from "./domain/ingestMessageHash";
 export type { RawMessageHashInput } from "./domain/ingestMessageHash";
 export {

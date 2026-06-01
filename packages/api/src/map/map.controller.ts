@@ -40,7 +40,7 @@ export class MapController {
     });
   }
 
-  /** Тяжёлый GeoJSON-слой полигонов субъектов (только активные stateLevel ≠ grey). */
+  /** GeoJSON контуров субъектов РФ (включая stateLevel grey). */
   @Get("map/regions-geojson")
   async regionsGeoJson() {
     return await this.map.getRegionsGeoJsonLayer();

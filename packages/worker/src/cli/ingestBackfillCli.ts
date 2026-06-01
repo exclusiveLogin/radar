@@ -54,6 +54,16 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
+  let totalInserted = 0;
+  let totalDuplicates = 0;
+  const progress = createProgress("backfill", 0);
+
+  const onIngest = (result: { inserted: boolean }): void => {
+    if (result.inserted) totalInserted += 1;
+    else totalDuplicates += 1;
+    progress.tick(1, { inserted: totalInserted, dups: totalDuplicates });
+  };
+
   try {
     if (allBindings) {
       const db = await createWorkerDbRepositories(runtime.dataSource);
@@ -63,22 +73,16 @@ async function main(): Promise<void> {
         return;
       }
 
-      let totalInserted = 0;
-      let totalDuplicates = 0;
-      const progress = createProgress("backfill", bindings.length);
-
       for (const binding of bindings) {
-        const stats = await runtime.ingestOrchestrator.runBackfillChunk({
+        await runtime.ingestOrchestrator.runBackfillChunk({
           providerId: binding.providerId,
           bindingId: binding.id,
           ...range,
+          onIngest,
         });
-        totalInserted += stats.inserted;
-        totalDuplicates += stats.duplicates;
-        progress.tick(1, { inserted: totalInserted, dups: totalDuplicates });
       }
-      progress.stop();
 
+      progress.stop();
       console.log("Backfill all:", {
         bindings: bindings.length,
         inserted: totalInserted,
@@ -91,7 +95,9 @@ async function main(): Promise<void> {
       providerId: providerId!,
       bindingId: bindingId!,
       ...range,
+      onIngest,
     });
+    progress.stop();
     console.log("Backfill chunk:", stats);
   } finally {
     await runtime.shutdown?.();

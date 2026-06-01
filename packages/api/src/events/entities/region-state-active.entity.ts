@@ -29,4 +29,8 @@ export class RegionStateActiveEntity {
 
   @Column({ name: "updated_at", type: "timestamptz", default: () => "now()" })
   updatedAt!: Date;
+
+  /** postedAt raw-сообщения, установившего текущий операционный срез. */
+  @Column({ name: "status_event_at", type: "timestamptz", nullable: true })
+  statusEventAt!: Date | null;
 }

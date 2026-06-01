@@ -245,6 +245,8 @@ npm run worker:reparse:raw                 # invalidate + ingest-поток (н�
 | `[api] EBUSY` при `npm run dev` | остановить все `node`/dev; удалить `packages/api/dist`; репо в OneDrive — пауза синхронизации или вынести клон из OneDrive; `nest-cli` без `deleteOutDir` |
 | CLI прогресс «листает» строки | `ParseAttemptLogger` больше не пишет в stdout при баре; подробности: `RADAR_VERBOSE_PARSE_LOG=1` → stderr |
 
+**CLI с live-progress (`cli-progress`):** `reset:pipeline` — нет; `reparse:raw`, `phase:run`, `ingest:backfill` (по сообщениям), `parse:score/ab`, `golden` — да. Лаборатория `parse:snap/report` — без бара. **Админ-логи parse** — из БД `parse_attempts` (не из stdout CLI).
+
 ```powershell
 # EBUSY: освободить dist перед повторным dev
 Get-Process node -ErrorAction SilentlyContinue | Stop-Process -Force

@@ -122,6 +122,8 @@ export type RegionStateActiveRecord = {
   activity: number;
   reason?: string;
   updatedAt: string;
+  /** postedAt сообщения, выставившего текущий stateLevel/selfLevel. */
+  statusEventAt?: string | null;
 };
 
 export type PlaceEvidenceRecord = {

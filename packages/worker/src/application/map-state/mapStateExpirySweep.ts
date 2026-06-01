@@ -88,6 +88,7 @@ export class MapStateExpirySweep {
         activity: state.activityByIso.get(iso) ?? 0,
         reason: expiredIso.has(iso) ? ttlReason : effective.reason,
         updatedAt: atIso,
+        statusEventAt: effective.level === "grey" ? null : atIso,
       });
       await this.deps.regionState.appendHistory({
         regionId: region.id,

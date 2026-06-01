@@ -30,6 +30,11 @@ const REGIONS_OUTLINE = "regions-outline";
 const PLACES_SOURCE = "places";
 const PLACES_LAYER = "places-circles";
 
+/** Place-слой выше fill региона — при hover на точку не показываем тултип области. */
+function hasPlaceAtPointer(map: MapLibreMap, point: { x: number; y: number }): boolean {
+  return map.queryRenderedFeatures(point, { layers: [PLACES_LAYER] }).length > 0;
+}
+
 type PointFeature = {
   type: "Feature";
   geometry: { type: "Point"; coordinates: [number, number] };
@@ -49,7 +54,7 @@ type GeoJsonCollection = {
 };
 
 /**
- * Контуры регионов: только активные (≠ grey), цвет по stateLevel.
+ * Контуры регионов: все уровни, включая grey; цвет по stateLevel из снапшота.
  * Базовая геометрия загружается один раз; при WS меняются только properties.
  */
 function paintRegionOutlines(
@@ -58,23 +63,20 @@ function paintRegionOutlines(
 ): GeoJsonCollection {
   return {
     type: "FeatureCollection",
-    features: base.features.flatMap((feature): PolygonFeature[] => {
+    features: base.features.map((feature): PolygonFeature => {
       const code = String(feature.properties.regionCode ?? "");
       const region = regions.get(code);
       const stateLevel = (region?.stateLevel ?? "grey") as StateLevel;
-      if (stateLevel === "grey") return [];
-      return [
-        {
-          ...feature,
-          properties: {
-            ...feature.properties,
-            regionCode: code,
-            stateLevel,
-            color: LEVEL_COLORS[stateLevel],
-            kind: "region",
-          },
+      return {
+        ...feature,
+        properties: {
+          ...feature.properties,
+          regionCode: code,
+          stateLevel,
+          color: LEVEL_COLORS[stateLevel],
+          kind: "region",
         },
-      ];
+      };
     }),
   };
 }
@@ -95,25 +97,30 @@ function paintRegionInsetOutlines(
   };
 }
 
-/** Точки places (отдельный слой, без дублирования с регионами). */
-function placesToFeatures(places: Map<string, MapPlaceSnapshot>): PointFeature[] {
-  return [...places.values()].map((place) => ({
-    type: "Feature" as const,
-    geometry: {
-      type: "Point" as const,
-      coordinates: [place.lon, place.lat],
-    },
-    properties: {
-      kind: "place",
-      placeId: place.placeId,
-      placeName: place.placeName,
-      regionCode: place.regionCode,
-      statusCode: place.statusCode,
-      stateLabel: LEVEL_LABELS[place.stateLevel],
-      color: LEVEL_COLORS[place.stateLevel],
-      radius: 9,
-    },
-  }));
+/** Точки places: не показываем в регионах без оперативного уровня (grey). */
+function placesToFeatures(
+  places: Map<string, MapPlaceSnapshot>,
+  regions: Map<string, MapRegionSnapshot>,
+): PointFeature[] {
+  return [...places.values()]
+    .filter((place) => regions.get(place.regionCode)?.stateLevel !== "grey")
+    .map((place) => ({
+      type: "Feature" as const,
+      geometry: {
+        type: "Point" as const,
+        coordinates: [place.lon, place.lat],
+      },
+      properties: {
+        kind: "place",
+        placeId: place.placeId,
+        placeName: place.placeName,
+        regionCode: place.regionCode,
+        statusCode: place.statusCode,
+        stateLabel: LEVEL_LABELS[place.stateLevel],
+        color: LEVEL_COLORS[place.stateLevel],
+        radius: 9,
+      },
+    }));
 }
 
 /** Выполняет fn, когда стиль MapLibre готов (иначе setData теряется). */
@@ -128,8 +135,14 @@ function whenStyleReady(
   map.once("load", fn);
 }
 
-function placesCollection(places: Map<string, MapPlaceSnapshot>) {
-  return { type: "FeatureCollection" as const, features: placesToFeatures(places) };
+function placesCollection(
+  places: Map<string, MapPlaceSnapshot>,
+  regions: Map<string, MapRegionSnapshot>,
+) {
+  return {
+    type: "FeatureCollection" as const,
+    features: placesToFeatures(places, regions),
+  };
 }
 
 function fitMapView(
@@ -191,17 +204,9 @@ export function GeoMapWidget(_props: WidgetProps) {
     let disposed = false;
     let unsubRegions: Subscription | undefined;
     let unsubPlaces: Subscription | undefined;
-    let lastActiveCodes = "";
     let geoReloadTimer: ReturnType<typeof setTimeout> | undefined;
     let placePopup: Popup | null = null;
     let regionPopup: Popup | null = null;
-
-    const activeRegionCodes = (): string =>
-      [...regionsByCode$.value.values()]
-        .filter((region) => region.stateLevel !== "grey")
-        .map((region) => region.regionCode)
-        .sort()
-        .join(",");
 
     const fitIfNeeded = (
       regionFeatures: PolygonFeature[],
@@ -236,7 +241,10 @@ export function GeoMapWidget(_props: WidgetProps) {
           | GeoJSONSource
           | undefined;
         outlineSource?.setData(paintRegionInsetOutlines(painted) as never);
-        const placeFeatures = placesToFeatures(placesById$.value);
+        const placeFeatures = placesToFeatures(
+          placesById$.value,
+          regionsByCode$.value,
+        );
         fitIfNeeded(painted.features, placeFeatures);
       });
     };
@@ -245,7 +253,10 @@ export function GeoMapWidget(_props: WidgetProps) {
       if (!map) return;
       whenStyleReady(map, () => {
         if (!map) return;
-        const collection = placesCollection(placesById$.value);
+        const collection = placesCollection(
+          placesById$.value,
+          regionsByCode$.value,
+        );
         setPlaceCount(collection.features.length);
         lastPlaceFeaturesRef.current = collection.features.length;
         const source = map.getSource(PLACES_SOURCE) as
@@ -279,18 +290,12 @@ export function GeoMapWidget(_props: WidgetProps) {
         });
     };
 
-    const scheduleGeometryReload = (): void => {
+    const scheduleMapRefresh = (): void => {
       clearTimeout(geoReloadTimer);
       geoReloadTimer = setTimeout(() => {
-        const codes = activeRegionCodes();
-        if (codes === lastActiveCodes && baseRegionsRef.current) {
+        if (baseRegionsRef.current) {
           applyRegions();
-          return;
-        }
-        lastActiveCodes = codes;
-        if (!codes) {
-          baseRegionsRef.current = { type: "FeatureCollection", features: [] };
-          applyRegions();
+          applyPlaces();
           return;
         }
         loadRegionGeometry();
@@ -345,7 +350,7 @@ export function GeoMapWidget(_props: WidgetProps) {
 
         map.addSource(PLACES_SOURCE, {
           type: "geojson",
-          data: placesCollection(new Map()),
+          data: placesCollection(new Map(), new Map()),
         });
         map.addLayer({
           id: PLACES_LAYER,
@@ -372,6 +377,8 @@ export function GeoMapWidget(_props: WidgetProps) {
 
         const onPlaceHover = (event: MapLayerMouseEvent): void => {
           if (!map) return;
+          regionPopup?.remove();
+          regionPopup = null;
           map.getCanvas().style.cursor = "pointer";
           const props = event.features?.[0]?.properties;
           const name = props?.placeName;
@@ -408,6 +415,11 @@ export function GeoMapWidget(_props: WidgetProps) {
 
         const onRegionHover = (event: MapLayerMouseEvent): void => {
           if (!map) return;
+          if (hasPlaceAtPointer(map, event.point)) {
+            regionPopup?.remove();
+            regionPopup = null;
+            return;
+          }
           map.getCanvas().style.cursor = "pointer";
           const code = event.features?.[0]?.properties?.regionCode;
           if (typeof code !== "string" || !code) return;
@@ -441,15 +453,15 @@ export function GeoMapWidget(_props: WidgetProps) {
         map.on("click", REGIONS_OUTLINE, onPick);
         map.on("click", PLACES_LAYER, onPick);
         map.on("mouseenter", PLACES_LAYER, onPlaceHover);
+        map.on("mousemove", PLACES_LAYER, onPlaceHover);
         map.on("mouseleave", PLACES_LAYER, onPlaceHoverEnd);
         map.on("mousemove", REGIONS_FILL, onRegionHover);
         map.on("mouseleave", REGIONS_FILL, onRegionHoverEnd);
 
-        lastActiveCodes = activeRegionCodes();
         loadRegionGeometry();
         applyPlaces();
 
-        unsubRegions = regionsByCode$.subscribe(() => scheduleGeometryReload());
+        unsubRegions = regionsByCode$.subscribe(() => scheduleMapRefresh());
         unsubPlaces = placesById$.subscribe(() => applyPlaces());
 
         // Снапшот мог прийти до mount виджета — повторно кладём точки на карту.

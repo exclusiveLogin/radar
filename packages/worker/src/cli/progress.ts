@@ -67,9 +67,12 @@ export function createProgress(label: string, total: number): ProgressHandle {
     };
   }
 
+  const indeterminate = total <= 0;
   const bar = new SingleBar(
     {
-      format: `${label} [{bar}] {percentage}% | {value}/{total} | ETA {eta_formatted}{countersText}`,
+      format: indeterminate
+        ? `${label} | {value} шаг.{countersText}`
+        : `${label} [{bar}] {percentage}% | {value}/{total} | ETA {eta_formatted}{countersText}`,
       hideCursor: true,
       clearOnComplete: true,
       forceRedraw: process.platform === "win32",
@@ -77,7 +80,7 @@ export function createProgress(label: string, total: number): ProgressHandle {
     },
     Presets.shades_classic,
   );
-  bar.start(total, 0, { countersText: "" });
+  bar.start(indeterminate ? 1 : total, 0, { countersText: "" });
   setCliProgressActive(true);
 
   return {
@@ -91,7 +94,9 @@ export function createProgress(label: string, total: number): ProgressHandle {
       bar.update(value, { countersText: formatCounters(counters) });
     },
     stop() {
-      bar.update(total, { countersText: formatCounters(counters) });
+      if (!indeterminate) {
+        bar.update(total, { countersText: formatCounters(counters) });
+      }
       bar.stop();
       setCliProgressActive(false);
     },

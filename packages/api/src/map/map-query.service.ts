@@ -55,8 +55,10 @@ export class MapQueryService {
       stateByIso.set(row.regionCode, row.stateLevel as StateLevel);
     }
 
-    // Только активные (≠ grey): ~300 KB вместо ~44 MB — иначе браузер не загружает слой.
-    return RegionGeometryCatalog.getInstance().buildLayer(stateByIso);
+    // Все субъекты РФ: grey — контур на карте; places для grey не отдаём в snapshot.
+    return RegionGeometryCatalog.getInstance().buildLayer(stateByIso, {
+      includeGrey: true,
+    });
   }
 
   /** Привязка файлов OSM к ISO регионов БД (один раз за процесс). */
