@@ -1,3 +1,15 @@
+/** Событие старше окна TTL карты — не меняем проекцию (reparse не воскрешает отбой). */
+export function isMapEventOlderThanTtl(
+  eventAtIso: string,
+  referenceMs: number,
+  ttlMs: number,
+): boolean {
+  if (ttlMs <= 0) return false;
+  const eventMs = Date.parse(eventAtIso);
+  if (!Number.isFinite(eventMs)) return false;
+  return referenceMs - eventMs > ttlMs;
+}
+
 /** postedAt последнего принятого события, выставившего текущий статус. */
 export function isStaleStatusEvent(
   incomingEventAt: string,

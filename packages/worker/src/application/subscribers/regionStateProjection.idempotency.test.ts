@@ -95,6 +95,7 @@ test("ре-эмит MessageParsed идемпотентен: один place_statu
     statusDictionary: fakeStatusDictionary("red"),
     regions: fakeRegions(),
     adjacency: {},
+    mapStateTtlMs: 0,
   });
 
   const event = buildParsedEvent();

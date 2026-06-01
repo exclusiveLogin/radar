@@ -1,6 +1,31 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { isStaleStatusEvent } from "./statusEventOrdering.js";
+import {
+  isMapEventOlderThanTtl,
+  isStaleStatusEvent,
+} from "./statusEventOrdering.js";
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+test("isMapEventOlderThanTtl: старше окна — true", () => {
+  const ref = Date.parse("2026-06-02T12:00:00.000Z");
+  assert.equal(
+    isMapEventOlderThanTtl("2026-05-31T12:00:00.000Z", ref, DAY_MS),
+    true,
+  );
+});
+
+test("isMapEventOlderThanTtl: внутри окна — false", () => {
+  const ref = Date.parse("2026-06-02T12:00:00.000Z");
+  assert.equal(
+    isMapEventOlderThanTtl("2026-06-02T10:00:00.000Z", ref, DAY_MS),
+    false,
+  );
+});
+
+test("isMapEventOlderThanTtl: ttlMs<=0 — всегда false", () => {
+  assert.equal(isMapEventOlderThanTtl("2020-01-01T00:00:00.000Z", Date.now(), 0), false);
+});
 
 test("isStaleStatusEvent: старее текущего — stale", () => {
   assert.equal(

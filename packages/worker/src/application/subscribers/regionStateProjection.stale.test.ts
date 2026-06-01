@@ -87,6 +87,7 @@ test("устаревшее событие не перебивает более �
     statusDictionary: fakeStatusDictionary(),
     regions: fakeRegions(),
     adjacency: {},
+    mapStateTtlMs: 0,
   });
 
   await projection.handler(buildEvent("2026-06-01T10:00:00.000Z", "alarm_threat"));
@@ -98,4 +99,27 @@ test("устаревшее событие не перебивает более �
   await projection.handler(buildEvent("2026-06-01T08:00:00.000Z", "alarm_threat"));
   assert.equal(regionState.active.get("RU-A")?.stateLevel, "green");
   assert.equal(regionState.history.length, 2);
+});
+
+test("событие старше окна TTL карты не меняет проекцию (reparse)", async () => {
+  const regionState = fakeRegionState();
+  const dayMs = 24 * 60 * 60 * 1000;
+  const projection = new RegionStateProjection({
+    regionState: regionState.repo,
+    placeStatus: fakePlaceStatus().repo,
+    statusDictionary: fakeStatusDictionary(),
+    regions: fakeRegions(),
+    adjacency: {},
+    mapStateTtlMs: dayMs,
+  });
+
+  const recent = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+  const ancient = new Date(Date.now() - 2 * dayMs).toISOString();
+
+  await projection.handler(buildEvent(recent, "all_clear"));
+  assert.equal(regionState.active.get("RU-A")?.stateLevel, "green");
+
+  await projection.handler(buildEvent(ancient, "alarm_threat"));
+  assert.equal(regionState.active.get("RU-A")?.stateLevel, "green");
+  assert.equal(regionState.history.length, 1);
 });

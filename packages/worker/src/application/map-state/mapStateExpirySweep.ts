@@ -79,7 +79,13 @@ export class MapStateExpirySweep {
       );
       const effective = computeEffectiveLevel(selfLevel, neighborLevels);
       const previous = state.effectiveByIso.get(iso) ?? "grey";
-      if (effective.level === previous) continue;
+      const ttlCleared = expiredIso.has(iso);
+      if (effective.level === previous && !ttlCleared) continue;
+
+      const statusEventAt =
+        effective.level === "grey"
+          ? null
+          : state.statusEventAtByIso.get(iso) ?? null;
 
       await this.deps.regionState.upsert({
         regionId: region.id,
@@ -87,9 +93,9 @@ export class MapStateExpirySweep {
         stateLevel: effective.level,
         selfLevel,
         activity: state.activityByIso.get(iso) ?? 0,
-        reason: expiredIso.has(iso) ? ttlReason : effective.reason,
+        reason: ttlCleared ? ttlReason : effective.reason,
         updatedAt: atIso,
-        statusEventAt: effective.level === "grey" ? null : atIso,
+        statusEventAt,
       });
       await this.deps.regionState.appendHistory({
         regionId: region.id,
@@ -121,17 +127,22 @@ export class MapStateExpirySweep {
     selfByIso: Map<string, StateLevel>;
     effectiveByIso: Map<string, StateLevel>;
     activityByIso: Map<string, number>;
+    statusEventAtByIso: Map<string, string>;
   }> {
     const rows = await this.deps.regionState.listAll();
     const selfByIso = new Map<string, StateLevel>();
     const effectiveByIso = new Map<string, StateLevel>();
     const activityByIso = new Map<string, number>();
+    const statusEventAtByIso = new Map<string, string>();
     for (const row of rows) {
       selfByIso.set(row.regionCode, row.selfLevel);
       effectiveByIso.set(row.regionCode, row.stateLevel);
       activityByIso.set(row.regionCode, row.activity);
+      if (row.statusEventAt) {
+        statusEventAtByIso.set(row.regionCode, row.statusEventAt);
+      }
     }
-    return { selfByIso, effectiveByIso, activityByIso };
+    return { selfByIso, effectiveByIso, activityByIso, statusEventAtByIso };
   }
 
   private expandWithNeighbors(affectedIso: Set<string>): Set<string> {

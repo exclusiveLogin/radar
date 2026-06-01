@@ -15,6 +15,7 @@ import type {
 import {
   PLACE_STATUS_EVENT_AT_META_KEY,
   SOURCE_TRUST,
+  isMapEventOlderThanTtl,
   isStaleStatusEvent,
   mergeContribution,
   readPlaceStatusEventAt,
@@ -49,6 +50,8 @@ type ProjectionDeps = {
   regions: IRegionRepository;
   /** Смежность регионов по ISO (data/geo/dictionaries/adjacency.json). */
   adjacency: Record<string, string[]>;
+  /** Окно TTL карты (мс): события старше — не применяем. */
+  mapStateTtlMs: number;
 };
 
 /**
@@ -78,6 +81,11 @@ export class RegionStateProjection {
     );
     const incoming = this.levelOf(statusCode);
     const messageAt = payload.postedAt ?? event.occurredAt;
+    if (
+      isMapEventOlderThanTtl(messageAt, Date.now(), this.deps.mapStateTtlMs)
+    ) {
+      return;
+    }
     /** Время записи в БД — для WS-поллеров (не postedAt сообщения из бэкфилла). */
     const recordedAt = new Date().toISOString();
 

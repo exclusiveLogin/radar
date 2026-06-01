@@ -168,7 +168,7 @@ ORDER BY rm.posted_at DESC LIMIT 10;
 | Bootstrap golden set | `npm run parse:golden:bootstrap -- --input tests` |
 | Скоринг по golden | `npm run parse:score -- --input tests` |
 
-**TTL:** `RADAR_MAP_STATE_TTL_HOURS` (default 24), от `status_event_at` / `meta.statusEventAt` (не `updated_at`), daemon в worker db mode.
+**TTL:** `RADAR_MAP_STATE_TTL_HOURS` (default 24), sweep по `status_event_at` / `meta.statusEventAt` (не `updated_at`); проекция **не применяет** `MessageParsed` с `postedAt` старше окна (reparse не воскрешает отбой). Daemon в worker db mode.
 
 ---
 
@@ -220,7 +220,7 @@ npm run worker:reparse:raw                 # invalidate + ingest-поток (н�
 |--------|------|--------|
 | Гео-карта | фон | MapLibre + WS |
 | Обзор (KPI + donut) | left | `regionsByCode$` |
-| Схема | left | layout.json |
+| Схема | left | `layout.json` — все 89 субъектов РФ (+ Крым, Севастополь, ДНР/ЛНР/Запорожье/Херсон); `npm run geo:layout:build` |
 | Активные угрозы | right | active region/place |
 | Лента изменений | right | `region_state_history` |
 | **Сообщения** | right | `GET /api/map/messages/recent` |

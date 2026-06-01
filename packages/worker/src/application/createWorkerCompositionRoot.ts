@@ -214,6 +214,7 @@ export async function createWorkerCompositionRoot(
       statusDictionary: repos.statusDictionary,
       regions: repos.regions,
       adjacency: loadRegionAdjacency(),
+      mapStateTtlMs: resolveMapStateTtlMs(),
     });
     bus.subscribe("MessageParsed", regionStateProjection.handler);
 

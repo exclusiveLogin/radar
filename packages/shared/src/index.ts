@@ -142,6 +142,7 @@ export { mergeContribution } from "./domain/mergeContribution";
 export type { ProvenanceAccumulator } from "./domain/mergeContribution";
 export {
   isStaleStatusEvent,
+  isMapEventOlderThanTtl,
   PLACE_STATUS_EVENT_AT_META_KEY,
   readPlaceStatusEventAt,
 } from "./domain/region-state/statusEventOrdering";
