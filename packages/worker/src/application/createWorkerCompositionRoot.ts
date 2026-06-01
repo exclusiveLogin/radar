@@ -105,6 +105,11 @@ export type WorkerCompositionOptions = {
   pipelineOrder?: PipelineStepId[];
   /** Поверх `loadLlmRuntimeConfig()` (например `enabled: true` при `--enrich-llm`). */
   llmRuntimeOverride?: Partial<LlmRuntimeConfig>;
+  /**
+   * PhaseDaemon (scheduled-фазы). Для one-shot CLI (reparse, phase:run) — false:
+   * догон идёт в отдельном `worker:dev`.
+   */
+  startPhaseDaemon?: boolean;
 };
 
 /** Дешёвый детерминированный синхронный путь: только каталог, без внешних провайдеров. */
@@ -302,7 +307,7 @@ export async function createWorkerCompositionRoot(
         runner: phaseRunner,
       }),
     );
-    if (PhaseDaemonService.enabled()) {
+    if (PhaseDaemonService.enabled() && options.startPhaseDaemon !== false) {
       phaseDaemon = new PhaseDaemonService(workerRepos.phaseDefinitions, phaseRunner);
       phaseDaemon.start();
     }

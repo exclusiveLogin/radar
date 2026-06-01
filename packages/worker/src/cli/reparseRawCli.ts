@@ -14,6 +14,7 @@ async function main(): Promise<void> {
   loadRootEnv(MONOREPO_ROOT);
   const runtime = await createWorkerCompositionRoot({
     storageMode: WorkerStorageMode.Db,
+    startPhaseDaemon: false,
   });
 
   if (!runtime.dataSource || !runtime.phaseRunner || !runtime.workerRepos || !runtime.coverageEnqueuer) {
@@ -48,13 +49,19 @@ async function main(): Promise<void> {
       enqueuer: runtime.coverageEnqueuer,
       runner: runtime.phaseRunner,
     },
-    onMessage: () => progress.tick(1),
+    onMessage: () => {
+      const snap = runtime.metricsAggregator.snapshot();
+      progress.tick(1, {
+        ok: snap.MessageParsed ?? 0,
+        failed: snap.MessageParseFailed ?? 0,
+      });
+    },
   });
   progress.stop();
 
   console.log(
     `Reparse done: messages=${result.messages}, coverageInvalidated=${result.phasesInvalidated}. ` +
-      "Scheduled-фазы догонит PhaseDaemon (после done eager по order).",
+      "Scheduled-фазы догонит PhaseDaemon в worker:dev (после done catalog по order).",
   );
   await runtime.shutdown?.();
 }

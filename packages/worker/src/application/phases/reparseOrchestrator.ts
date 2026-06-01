@@ -2,12 +2,10 @@ import type { DataSource } from "typeorm";
 import type { WorkerDbRepositories } from "../../infrastructure/persistence/workerDbRepos.types.js";
 import type { PhaseIngestFlowDeps } from "./phaseIngestFlow.js";
 import { runPostIngestPhaseFlow } from "./phaseIngestFlow.js";
+import { clearParsedArtifacts } from "./pipelineOperationalReset.js";
 import { sortPhasesByOrder } from "./phaseOrder.js";
 
-/** Сброс результатов парсинга перед полным reparse (накопитель пересоберётся через фазы). */
-export async function clearParsedArtifacts(dataSource: DataSource): Promise<void> {
-  await dataSource.query(`DELETE FROM parsed_events`);
-}
+export { clearParsedArtifacts } from "./pipelineOperationalReset.js";
 
 export type FullReparseInput = {
   dataSource: DataSource;

@@ -20,7 +20,9 @@ function resolvePollMs(): number {
  */
 export class PhaseDaemonService {
   private timers = new Map<string, ReturnType<typeof setInterval>>();
+  private scheduleRefreshTimer: ReturnType<typeof setInterval> | null = null;
   private running = new Set<string>();
+  private stopped = false;
 
   constructor(
     private readonly phases: IPhaseDefinitionRepository,
@@ -32,17 +34,27 @@ export class PhaseDaemonService {
   }
 
   start(): void {
+    this.stopped = false;
     void this.refreshSchedules();
-    setInterval(() => void this.refreshSchedules(), resolvePollMs());
+    this.scheduleRefreshTimer = setInterval(
+      () => void this.refreshSchedules(),
+      resolvePollMs(),
+    );
   }
 
   stop(): void {
+    this.stopped = true;
+    if (this.scheduleRefreshTimer) {
+      clearInterval(this.scheduleRefreshTimer);
+      this.scheduleRefreshTimer = null;
+    }
     for (const timer of this.timers.values()) clearInterval(timer);
     this.timers.clear();
     this.running.clear();
   }
 
   private async refreshSchedules(): Promise<void> {
+    if (this.stopped) return;
     const scheduled = sortPhasesByOrder(await this.phases.listEnabled("scheduled"));
     const ids = new Set(scheduled.map((p) => p.id));
 
@@ -62,7 +74,7 @@ export class PhaseDaemonService {
   }
 
   private async tickPhase(phase: PhaseDefinitionRecord): Promise<void> {
-    if (this.running.has(phase.id)) return;
+    if (this.stopped || this.running.has(phase.id)) return;
     this.running.add(phase.id);
     try {
       await this.runner.runPhaseTick({

@@ -16,8 +16,6 @@ export type MapStateFullResetResult = {
   regionsGrey: number;
 };
 
-const RESET_REASON = "reparse:full-reset";
-
 /**
  * Полный сброс операционной карты перед batch reparse:
  * place_status_active → deactivate, region_state_active → grey (+ history для WS).
@@ -25,10 +23,13 @@ const RESET_REASON = "reparse:full-reset";
 export class MapStateFullReset {
   constructor(private readonly deps: ResetDeps) {}
 
-  async run(at: Date = new Date()): Promise<MapStateFullResetResult> {
+  async run(
+    at: Date = new Date(),
+    reason = "reparse:full-reset",
+  ): Promise<MapStateFullResetResult> {
     const atIso = at.toISOString();
     const placesCleared = await this.clearAllPlaceStatuses(atIso);
-    const regionsGrey = await this.clearAllRegionStates(atIso);
+    const regionsGrey = await this.clearAllRegionStates(atIso, reason);
     return { placesCleared, regionsGrey };
   }
 
@@ -40,7 +41,7 @@ export class MapStateFullReset {
     return active.length;
   }
 
-  private async clearAllRegionStates(atIso: string): Promise<number> {
+  private async clearAllRegionStates(atIso: string, reason: string): Promise<number> {
     const rows = await this.deps.regionState.listAll();
     if (rows.length === 0) {
       return 0;
@@ -65,7 +66,7 @@ export class MapStateFullReset {
         stateLevel: "grey",
         selfLevel: "grey",
         activity: 0,
-        reason: RESET_REASON,
+        reason,
         updatedAt: atIso,
       });
       await this.deps.regionState.appendHistory({
@@ -73,7 +74,7 @@ export class MapStateFullReset {
         regionCode: row.regionCode,
         stateLevel: "grey",
         previousLevel: row.stateLevel,
-        reason: RESET_REASON,
+        reason,
         changedAt: atIso,
       });
       written += 1;

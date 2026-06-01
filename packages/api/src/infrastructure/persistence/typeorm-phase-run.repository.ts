@@ -11,6 +11,11 @@ import type {
 } from "@radar/shared";
 import { phaseRunStatsSchema } from "@radar/shared";
 import type { DataSource } from "typeorm";
+import {
+  pgTimestampToIso,
+  pgTimestampToIsoOptional,
+  readTypeOrmQueryRows,
+} from "./typeorm-query-rows.js";
 
 const MAX_LOG_ENTRIES = 50;
 const LOG_TAIL_API = 4;
@@ -39,12 +44,14 @@ export class TypeOrmPhaseRunRepository implements IPhaseRunRepository {
     trigger: PhaseTrigger;
     status?: PhaseRunStatus;
   }): Promise<PhaseRun> {
-    const rows = (await this.dataSource.query(
-      `INSERT INTO phase_runs (phase_id, trigger, status, started_at)
+    const rows = readTypeOrmQueryRows<RunRow>(
+      await this.dataSource.query(
+        `INSERT INTO phase_runs (phase_id, trigger, status, started_at)
        VALUES ($1, $2, $3, CASE WHEN $3 = 'running' THEN now() ELSE NULL END)
        RETURNING *`,
-      [input.phaseId, input.trigger, input.status ?? "pending"],
-    )) as RunRow[];
+        [input.phaseId, input.trigger, input.status ?? "pending"],
+      ),
+    );
     return this.toRun(rows[0]!);
   }
 
@@ -192,10 +199,10 @@ export class TypeOrmPhaseRunRepository implements IPhaseRunRepository {
       control:
         row.control === "cancel" || row.control === "pause" ? row.control : null,
       error: row.error,
-      startedAt: row.started_at ? new Date(row.started_at).toISOString() : null,
-      finishedAt: row.finished_at ? new Date(row.finished_at).toISOString() : null,
-      createdAt: new Date(row.created_at).toISOString(),
-      updatedAt: new Date(row.updated_at).toISOString(),
+      startedAt: pgTimestampToIsoOptional(row.started_at) ?? null,
+      finishedAt: pgTimestampToIsoOptional(row.finished_at) ?? null,
+      createdAt: pgTimestampToIso(row.created_at),
+      updatedAt: pgTimestampToIso(row.updated_at),
     };
   }
 }

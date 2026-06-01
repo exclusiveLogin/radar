@@ -26,6 +26,8 @@
     "phase:manifest:export": "tsx src/cli/phaseManifestCli.ts export",
     "worker:ingest:backfill": "tsx src/cli/ingestBackfillCli.ts",
     "worker:reparse:raw": "tsx src/cli/reparseRawCli.ts",
+    "worker:reset:pipeline": "tsx src/cli/pipelineResetCli.ts",
+    "reset:pipeline": "tsx src/cli/pipelineResetCli.ts",
     "worker:enrich:run": "tsx src/cli/enrichRunCli.ts",
     "worker:phase:run": "tsx src/cli/phaseRunCli.ts",
     "worker:backfill:place-status-history": "tsx src/cli/backfillPlaceStatusHistoryCli.ts",

@@ -160,6 +160,7 @@ ORDER BY rm.posted_at DESC LIMIT 10;
 | Задача | Команда |
 |--------|---------|
 | Пересчёт проекций из raw | `npm run worker:reparse:raw` |
+| Сброс карты + очередей фаз (raw сохранить) | `npm run reset:pipeline` |
 | TTL-sweep статусов | `npm run worker:map-state:expire` |
 | Оффлайн-тест парсера | `npm run worker:parse:report -- --input tests` |
 | Snap + LLM | `npm run worker:parse:snap:ollama -- --input tests/snap_001.txt` |
@@ -241,6 +242,15 @@ npm run worker:reparse:raw                 # invalidate + ingest-поток (н�
 | Backfill pending | worker db + `BackfillDaemon запущен` |
 | Карта пустая после ingest | `npm run worker:reparse:raw` (инвалидация + ingest-поток, не прямой catalog) |
 | API_ID_INVALID | свои `TELEGRAM_API_ID/HASH` с my.telegram.org |
+| `[api] EBUSY` при `npm run dev` | остановить все `node`/dev; удалить `packages/api/dist`; репо в OneDrive — пауза синхронизации или вынести клон из OneDrive; `nest-cli` без `deleteOutDir` |
+| CLI прогресс «листает» строки | `ParseAttemptLogger` больше не пишет в stdout при баре; подробности: `RADAR_VERBOSE_PARSE_LOG=1` → stderr |
+
+```powershell
+# EBUSY: освободить dist перед повторным dev
+Get-Process node -ErrorAction SilentlyContinue | Stop-Process -Force
+Remove-Item -Recurse -Force packages\api\dist -ErrorAction SilentlyContinue
+npm run dev:app
+```
 
 ```powershell
 node scripts/query-ingest-status.mjs

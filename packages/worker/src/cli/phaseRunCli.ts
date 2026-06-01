@@ -29,7 +29,10 @@ export async function runPhaseCli(): Promise<void> {
   const watch = hasAnyFlag(map, ["watch"]);
   const watchIdleMs = Number(readStringFlag(map, ["watch-idle-ms"]) ?? "5000");
 
-  const runtime = await createWorkerCompositionRoot({ storageMode: WorkerStorageMode.Db });
+  const runtime = await createWorkerCompositionRoot({
+    storageMode: WorkerStorageMode.Db,
+    startPhaseDaemon: false,
+  });
   if (!runtime.dataSource || !runtime.phaseRunner || !runtime.workerRepos) {
     console.error("worker:phase:run: нужен RADAR_STORAGE_MODE=db");
     process.exit(1);

@@ -1,5 +1,10 @@
 import type { IPhaseCoverageRepository, PhaseCoverageStatus, PhaseCoverageTask } from "@radar/shared";
 import type { DataSource } from "typeorm";
+import {
+  pgTimestampToIso,
+  pgTimestampToIsoOptional,
+  readTypeOrmQueryRows,
+} from "./typeorm-query-rows.js";
 
 type CoverageRow = {
   id: string;
@@ -32,8 +37,9 @@ export class TypeOrmPhaseCoverageRepository implements IPhaseCoverageRepository 
   }
 
   async enqueueCatchUp(phaseId: string): Promise<{ enqueued: number }> {
-    const rows = (await this.dataSource.query(
-      `INSERT INTO phase_coverage (raw_message_id, phase_id, status)
+    const rows = readTypeOrmQueryRows<{ id: string }>(
+      await this.dataSource.query(
+        `INSERT INTO phase_coverage (raw_message_id, phase_id, status)
        SELECT rm.id, $1, 'pending'
        FROM raw_messages rm
        WHERE NOT EXISTS (
@@ -42,8 +48,9 @@ export class TypeOrmPhaseCoverageRepository implements IPhaseCoverageRepository 
        )
        ON CONFLICT (raw_message_id, phase_id) DO NOTHING
        RETURNING id`,
-      [phaseId],
-    )) as Array<{ id: string }>;
+        [phaseId],
+      ),
+    );
     return { enqueued: rows.length };
   }
 
@@ -66,8 +73,9 @@ export class TypeOrmPhaseCoverageRepository implements IPhaseCoverageRepository 
         ? [phaseId, limit, prerequisitePhaseIds]
         : [phaseId, limit];
 
-    const rows = (await this.dataSource.query(
-      `UPDATE phase_coverage SET status = 'processing', updated_at = now()
+    const rows = readTypeOrmQueryRows<CoverageRow>(
+      await this.dataSource.query(
+        `UPDATE phase_coverage SET status = 'processing', updated_at = now()
        WHERE id IN (
          SELECT id FROM phase_coverage
          WHERE status = 'pending' AND phase_id = $1
@@ -78,8 +86,9 @@ export class TypeOrmPhaseCoverageRepository implements IPhaseCoverageRepository 
        )
        RETURNING id, raw_message_id, phase_id, parsed_event_id, status, attempts,
                  last_error, processed_at, created_at, updated_at`,
-      params,
-    )) as CoverageRow[];
+        params,
+      ),
+    );
     return rows.map((row) => this.toTask(row));
   }
 
@@ -108,24 +117,28 @@ export class TypeOrmPhaseCoverageRepository implements IPhaseCoverageRepository 
   }
 
   async resetProcessingForPhase(phaseId: string): Promise<number> {
-    const rows = (await this.dataSource.query(
-      `UPDATE phase_coverage SET status = 'pending', updated_at = now()
+    const rows = readTypeOrmQueryRows<{ id: string }>(
+      await this.dataSource.query(
+        `UPDATE phase_coverage SET status = 'pending', updated_at = now()
        WHERE phase_id = $1 AND status = 'processing'
        RETURNING id`,
-      [phaseId],
-    )) as Array<{ id: string }>;
+        [phaseId],
+      ),
+    );
     return rows.length;
   }
 
   async invalidateForPhases(phaseIds: string[]): Promise<number> {
     if (phaseIds.length === 0) return 0;
-    const rows = (await this.dataSource.query(
-      `UPDATE phase_coverage SET status = 'pending', processed_at = NULL, last_error = NULL,
+    const rows = readTypeOrmQueryRows<{ id: string }>(
+      await this.dataSource.query(
+        `UPDATE phase_coverage SET status = 'pending', processed_at = NULL, last_error = NULL,
        updated_at = now()
        WHERE phase_id = ANY($1::text[]) AND status IN ('done', 'failed', 'processing')
        RETURNING id`,
-      [phaseIds],
-    )) as Array<{ id: string }>;
+        [phaseIds],
+      ),
+    );
     return rows.length;
   }
 
@@ -155,9 +168,9 @@ export class TypeOrmPhaseCoverageRepository implements IPhaseCoverageRepository 
       status: row.status,
       attempts: row.attempts,
       lastError: row.last_error ?? undefined,
-      processedAt: row.processed_at ? new Date(row.processed_at).toISOString() : undefined,
-      createdAt: new Date(row.created_at).toISOString(),
-      updatedAt: new Date(row.updated_at).toISOString(),
+      processedAt: pgTimestampToIsoOptional(row.processed_at),
+      createdAt: pgTimestampToIso(row.created_at),
+      updatedAt: pgTimestampToIso(row.updated_at),
     };
   }
 }

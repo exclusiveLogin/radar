@@ -5,11 +5,12 @@
  * purpose: Единый live progress-UI для длительных CLI (reparse, backfill, A/B, scorer).
  * ---
  *
- * Тонкая обёртка над `cli-progress`: один single-line бар с ETA и счётчиками.
- * SSOT формата прогресса — потребители не настраивают пресет руками.
- * В не-TTY (CI, pipe в файл) бар не рисуется, печатаются редкие текстовые вехи.
+ * Тонкая обёртка над `cli-progress`: одна обновляемая строка (ETA, счётчики).
+ * Пока бар активен — не писать в stdout (см. cliProgressGate / ParseAttemptLogger).
+ * В не-TTY (CI, pipe) бар не рисуется — вехи каждые ~10%.
  */
 import { Presets, SingleBar } from "cli-progress";
+import { setCliProgressActive } from "../infrastructure/cliProgressGate.js";
 
 /** Доп. счётчики, отображаемые в строке бара (например ok/failed). */
 export type ProgressCounters = Record<string, number>;
@@ -70,11 +71,14 @@ export function createProgress(label: string, total: number): ProgressHandle {
     {
       format: `${label} [{bar}] {percentage}% | {value}/{total} | ETA {eta_formatted}{countersText}`,
       hideCursor: true,
-      clearOnComplete: false,
+      clearOnComplete: true,
+      forceRedraw: process.platform === "win32",
+      linewrap: false,
     },
     Presets.shades_classic,
   );
   bar.start(total, 0, { countersText: "" });
+  setCliProgressActive(true);
 
   return {
     tick(delta = 1, next) {
@@ -89,6 +93,7 @@ export function createProgress(label: string, total: number): ProgressHandle {
     stop() {
       bar.update(total, { countersText: formatCounters(counters) });
       bar.stop();
+      setCliProgressActive(false);
     },
   };
 }

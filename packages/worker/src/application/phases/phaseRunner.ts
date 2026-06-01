@@ -141,56 +141,67 @@ export class PhaseRunner {
       message: `run started phase=${input.phase.id} trigger=${input.trigger}`,
     });
 
-    const enabledPhases = await this.deps.phaseDefinitions.listEnabled();
-    const prereqIds = prerequisitePhaseIds(input.phase, enabledPhases);
-    const tasks = await this.deps.coverage.claimBatch(
-      input.phase.id,
-      input.batchSize,
-      prereqIds,
-    );
-    await this.deps.phaseRuns.appendLog(run.id, {
-      at: new Date().toISOString(),
-      level: "info",
-      message: `claimed batch=${tasks.length}`,
-    });
-
-    if (tasks.length === 0) {
-      const counts = await this.deps.coverage.countByStatus(input.phase.id);
-      const empty: PhaseRunStats = {
-        claimed: 0,
-        processed: 0,
-        ok: 0,
-        failed: 0,
-        pendingRemaining: counts.pending + counts.processing,
-        totalKnown:
-          counts.pending + counts.processing + counts.done + counts.failed,
-      };
+    try {
+      const enabledPhases = await this.deps.phaseDefinitions.listEnabled();
+      const prereqIds = prerequisitePhaseIds(input.phase, enabledPhases);
+      const tasks = await this.deps.coverage.claimBatch(
+        input.phase.id,
+        input.batchSize,
+        prereqIds,
+      );
       await this.deps.phaseRuns.appendLog(run.id, {
         at: new Date().toISOString(),
         level: "info",
-        message: `no eligible work pending=${empty.pendingRemaining ?? 0}`,
+        message: `claimed batch=${tasks.length}`,
       });
-      await this.deps.phaseRuns.updateStatus(run.id, "completed", { stats: empty });
-      return empty;
+
+      if (tasks.length === 0) {
+        const counts = await this.deps.coverage.countByStatus(input.phase.id);
+        const empty: PhaseRunStats = {
+          claimed: 0,
+          processed: 0,
+          ok: 0,
+          failed: 0,
+          pendingRemaining: counts.pending + counts.processing,
+          totalKnown:
+            counts.pending + counts.processing + counts.done + counts.failed,
+        };
+        await this.deps.phaseRuns.appendLog(run.id, {
+          at: new Date().toISOString(),
+          level: "info",
+          message: `no eligible work pending=${empty.pendingRemaining ?? 0}`,
+        });
+        await this.deps.phaseRuns.updateStatus(run.id, "completed", { stats: empty });
+        return empty;
+      }
+
+      const stats = await this.runBatch({
+        phase: input.phase,
+        runId: run.id,
+        trigger: input.trigger,
+        tasks,
+      });
+
+      const control = await this.deps.phaseRuns.getControl(run.id);
+      const finalStatus =
+        control === "cancel"
+          ? "canceled"
+          : control === "pause"
+            ? "paused"
+            : "completed";
+      await this.deps.phaseRuns.clearControl(run.id);
+      await this.deps.phaseRuns.updateStatus(run.id, finalStatus, { stats });
+      return stats;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      await this.deps.phaseRuns.appendLog(run.id, {
+        at: new Date().toISOString(),
+        level: "error",
+        message,
+      });
+      await this.deps.phaseRuns.updateStatus(run.id, "failed", { error: message });
+      throw err;
     }
-
-    const stats = await this.runBatch({
-      phase: input.phase,
-      runId: run.id,
-      trigger: input.trigger,
-      tasks,
-    });
-
-    const control = await this.deps.phaseRuns.getControl(run.id);
-    const finalStatus =
-      control === "cancel"
-        ? "canceled"
-        : control === "pause"
-          ? "paused"
-          : "completed";
-    await this.deps.phaseRuns.clearControl(run.id);
-    await this.deps.phaseRuns.updateStatus(run.id, finalStatus, { stats });
-    return stats;
   }
 
 }
