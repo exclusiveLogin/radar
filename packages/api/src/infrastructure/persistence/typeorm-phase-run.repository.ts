@@ -16,7 +16,7 @@ import {
   pgTimestampToIso,
   pgTimestampToIsoOptional,
   readTypeOrmQueryRows,
-} from "./typeorm-query-rows.js";
+} from "./typeorm-query-rows";
 
 const MAX_LOG_ENTRIES = 50;
 const LOG_TAIL_API = 4;

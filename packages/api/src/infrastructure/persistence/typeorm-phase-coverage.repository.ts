@@ -9,7 +9,7 @@ import {
   pgTimestampToIso,
   pgTimestampToIsoOptional,
   readTypeOrmQueryRows,
-} from "./typeorm-query-rows.js";
+} from "./typeorm-query-rows";
 
 type CoverageRow = {
   id: string;

@@ -9,13 +9,11 @@ import {
   RnekrasovGeoJsonProvider,
   RussiaGeoJsonOsmProvider,
 } from "../../infrastructure/geo-providers";
-import {
-  TypeOrmDomainEventRepository,
-  TypeOrmPlaceAliasRepository,
-  TypeOrmPlaceRepository,
-  TypeOrmRegionRepository,
-  TypeOrmSyncAuditRepository,
-} from "../../infrastructure/persistence";
+import { TypeOrmDomainEventRepository } from "../../infrastructure/persistence/typeorm-domain-event.repository";
+import { TypeOrmPlaceAliasRepository } from "../../infrastructure/persistence/typeorm-place-alias.repository";
+import { TypeOrmPlaceRepository } from "../../infrastructure/persistence/typeorm-place.repository";
+import { TypeOrmRegionRepository } from "../../infrastructure/persistence/typeorm-region.repository";
+import { TypeOrmSyncAuditRepository } from "../../infrastructure/persistence/typeorm-sync-audit.repository";
 
 type CliMode = "plan" | "apply";function parseMode(): CliMode {
   const command = (process.argv[2] ?? "plan").toLowerCase();
