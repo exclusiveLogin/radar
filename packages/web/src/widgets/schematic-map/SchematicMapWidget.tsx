@@ -38,16 +38,18 @@ export function SchematicMapWidget(_props: WidgetProps) {
   const regions = useObservable(regionsByCode$, new Map<string, MapRegionSnapshot>());
   const selected = useObservable(selectedRegion$, null);
 
-  const tiles = useMemo(
+  /** Все субъекты с координатой в layout.json (фиксированная географическая сетка). */
+  const layoutRegions = useMemo(
     () => [...regions.values()].filter((region) => region.layout),
     [regions],
   );
 
   const dims = useMemo(() => {
-    const cols = Math.max(0, ...tiles.map((t) => t.layout!.col)) + 1;
-    const rows = Math.max(0, ...tiles.map((t) => t.layout!.row)) + 1;
+    if (layoutRegions.length === 0) return { cols: 0, rows: 0 };
+    const cols = Math.max(...layoutRegions.map((t) => t.layout!.col)) + 1;
+    const rows = Math.max(...layoutRegions.map((t) => t.layout!.row)) + 1;
     return { cols, rows };
-  }, [tiles]);
+  }, [layoutRegions]);
 
   // +HEX_W/2 — запас под honeycomb-сдвиг нечётных рядов.
   const width = dims.cols * HEX_W + HEX_W / 2 + PADDING * 2;
@@ -55,11 +57,11 @@ export function SchematicMapWidget(_props: WidgetProps) {
 
   return (
     <Panel title="Схема обстановки" variant="glass" className="schematic-panel" collapsible>
-      {tiles.length === 0 ? (
-        <p className="ds-muted">Нет регионов с раскладкой (layout.json).</p>
+      {layoutRegions.length === 0 ? (
+        <p className="ds-muted">Нет регионов в layout.json.</p>
       ) : (
         <svg width="100%" viewBox={`0 0 ${width} ${height}`} role="img">
-          {tiles.map((region) => {
+          {layoutRegions.map((region) => {
             const { cx, cy } = hexCenter(region.layout!.col, region.layout!.row);
             const isSelected = region.regionCode === selected;
             return (
@@ -93,7 +95,7 @@ export function SchematicMapWidget(_props: WidgetProps) {
                   textAnchor="middle"
                   dominantBaseline="middle"
                   fontSize={12}
-                  fill="#0d0f14"
+                  fill={region.stateLevel === "grey" ? "#c8cdd6" : "#0d0f14"}
                   fontWeight={700}
                 >
                   {region.regionCode.replace("RU-", "")}

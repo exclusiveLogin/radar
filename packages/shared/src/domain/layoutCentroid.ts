@@ -1,11 +1,12 @@
 import type { LayoutTile } from "../schemas/geo/region-state";
 
 /** Приближённый bbox европейской части РФ для раскладки layout → WGS84. */
+/** Согласовано с scripts/geo/generate-layout-rf.mjs (полная РФ). */
 const LAYOUT_BBOX = {
-  minLon: 27,
-  maxLon: 145,
-  minLat: 43,
-  maxLat: 70,
+  minLon: 19,
+  maxLon: 169,
+  minLat: 41,
+  maxLat: 76,
 } as const;
 
 /**

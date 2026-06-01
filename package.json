@@ -25,6 +25,7 @@
     "geo:init": "node scripts/geo-init.mjs",
     "geo:update": "node scripts/geo-update.mjs",
     "geo:seed": "npm run geo:seed -w @radar/api",
+    "geo:layout:build": "node scripts/geo/extract-rf-centroids.mjs && node scripts/geo/generate-layout-rf.mjs",
     "geo:db:plan": "npm run geo:db:plan -w @radar/api",
     "geo:db:apply": "npm run geo:db:apply -w @radar/api",
     "geo:db:dedup": "npm run geo:db:dedup -w @radar/api",

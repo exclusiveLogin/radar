@@ -1,45 +1,364 @@
 {
   "version": 1,
-  "note": "Тайл-грид субъектов для SchematicMapWidget: regionCode (ISO 3166-2:RU) -> {col,row}. col растёт на восток, row — на юг. Ручная приближённая раскладка регионов из ленты + Донбасс/Крым; расширяется по мере появления данных.",
-  "cols": 9,
-  "rows": 10,
+  "note": "Тайл-грид субъектов РФ (ISO 3166-2:RU) для SchematicMapWidget. col — восток, row — юг. Полный перечень: hflabs region.csv + RU-DON/LUG/ZP/KHE/CR/SEV. Ручные позиции европейской части сохранены; остальное — по центроидам.",
+  "cols": 27,
+  "rows": 17,
   "tiles": {
-    "RU-TVE": { "col": 3, "row": 1 },
-    "RU-IVA": { "col": 5, "row": 1 },
-    "RU-YAR": { "col": 4, "row": 1 },
-    "RU-SMO": { "col": 2, "row": 2 },
-    "RU-MOS": { "col": 4, "row": 2 },
-    "RU-VLA": { "col": 5, "row": 2 },
-    "RU-NIZ": { "col": 6, "row": 2 },
-    "RU-TA": { "col": 7, "row": 2 },
-    "RU-BRY": { "col": 1, "row": 3 },
-    "RU-KLU": { "col": 3, "row": 3 },
-    "RU-MOW": { "col": 4, "row": 3 },
-    "RU-MO": { "col": 6, "row": 3 },
-    "RU-ULY": { "col": 7, "row": 3 },
-    "RU-ORL": { "col": 2, "row": 4 },
-    "RU-TUL": { "col": 4, "row": 4 },
-    "RU-RYA": { "col": 5, "row": 4 },
-    "RU-PNZ": { "col": 6, "row": 4 },
-    "RU-SAM": { "col": 8, "row": 4 },
-    "RU-KRS": { "col": 1, "row": 5 },
-    "RU-LIP": { "col": 4, "row": 5 },
-    "RU-TAM": { "col": 5, "row": 5 },
-    "RU-SAR": { "col": 7, "row": 5 },
-    "RU-BEL": { "col": 2, "row": 6 },
-    "RU-VOR": { "col": 3, "row": 6 },
-    "RU-VGG": { "col": 6, "row": 6 },
-    "RU-ZP": { "col": 0, "row": 7 },
-    "RU-DON": { "col": 1, "row": 7 },
-    "RU-LUG": { "col": 2, "row": 7 },
-    "RU-ROS": { "col": 3, "row": 7 },
-    "RU-KL": { "col": 5, "row": 7 },
-    "RU-AST": { "col": 7, "row": 7 },
-    "RU-KHE": { "col": 0, "row": 8 },
-    "RU-CR": { "col": 1, "row": 8 },
-    "RU-AD": { "col": 2, "row": 8 },
-    "RU-KDA": { "col": 3, "row": 8 },
-    "RU-STA": { "col": 4, "row": 8 },
-    "RU-SEV": { "col": 0, "row": 9 }
+    "RU-AD": {
+      "col": 2,
+      "row": 8
+    },
+    "RU-AL": {
+      "col": 11,
+      "row": 12
+    },
+    "RU-ALT": {
+      "col": 12,
+      "row": 12
+    },
+    "RU-AMU": {
+      "col": 19,
+      "row": 11
+    },
+    "RU-ARK": {
+      "col": 7,
+      "row": 0
+    },
+    "RU-AST": {
+      "col": 7,
+      "row": 7
+    },
+    "RU-BA": {
+      "col": 7,
+      "row": 11
+    },
+    "RU-BEL": {
+      "col": 2,
+      "row": 6
+    },
+    "RU-BRY": {
+      "col": 1,
+      "row": 3
+    },
+    "RU-BU": {
+      "col": 16,
+      "row": 11
+    },
+    "RU-CE": {
+      "col": 5,
+      "row": 16
+    },
+    "RU-CHE": {
+      "col": 8,
+      "row": 11
+    },
+    "RU-CHU": {
+      "col": 0,
+      "row": 5
+    },
+    "RU-CR": {
+      "col": 1,
+      "row": 8
+    },
+    "RU-CU": {
+      "col": 5,
+      "row": 10
+    },
+    "RU-DA": {
+      "col": 6,
+      "row": 16
+    },
+    "RU-DON": {
+      "col": 1,
+      "row": 7
+    },
+    "RU-IN": {
+      "col": 7,
+      "row": 16
+    },
+    "RU-IRK": {
+      "col": 16,
+      "row": 9
+    },
+    "RU-IVA": {
+      "col": 5,
+      "row": 1
+    },
+    "RU-KAM": {
+      "col": 26,
+      "row": 9
+    },
+    "RU-KB": {
+      "col": 4,
+      "row": 16
+    },
+    "RU-KC": {
+      "col": 8,
+      "row": 16
+    },
+    "RU-KDA": {
+      "col": 3,
+      "row": 8
+    },
+    "RU-KEM": {
+      "col": 12,
+      "row": 10
+    },
+    "RU-KGD": {
+      "col": 0,
+      "row": 10
+    },
+    "RU-KGN": {
+      "col": 8,
+      "row": 10
+    },
+    "RU-KHA": {
+      "col": 22,
+      "row": 11
+    },
+    "RU-KHE": {
+      "col": 0,
+      "row": 8
+    },
+    "RU-KHM": {
+      "col": 9,
+      "row": 7
+    },
+    "RU-KIR": {
+      "col": 6,
+      "row": 9
+    },
+    "RU-KK": {
+      "col": 13,
+      "row": 11
+    },
+    "RU-KL": {
+      "col": 5,
+      "row": 7
+    },
+    "RU-KLU": {
+      "col": 3,
+      "row": 3
+    },
+    "RU-KO": {
+      "col": 7,
+      "row": 6
+    },
+    "RU-KOS": {
+      "col": 4,
+      "row": 9
+    },
+    "RU-KR": {
+      "col": 3,
+      "row": 5
+    },
+    "RU-KRS": {
+      "col": 1,
+      "row": 5
+    },
+    "RU-KYA": {
+      "col": 14,
+      "row": 1
+    },
+    "RU-LEN": {
+      "col": 4,
+      "row": 8
+    },
+    "RU-LIP": {
+      "col": 4,
+      "row": 5
+    },
+    "RU-LUG": {
+      "col": 2,
+      "row": 7
+    },
+    "RU-MAG": {
+      "col": 24,
+      "row": 8
+    },
+    "RU-ME": {
+      "col": 5,
+      "row": 9
+    },
+    "RU-MO": {
+      "col": 6,
+      "row": 3
+    },
+    "RU-MOS": {
+      "col": 4,
+      "row": 2
+    },
+    "RU-MOW": {
+      "col": 4,
+      "row": 3
+    },
+    "RU-MUR": {
+      "col": 3,
+      "row": 4
+    },
+    "RU-NEN": {
+      "col": 6,
+      "row": 4
+    },
+    "RU-NGR": {
+      "col": 2,
+      "row": 9
+    },
+    "RU-NIZ": {
+      "col": 6,
+      "row": 2
+    },
+    "RU-NVS": {
+      "col": 11,
+      "row": 10
+    },
+    "RU-OMS": {
+      "col": 10,
+      "row": 10
+    },
+    "RU-ORE": {
+      "col": 7,
+      "row": 12
+    },
+    "RU-ORL": {
+      "col": 2,
+      "row": 4
+    },
+    "RU-PER": {
+      "col": 7,
+      "row": 9
+    },
+    "RU-PNZ": {
+      "col": 7,
+      "row": 4
+    },
+    "RU-PRI": {
+      "col": 21,
+      "row": 16
+    },
+    "RU-PSK": {
+      "col": 3,
+      "row": 9
+    },
+    "RU-ROS": {
+      "col": 3,
+      "row": 7
+    },
+    "RU-RYA": {
+      "col": 5,
+      "row": 4
+    },
+    "RU-SA": {
+      "col": 21,
+      "row": 2
+    },
+    "RU-SAK": {
+      "col": 22,
+      "row": 13
+    },
+    "RU-SAM": {
+      "col": 8,
+      "row": 4
+    },
+    "RU-SAR": {
+      "col": 7,
+      "row": 5
+    },
+    "RU-SE": {
+      "col": 9,
+      "row": 16
+    },
+    "RU-SEV": {
+      "col": 0,
+      "row": 9
+    },
+    "RU-SMO": {
+      "col": 2,
+      "row": 2
+    },
+    "RU-SPE": {
+      "col": 5,
+      "row": 8
+    },
+    "RU-STA": {
+      "col": 6,
+      "row": 8
+    },
+    "RU-SVE": {
+      "col": 8,
+      "row": 9
+    },
+    "RU-TA": {
+      "col": 7,
+      "row": 2
+    },
+    "RU-TAM": {
+      "col": 5,
+      "row": 5
+    },
+    "RU-TOM": {
+      "col": 12,
+      "row": 9
+    },
+    "RU-TUL": {
+      "col": 4,
+      "row": 4
+    },
+    "RU-TVE": {
+      "col": 3,
+      "row": 1
+    },
+    "RU-TY": {
+      "col": 14,
+      "row": 12
+    },
+    "RU-TYU": {
+      "col": 9,
+      "row": 9
+    },
+    "RU-UD": {
+      "col": 10,
+      "row": 9
+    },
+    "RU-ULY": {
+      "col": 7,
+      "row": 3
+    },
+    "RU-VGG": {
+      "col": 6,
+      "row": 6
+    },
+    "RU-VLA": {
+      "col": 5,
+      "row": 2
+    },
+    "RU-VLG": {
+      "col": 7,
+      "row": 8
+    },
+    "RU-VOR": {
+      "col": 3,
+      "row": 6
+    },
+    "RU-YAN": {
+      "col": 10,
+      "row": 3
+    },
+    "RU-YAR": {
+      "col": 4,
+      "row": 1
+    },
+    "RU-YEV": {
+      "col": 20,
+      "row": 13
+    },
+    "RU-ZAB": {
+      "col": 18,
+      "row": 12
+    },
+    "RU-ZP": {
+      "col": 0,
+      "row": 7
+    }
   }
 }

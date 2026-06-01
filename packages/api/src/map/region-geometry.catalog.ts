@@ -26,12 +26,51 @@ const SUBJECT_OUTLINES_PATH = repoDataPath(
 );
 
 /** Нормализация для сопоставления подписей GeoJSON и ISO. */
-function norm(value: string): string {
+export function normRegionLabel(value: string): string {
   return value
     .toLowerCase()
     .replace(/ё/g, "е")
     .replace(/[^\p{L}\p{N}]+/gu, " ")
     .trim();
+}
+
+/**
+ * Алиасы подписей OSM (Russia_regions.geojson) к ISO из region.csv.
+ * Только явные строки — без substring/fuzzy (иначе все «Республика …» → один регион).
+ */
+export function registerRegionIsoAliases(
+  index: Map<string, string>,
+  input: {
+    name: string;
+    nameWithType?: string;
+    subjectType?: string;
+    iso: string;
+  },
+): void {
+  const put = (label: string) => {
+    const key = normRegionLabel(label);
+    if (key) index.set(key, input.iso);
+  };
+
+  put(input.name);
+  if (input.nameWithType) {
+    put(input.nameWithType);
+    if (input.nameWithType.endsWith(" обл")) {
+      put(`${input.nameWithType}.`);
+    }
+  }
+
+  if (input.subjectType === "Респ") {
+    const slash = input.name.indexOf("/");
+    const base =
+      slash >= 0 ? input.name.slice(0, slash).trim() : input.name.trim();
+    const tail =
+      slash >= 0 ? input.name.slice(slash + 1).replace(/\//g, "").trim() : "";
+
+    put(`Республика ${base}`);
+    if (tail) put(`Республика ${base} (${tail})`);
+    put(`${input.name} Республика`);
+  }
 }
 
 /**
@@ -69,7 +108,6 @@ export class RegionGeometryCatalog {
     this.isoByNorm.clear();
     this.fillNormIndex(regions);
     this.fillNormIndexFromReferenceCsv();
-    this.indexSubjectOutlineLabels();
   }
 
   /**
@@ -115,6 +153,11 @@ export class RegionGeometryCatalog {
     };
   }
 
+  /** Только для тестов: разрешение подписи OSM → ISO. */
+  resolveIsoForTest(label: string): string | undefined {
+    return this.resolveIso(label);
+  }
+
   private fillNormIndex(
     regions: Array<{
       iso: string | null;
@@ -124,10 +167,11 @@ export class RegionGeometryCatalog {
   ): void {
     for (const region of regions) {
       if (!region.iso) continue;
-      this.isoByNorm.set(norm(region.name), region.iso);
-      if (region.nameWithType) this.isoByNorm.set(norm(region.nameWithType), region.iso);
-      const short = region.name.split(/\s+/)[0];
-      if (short) this.isoByNorm.set(norm(short), region.iso);
+      registerRegionIsoAliases(this.isoByNorm, {
+        name: region.name,
+        nameWithType: region.nameWithType ?? undefined,
+        iso: region.iso,
+      });
     }
   }
 
@@ -147,42 +191,22 @@ export class RegionGeometryCatalog {
       if (!line?.trim()) continue;
       const cols = line.split(",");
       const name = cols[0];
+      const subjectType = cols[1];
       const nameWithType = cols[2];
       const iso = cols[10];
       if (!name || !iso?.startsWith("RU-")) continue;
-      this.isoByNorm.set(norm(name), iso);
-      if (nameWithType) this.isoByNorm.set(norm(nameWithType), iso);
+      registerRegionIsoAliases(this.isoByNorm, {
+        name,
+        nameWithType,
+        subjectType,
+        iso,
+      });
     }
   }
 
-  /** Подписи из Russia_regions.geojson (например «Воронежская обл.»). */
-  private indexSubjectOutlineLabels(): void {
-    for (const feature of this.loadSubjectOutlines().features) {
-      const label = String(feature.properties.region ?? "");
-      const iso = this.resolveIso(label);
-      if (!iso || !label) continue;
-      this.isoByNorm.set(norm(label), iso);
-    }
-  }
-
+  /** Только точное совпадение norm(label) — без substring. */
   private resolveIso(label: string): string | undefined {
-    const direct = this.isoByNorm.get(norm(label));
-    if (direct) return direct;
-    return this.matchBySubstring(label, this.isoByNorm);
-  }
-
-  private matchBySubstring(
-    label: string,
-    byNorm: Map<string, string>,
-  ): string | undefined {
-    const needle = norm(label);
-    if (!needle) return undefined;
-    for (const [nameNorm, iso] of byNorm) {
-      if (nameNorm.includes(needle) || needle.includes(nameNorm.split(" ")[0] ?? "")) {
-        return iso;
-      }
-    }
-    return undefined;
+    return this.isoByNorm.get(normRegionLabel(label));
   }
 
   private loadSubjectOutlines(): GeoJsonFeatureCollection {

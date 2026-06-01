@@ -19,6 +19,7 @@ import {
   resolveMapBasemapStyle,
 } from "../../shared/config/mapConfig.service";
 import { formatDateTime } from "../../shared/format/dateTime";
+import { isPlaceVisibleOnMap } from "../../shared/state/derivations";
 import { placesById$, regionsByCode$ } from "../../shared/state/mapStore";
 import { selectRegion } from "../../shared/state/selectionStore";
 import type { WidgetProps } from "../widgetProps";
@@ -104,7 +105,7 @@ function placesToFeatures(
   regions: Map<string, MapRegionSnapshot>,
 ): PointFeature[] {
   return [...places.values()]
-    .filter((place) => regions.get(place.regionCode)?.stateLevel !== "grey")
+    .filter((place) => isPlaceVisibleOnMap(place, regions))
     .map((place) => ({
       type: "Feature" as const,
       geometry: {

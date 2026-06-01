@@ -46,6 +46,20 @@ export function startMapStore(): void {
   void mapApi.warnings().then((items) => stateChanges$.next(items)).catch(reportError);
 }
 
+/** Убирает точки в grey-регионах и без совпадения regionCode (SSOT с гео-слоем). */
+function prunePlacesForRegions(
+  places: Map<string, MapPlaceSnapshot>,
+  regions: Map<string, MapRegionSnapshot>,
+): Map<string, MapPlaceSnapshot> {
+  const next = new Map<string, MapPlaceSnapshot>();
+  for (const place of places.values()) {
+    const region = regions.get(place.regionCode);
+    if (!region || region.stateLevel === "grey" || place.stateLevel === "grey") continue;
+    next.set(place.placeId, place);
+  }
+  return next;
+}
+
 function seedSnapshot(
   regions: MapRegionSnapshot[],
   places: MapPlaceSnapshot[],
@@ -54,9 +68,9 @@ function seedSnapshot(
   for (const region of regions) nextRegions.set(region.regionCode, region);
   regionsByCode$.next(nextRegions);
 
-  const nextPlaces = new Map<string, MapPlaceSnapshot>();
-  for (const place of places) nextPlaces.set(place.placeId, place);
-  placesById$.next(nextPlaces);
+  const rawPlaces = new Map<string, MapPlaceSnapshot>();
+  for (const place of places) rawPlaces.set(place.placeId, place);
+  placesById$.next(prunePlacesForRegions(rawPlaces, nextRegions));
 
   lastSnapshotAt$.next(new Date().toISOString());
 }
@@ -95,6 +109,7 @@ function applyRegionState(event: RegionStateEvent): void {
     statusEventAt: event.statusEventAt ?? existing?.statusEventAt,
   });
   regionsByCode$.next(next);
+  placesById$.next(prunePlacesForRegions(placesById$.value, next));
 }
 
 /** Добавляет/обновляет/снимает место на гео-карте по WS place-state. */
@@ -108,6 +123,13 @@ function applyPlaceState(event: PlaceStateEvent): void {
   }
 
   if (event.lat === undefined || event.lon === undefined) return;
+
+  const region = regionsByCode$.value.get(event.regionCode);
+  if (!region || region.stateLevel === "grey") {
+    next.delete(event.placeId);
+    placesById$.next(next);
+    return;
+  }
 
   next.set(event.placeId, {
     placeId: event.placeId,

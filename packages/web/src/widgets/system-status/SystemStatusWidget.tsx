@@ -3,8 +3,8 @@ import { Panel, StatusDot } from "../../shared/ds";
 import { useObservable } from "../../shared/hooks/useObservable";
 import { connectionStatus$ } from "../../shared/realtime/ws";
 import {
-  countActivePlaces,
   countActiveRegions,
+  countVisiblePlacesOnMap,
   formatAge,
 } from "../../shared/state/derivations";
 import {
@@ -30,7 +30,10 @@ export function SystemStatusWidget({ defaultCollapsed = false }: WidgetProps) {
   const places = useObservable(placesById$, new Map());
 
   const activeRegions = useMemo(() => countActiveRegions(regions), [regions]);
-  const activePlaces = useMemo(() => countActivePlaces(places), [places]);
+  const activePlaces = useMemo(
+    () => countVisiblePlacesOnMap(places, regions),
+    [places, regions],
+  );
 
   const wsKind =
     wsStatus === "open" ? "ok" : wsStatus === "connecting" ? "warn" : "error";

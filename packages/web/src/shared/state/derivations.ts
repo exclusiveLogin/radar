@@ -1,4 +1,4 @@
-import type { MapRegionSnapshot, StateLevel, Warning } from "@radar/shared";
+import type { MapPlaceSnapshot, MapRegionSnapshot, StateLevel, Warning } from "@radar/shared";
 import { LEVEL_COLORS, LEVEL_LABELS } from "../config/mapConfig.service";
 import type { DonutSegment } from "../ds/Donut";
 
@@ -55,6 +55,46 @@ export function countActivePlaces(
   places: Map<string, { stateLevel: StateLevel }>,
 ): number {
   return [...places.values()].filter((p) => p.stateLevel !== "grey").length;
+}
+
+/** Место видно на карте только если регион известен и не grey. */
+export function isPlaceVisibleOnMap(
+  place: MapPlaceSnapshot,
+  regions: Map<string, MapRegionSnapshot>,
+): boolean {
+  const region = regions.get(place.regionCode);
+  if (!region) return false;
+  return region.stateLevel !== "grey" && place.stateLevel !== "grey";
+}
+
+/** Счётчики мест на карте (с учётом grey-регионов), по уровню place. */
+export function countPlacesOnMapByLevel(
+  places: Map<string, MapPlaceSnapshot>,
+  regions: Map<string, MapRegionSnapshot>,
+): Record<StateLevel, number> {
+  const counts: Record<StateLevel, number> = {
+    red: 0,
+    orange: 0,
+    yellow: 0,
+    green: 0,
+    grey: 0,
+  };
+  for (const place of places.values()) {
+    if (!isPlaceVisibleOnMap(place, regions)) continue;
+    counts[place.stateLevel]++;
+  }
+  return counts;
+}
+
+export function countVisiblePlacesOnMap(
+  places: Map<string, MapPlaceSnapshot>,
+  regions: Map<string, MapRegionSnapshot>,
+): number {
+  let n = 0;
+  for (const place of places.values()) {
+    if (isPlaceVisibleOnMap(place, regions)) n += 1;
+  }
+  return n;
 }
 
 /**
