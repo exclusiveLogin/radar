@@ -1,4 +1,4 @@
-import { Controller, Get, NotFoundException, Param, Query } from "@nestjs/common";
+import { Controller, Get, NotFoundException, Param, Post, Query } from "@nestjs/common";
 import { ApiQuery } from "@nestjs/swagger";
 import {
   mapSnapshotSchema,
@@ -15,6 +15,7 @@ import {
   regionGeometrySchema,
 } from "./map.dto";
 import { MapQueryService } from "./map-query.service";
+import { MapRealtimeBroadcastService } from "./map-realtime-broadcast.service";
 
 function parseLimit(value: string | undefined, fallback: number): number {
   const parsed = Number(value ?? fallback);
@@ -27,7 +28,17 @@ function parseLimit(value: string | undefined, fallback: number): number {
  */
 @Controller()
 export class MapController {
-  constructor(private readonly map: MapQueryService) {}
+  constructor(
+    private readonly map: MapQueryService,
+    private readonly mapRealtime: MapRealtimeBroadcastService,
+  ) {}
+
+  /** После operational reset в worker — разослать актуальный snapshot открытым клиентам. */
+  @Post("map/push-snapshot")
+  async pushSnapshot(): Promise<{ ok: true; pushed: boolean }> {
+    const pushed = await this.mapRealtime.pushSnapshotToClients();
+    return { ok: true, pushed };
+  }
 
   @Get("map/snapshot")
   @ApiQuery({ name: "since", required: false })

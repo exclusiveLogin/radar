@@ -157,4 +157,22 @@ export const adminApi = {
 
   phasesCancelRun: (runId: string): Promise<{ ok: true }> =>
     postJson(`/api/admin/phases/runs/${encodeURIComponent(runId)}/cancel`, undefined, z.object({ ok: z.literal(true) })),
+
+  /** Как CLI phase:runs:stop-all — cancel runs + DELETE pending/processing в phase_coverage. */
+  phasesStopAllRuns: (): Promise<{
+    ok: true;
+    phaseRunsClosed: number;
+    queueCleared: number;
+    processingReleased: number;
+  }> =>
+    postJson(
+      "/api/admin/phases/runs/stop-all",
+      undefined,
+      z.object({
+        ok: z.literal(true),
+        phaseRunsClosed: z.number().int().nonnegative(),
+        queueCleared: z.number().int().nonnegative(),
+        processingReleased: z.number().int().nonnegative(),
+      }),
+    ),
 };

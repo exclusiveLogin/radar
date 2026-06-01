@@ -11,6 +11,7 @@ import type { GeoValidationService } from "../parsing/geoValidationService.js";
 import type { GeoValidationContext } from "../parsing/geoValidationService.js";
 import type { ParsePipelineService } from "../parsing/parsePipelineService.js";
 import type { ParseWorkerPool } from "../parsing/parseWorkerPool.js";
+import { resolveParsedEventActivation } from "../../domain/parsing/resolveParsedEventActivation.js";
 import { PARSER_VERSION } from "../../domain/parsing/version.js";
 import { buildDomainEvent } from "./domainEventFactory.js";
 
@@ -216,13 +217,15 @@ export class ParseRawMessageHandler {
       llmSignals,
     );
 
-    // LLM-категория события (атрибут-энричер): персист в extras и проброс в проекцию.
     const eventCategory = pipelineResult.artifact?.llm?.eventCategory;
+    const activation = resolveParsedEventActivation(pipelineResult.artifact);
     const parsed = {
       ...pipelineResult.parsedEvent,
       rawMessageId,
       postedAt: raw.postedAt,
       locations: validatedLocations,
+      isActive: activation.isActive,
+      inactiveReason: activation.inactiveReason,
       extras: {
         ...pipelineResult.parsedEvent.extras,
         ...(eventCategory ? { eventCategory } : {}),
@@ -255,16 +258,16 @@ export class ParseRawMessageHandler {
     }
 
     const persisted = await this.parsedEvents.upsert(parsed);
-    const priorLocations =
-      eventCategory === "other"
-        ? await this.eventLocations.listForParsedEvent(persisted.id)
-        : [];
-    await this.eventLocations.replaceForParsedEvent(persisted.id, parsed.locations);
+    const priorLocations = await this.eventLocations.listForParsedEvent(persisted.id);
 
-    const projectionLocations =
-      eventCategory === "other" && priorLocations.length > 0
-        ? priorLocations
-        : parsed.locations;
+    let projectionLocations = validatedLocations;
+    if (activation.isActive) {
+      await this.eventLocations.replaceForParsedEvent(persisted.id, validatedLocations);
+    } else {
+      projectionLocations =
+        priorLocations.length > 0 ? priorLocations : validatedLocations;
+      await this.eventLocations.replaceForParsedEvent(persisted.id, []);
+    }
 
     const success = buildDomainEvent({
       type: "MessageParsed",
@@ -276,6 +279,8 @@ export class ParseRawMessageHandler {
         parserVersion: PARSER_VERSION,
         eventType: parsed.eventType,
         eventCategory,
+        active: activation.isActive,
+        inactiveReason: activation.inactiveReason,
         severity: parsed.severity,
         direction: parsed.direction,
         postedAt: parsed.postedAt,

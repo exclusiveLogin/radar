@@ -1,6 +1,7 @@
 import { MONOREPO_ROOT } from "@repo/root";
 import { createWorkerCompositionRoot } from "./createWorkerCompositionRoot.js";
 import { loadRootEnv } from "../infrastructure/config/loadRootEnv.js";
+import { isDadataConfigured } from "../infrastructure/enrichers/dadataConfig.js";
 import { loadLlmRuntimeConfig } from "../infrastructure/enrichers/llmRuntimeConfig.js";
 import { WorkerStorageMode } from "../infrastructure/persistence/storageMode.js";
 import { workerRuntimeStatus } from "./workerRuntimeStatus.js";
@@ -11,6 +12,11 @@ import { startWorkerProbeServer } from "../infrastructure/probe/workerProbeServe
  */
 export async function runWorkerBootstrap(): Promise<void> {
   loadRootEnv(MONOREPO_ROOT);
+  if (!isDadataConfigured()) {
+    console.warn(
+      "DaData: DADATA_TOKEN не задан — шаг dadata no-op (координаты только catalog/llm/nominatim).",
+    );
+  }
   await runLlmStartupCheck();
   const runtime = await createWorkerCompositionRoot();
 

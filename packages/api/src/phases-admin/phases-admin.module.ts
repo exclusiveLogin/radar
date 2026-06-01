@@ -1,10 +1,10 @@
-import { Module } from "@nestjs/common";
+import { Module, forwardRef } from "@nestjs/common";
 import { MapModule } from "../map/map.module";
 import { PhasesAdminController } from "./phases-admin.controller";
 import { PhasesAdminService } from "./phases-admin.service";
 
 @Module({
-  imports: [MapModule],
+  imports: [forwardRef(() => MapModule)],
   controllers: [PhasesAdminController],
   providers: [PhasesAdminService],
 })

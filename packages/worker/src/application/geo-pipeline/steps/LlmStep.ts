@@ -1,8 +1,8 @@
 import type { GeoNode } from "@radar/shared";
 import {
-  inferPreferredRegionCode,
   isBlockedRegionCatalogLookup,
-  shouldDropRegionAssignment,
+  lookupLocalityRegionForPlace,
+  resolvePlaceRegionCodeInContext,
 } from "../../../domain/geo/geographicTextContext.js";
 import type { GeoCatalog } from "../../../infrastructure/geo-catalog/index.js";
 import type { LlmEnricher } from "../../../infrastructure/enrichers/llmEnricher.js";
@@ -19,6 +19,7 @@ export class LlmStep implements GeoPipelineStep {
   async run(ctx: GeoPipelineContext): Promise<void> {
     const catalogRegions = ctx.artifact.catalog?.regions ?? [];
     const anchors = this.geoCatalog.findLocalityAnchors(ctx.rawText);
+    const localityCatalog = this.geoCatalog.listLocalityCatalog();
     const regionCode = catalogRegions[0]?.code;
     const result = await this.enricher.enrich({
       rawText: ctx.rawText,
@@ -51,8 +52,8 @@ export class LlmStep implements GeoPipelineStep {
       }
       return catalogRegions.find(
         (r) =>
-          firstWord(r.name) === firstWord(placeName) &&
-          !isBlockedRegionCatalogLookup(
+          firstWord(r.name) === firstWord(placeName)
+          && !isBlockedRegionCatalogLookup(
             placeName,
             r.name,
             r.code,
@@ -61,44 +62,53 @@ export class LlmStep implements GeoPipelineStep {
       )?.code;
     };
 
-    const regionMeta = (code: string) => ({
-      code,
-      name: catalogRegions.find((r) => r.code === code)?.name ?? code,
-      aliases: [] as string[],
-    });
+    const multiPlaceContext =
+      result.places.filter((place) => place.kind !== "region").length > 1
+      || anchors.length > 1;
 
-    const sanitizeRegionCode = (code: string | undefined | null): string | undefined => {
-      if (!code) {
-        return undefined;
-      }
-      const region = regionMeta(code);
-      if (shouldDropRegionAssignment(ctx.rawText, code, region, anchors)) {
-        return inferPreferredRegionCode(ctx.rawText, anchors) ?? undefined;
-      }
-      return code;
-    };
+    const regionsCollected = catalogRegions.map((region) => ({
+      code: region.code,
+      name: region.name,
+    }));
 
     for (const place of result.places) {
       const isRegion = place.kind === "region";
 
-      let placeRegionCode: string | undefined;
-      if (isRegion) {
-        placeRegionCode = sanitizeRegionCode(
-          lookupRegionCode(place.placeName)
-          ?? place.regionCode
-          ?? result.regionCode
-          ?? regionCode,
-        );
-      } else {
-        placeRegionCode = sanitizeRegionCode(
-          place.regionCode ?? result.regionCode ?? regionCode,
-        );
+      const placeRegionCode = isRegion
+        ? resolvePlaceRegionCodeInContext({
+            placeName: place.placeName,
+            placeRegionCode:
+              lookupRegionCode(place.placeName)
+              ?? place.regionCode
+              ?? result.regionCode
+              ?? regionCode,
+            rawText: ctx.rawText,
+            anchorsInText: anchors,
+            localityCatalog,
+            regionsCollected,
+            multiPlaceContext,
+          })
+          ?? undefined
+        : lookupLocalityRegionForPlace(place.placeName, localityCatalog)
+          ?? resolvePlaceRegionCodeInContext({
+            placeName: place.placeName,
+            placeRegionCode: place.regionCode ?? result.regionCode ?? regionCode,
+            rawText: ctx.rawText,
+            anchorsInText: anchors,
+            localityCatalog,
+            regionsCollected,
+            multiPlaceContext,
+          })
+          ?? undefined;
+
+      if (!placeRegionCode) {
+        continue;
       }
 
       nodes.push({
         name: place.placeName,
         kind: isRegion ? "region" : place.kind,
-        regionCode: placeRegionCode ?? undefined,
+        regionCode: placeRegionCode,
         fiasId: place.placeFias ?? undefined,
         confidence: place.confidence ?? result.confidence,
         reason: place.reason ?? undefined,

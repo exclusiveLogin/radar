@@ -41,10 +41,11 @@ const pipelineStepIdSet = new Set<PipelineStepId>([
  * Default execution order. `catalog` is cheap and feeds regionCode into later steps.
  * `FinalizerStep` is always appended last by the runner — not listed here.
  */
+/** catalog → dadata (coords) → llm (семантика) → nominatim; finalizer: dadata coords поверх llm. */
 export const DEFAULT_PIPELINE_ORDER: PipelineStepId[] = [
   "catalog",
-  "llm",
   "dadata",
+  "llm",
   "nominatim",
 ];
 

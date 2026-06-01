@@ -4,7 +4,7 @@
     {
       "id": "catalog",
       "trigger": "eager",
-      "enrichers": ["catalog"],
+      "enrichers": ["catalog", "dadata"],
       "policy": { "batchSize": 100, "eagerMode": "inline" },
       "enabled": true,
       "order": 0
@@ -22,7 +22,7 @@
       "trigger": "scheduled",
       "enrichers": ["dadata"],
       "policy": { "batchSize": 100, "intervalMs": 120000 },
-      "enabled": false,
+      "enabled": true,
       "order": 2
     },
     {

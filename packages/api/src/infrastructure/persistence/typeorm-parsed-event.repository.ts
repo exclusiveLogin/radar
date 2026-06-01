@@ -4,7 +4,8 @@ import type { DataSource } from "typeorm";
 import { ParsedEventEntity } from "../../events/entities";
 
 export class TypeOrmParsedEventRepository implements IParsedEventRepository {
-  constructor(private readonly dataSource: DataSource) {}async upsert(parsed: ParsedEvent): Promise<{ id: string }> {
+  constructor(private readonly dataSource: DataSource) {}
+async upsert(parsed: ParsedEvent): Promise<{ id: string }> {
     const repo = this.dataSource.getRepository(ParsedEventEntity);
     const existing = await repo.findOne({
       where: {
@@ -21,6 +22,8 @@ export class TypeOrmParsedEventRepository implements IParsedEventRepository {
       existing.macroZone = parsed.macroZone ?? null;
       existing.confidence = String(parsed.confidence.toFixed(2));
       existing.extras = parsed.extras as Record<string, unknown>;
+      existing.isActive = parsed.isActive ?? true;
+      existing.inactiveReason = parsed.isActive === false ? (parsed.inactiveReason ?? null) : null;
       existing.parsedAt = new Date(parsed.postedAt);
       await repo.save(existing);
       return { id: existing.id };
@@ -38,6 +41,8 @@ export class TypeOrmParsedEventRepository implements IParsedEventRepository {
       parserVersion: parsed.parserVersion,
       confidence: String(parsed.confidence.toFixed(2)),
       extras: parsed.extras as Record<string, unknown>,
+      isActive: parsed.isActive ?? true,
+      inactiveReason: parsed.isActive === false ? (parsed.inactiveReason ?? null) : null,
       parsedAt: new Date(parsed.postedAt),
     });
     await repo.save(row);

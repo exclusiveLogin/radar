@@ -1,6 +1,7 @@
 import type { IPlaceCacheRepository } from "@radar/shared";
 import { RuleBasedEventClassifier } from "../../infrastructure/classifiers/ruleBasedEventClassifier.js";
 import { DadataEnricher } from "../../infrastructure/enrichers/dadataEnricher.js";
+import { loadDadataToken } from "../../infrastructure/enrichers/dadataConfig.js";
 import {
   DEFAULT_PIPELINE_ORDER,
   type PipelineStepId,
@@ -39,7 +40,7 @@ function createStepFactories(params: {
       flags.llm ? new LlmStep(new LlmEnricher(llmRuntimeConfig), geoCatalog) : null,
     dadata: () =>
       flags.dadata
-        ? new DadataStep(new DadataEnricher(process.env.DADATA_TOKEN), placeCache)
+        ? new DadataStep(new DadataEnricher(loadDadataToken()), placeCache)
         : null,
     nominatim: () =>
       flags.nominatim ? new NominatimStep(new NominatimEnricher(), placeCache) : null,

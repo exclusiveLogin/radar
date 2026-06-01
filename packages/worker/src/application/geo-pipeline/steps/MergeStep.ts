@@ -8,7 +8,7 @@ import { buildFinalizerResult } from "./finalizerMerge.js";
  * (дедупликация regions/places + приоритет координат); пофайльный merge атрибутов
  * события использует общий `mergeContribution` (SSOT).
  *
- * Приоритет координат по порядку merge: catalog → llm → dadata → nominatim.
+ * Приоритет координат в merge (последний перезаписывает): catalog → llm → dadata → nominatim.
  *
  * Историческое имя namespace/трейса — `finalizer` (сохранено для совместимости
  * со схемой артефакта и персистом).

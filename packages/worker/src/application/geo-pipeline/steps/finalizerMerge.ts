@@ -7,10 +7,10 @@ import type {
 import {
   filterRegionsByTextContext,
   findLocalityAnchorsInText,
-  inferPreferredRegionCode,
   regionCodesEquivalent,
-  shouldDropRegionAssignment,
+  resolvePlaceRegionCodeInContext,
 } from "../../../domain/geo/geographicTextContext.js";
+import { isChannelCityListPromo } from "../../../domain/parsing/channelCityListPromo.js";
 import { KnownLocalityCatalog } from "../../../infrastructure/geo-catalog/knownLocalityCatalog.js";
 
 type RegionCandidate = { code: string; name: string; fiasId?: string };
@@ -190,7 +190,7 @@ function mergePlace(
 /** Collects and merges place candidates from all enrichment namespaces. */
 function collectPlaces(artifact: GeoEnrichmentArtifact): PlaceCandidate[] {
   const placeMap = new Map<string, PlaceCandidate>();
-  // Merge order is also priority order for conflicting coordinates.
+  // Порядок merge: coords от dadata перекрывают llm; nominatim — последний fallback.
   for (const place of artifact.catalog?.places ?? []) {
     mergePlace(placeMap, place, "catalog");
   }
@@ -225,13 +225,12 @@ export function buildFinalizerResult(
   finalizer: GeoEnrichmentFinalizer;
   locations: EventLocation[];
 } {
-  const anchors = findLocalityAnchorsInText(
-    rawText,
-    KnownLocalityCatalog.loadFromDictionaries().list(),
-  );
+  const localityCatalog = KnownLocalityCatalog.loadFromDictionaries().list();
+  const anchors = findLocalityAnchorsInText(rawText, localityCatalog);
   const collected = collectRegions(artifact);
   const regions = filterRegionsByTextContext(collected, rawText, anchors);
-  const places = collectPlaces(artifact);
+  const places = isChannelCityListPromo(rawText) ? [] : collectPlaces(artifact);
+  const multiPlaceContext = places.length > 1 || anchors.length > 1;
   const flags = resolveSourceFlags(artifact);
 
   const precision = resolveFinalizerPrecision({
@@ -261,22 +260,6 @@ export function buildFinalizerResult(
     source,
   };
 
-  const primaryRegionCode = regions[0]?.code ?? "unknown";
-  const resolvePlaceRegionCode = (
-    placeRegionCode: string | undefined,
-  ): string => {
-    if (placeRegionCode) {
-      const region = collected.find((item) => item.code === placeRegionCode) ?? {
-        code: placeRegionCode,
-        name: placeRegionCode,
-        aliases: [],
-      };
-      if (shouldDropRegionAssignment(rawText, placeRegionCode, region, anchors)) {
-        return inferPreferredRegionCode(rawText, anchors) ?? primaryRegionCode;
-      }
-    }
-    return placeRegionCode ?? primaryRegionCode;
-  };
   const regionLocations: EventLocation[] = regions.map((region) => ({
     regionId: "00000000-0000-0000-0000-000000000000",
     regionCode: region.code,
@@ -285,16 +268,31 @@ export function buildFinalizerResult(
     source: "db",
     placeName: region.name,
   }));
-  const placeLocations: EventLocation[] = places.map((place) => ({
-    regionId: "00000000-0000-0000-0000-000000000000",
-    regionCode: resolvePlaceRegionCode(place.regionCode),
-    precision: toEventLocationPrecision(place.kind),
-    source: eventLocationSource,
-    placeName: place.name,
-    placeFias: place.fiasId,
-    lat: place.lat,
-    lon: place.lon,
-  }));
+  const placeLocations: EventLocation[] = [];
+  for (const place of places) {
+    const regionCode = resolvePlaceRegionCodeInContext({
+      placeName: place.name,
+      placeRegionCode: place.regionCode,
+      rawText,
+      anchorsInText: anchors,
+      localityCatalog,
+      regionsCollected: collected,
+      multiPlaceContext,
+    });
+    if (!regionCode) {
+      continue;
+    }
+    placeLocations.push({
+      regionId: "00000000-0000-0000-0000-000000000000",
+      regionCode,
+      precision: toEventLocationPrecision(place.kind),
+      source: eventLocationSource,
+      placeName: place.name,
+      placeFias: place.fiasId,
+      lat: place.lat,
+      lon: place.lon,
+    });
+  }
 
   return {
     finalizer,

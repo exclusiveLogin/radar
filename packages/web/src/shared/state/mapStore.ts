@@ -31,6 +31,19 @@ export const warnings$ = stateChanges$;
 
 let started = false;
 
+/** Повторно загрузить snapshot с API (после clear:archive, если WS не пришёл). */
+export function refetchMapSnapshot(): Promise<void> {
+  return mapApi
+    .snapshot()
+    .then((snap) => {
+      seedSnapshot(snap.regions, snap.places ?? []);
+    })
+    .catch((err) => {
+      reportError(err);
+      throw err;
+    });
+}
+
 /** Однократная инициализация: REST-снапшот + подписка на WS-дельты. */
 export function startMapStore(): void {
   if (started) return;

@@ -28,6 +28,7 @@ async function main(): Promise<void> {
     regionState: repos.regionState,
     placeStatus: repos.placeStatus,
     regions: repos.regions,
+    dataSource: runtime.dataSource,
   });
   const resetResult = await reset.run();
   console.log(

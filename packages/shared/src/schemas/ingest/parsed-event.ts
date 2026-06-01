@@ -26,6 +26,9 @@ export const parsedEventSchema = z.object({
   parserVersion: z.string().min(1),
   confidence: z.number().min(0).max(1),
   extras: z.record(z.unknown()).default({}),
+  /** false — не показывать на карте/ленте (LLM отверг после merge). */
+  isActive: z.boolean().optional(),
+  inactiveReason: z.string().min(1).optional(),
 });
 
 export type ParsedEvent = z.infer<typeof parsedEventSchema>;

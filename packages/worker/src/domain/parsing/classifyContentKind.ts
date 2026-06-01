@@ -1,3 +1,5 @@
+import { isChannelCityListPromo } from "./channelCityListPromo.js";
+
 export type ContentKind = "event" | "noise" | "meta";
 
 const NOISE_PATTERNS = [
@@ -46,6 +48,7 @@ export function classifyContentKind(input: string): ContentKind {
   const text = input.trim();
   if (!text) return "noise";
 
+  if (isChannelCityListPromo(text)) return "noise";
   if (NOISE_PATTERNS.some((x) => x.test(text))) return "noise";
   if (META_PATTERNS.some((x) => x.test(text))) return "meta";
   if (SUMMARY_PATTERNS.some((x) => x.test(text))) return "meta";

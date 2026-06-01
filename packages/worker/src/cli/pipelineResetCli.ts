@@ -6,6 +6,7 @@ import {
 } from "../application/phases/pipelineOperationalReset.js";
 import { WorkerStorageMode } from "../infrastructure/persistence/storageMode.js";
 import { loadRootEnv } from "../infrastructure/config/loadRootEnv.js";
+import { notifyMapPushSnapshot } from "../infrastructure/notifyMapPushSnapshot.js";
 import { hasAnyFlag, parseLongFlagsMap } from "./workerCliArgs.js";
 
 function printPlan(): void {
@@ -36,7 +37,7 @@ async function main(): Promise<void> {
   const noCatchUp = hasAnyFlag(flags, ["no-catch-up", "noCatchUp"]);
 
   if (hasAnyFlag(flags, ["help", "h"])) {
-    console.log("Usage: npm run reset:pipeline [--dry-run] [--no-catch-up]");
+    console.log("Usage: npm run clear:pipeline [--dry-run] [--no-catch-up]  (alias: reset:pipeline)");
     printPlan();
     process.exit(0);
   }
@@ -78,6 +79,7 @@ async function main(): Promise<void> {
     console.log("\nCatch-up пропущен (--no-catch-up).");
   }
 
+  await notifyMapPushSnapshot();
   await runtime.shutdown?.();
 }
 

@@ -19,19 +19,57 @@ export type AdminWidgetDescriptor = {
   span: AdminWidgetSpan;
 };
 
+export type AdminLayoutSection = {
+  id: string;
+  title: string;
+  widgets: AdminWidgetDescriptor[];
+};
+
 /**
- * Декларативный реестр панелей админки: оболочка раскладывает по 12-колоночной сетке.
- * Порядок задаёт визуальную приоритетность (сверху — контекст и управление).
+ * Секции админки: сверху KPI, центр — обогащение + health, ниже ingest/backfill/ops.
  */
-export const ADMIN_WIDGETS: AdminWidgetDescriptor[] = [
-  { id: "channel-picker", component: ChannelPickerWidget, span: 3 },
-  { id: "channel-status", component: ChannelStatusWidget, span: 3 },
-  { id: "channel-stats", component: ChannelStatsWidget, span: 6 },
-  { id: "backfill-runner", component: BackfillRunnerWidget, span: 6 },
-  { id: "backfill-job-log", component: BackfillJobLogWidget, span: 6 },
-  { id: "phases", component: PhasesWidget, span: 8 },
-  { id: "messages-stats", component: MessagesStatsWidget, span: 8 },
-  { id: "worker-runners", component: WorkerRunnersWidget, span: 4 },
-  { id: "telemetry", component: TelemetryWidget, span: 6 },
-  { id: "parse-errors", component: ParseErrorsWidget, span: 6 },
+export const ADMIN_LAYOUT_SECTIONS: AdminLayoutSection[] = [
+  {
+    id: "overview",
+    title: "Сводка",
+    widgets: [{ id: "messages-stats", component: MessagesStatsWidget, span: 12 }],
+  },
+  {
+    id: "enrichment",
+    title: "Обогащение",
+    widgets: [
+      { id: "phases", component: PhasesWidget, span: 8 },
+      { id: "worker-runners", component: WorkerRunnersWidget, span: 4 },
+    ],
+  },
+  {
+    id: "ingest",
+    title: "Ingest · каналы",
+    widgets: [
+      { id: "channel-picker", component: ChannelPickerWidget, span: 3 },
+      { id: "channel-status", component: ChannelStatusWidget, span: 3 },
+      { id: "channel-stats", component: ChannelStatsWidget, span: 6 },
+    ],
+  },
+  {
+    id: "backfill",
+    title: "Backfill",
+    widgets: [
+      { id: "backfill-runner", component: BackfillRunnerWidget, span: 6 },
+      { id: "backfill-job-log", component: BackfillJobLogWidget, span: 6 },
+    ],
+  },
+  {
+    id: "ops",
+    title: "Процессы",
+    widgets: [
+      { id: "telemetry", component: TelemetryWidget, span: 6 },
+      { id: "parse-errors", component: ParseErrorsWidget, span: 6 },
+    ],
+  },
 ];
+
+/** Плоский список (тесты, поиск по id). */
+export const ADMIN_WIDGETS: AdminWidgetDescriptor[] = ADMIN_LAYOUT_SECTIONS.flatMap(
+  (s) => s.widgets,
+);

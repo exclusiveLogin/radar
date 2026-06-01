@@ -160,7 +160,11 @@ ORDER BY rm.posted_at DESC LIMIT 10;
 | Задача | Команда |
 |--------|---------|
 | Пересчёт проекций из raw | `npm run worker:reparse:raw` |
-| Сброс карты + очередей фаз (raw сохранить) | `npm run reset:pipeline` |
+| Сброс карты + parsed + очередей фаз (raw сохранить) | `npm run clear:pipeline` |
+| Сброс ingest (курсоры, backfill; конфиг сохранить) | `npm run clear:ingest` |
+| Удалить raw_messages (нужен пустой parsed) | `npm run clear:raw` или `clear:raw -- --with-pipeline` |
+| Полный сброс контента (raw→карта→очереди→outbox, конфиг остаётся) | `npm run clear:archive` |
+| _(legacy)_ то же что clear:pipeline | `npm run reset:pipeline` |
 | TTL-sweep статусов | `npm run worker:map-state:expire` |
 | Оффлайн-тест парсера | `npm run worker:parse:report -- --input tests` |
 | Snap + LLM | `npm run worker:parse:snap:ollama -- --input tests/snap_001.txt` |
@@ -183,11 +187,18 @@ npm run phase:manifest:import
 npm run phase:manifest:export
 ```
 
+**DaData:** в корневом `.env` задать `DADATA_TOKEN=` (ключ с [dadata.ru](https://dadata.ru/profile/#info)).
+Eager catalog-фаза по умолчанию: `enrichers: ["catalog","dadata"]`; finalizer берёт `geo_lat`/`geo_lon` из namespace `dadata` (поверх llm).
+Порядок шагов: `RADAR_GEO_PIPELINE_ORDER=catalog,dadata,llm,nominatim`.
+
 | trigger | Поведение |
 |---------|-----------|
 | `eager` | После ingest/reparse — inline catalog (по `order`) |
 | `scheduled` | PhaseDaemon, `intervalMs`, batch из coverage |
 | `manual` | `worker:phase:run`, админка Run |
+
+```powershell
+После **completed** phase_run worker дергает `POST /api/map/push-snapshot` (`RADAR_MAP_SNAPSHOT_AFTER_PHASE=1`, по умолчанию вкл.).
 
 ```powershell
 npm run worker:phase:run -- --phase=llm --batch=100 [--watch]

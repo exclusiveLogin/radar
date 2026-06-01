@@ -2,6 +2,7 @@ import type { DataSource } from "typeorm";
 import type { WorkerDbRepositories } from "../../infrastructure/persistence/workerDbRepos.types.js";
 import { MapStateFullReset } from "../map-state/mapStateFullReset.js";
 import { sortPhasesByOrder } from "./phaseOrder.js";
+import { stopAllActivePhaseRuns } from "./stopAllActivePhaseRuns.js";
 
 export const PIPELINE_RESET_REASON = "pipeline:operational-reset";
 
@@ -44,6 +45,7 @@ export async function runPipelineOperationalReset(
     regionState: repos.regionState,
     placeStatus: repos.placeStatus,
     regions: repos.regions,
+    dataSource,
   });
   const map = await mapReset.run(new Date(), PIPELINE_RESET_REASON);
 
@@ -59,18 +61,12 @@ export async function runPipelineOperationalReset(
       ? await repos.phaseCoverage.invalidateForPhases(allPhaseIds)
       : 0;
 
-  let coverageProcessingToPending = 0;
-  for (const phaseId of allPhaseIds) {
-    coverageProcessingToPending += await repos.phaseCoverage.resetProcessingForPhase(phaseId);
-  }
-
-  const phaseRunRows = (await dataSource.query(
-    `UPDATE phase_runs SET status = 'canceled', finished_at = now(),
-       error = COALESCE(error, $1), updated_at = now()
-     WHERE status IN ('running', 'paused', 'pending')
-     RETURNING id`,
-    [PIPELINE_RESET_REASON],
-  )) as Array<{ id: string }>;
+  const { phaseRunsClosed, processingReleased: coverageProcessingToPending } =
+    await stopAllActivePhaseRuns({
+      dataSource,
+      repos,
+      reason: PIPELINE_RESET_REASON,
+    });
 
   const catchUpByPhase: Record<string, number> = {};
   if (input.enqueueCatchUp !== false) {
@@ -92,7 +88,7 @@ export async function runPipelineOperationalReset(
     parseAttemptsDeleted: parseAttemptRows.length,
     coverageInvalidated,
     coverageProcessingToPending,
-    phaseRunsClosed: phaseRunRows.length,
+    phaseRunsClosed,
     catchUpByPhase,
   };
 }

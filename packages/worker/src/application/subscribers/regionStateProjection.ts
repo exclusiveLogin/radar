@@ -38,6 +38,9 @@ type MessageParsedPayload = {
   eventType: string;
   /** LLM-категория события (атрибут-энричер, ADR-003). Fallback к rule-коду. */
   eventCategory?: GeoEventCategory;
+  /** false — откат карты (отбой), без показа события в ленте. */
+  active?: boolean;
+  inactiveReason?: string;
   direction?: string;
   postedAt?: string;
   locations?: ParsedLocation[];
@@ -75,10 +78,10 @@ export class RegionStateProjection {
     if (locations.length === 0) return;
 
     await this.ensureDictionary();
-    const statusCode = this.resolveEffectiveStatusCode(
-      payload.eventType,
-      payload.eventCategory,
-    );
+    const statusCode =
+      payload.active === false
+        ? this.resolveDeactivateStatusCode()
+        : this.resolveEffectiveStatusCode(payload.eventType, payload.eventCategory);
     const incoming = this.levelOf(statusCode);
     const messageAt = payload.postedAt ?? event.occurredAt;
     if (
@@ -120,9 +123,15 @@ export class RegionStateProjection {
     return this.dictLevelByCode?.get(code) ?? "grey";
   }
 
+  /** Код отбоя при деактивации parsed_event (LLM отверг после catalog). */
+  private resolveDeactivateStatusCode(): string {
+    const dictionary = this.dictionary ?? [];
+    return bridgeEventCategoryToCode("all_clear", dictionary) ?? "cleared";
+  }
+
   /**
    * Эффективный код статуса: merge rule + LLM (attribute); при равном precision
-   * побеждает больший trust (LLM > rule). other → all_clear (снять ложный alarm).
+   * побеждает больший trust (LLM > rule).
    */
   private resolveEffectiveStatusCode(
     ruleEventType: string,
@@ -140,8 +149,7 @@ export class RegionStateProjection {
         },
       });
     }
-    const llmCategory: GeoEventCategory | undefined =
-      eventCategory === "other" ? "all_clear" : eventCategory;
+    const llmCategory = eventCategory;
     const llmCode = llmCategory
       ? bridgeEventCategoryToCode(llmCategory, dictionary)
       : null;

@@ -2,13 +2,16 @@ import type {
   IPlaceStatusRepository,
   IRegionRepository,
   IRegionStateRepository,
-  RegionRecord,
 } from "@radar/shared";
+import type { DataSource } from "typeorm";
+import { clearOperationalMapState } from "../archive/clearOperationalMapState.js";
 
 type ResetDeps = {
   regionState: IRegionStateRepository;
   placeStatus: IPlaceStatusRepository;
   regions: IRegionRepository;
+  /** Для SQL-сброса карты без «сирот»; если не передан — legacy через repos (не рекомендуется). */
+  dataSource?: DataSource;
 };
 
 export type MapStateFullResetResult = {
@@ -17,8 +20,7 @@ export type MapStateFullResetResult = {
 };
 
 /**
- * Полный сброс операционной карты перед batch reparse:
- * place_status_active → deactivate, region_state_active → grey (+ history для WS).
+ * Полный сброс операционной карты перед batch reparse.
  */
 export class MapStateFullReset {
   constructor(private readonly deps: ResetDeps) {}
@@ -27,9 +29,17 @@ export class MapStateFullReset {
     at: Date = new Date(),
     reason = "reparse:full-reset",
   ): Promise<MapStateFullResetResult> {
+    if (this.deps.dataSource) {
+      const map = await clearOperationalMapState(this.deps.dataSource, reason);
+      return {
+        placesCleared: map.placesActiveRemoved,
+        regionsGrey: map.regionsGrey,
+      };
+    }
+
     const atIso = at.toISOString();
     const placesCleared = await this.clearAllPlaceStatuses(atIso);
-    const regionsGrey = await this.clearAllRegionStates(atIso, reason);
+    const regionsGrey = await this.clearAllRegionStatesLegacy(atIso, reason);
     return { placesCleared, regionsGrey };
   }
 
@@ -41,25 +51,18 @@ export class MapStateFullReset {
     return active.length;
   }
 
-  private async clearAllRegionStates(atIso: string, reason: string): Promise<number> {
+  /** @deprecated используй clearOperationalMapState через dataSource */
+  private async clearAllRegionStatesLegacy(atIso: string, reason: string): Promise<number> {
     const rows = await this.deps.regionState.listAll();
-    if (rows.length === 0) {
-      return 0;
-    }
-
-    const regionIndex = await this.buildRegionIndex();
+    const regions = await this.deps.regions.listActive();
+    const byIso = new Map(regions.filter((r) => r.iso).map((r) => [r.iso!, r]));
     let written = 0;
-
     for (const row of rows) {
       if (row.stateLevel === "grey" && row.selfLevel === "grey" && row.activity === 0) {
         continue;
       }
-
-      const region = regionIndex.byIso.get(row.regionCode);
-      if (!region) {
-        continue;
-      }
-
+      const region = byIso.get(row.regionCode);
+      if (!region) continue;
       await this.deps.regionState.upsert({
         regionId: region.id,
         regionCode: row.regionCode,
@@ -80,20 +83,6 @@ export class MapStateFullReset {
       });
       written += 1;
     }
-
     return written;
-  }
-
-  private async buildRegionIndex(): Promise<{
-    byIso: Map<string, RegionRecord>;
-  }> {
-    const regions = await this.deps.regions.listActive();
-    const byIso = new Map<string, RegionRecord>();
-    for (const region of regions) {
-      if (region.iso) {
-        byIso.set(region.iso, region);
-      }
-    }
-    return { byIso };
   }
 }

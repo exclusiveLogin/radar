@@ -137,6 +137,19 @@ export class TypeOrmPhaseCoverageRepository implements IPhaseCoverageRepository 
     return rows.length;
   }
 
+  async clearQueuedWork(phaseIds?: string[]): Promise<number> {
+    const rows = readTypeOrmQueryRows<{ id: string }>(
+      await this.dataSource.query(
+        `DELETE FROM phase_coverage
+       WHERE status IN ('pending', 'processing')
+         AND ($1::text[] IS NULL OR phase_id = ANY($1::text[]))
+       RETURNING id`,
+        [phaseIds?.length ? phaseIds : null],
+      ),
+    );
+    return rows.length;
+  }
+
   async invalidateForPhases(phaseIds: string[]): Promise<number> {
     if (phaseIds.length === 0) return 0;
     const rows = readTypeOrmQueryRows<{ id: string }>(

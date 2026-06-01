@@ -35,6 +35,7 @@ export async function runFullReparseLikeIngest(input: FullReparseInput): Promise
     regionState: input.repos.regionState,
     placeStatus: input.repos.placeStatus,
     regions: input.repos.regions,
+    dataSource: input.dataSource,
   });
   await mapReset.run(new Date(), "reparse:invalidate");
 

@@ -2,6 +2,7 @@
 import {
   filterRegionsByTextContext,
   findLocalityAnchorsInText,
+  lookupLocalityRegionForPlace,
   type LocalityAnchor,
 } from "../../domain/geo/geographicTextContext.js";
 import { CityCatalog, type CityCatalogEntry } from "./cityCatalog.js";
@@ -148,6 +149,14 @@ findRegions(rawText: string): RegionCatalogEntry[] {
   }
 findPlacesInRegion(rawText: string, _regionCode?: string): GeoCatalogPlace[] {
     return deduplicatePlaces(collectCandidatePlaces(rawText, this.cities));
+  }
+  /** Субъект РФ для названия НП из places.json (не регион канала/первого якоря). */
+  lookupRegionForPlaceName(placeName: string): string | null {
+    return lookupLocalityRegionForPlace(placeName, this.knownLocalities.list());
+  }
+  /** Полный справочник якорных НП (places.json). */
+  listLocalityCatalog(): LocalityAnchor[] {
+    return this.knownLocalities.list();
   }
 listCities(): CityCatalogEntry[] {
     return this.cities.list();

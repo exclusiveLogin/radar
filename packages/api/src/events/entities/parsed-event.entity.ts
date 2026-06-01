@@ -53,4 +53,10 @@ export class ParsedEventEntity {
 
   @Column({ name: "parsed_at", type: "timestamptz", default: () => "now()" })
   parsedAt!: Date;
+
+  @Column({ name: "is_active", type: "boolean", default: true })
+  isActive!: boolean;
+
+  @Column({ name: "inactive_reason", type: "text", nullable: true })
+  inactiveReason!: string | null;
 }

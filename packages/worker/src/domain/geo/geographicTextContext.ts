@@ -1,3 +1,5 @@
+import { stripChannelPlaceSuffix } from "../parsing/channelCityListPromo.js";
+
 /**
  * Контекстная геопривязка по тексту сообщения.
  *
@@ -231,24 +233,63 @@ export function shouldDropRegionAssignment(
   return shouldSuppressFederalSubjectMatch(rawText, region, anchors);
 }
 
-/** Блок lookup региона по первому слову для места без типа субъекта при якоре в тексте. */
+/** Стебель прилагательного субъекта РФ: «приморский» → «примор», «новгородская» → «новгород». */
+const SUBJECT_ADJECTIVE_STEM =
+  /^(?<stem>.{4,})(?<suffix>ский|ская|ское|ской|ские)$/u;
+
+function extractSubjectAdjectiveStem(word: string): string | null {
+  const match = normalize(word).match(SUBJECT_ADJECTIVE_STEM);
+  return match?.groups?.stem ?? null;
+}
+
+/**
+ * Составной топоним с тем же корнем, что и прилагательное субъекта, но другой формой
+ * («Приморско-Ахтарский» ≠ «Приморский край») — не матчить субъект по префиксу.
+ */
+export function isCompoundToponymClashingWithSubjectAdjective(
+  placeName: string,
+  catalogRegionName: string,
+): boolean {
+  if (isExplicitFederalSubjectAlias(placeName)) {
+    return false;
+  }
+
+  const placeWord = normalize(placeName).split(/\s+/)[0] ?? "";
+  const catalogWord = normalize(catalogRegionName).split(/\s+/)[0] ?? "";
+  if (!placeWord || !catalogWord || placeWord === catalogWord) {
+    return false;
+  }
+
+  const subjectStem = extractSubjectAdjectiveStem(catalogWord);
+  if (!subjectStem) {
+    return false;
+  }
+
+  const placeRoot = (placeWord.split("-")[0] ?? placeWord).trim();
+  if (!placeRoot.startsWith(subjectStem) || placeRoot.length <= subjectStem.length) {
+    return false;
+  }
+
+  return !catalogWord.startsWith(placeRoot);
+}
+
+/**
+ * Блок lookup региона по первому слову: омонимия прилагательного субъекта vs микрорайон/район
+ * при несовпадении якорей в тексте.
+ */
 export function isBlockedRegionCatalogLookup(
   placeName: string,
   catalogRegionName: string,
   catalogRegionCode: string,
   anchors: LocalityAnchor[],
 ): boolean {
-  const placeWord = normalize(placeName).split(/\s+/)[0] ?? "";
-  const catalogWord = normalize(catalogRegionName).split(/\s+/)[0] ?? "";
-  if (!placeWord || !catalogWord) {
-    return false;
-  }
-
-  if (placeWord.startsWith("приморско") && catalogWord === "приморский") {
+  if (isCompoundToponymClashingWithSubjectAdjective(placeName, catalogRegionName)) {
     return true;
   }
 
-  if (placeWord !== catalogWord) {
+  const placeWord = normalize(placeName).split(/\s+/)[0] ?? "";
+  const catalogWord = normalize(catalogRegionName).split(/\s+/)[0] ?? "";
+  if (!placeWord || !catalogWord || placeWord !== catalogWord) {
     return false;
   }
 
@@ -292,6 +333,15 @@ export type EnricherGeocodeResolution = {
  * Строит запрос для enricher: при районе/месте + субъекте в тексте — «место, регион, Россия»,
  * иначе полный rawText.
  */
+/** Укороченный запрос для DaData, если catalog не нашёл НП (первая строка без «опасность/ракет…»). */
+export function buildFallbackGeocodeQuery(rawText: string): string {
+  const line = rawText.split(/\n/)[0]?.trim() ?? rawText.trim();
+  const trimmed = line
+    .split(/\s+(?:опасност|тревог|ракет|бпла|удар|сбит)/i)[0]
+    ?.trim();
+  return (trimmed || line).slice(0, 200);
+}
+
 export function resolveEnricherGeocode(
   rawText: string,
   catalogPlaces: GeocodeCatalogPlace[] | undefined,
@@ -300,7 +350,7 @@ export function resolveEnricherGeocode(
   const places = catalogPlaces ?? [];
   const regions = catalogRegions ?? [];
   if (places.length === 0 || regions.length === 0) {
-    return { query: rawText };
+    return { query: buildFallbackGeocodeQuery(rawText) };
   }
 
   const primaryPlace =
@@ -336,4 +386,113 @@ export function resolveEnricherGeocodeQuery(
   catalogRegions: RegionCandidate[] | undefined,
 ): string {
   return resolveEnricherGeocode(rawText, catalogPlaces, catalogRegions).query;
+}
+
+/** Регион НП из справочника places.json (точное имя / алиас после нормализации). */
+export function lookupLocalityRegionForPlace(
+  placeName: string,
+  catalog: LocalityAnchor[],
+): string | null {
+  const target = normalize(stripChannelPlaceSuffix(placeName));
+  if (!target) {
+    return null;
+  }
+
+  for (const anchor of catalog) {
+    if (normalize(anchor.name) === target) {
+      return anchor.regionCode;
+    }
+  }
+
+  return null;
+}
+
+/** Якорь в тексте, соответствующий имени места (не «первый якорь сообщения»). */
+export function findAnchorForPlaceInText(
+  placeName: string,
+  rawText: string,
+  anchorsInText: LocalityAnchor[],
+): LocalityAnchor | null {
+  const target = normalize(stripChannelPlaceSuffix(placeName));
+  if (!target) {
+    return null;
+  }
+
+  const haystack = toTokenHaystack(rawText);
+  for (const anchor of anchorsInText) {
+    if (normalize(anchor.name) !== target) {
+      continue;
+    }
+    if (containsWholeToken(haystack, anchor.name)) {
+      return anchor;
+    }
+  }
+
+  return null;
+}
+
+/**
+ * regionCode для place: справочник → якорь этой фразы → явный субъект.
+ * Не подставляет «первый регион сообщения» при нескольких НП/якорях.
+ */
+export function resolvePlaceRegionCodeInContext(options: {
+  placeName: string;
+  placeRegionCode?: string;
+  rawText: string;
+  anchorsInText: LocalityAnchor[];
+  localityCatalog: LocalityAnchor[];
+  regionsCollected: RegionCandidate[];
+  multiPlaceContext: boolean;
+}): string | null {
+  const fromCatalog = lookupLocalityRegionForPlace(
+    options.placeName,
+    options.localityCatalog,
+  );
+  if (fromCatalog) {
+    return fromCatalog;
+  }
+
+  const textAnchor = findAnchorForPlaceInText(
+    options.placeName,
+    options.rawText,
+    options.anchorsInText,
+  );
+  if (textAnchor) {
+    return textAnchor.regionCode;
+  }
+
+  const { placeRegionCode } = options;
+  if (placeRegionCode) {
+    const region = options.regionsCollected.find(
+      (item) => item.code === placeRegionCode,
+    ) ?? {
+      code: placeRegionCode,
+      name: placeRegionCode,
+      aliases: [],
+    };
+    if (
+      shouldSuppressFederalSubjectMatch(
+        options.rawText,
+        region,
+        options.anchorsInText,
+      )
+    ) {
+      return null;
+    }
+    return placeRegionCode;
+  }
+
+  if (options.multiPlaceContext) {
+    return null;
+  }
+
+  const singleAnchor = inferPreferredRegionFromAnchors(options.anchorsInText);
+  if (singleAnchor) {
+    return singleAnchor;
+  }
+
+  const explicitRegion = options.regionsCollected.find((region) =>
+    regionHasExplicitMentionInText(options.rawText, region),
+  );
+  return explicitRegion?.code ?? null;
 }

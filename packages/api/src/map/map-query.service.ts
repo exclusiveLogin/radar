@@ -305,7 +305,7 @@ export class MapQueryService {
          SELECT rm.id AS raw_id, pe.id AS parsed_id, rm.raw_text, rm.posted_at, c.key AS channel_key
          FROM raw_messages rm
          INNER JOIN channels c ON c.id = rm.channel_id
-         INNER JOIN parsed_events pe ON pe.raw_message_id = rm.id
+         INNER JOIN parsed_events pe ON pe.raw_message_id = rm.id AND pe.is_active = true
          INNER JOIN event_locations el ON el.parsed_event_id = pe.id
          INNER JOIN regions r ON r.id = el.region_id
          WHERE r.iso = $1 AND r.is_active = true
@@ -348,7 +348,7 @@ export class MapQueryService {
          SELECT rm.id AS raw_id, pe.id AS parsed_id, rm.raw_text, rm.posted_at, c.key AS channel_key
          FROM raw_messages rm
          INNER JOIN channels c ON c.id = rm.channel_id
-         INNER JOIN parsed_events pe ON pe.raw_message_id = rm.id
+         INNER JOIN parsed_events pe ON pe.raw_message_id = rm.id AND pe.is_active = true
          INNER JOIN event_locations el ON el.parsed_event_id = pe.id
          WHERE el.place_id = $1
          ORDER BY rm.posted_at DESC
@@ -438,7 +438,7 @@ export class MapQueryService {
        INNER JOIN regions r ON r.id = el.region_id AND r.is_active = true
        INNER JOIN status_dictionary sd
          ON sd.code = pe.event_type AND sd.is_active = true
-       WHERE COALESCE(pe.extras->>'eventCategory', '') <> 'other'
+       WHERE pe.is_active = true
          AND sd.state_level IS NOT NULL
          AND sd.state_level <> 'grey'
        GROUP BY pe.id, rm.id, c.key, c.title, rm.posted_at, rm.raw_text,
@@ -487,26 +487,19 @@ export class MapQueryService {
               pe.event_type,
               pe.extras,
               pe.extras->>'eventCategory' AS event_category,
-              CASE
-                WHEN pe.extras->>'eventCategory' = 'other' THEN NULL
-                ELSE sd.state_level
-              END AS state_level,
+              sd.state_level,
               COALESCE(
                 array_agg(DISTINCT r.iso) FILTER (WHERE r.iso IS NOT NULL),
                 '{}'
               ) AS region_codes
        FROM raw_messages rm
        INNER JOIN channels c ON c.id = rm.channel_id
-       LEFT JOIN parsed_events pe ON pe.raw_message_id = rm.id
+       LEFT JOIN parsed_events pe ON pe.raw_message_id = rm.id AND pe.is_active = true
        LEFT JOIN status_dictionary sd ON sd.code = pe.event_type AND sd.is_active = true
        LEFT JOIN event_locations el ON el.parsed_event_id = pe.id
        LEFT JOIN regions r ON r.id = el.region_id
        GROUP BY rm.id, c.key, c.title, rm.posted_at, rm.raw_text, rm.ingest_mode,
-                pe.event_type, pe.extras, pe.extras->>'eventCategory',
-                CASE
-                  WHEN pe.extras->>'eventCategory' = 'other' THEN NULL
-                  ELSE sd.state_level
-                END
+                pe.event_type, pe.extras, pe.extras->>'eventCategory', sd.state_level
        ORDER BY rm.posted_at DESC
        LIMIT $1`,
       [limit],

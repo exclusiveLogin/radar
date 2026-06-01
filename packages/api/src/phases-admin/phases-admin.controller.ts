@@ -61,6 +61,12 @@ export class PhasesAdminController {
     return this.phases.startRun(id, body);
   }
 
+  @Post("runs/stop-all")
+  @ApiOperation({ summary: "Отменить все активные runs (running/paused/pending)" })
+  stopAllRuns() {
+    return this.phases.stopAllActiveRuns();
+  }
+
   @Post("runs/:id/cancel")
   cancelRun(@Param("id") id: string) {
     return this.phases.cancelRun(id);

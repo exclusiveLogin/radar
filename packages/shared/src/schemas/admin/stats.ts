@@ -9,12 +9,28 @@
  */
 import { z } from "zod";
 
+const phaseCoverageCountsSchema = z.object({
+  pending: z.number().int().nonnegative(),
+  processing: z.number().int().nonnegative(),
+  done: z.number().int().nonnegative(),
+  failed: z.number().int().nonnegative(),
+  /** done и есть parsed_events для этого raw (реальное событие на карте). */
+  doneForParsed: z.number().int().nonnegative(),
+});
+
 export const statsOverviewSchema = z.object({
   rawTotal: z.number().int().nonnegative(),
   live: z.number().int().nonnegative(),
   backfill: z.number().int().nonnegative(),
   manual: z.number().int().nonnegative(),
   parsedEvents: z.number().int().nonnegative(),
+  /** Счётчики phase_coverage по фазам (catalog, llm, …). */
+  phaseEnrichment: z.array(
+    z.object({
+      phaseId: z.string(),
+      counts: phaseCoverageCountsSchema,
+    }),
+  ),
   parseOk: z.number().int().nonnegative(),
   parseFailed: z.number().int().nonnegative(),
   parseSkipped: z.number().int().nonnegative(),

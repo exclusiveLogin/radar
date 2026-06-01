@@ -39,14 +39,12 @@ import {
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import type { DataSource } from "typeorm";
-import {
-  TypeOrmChannelRepository,
-  TypeOrmDomainEventOutbox,
-  TypeOrmIngestBackfillJobRepository,
-  TypeOrmIngestBindingRepository,
-  TypeOrmIngestProviderRepository,
-  TypeOrmRawMessageRepository,
-} from "../infrastructure/persistence";
+import { TypeOrmChannelRepository } from "../infrastructure/persistence/typeorm-channel.repository";
+import { TypeOrmDomainEventOutbox } from "../infrastructure/persistence/typeorm-raw-message.repository";
+import { TypeOrmIngestBackfillJobRepository } from "../infrastructure/persistence/typeorm-ingest-backfill-job.repository";
+import { TypeOrmIngestBindingRepository } from "../infrastructure/persistence/typeorm-ingest-binding.repository";
+import { TypeOrmIngestProviderRepository } from "../infrastructure/persistence/typeorm-ingest-provider.repository";
+import { TypeOrmRawMessageRepository } from "../infrastructure/persistence/typeorm-raw-message.repository";
 import { MANUAL_ADMIN_PROVIDER_KEY } from "./ingest-admin.constants";
 
 const updateIngestBindingBodySchema = z.object({

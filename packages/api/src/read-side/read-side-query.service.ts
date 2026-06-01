@@ -78,7 +78,7 @@ export class ReadSideQueryService {
     );
 
     const [parsedEvents] = await this.dataSource.query<Array<{ total: string }>>(
-      `SELECT COUNT(*) AS total FROM parsed_events`,
+      `SELECT COUNT(*) FILTER (WHERE is_active) AS total FROM parsed_events`,
     );
 
     const [parse] = await this.dataSource.query<
@@ -131,12 +131,50 @@ export class ReadSideQueryService {
        FROM ingest_backfill_jobs`,
     );
 
+    const phaseRows = await this.dataSource.query<
+      Array<{
+        phase_id: string;
+        pending: string;
+        processing: string;
+        done: string;
+        failed: string;
+        done_for_parsed: string;
+      }>
+    >(
+      `SELECT
+         pc.phase_id,
+         COUNT(*) FILTER (WHERE pc.status = 'pending') AS pending,
+         COUNT(*) FILTER (WHERE pc.status = 'processing') AS processing,
+         COUNT(*) FILTER (WHERE pc.status = 'done') AS done,
+         COUNT(*) FILTER (WHERE pc.status = 'failed') AS failed,
+         COUNT(DISTINCT pc.raw_message_id) FILTER (
+           WHERE pc.status = 'done'
+             AND EXISTS (
+               SELECT 1 FROM parsed_events pe
+               WHERE pe.raw_message_id = pc.raw_message_id AND pe.is_active = true
+             )
+         ) AS done_for_parsed
+       FROM phase_coverage pc
+       GROUP BY pc.phase_id
+       ORDER BY pc.phase_id`,
+    );
+
     return statsOverviewSchema.parse({
       rawTotal: Number(raw?.raw_total ?? 0),
       live: Number(raw?.live ?? 0),
       backfill: Number(raw?.backfill ?? 0),
       manual: Number(raw?.manual ?? 0),
       parsedEvents: Number(parsedEvents?.total ?? 0),
+      phaseEnrichment: phaseRows.map((row) => ({
+        phaseId: row.phase_id,
+        counts: {
+          pending: Number(row.pending ?? 0),
+          processing: Number(row.processing ?? 0),
+          done: Number(row.done ?? 0),
+          failed: Number(row.failed ?? 0),
+          doneForParsed: Number(row.done_for_parsed ?? 0),
+        },
+      })),
       parseOk: Number(parse?.ok ?? 0),
       parseFailed: Number(parse?.failed ?? 0),
       parseSkipped: Number(parse?.skipped ?? 0),

@@ -17,6 +17,7 @@ import { ParseRawMessageHandler } from "../handlers/parseRawMessageHandler.js";
 import { createParsePipeline } from "../parsing/createParsePipeline.js";
 import type { GeoValidationService } from "../parsing/geoValidationService.js";
 import { pipelineConfigFromEnrichers } from "./phasePipelineConfig.js";
+import { notifyMapPushSnapshotAfterPhase } from "../../infrastructure/notifyMapPushSnapshot.js";
 import { prerequisitePhaseIds } from "./phaseOrder.js";
 
 export type PhaseRunnerDeps = {
@@ -83,9 +84,9 @@ export class PhaseRunner {
     };
 
     for (const task of input.tasks) {
-      const control = await this.deps.phaseRuns.getControl(input.runId);
-      if (control === "cancel") break;
-      if (control === "pause") {
+      const continuation = await this.resolveRunContinuation(input.runId);
+      if (continuation === "cancel") break;
+      if (continuation === "pause") {
         await this.deps.phaseRuns.updateStatus(input.runId, "paused");
         break;
       }
@@ -153,12 +154,12 @@ export class PhaseRunner {
 
     try {
       for (;;) {
-        const controlBefore = await this.deps.phaseRuns.getControl(run.id);
-        if (controlBefore === "cancel") {
+        const beforeBatch = await this.resolveRunContinuation(run.id);
+        if (beforeBatch === "cancel") {
           await this.finalizeRun(run.id, "canceled", totals);
           return totals;
         }
-        if (controlBefore === "pause") {
+        if (beforeBatch === "pause") {
           await this.finalizeRun(run.id, "paused", totals);
           return totals;
         }
@@ -184,6 +185,15 @@ export class PhaseRunner {
             level: "info",
             message: `drain idle pending=${totals.pendingRemaining ?? 0}`,
           });
+          const idleOutcome = await this.resolveRunContinuation(run.id);
+          if (idleOutcome === "cancel") {
+            await this.finalizeRun(run.id, "canceled", totals);
+            return totals;
+          }
+          if (idleOutcome === "pause") {
+            await this.finalizeRun(run.id, "paused", totals);
+            return totals;
+          }
           await this.finalizeRun(run.id, "completed", totals);
           return totals;
         }
@@ -196,12 +206,12 @@ export class PhaseRunner {
         });
         totals = mergePhaseRunStats(totals, batchStats);
 
-        const controlAfter = await this.deps.phaseRuns.getControl(run.id);
-        if (controlAfter === "cancel") {
+        const afterBatch = await this.resolveRunContinuation(run.id);
+        if (afterBatch === "cancel") {
           await this.finalizeRun(run.id, "canceled", totals);
           return totals;
         }
-        if (controlAfter === "pause") {
+        if (afterBatch === "pause") {
           await this.finalizeRun(run.id, "paused", totals);
           return totals;
         }
@@ -274,7 +284,15 @@ export class PhaseRunner {
           level: "info",
           message: `no eligible work pending=${empty.pendingRemaining ?? 0}`,
         });
-        await this.deps.phaseRuns.updateStatus(run.id, "completed", { stats: empty });
+        const idleOutcome = await this.resolveRunContinuation(run.id);
+        const idleStatus =
+          idleOutcome === "cancel"
+            ? "canceled"
+            : idleOutcome === "pause"
+              ? "paused"
+              : "completed";
+        await this.deps.phaseRuns.clearControl(run.id);
+        await this.deps.phaseRuns.updateStatus(run.id, idleStatus, { stats: empty });
         return empty;
       }
 
@@ -285,11 +303,11 @@ export class PhaseRunner {
         tasks,
       });
 
-      const control = await this.deps.phaseRuns.getControl(run.id);
+      const outcome = await this.resolveRunContinuation(run.id);
       const finalStatus =
-        control === "cancel"
+        outcome === "cancel"
           ? "canceled"
-          : control === "pause"
+          : outcome === "pause"
             ? "paused"
             : "completed";
       await this.deps.phaseRuns.clearControl(run.id);
@@ -305,6 +323,20 @@ export class PhaseRunner {
       await this.deps.phaseRuns.updateStatus(run.id, "failed", { error: message });
       throw err;
     }
+  }
+
+  /** Cooperative cancel/pause + учёт status=canceled из админки. */
+  private async resolveRunContinuation(
+    runId: string,
+  ): Promise<"continue" | "cancel" | "pause"> {
+    const control = await this.deps.phaseRuns.getControl(runId);
+    if (control === "cancel") return "cancel";
+    if (control === "pause") return "pause";
+    const run = await this.deps.phaseRuns.findById(runId);
+    if (!run || (run.status !== "running" && run.status !== "pending")) {
+      return "cancel";
+    }
+    return "continue";
   }
 
   private async resolveRunForTick(input: {
@@ -345,6 +377,9 @@ export class PhaseRunner {
   ): Promise<void> {
     await this.deps.phaseRuns.clearControl(runId);
     await this.deps.phaseRuns.updateStatus(runId, status, { stats });
+    if (status === "completed") {
+      void notifyMapPushSnapshotAfterPhase();
+    }
   }
 }
 

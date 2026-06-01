@@ -451,6 +451,11 @@ export interface IPhaseCoverageRepository {
   markFailed(id: string, error: string): Promise<void>;
   /** Сброс processing → pending для force-kill run. */
   resetProcessingForPhase(phaseId: string): Promise<number>;
+  /**
+   * Удалить необработанную очередь (pending + processing).
+   * done/failed не трогает — повторный catch-up не поднимет уже обработанное.
+   */
+  clearQueuedWork(phaseIds?: string[]): Promise<number>;
   invalidateForPhases(phaseIds: string[]): Promise<number>;
   countByStatus(phaseId?: string): Promise<Record<PhaseCoverageStatus, number>>;
 }

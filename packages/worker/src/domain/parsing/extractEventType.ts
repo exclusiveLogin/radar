@@ -1,4 +1,5 @@
 import type { EventType } from "@radar/shared";
+import { isChannelCityListPromo } from "./channelCityListPromo.js";
 
 /** Рекламный/коммерческий контекст: «внимание» не оперативный сигнал. */
 const COMMERCIAL_NOISE = [
@@ -12,7 +13,10 @@ const COMMERCIAL_NOISE = [
 ];
 
 function isCommercialNoise(input: string): boolean {
-  return COMMERCIAL_NOISE.some((pattern) => pattern.test(input));
+  return (
+    isChannelCityListPromo(input)
+    || COMMERCIAL_NOISE.some((pattern) => pattern.test(input))
+  );
 }
 
 /**

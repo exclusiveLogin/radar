@@ -6,6 +6,7 @@ import {
   findLocalityAnchorsInText,
   inferPreferredRegionCode,
   isBlockedRegionCatalogLookup,
+  isCompoundToponymClashingWithSubjectAdjective,
   isExplicitFederalSubjectAlias,
   regionHasExplicitMentionInText,
   resolveEnricherGeocode,
@@ -80,6 +81,23 @@ test("явный Приморский край не подавляется", () 
   assert.equal(shouldSuppressFederalSubjectMatch(PRI_EXPLICIT, pri, anchors), false);
 });
 
+test("составной топоним: общий корень с субъектом, но не сам субъект", () => {
+  assert.equal(
+    isCompoundToponymClashingWithSubjectAdjective(
+      "Приморско-Ахтарский район",
+      "Приморский край",
+    ),
+    true,
+  );
+  assert.equal(
+    isCompoundToponymClashingWithSubjectAdjective(
+      "Приморский",
+      "Приморский край",
+    ),
+    false,
+  );
+});
+
 test("isBlockedRegionCatalogLookup: Приморский vs край при якоре", () => {
   const anchors = findLocalityAnchorsInText(MARIUPOL_MSG, ANCHORS);
   assert.equal(
@@ -88,6 +106,15 @@ test("isBlockedRegionCatalogLookup: Приморский vs край при як
       "Приморский край",
       "25",
       anchors,
+    ),
+    true,
+  );
+  assert.equal(
+    isBlockedRegionCatalogLookup(
+      "Приморско-Ахтарский район",
+      "Приморский край",
+      "25",
+      [],
     ),
     true,
   );

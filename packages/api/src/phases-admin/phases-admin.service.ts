@@ -9,11 +9,11 @@ import {
   type PhaseRun,
 } from "@radar/shared";
 import { DataSource } from "typeorm";
-import {
-  TypeOrmPhaseCoverageRepository,
-  TypeOrmPhaseDefinitionRepository,
-  TypeOrmPhaseRunRepository,
-} from "../infrastructure/persistence";
+import { TypeOrmPhaseCoverageRepository } from "../infrastructure/persistence/typeorm-phase-coverage.repository";
+import { TypeOrmPhaseDefinitionRepository } from "../infrastructure/persistence/typeorm-phase-definition.repository";
+import { TypeOrmPhaseRunRepository } from "../infrastructure/persistence/typeorm-phase-run.repository";
+
+const STOP_ALL_ACTIVE_RUNS_REASON = "admin:stop-all-active-runs";
 
 /** Админка Phase-pipeline v2: фазы, runs, replay. */
 @Injectable()
@@ -23,7 +23,7 @@ export class PhasesAdminService {
   private readonly runs: TypeOrmPhaseRunRepository;
 
   constructor(
-    @InjectDataSource() dataSource: DataSource,
+    @InjectDataSource() private readonly dataSource: DataSource,
     private readonly mapRealtime: MapRealtimeBroadcastService,
   ) {
     this.phases = new TypeOrmPhaseDefinitionRepository(dataSource);
@@ -124,8 +124,14 @@ export class PhasesAdminService {
   }
 
   async cancelRun(id: string): Promise<{ ok: true }> {
-    await this.getRun(id);
-    await this.runs.requestControl(id, "cancel");
+    const run = await this.getRun(id);
+    if (run.status === "running" || run.status === "pending" || run.status === "paused") {
+      await this.runs.requestControl(id, "cancel");
+      await this.coverage.resetProcessingForPhase(run.phaseId);
+      if (run.status === "pending") {
+        await this.runs.updateStatus(id, "canceled", { error: "canceled from admin" });
+      }
+    }
     return { ok: true };
   }
 
@@ -143,6 +149,47 @@ export class PhasesAdminService {
     await this.runs.clearControl(run.id);
     await this.runs.updateStatus(run.id, "pending");
     return { ok: true };
+  }
+
+  /** Отменить runs + удалить pending/processing из phase_coverage (daemon не перезапустит тик). */
+  async stopAllActiveRuns(): Promise<{
+    ok: true;
+    phaseRunsClosed: number;
+    queueCleared: number;
+    processingReleased: number;
+  }> {
+    const statuses = ["running", "paused", "pending"] as const;
+    const toStop = (
+      await Promise.all(
+        statuses.map((status) => this.runs.list({ status, limit: 200 })),
+      )
+    ).flat();
+
+    for (const run of toStop) {
+      await this.runs.requestControl(run.id, "cancel");
+    }
+
+    const phaseIds = (await this.phases.listAll()).map((p) => p.id);
+    const queueCleared = await this.coverage.clearQueuedWork(phaseIds);
+
+    const closedRows = (await this.dataSource.query(
+      `UPDATE phase_runs SET
+         status = 'canceled',
+         control = 'cancel',
+         finished_at = now(),
+         error = COALESCE(error, $1),
+         updated_at = now()
+       WHERE status IN ('running', 'paused', 'pending')
+       RETURNING id`,
+      [STOP_ALL_ACTIVE_RUNS_REASON],
+    )) as Array<{ id: string }>;
+
+    return {
+      ok: true,
+      phaseRunsClosed: closedRows.length,
+      queueCleared,
+      processingReleased: 0,
+    };
   }
 
   async forceStopRun(id: string): Promise<{ ok: true; reset: number }> {
