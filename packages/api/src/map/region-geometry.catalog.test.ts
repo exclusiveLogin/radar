@@ -53,3 +53,31 @@ test("buildLayer: у каждого контура свой regionCode", () => {
 
   RegionGeometryCatalog.resetForTests();
 });
+
+test("Крым/Севастополь и Донбасс: контуры в buildLayer", () => {
+  const catalog = RegionGeometryCatalog.getInstance();
+  catalog.bindRegions([
+    { iso: "RU-CR", name: "Республика Крым", nameWithType: "Республика Крым" },
+    { iso: "RU-DON", name: "Донецкая народная Республика" },
+  ]);
+
+  const layer = catalog.buildLayer(
+    new Map([
+      ["RU-CR", "red"],
+      ["RU-DON", "yellow"],
+    ]),
+    { includeGrey: true },
+  );
+  const codes = new Set(
+    layer.features.map((f) => String(f.properties.regionCode)),
+  );
+
+  assert.ok(codes.has("RU-CR"), "Крым из Russia_regions.geojson");
+  assert.ok(codes.has("RU-SEV"), "Севастополь из Russia_regions.geojson");
+  assert.ok(codes.has("RU-DON"), "ДНР из supplemental/front-regions.geojson");
+  assert.ok(codes.has("RU-LUG"));
+  assert.ok(codes.has("RU-ZP"));
+  assert.ok(codes.has("RU-KHE"));
+
+  RegionGeometryCatalog.resetForTests();
+});

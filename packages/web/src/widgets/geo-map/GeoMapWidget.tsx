@@ -36,6 +36,14 @@ const REGIONS_SELECTION = "regions-selection";
 const PLACES_SOURCE = "places";
 const PLACES_LAYER = "places-circles";
 
+/** promoteId — быстрый feature-state для выделения без полного setData. */
+const REGION_GEOJSON_SOURCE = {
+  type: "geojson" as const,
+  promoteId: "regionCode",
+};
+
+const FEATURE_SELECTED = ["boolean", ["feature-state", "selected"], false] as const;
+
 /** Place-слой выше fill региона — при hover на точку не показываем тултип области. */
 function hasPlaceAtPointer(map: MapLibreMap, point: { x: number; y: number }): boolean {
   return map.queryRenderedFeatures(point, { layers: [PLACES_LAYER] }).length > 0;
@@ -66,7 +74,6 @@ type GeoJsonCollection = {
 function paintRegionOutlines(
   base: GeoJsonCollection,
   regions: Map<string, MapRegionSnapshot>,
-  selectedCode: string | null,
 ): GeoJsonCollection {
   return {
     type: "FeatureCollection",
@@ -82,11 +89,34 @@ function paintRegionOutlines(
           stateLevel,
           color: LEVEL_COLORS[stateLevel],
           kind: "region",
-          selected: code === selectedCode ? 1 : 0,
         },
       };
     }),
   };
+}
+
+/** Мгновенное выделение: без пересборки GeoJSON (setData на тысячах полигонов — медленно). */
+function setRegionFeatureSelected(
+  map: MapLibreMap,
+  regionCode: string,
+  selected: boolean,
+): void {
+  for (const source of [REGIONS_SOURCE, REGIONS_OUTLINE_SOURCE]) {
+    try {
+      map.setFeatureState({ source, id: regionCode }, { selected });
+    } catch {
+      // регион ещё не в источнике
+    }
+  }
+}
+
+function applyRegionSelection(
+  map: MapLibreMap,
+  prev: string | null,
+  next: string | null,
+): void {
+  if (prev && prev !== next) setRegionFeatureSelected(map, prev, false);
+  if (next) setRegionFeatureSelected(map, next, true);
 }
 
 /** Line-слой: inset-контур (строго внутри полигона, без line-offset). */
@@ -166,6 +196,7 @@ function fitMapView(
   map: MapLibreMap,
   regionFeatures: PolygonFeature[],
   placeFeatures: PointFeature[],
+  duration = 0,
 ): void {
   let minLon = Infinity;
   let maxLon = -Infinity;
@@ -202,8 +233,22 @@ function fitMapView(
       [minLon, minLat],
       [maxLon, maxLat],
     ],
-    { padding: 48, maxZoom: 7, duration: 0 },
+    { padding: 48, maxZoom: 7, duration },
   );
+}
+
+/** Обзор активных регионов и мест (сброс фильтра). */
+function fitOperationalOverview(
+  map: MapLibreMap,
+  base: GeoJsonCollection,
+  duration: number,
+): void {
+  const painted = paintRegionOutlines(base, regionsByCode$.value);
+  const placeFeatures = placesToFeatures(
+    placesById$.value,
+    regionsByCode$.value,
+  );
+  fitMapView(map, painted.features, placeFeatures, duration);
 }
 
 /** Центрирует карту на выбранном регионе (selectedRegion$). */
@@ -211,6 +256,7 @@ function flyToRegion(
   map: MapLibreMap,
   regionCode: string,
   base: GeoJsonCollection,
+  duration: number,
 ): void {
   const feature = base.features.find(
     (row) => String(row.properties.regionCode ?? "") === regionCode,
@@ -246,7 +292,7 @@ function flyToRegion(
       [minLon, minLat],
       [maxLon, maxLat],
     ],
-    { padding: 72, maxZoom: 8, duration: 500 },
+    { padding: 72, maxZoom: 8, duration },
   );
 }
 
@@ -268,7 +314,7 @@ export function GeoMapWidget(_props: WidgetProps) {
     let unsubRegions: Subscription | undefined;
     let unsubPlaces: Subscription | undefined;
     let unsubSelected: Subscription | undefined;
-    let selectedCode: string | null = selectedRegion$.value;
+    let highlightedCode: string | null = selectedRegion$.value;
     let geoReloadTimer: ReturnType<typeof setTimeout> | undefined;
     let placePopup: Popup | null = null;
     let regionPopup: Popup | null = null;
@@ -297,7 +343,6 @@ export function GeoMapWidget(_props: WidgetProps) {
         const painted = paintRegionOutlines(
           baseRegionsRef.current,
           regionsByCode$.value,
-          selectedCode,
         );
         setRegionOutlines(painted.features.length);
         const fillSource = map.getSource(REGIONS_SOURCE) as
@@ -308,6 +353,9 @@ export function GeoMapWidget(_props: WidgetProps) {
           | GeoJSONSource
           | undefined;
         outlineSource?.setData(paintRegionInsetOutlines(painted) as never);
+        if (highlightedCode) {
+          setRegionFeatureSelected(map, highlightedCode, true);
+        }
         const placeFeatures = placesToFeatures(
           placesById$.value,
           regionsByCode$.value,
@@ -335,8 +383,10 @@ export function GeoMapWidget(_props: WidgetProps) {
           const painted = paintRegionOutlines(
             baseRegionsRef.current,
             regionsByCode$.value,
-            selectedCode,
           );
+          if (highlightedCode) {
+            setRegionFeatureSelected(map, highlightedCode, true);
+          }
           fitIfNeeded(painted.features, collection.features);
         }
       });
@@ -387,11 +437,11 @@ export function GeoMapWidget(_props: WidgetProps) {
         if (!map) return;
 
         map.addSource(REGIONS_SOURCE, {
-          type: "geojson",
+          ...REGION_GEOJSON_SOURCE,
           data: { type: "FeatureCollection", features: [] },
         });
         map.addSource(REGIONS_OUTLINE_SOURCE, {
-          type: "geojson",
+          ...REGION_GEOJSON_SOURCE,
           data: { type: "FeatureCollection", features: [] },
         });
         map.addLayer({
@@ -403,7 +453,7 @@ export function GeoMapWidget(_props: WidgetProps) {
             "fill-color": ["coalesce", ["get", "color"], LEVEL_COLORS.grey],
             "fill-opacity": [
               "case",
-              ["==", ["get", "selected"], 1],
+              FEATURE_SELECTED,
               REGION_MAP_SELECTED_FILL_OPACITY,
               REGION_MAP_FILL_OPACITY,
             ],
@@ -418,7 +468,7 @@ export function GeoMapWidget(_props: WidgetProps) {
             "line-color": ["coalesce", ["get", "color"], LEVEL_COLORS.grey],
             "line-width": [
               "case",
-              ["==", ["get", "selected"], 1],
+              FEATURE_SELECTED,
               REGION_MAP_SELECTED_STROKE_WIDTH,
               REGION_MAP_STROKE_WIDTH,
             ],
@@ -432,7 +482,7 @@ export function GeoMapWidget(_props: WidgetProps) {
           filter: [
             "all",
             ["==", ["get", "kind"], "region"],
-            ["==", ["get", "selected"], 1],
+            FEATURE_SELECTED,
           ],
           paint: {
             "line-color": REGION_MAP_SELECTION_HALO,
@@ -560,13 +610,27 @@ export function GeoMapWidget(_props: WidgetProps) {
         unsubRegions = regionsByCode$.subscribe(() => scheduleMapRefresh());
         unsubPlaces = placesById$.subscribe(() => applyPlaces());
         unsubSelected = selectedRegion$.subscribe((code) => {
-          selectedCode = code;
-          applyRegions();
-          if (!code || !map || !baseRegionsRef.current) return;
+          clearTimeout(geoReloadTimer);
+          const prev = highlightedCode;
+          if (map) {
+            applyRegionSelection(map, prev, code);
+          }
+          highlightedCode = code;
+          if (!map || !baseRegionsRef.current) return;
+
           whenStyleReady(map, () => {
-            if (map && code && baseRegionsRef.current) {
-              flyToRegion(map, code, baseRegionsRef.current);
+            if (!map || !baseRegionsRef.current) return;
+            map.stop();
+
+            if (!code) {
+              fitOperationalOverview(map, baseRegionsRef.current, 350);
+              return;
             }
+            if (code === prev) return;
+
+            // Анимация только при входе с обзора; смена чипа — мгновенно.
+            const animate = prev === null;
+            flyToRegion(map, code, baseRegionsRef.current, animate ? 320 : 0);
           });
         });
 

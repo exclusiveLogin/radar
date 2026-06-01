@@ -1,5 +1,25 @@
 [
   {
+    "iso": "RU-CR",
+    "name": "Республика Крым",
+    "nameWithType": "Республика Крым",
+    "shortName": "Крым",
+    "federalDistrict": "Южный",
+    "frontRegion": true,
+    "borderRegion": true,
+    "sourceMeta": { "geometry": "Russia_regions.geojson", "isoAlias": "RU-CR" }
+  },
+  {
+    "iso": "RU-SEV",
+    "name": "Севастополь",
+    "nameWithType": "город федерального значения Севастополь",
+    "shortName": "Севастополь",
+    "federalDistrict": "Южный",
+    "frontRegion": true,
+    "borderRegion": true,
+    "sourceMeta": { "geometry": "Russia_regions.geojson", "isoAlias": "RU-SEV" }
+  },
+  {
     "iso": "RU-DON",
     "name": "Донецкая Народная Республика",
     "nameWithType": "Донецкая Народная Республика",
@@ -9,7 +29,7 @@
     "borderRegion": true,
     "centroidLat": 48.0159,
     "centroidLon": 37.8029,
-    "sourceMeta": { "geometry": "centroid-fallback", "note": "Временный центроид; заменить на GeoJSON при появлении источника" }
+    "sourceMeta": { "geometry": "supplemental/front-regions.geojson" }
   },
   {
     "iso": "RU-LUG",
@@ -21,7 +41,7 @@
     "borderRegion": true,
     "centroidLat": 48.5740,
     "centroidLon": 39.3078,
-    "sourceMeta": { "geometry": "centroid-fallback", "note": "Временный центроид; заменить на GeoJSON при появлении источника" }
+    "sourceMeta": { "geometry": "supplemental/front-regions.geojson" }
   },
   {
     "iso": "RU-ZP",
@@ -33,7 +53,7 @@
     "borderRegion": true,
     "centroidLat": 46.8489,
     "centroidLon": 35.3650,
-    "sourceMeta": { "geometry": "centroid-fallback", "note": "Временный центроид (Мелитополь); заменить на GeoJSON при появлении источника" }
+    "sourceMeta": { "geometry": "supplemental/front-regions.geojson" }
   },
   {
     "iso": "RU-KHE",
@@ -45,6 +65,6 @@
     "borderRegion": true,
     "centroidLat": 46.1745,
     "centroidLon": 34.8094,
-    "sourceMeta": { "geometry": "centroid-fallback", "note": "Временный центроид (Геническ); заменить на GeoJSON при появлении источника" }
+    "sourceMeta": { "geometry": "supplemental/front-regions.geojson" }
   }
 ]

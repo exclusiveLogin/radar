@@ -25,6 +25,21 @@ const SUBJECT_OUTLINES_PATH = repoDataPath(
   "Russia_regions.geojson",
 );
 
+/** ДНР/ЛНР/Запорожье/Херсон — вне Russia_regions.geojson (OSM-85). */
+const SUPPLEMENTAL_OUTLINES_PATH = repoDataPath(
+  "geo",
+  "artifacts",
+  "boundaries",
+  "supplemental",
+  "front-regions.geojson",
+);
+
+/** Подписи OSM Russia_regions → ISO (Крым/Севастополь в hflabs как UA-*). */
+const FIXED_LABEL_ISO: Record<string, string> = {
+  "республика крым": "RU-CR",
+  "город федерального значения севастополь": "RU-SEV",
+};
+
 /** Нормализация для сопоставления подписей GeoJSON и ISO. */
 export function normRegionLabel(value: string): string {
   return value
@@ -83,6 +98,7 @@ export class RegionGeometryCatalog {
   private readonly isoByNorm = new Map<string, string>();
 
   private subjectOutlines: GeoJsonFeatureCollection | null = null;
+  private supplementalOutlines: GeoJsonFeatureCollection | null = null;
 
   static getInstance(): RegionGeometryCatalog {
     if (!RegionGeometryCatalog.instance) {
@@ -120,9 +136,13 @@ export class RegionGeometryCatalog {
     const includeGrey = options?.includeGrey ?? false;
     const features: GeoJsonFeature[] = [];
 
-    for (const template of this.loadSubjectOutlines().features) {
+    for (const template of [
+      ...this.loadSubjectOutlines().features,
+      ...this.loadSupplementalOutlines().features,
+    ]) {
       const label = String(template.properties.region ?? "");
-      const iso = this.resolveIso(label);
+      const iso =
+        String(template.properties.regionCode ?? "") || this.resolveIso(label);
       if (!iso) continue;
 
       const stateLevel = stateByIso.get(iso) ?? "grey";
@@ -206,7 +226,8 @@ export class RegionGeometryCatalog {
 
   /** Только точное совпадение norm(label) — без substring. */
   private resolveIso(label: string): string | undefined {
-    return this.isoByNorm.get(normRegionLabel(label));
+    const key = normRegionLabel(label);
+    return FIXED_LABEL_ISO[key] ?? this.isoByNorm.get(key);
   }
 
   private loadSubjectOutlines(): GeoJsonFeatureCollection {
@@ -239,6 +260,48 @@ export class RegionGeometryCatalog {
 
     this.subjectOutlines = { type: "FeatureCollection", features };
     return this.subjectOutlines;
+  }
+
+  private loadSupplementalOutlines(): GeoJsonFeatureCollection {
+    if (this.supplementalOutlines) return this.supplementalOutlines;
+    if (!fs.existsSync(SUPPLEMENTAL_OUTLINES_PATH)) {
+      this.supplementalOutlines = { type: "FeatureCollection", features: [] };
+      return this.supplementalOutlines;
+    }
+
+    const raw = JSON.parse(
+      fs.readFileSync(SUPPLEMENTAL_OUTLINES_PATH, "utf8"),
+    ) as {
+      features?: Array<{
+        geometry?: { type: string; coordinates: unknown };
+        properties?: { region?: string; regionCode?: string };
+      }>;
+    };
+
+    const features: GeoJsonFeature[] = [];
+    for (const feature of raw.features ?? []) {
+      const geomType = feature.geometry?.type;
+      if (
+        !feature.geometry?.coordinates
+        || (geomType !== "Polygon" && geomType !== "MultiPolygon")
+      ) {
+        continue;
+      }
+      features.push({
+        type: "Feature",
+        properties: {
+          region: String(feature.properties?.region ?? ""),
+          regionCode: String(feature.properties?.regionCode ?? ""),
+        },
+        geometry: {
+          type: geomType,
+          coordinates: feature.geometry.coordinates,
+        },
+      });
+    }
+
+    this.supplementalOutlines = { type: "FeatureCollection", features };
+    return this.supplementalOutlines;
   }
 }
 

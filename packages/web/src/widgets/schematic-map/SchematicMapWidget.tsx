@@ -4,6 +4,7 @@ import type { MapRegionSnapshot, StateLevel } from "@radar/shared";
 import { Panel } from "../../shared/ds";
 import { LEVEL_COLORS, LEVEL_LABELS } from "../../shared/config/mapConfig.service";
 import { formatDateTime } from "../../shared/format/dateTime";
+import { useBehaviorSubject } from "../../shared/hooks/useBehaviorSubject";
 import { useObservable } from "../../shared/hooks/useObservable";
 import { regionsByCode$ } from "../../shared/state/mapStore";
 import { selectRegion, selectedRegion$ } from "../../shared/state/selectionStore";
@@ -65,7 +66,7 @@ type HoverTip = {
 /** Схема: уплотнённый honeycomb, подсказка в portal (не режется glass-панелью). */
 export function SchematicMapWidget(_props: WidgetProps) {
   const regions = useObservable(regionsByCode$, new Map<string, MapRegionSnapshot>());
-  const selected = useObservable(selectedRegion$, null);
+  const selected = useBehaviorSubject(selectedRegion$);
   const [hoverTip, setHoverTip] = useState<HoverTip | null>(null);
 
   const layoutRegions = useMemo(

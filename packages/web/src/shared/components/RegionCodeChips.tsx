@@ -1,5 +1,5 @@
 import { selectRegion, selectedRegion$ } from "../state/selectionStore";
-import { useObservable } from "../hooks/useObservable";
+import { useBehaviorSubject } from "../hooks/useBehaviorSubject";
 
 type Props = {
   codes: string[];
@@ -18,7 +18,7 @@ function chipLabel(code: string, inline: boolean): string {
 
 /** ISO-коды регионов компактными кликабельными чипами. */
 export function RegionCodeChips({ codes, label, inline = false, onSelect }: Props) {
-  const selected = useObservable(selectedRegion$, null);
+  const selected = useBehaviorSubject(selectedRegion$);
   const unique = [...new Set(codes.filter(Boolean))];
   if (unique.length === 0) return null;
 
