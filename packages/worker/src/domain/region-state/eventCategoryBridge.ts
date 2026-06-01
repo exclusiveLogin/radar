@@ -3,9 +3,8 @@
  * (ADR-003, Фаза E). Словарь — SSOT: предпочтительный код применяется только если
  * он есть и активен; иначе берём представителя целевого `state_level`.
  *
- * Используется как fallback-энричер атрибута: rule-классификатор имеет приоритет
- * (выше trust при равном precision), LLM-категория заполняет, когда правило не
- * распознало статус (grey).
+ * Атрибут eventType в проекции: при равном precision побеждает источник с большим
+ * trust (LLM > rule). Категория other → отбой через all_clear (снятие ложной тревоги).
  */
 import type { GeoEventCategory, StateLevel, StatusDictionaryRecord } from "@radar/shared";
 

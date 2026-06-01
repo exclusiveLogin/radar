@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
+import { MapRealtimeBroadcastService } from "../map/map-realtime-broadcast.service";
 import { InjectDataSource } from "@nestjs/typeorm";
 import {
   manualRunScopeSchema,
@@ -21,7 +22,10 @@ export class PhasesAdminService {
   private readonly coverage: TypeOrmPhaseCoverageRepository;
   private readonly runs: TypeOrmPhaseRunRepository;
 
-  constructor(@InjectDataSource() dataSource: DataSource) {
+  constructor(
+    @InjectDataSource() dataSource: DataSource,
+    private readonly mapRealtime: MapRealtimeBroadcastService,
+  ) {
     this.phases = new TypeOrmPhaseDefinitionRepository(dataSource);
     this.coverage = new TypeOrmPhaseCoverageRepository(dataSource);
     this.runs = new TypeOrmPhaseRunRepository(dataSource);
@@ -148,18 +152,24 @@ export class PhasesAdminService {
     return { ok: true, reset };
   }
 
-  async replay(body: unknown): Promise<{ invalidated: number; phaseIds: string[] }> {
+  async replay(body: unknown): Promise<{
+    invalidated: number;
+    phaseIds: string[];
+    placesFlushed: number;
+  }> {
     const parsed = phaseReplayRequestSchema.safeParse(body);
     if (!parsed.success) throw new BadRequestException(parsed.error.issues);
     const { phaseIds, invalidateCoverage } = parsed.data;
     let invalidated = 0;
+    let placesFlushed = 0;
     if (invalidateCoverage) {
+      placesFlushed = await this.mapRealtime.flushActivePlacesOnMap();
       invalidated = await this.coverage.invalidateForPhases(phaseIds);
       for (const phaseId of phaseIds) {
         await this.coverage.enqueueCatchUp(phaseId);
       }
     }
-    return { invalidated, phaseIds };
+    return { invalidated, phaseIds, placesFlushed };
   }
 
 }

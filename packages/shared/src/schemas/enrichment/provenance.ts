@@ -23,9 +23,10 @@ export const SOURCE_TRUST: Record<EnrichmentSource, number> = {
   operator: 1.0,
   dadata: 0.95,
   nominatim: 0.8,
-  rule: 0.7,
   system: 0.7,
-  llm: 0.55,
+  /** Семантика события (eventCategory) — LLM выше rule: может снять ложный attention. */
+  llm: 0.75,
+  rule: 0.55,
 };
 
 /**

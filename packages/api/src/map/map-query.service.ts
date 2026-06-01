@@ -381,7 +381,11 @@ export class MapQueryService {
               rm.raw_text,
               rm.ingest_mode,
               pe.event_type,
-              sd.state_level,
+              pe.extras,
+              CASE
+                WHEN pe.extras->>'eventCategory' = 'other' THEN NULL
+                ELSE sd.state_level
+              END AS state_level,
               COALESCE(
                 array_agg(DISTINCT r.iso) FILTER (WHERE r.iso IS NOT NULL),
                 '{}'
@@ -393,7 +397,11 @@ export class MapQueryService {
        LEFT JOIN event_locations el ON el.parsed_event_id = pe.id
        LEFT JOIN regions r ON r.id = el.region_id
        GROUP BY rm.id, c.key, c.title, rm.posted_at, rm.raw_text, rm.ingest_mode,
-                pe.event_type, sd.state_level
+                pe.event_type, pe.extras,
+                CASE
+                  WHEN pe.extras->>'eventCategory' = 'other' THEN NULL
+                  ELSE sd.state_level
+                END
        ORDER BY rm.posted_at DESC
        LIMIT $1`,
       [limit],

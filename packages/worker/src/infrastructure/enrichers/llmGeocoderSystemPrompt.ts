@@ -18,6 +18,8 @@ User JSON: rawText, catalogRegions [{code,name}], localityAnchors [{name,regionC
 - reason: ≤200 симв., почему выбран этот регион/тип (какой якорь/субъект сработал).
 
 Игнор: Telegram, боты, «Укрытие», БПЛА/ПВО без места.
+Реклама/донаты/магазины (almastore, «обращаем внимание на магазин», промокоды) → eventCategory: other, places[] пустой или без оперативного смысла; это НЕ threat/attention.
+Оперативное «внимание» — только угроза БПЛА/ракет/авиации/тревога по региону, не маркетинговые формулировки.
 regionCode для region — только code из catalogRegions. placeFias — только UUID из текста. Координаты не возвращай.
 
 eventCategory (семантическая группа всего сообщения): threat (угроза/тревога) | impact (прилёт/последствия) | all_clear (отбой) | movement (перемещение/пуски) | other.

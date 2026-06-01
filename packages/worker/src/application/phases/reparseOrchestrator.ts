@@ -3,6 +3,7 @@ import type { DataSource } from "typeorm";
 import type { WorkerDbRepositories } from "../../infrastructure/persistence/workerDbRepos.types.js";
 import type { PhaseIngestFlowDeps } from "./phaseIngestFlow.js";
 import { runPostIngestPhaseFlow } from "./phaseIngestFlow.js";
+import { MapStateFullReset } from "../map-state/mapStateFullReset.js";
 import { clearParsedArtifacts } from "./pipelineOperationalReset.js";
 import { sortPhasesByOrder } from "./phaseOrder.js";
 
@@ -29,6 +30,13 @@ export async function runFullReparseLikeIngest(input: FullReparseInput): Promise
     ),
   );
   const phaseIds = autoPhases.map((p) => p.id);
+
+  const mapReset = new MapStateFullReset({
+    regionState: input.repos.regionState,
+    placeStatus: input.repos.placeStatus,
+    regions: input.repos.regions,
+  });
+  await mapReset.run(new Date(), "reparse:invalidate");
 
   await clearParsedArtifacts(input.dataSource);
   const phasesInvalidated =

@@ -255,7 +255,16 @@ export class ParseRawMessageHandler {
     }
 
     const persisted = await this.parsedEvents.upsert(parsed);
+    const priorLocations =
+      eventCategory === "other"
+        ? await this.eventLocations.listForParsedEvent(persisted.id)
+        : [];
     await this.eventLocations.replaceForParsedEvent(persisted.id, parsed.locations);
+
+    const projectionLocations =
+      eventCategory === "other" && priorLocations.length > 0
+        ? priorLocations
+        : parsed.locations;
 
     const success = buildDomainEvent({
       type: "MessageParsed",
@@ -270,8 +279,7 @@ export class ParseRawMessageHandler {
         severity: parsed.severity,
         direction: parsed.direction,
         postedAt: parsed.postedAt,
-        // Срез локаций для проекции состояния регионов (без тяжёлых полей).
-        locations: parsed.locations.map((location) => ({
+        locations: projectionLocations.map((location) => ({
           regionId: location.regionId,
           regionCode: location.regionCode,
           placeId: location.placeId,

@@ -3,6 +3,7 @@ import { InjectDataSource } from "@nestjs/typeorm";
 import type { PlaceStateEvent, StateLevel, WsServerMessage } from "@radar/shared";
 import type { DataSource } from "typeorm";
 import {
+  PlaceStatusActiveEntity,
   PlaceStatusHistoryEntity,
   StatusDictionaryEntity,
 } from "../events/entities";
@@ -40,6 +41,45 @@ export class PlaceStatePoller {
     if (!this.timer) return;
     clearInterval(this.timer);
     this.timer = null;
+  }
+
+  /**
+   * Принудительно снять все активные места с карты у подписчиков WS
+   * (до/после operational reset в БД). Не меняет place_status_active.
+   */
+  async broadcastActivePlaceDeactivations(emit: Emit): Promise<number> {
+    if (this.levelByStatus.size === 0) {
+      await this.loadDictionary();
+    }
+
+    const rows = await this.dataSource.getRepository(PlaceStatusActiveEntity).find({
+      relations: { place: { region: true } },
+    });
+
+    let sent = 0;
+    for (const row of rows) {
+      const place = row.place;
+      const region = place?.region;
+      if (!place || !region) continue;
+
+      const coords = resolvePlaceMapCentroid({ place });
+      const stateLevel = this.levelByStatus.get(row.statusCode) ?? "grey";
+      const payload: PlaceStateEvent = {
+        placeId: row.placeId,
+        placeName: place.name,
+        regionId: region.id,
+        regionCode: region.iso ?? region.name,
+        statusCode: row.statusCode,
+        stateLevel,
+        action: "deactivate",
+        lat: coords?.lat,
+        lon: coords?.lon,
+        changedAt: new Date().toISOString(),
+      };
+      emit({ type: "place-state", payload });
+      sent += 1;
+    }
+    return sent;
   }
 
   private async loadDictionary(): Promise<void> {

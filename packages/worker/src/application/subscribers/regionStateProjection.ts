@@ -121,14 +121,14 @@ export class RegionStateProjection {
   }
 
   /**
-   * Эффективный код статуса как результат merge атрибут-энричеров (SSOT):
-   * rule (выше trust) имеет приоритет; LLM-категория заполняет, когда правило
-   * не дало значимого статуса (grey). Совпадение precision — решает trust.
+   * Эффективный код статуса: merge rule + LLM (attribute); при равном precision
+   * побеждает больший trust (LLM > rule). other → all_clear (снять ложный alarm).
    */
   private resolveEffectiveStatusCode(
     ruleEventType: string,
     eventCategory: GeoEventCategory | undefined,
   ): string {
+    const dictionary = this.dictionary ?? [];
     let merged: ProvenanceAccumulator = {};
     if (this.levelOf(ruleEventType) !== "grey") {
       merged = mergeContribution(merged, {
@@ -140,8 +140,10 @@ export class RegionStateProjection {
         },
       });
     }
-    const llmCode = eventCategory
-      ? bridgeEventCategoryToCode(eventCategory, this.dictionary ?? [])
+    const llmCategory: GeoEventCategory | undefined =
+      eventCategory === "other" ? "all_clear" : eventCategory;
+    const llmCode = llmCategory
+      ? bridgeEventCategoryToCode(llmCategory, dictionary)
       : null;
     if (llmCode) {
       merged = mergeContribution(merged, {

@@ -11,6 +11,7 @@ import { PlaceEntity, RegionEntity } from "../geo/entities";
 import { MapController } from "./map.controller";
 import { MapGateway } from "./map.gateway";
 import { MapQueryService } from "./map-query.service";
+import { MapRealtimeBroadcastService } from "./map-realtime-broadcast.service";
 import { PlaceStatePoller } from "./place-state.poller";
 import { RegionStatePoller } from "./region-state.poller";
 
@@ -26,7 +27,14 @@ import { RegionStatePoller } from "./region-state.poller";
       StatusDictionaryEntity,
     ]),
   ],
-  providers: [MapQueryService, RegionStatePoller, PlaceStatePoller, MapGateway],
+  providers: [
+    MapQueryService,
+    RegionStatePoller,
+    PlaceStatePoller,
+    MapRealtimeBroadcastService,
+    MapGateway,
+  ],
   controllers: [MapController],
+  exports: [MapRealtimeBroadcastService],
 })
 export class MapModule {}

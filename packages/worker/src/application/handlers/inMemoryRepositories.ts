@@ -73,6 +73,10 @@ export class InMemoryParsedEventRepository implements IParsedEventRepository {
 export class InMemoryEventLocationRepository implements IEventLocationRepository {
   private readonly rows = new Map<string, EventLocation[]>();
 
+  async listForParsedEvent(parsedEventId: string): Promise<EventLocation[]> {
+    return [...(this.rows.get(parsedEventId) ?? [])];
+  }
+
   async replaceForParsedEvent(parsedEventId: string, locations: EventLocation[]): Promise<void> {
     this.rows.set(parsedEventId, locations);
   }

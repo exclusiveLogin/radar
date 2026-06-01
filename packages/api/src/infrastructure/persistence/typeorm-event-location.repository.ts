@@ -4,7 +4,25 @@ import type { DataSource } from "typeorm";
 import { EventLocationEntity } from "../../events/entities";
 
 export class TypeOrmEventLocationRepository implements IEventLocationRepository {
-  constructor(private readonly dataSource: DataSource) {}async replaceForParsedEvent(parsedEventId: string, locations: EventLocation[]): Promise<void> {
+  constructor(private readonly dataSource: DataSource) {}
+
+  async listForParsedEvent(parsedEventId: string): Promise<EventLocation[]> {
+    const rows = await this.dataSource.getRepository(EventLocationEntity).find({
+      where: { parsedEventId },
+      relations: { region: true },
+    });
+    return rows.map((row) => ({
+      regionId: row.regionId,
+      regionCode: row.region?.iso ?? row.region?.name ?? "",
+      placeId: row.placeId ?? undefined,
+      precision: row.precision,
+      source: row.source,
+      lat: row.lat !== null ? Number(row.lat) : undefined,
+      lon: row.lon !== null ? Number(row.lon) : undefined,
+    }));
+  }
+
+  async replaceForParsedEvent(parsedEventId: string, locations: EventLocation[]): Promise<void> {
     const repo = this.dataSource.getRepository(EventLocationEntity);
     await repo.delete({ parsedEventId });
     if (locations.length === 0) {

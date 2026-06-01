@@ -256,6 +256,8 @@ export interface IParsedEventRepository {
 
 export interface IEventLocationRepository {
   replaceForParsedEvent(parsedEventId: string, locations: EventLocation[]): Promise<void>;
+  /** Локации до replace — для снятия place_status при LLM other. */
+  listForParsedEvent(parsedEventId: string): Promise<EventLocation[]>;
 }
 
 export interface IIngestCursorRepository {

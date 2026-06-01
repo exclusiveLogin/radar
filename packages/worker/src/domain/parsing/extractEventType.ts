@@ -1,5 +1,20 @@
 import type { EventType } from "@radar/shared";
 
+/** Рекламный/коммерческий контекст: «внимание» не оперативный сигнал. */
+const COMMERCIAL_NOISE = [
+  /интернет[-\s]?магазин/i,
+  /almastore/i,
+  /обращаем\s+(ваше\s+)?внимание\s+на/i,
+  /прямые\s+поставки/i,
+  /параллельн\w+\s+импорт/i,
+  /промокод/i,
+  /реклам/i,
+];
+
+function isCommercialNoise(input: string): boolean {
+  return COMMERCIAL_NOISE.some((pattern) => pattern.test(input));
+}
+
 /**
  * Правила распознавания типа события. Порядок ВАЖЕН: более специфичные и
  * «снимающие тревогу» правила идут раньше общих.
@@ -53,6 +68,7 @@ const rules: Array<{ regex: RegExp; type: EventType }> = [
 
 /** Тип воздушной ситуации по ключевым фразам: отбой, фиксация, ПВО, опасность и т.п. */
 export function extractEventType(input: string): EventType | null {
+  if (isCommercialNoise(input)) return null;
   for (const rule of rules) {
     if (rule.regex.test(input)) return rule.type;
   }

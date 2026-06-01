@@ -9,6 +9,7 @@ import type { WsChannel, WsServerMessage } from "@radar/shared";
 import { WebSocket } from "ws";
 import type { RawData, Server } from "ws";
 import { MapQueryService } from "./map-query.service";
+import { MapRealtimeBroadcastService } from "./map-realtime-broadcast.service";
 import { PlaceStatePoller } from "./place-state.poller";
 import { RegionStatePoller } from "./region-state.poller";
 
@@ -38,10 +39,12 @@ export class MapGateway
     private readonly map: MapQueryService,
     private readonly regionPoller: RegionStatePoller,
     private readonly placePoller: PlaceStatePoller,
+    private readonly realtime: MapRealtimeBroadcastService,
   ) {}
 
   onModuleInit(): void {
     const emit = (message: WsServerMessage): void => this.broadcast(message);
+    this.realtime.bindEmit(emit);
     this.regionPoller.start(emit);
     this.placePoller.start(emit);
   }
