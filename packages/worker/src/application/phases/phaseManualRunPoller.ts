@@ -67,6 +67,11 @@ export class PhaseManualRunPoller {
     this.executingRuns.add(run.id);
     this.busyPhases.add(run.phaseId);
     try {
+      const otherActive = await this.phaseRuns.findActiveForPhase(run.phaseId);
+      if (otherActive && otherActive.id !== run.id) {
+        return;
+      }
+
       const phase = await this.phases.findById(run.phaseId);
       if (!phase) {
         await this.phaseRuns.updateStatus(run.id, "failed", {

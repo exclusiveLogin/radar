@@ -311,7 +311,12 @@ export async function createWorkerCompositionRoot(
       }),
     );
     if (PhaseDaemonService.enabled() && options.startPhaseDaemon !== false) {
-      phaseDaemon = new PhaseDaemonService(workerRepos.phaseDefinitions, phaseRunner);
+      phaseDaemon = new PhaseDaemonService(
+        workerRepos.phaseDefinitions,
+        workerRepos.phaseRuns,
+        workerRepos.phaseCoverage,
+        phaseRunner,
+      );
       phaseDaemon.start();
       phaseManualRunPoller = new PhaseManualRunPoller(
         workerRepos.phaseDefinitions,

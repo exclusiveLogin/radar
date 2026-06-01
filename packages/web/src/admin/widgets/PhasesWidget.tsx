@@ -68,7 +68,7 @@ export function PhasesWidget() {
       <p style={{ fontSize: 10, color: "var(--text-muted)", margin: "0 0 6px", lineHeight: 1.35 }}>
         ВКЛ/ВЫКЛ — <code>phase_definitions.enabled</code>. p/d/f — coverage. Run: enqueue всех
         не-done + manual run; <code>worker:dev</code> гонит батчами до пустой claimable-очереди.
-        Scheduled (llm) — новый тик по interval, тоже по batchSize.
+        Scheduled (llm) — один drain на фазу (батчами до пустой очереди), без параллельных runs.
       </p>
       <h4 style={{ fontSize: 11, color: "var(--text-muted)", margin: "8px 0 4px" }}>
         Фазы · {phases.length}

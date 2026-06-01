@@ -488,6 +488,10 @@ export interface IPhaseRunRepository {
     status?: PhaseRunStatus;
   }): Promise<PhaseRun>;
   findById(id: string): Promise<PhaseRun | null>;
+  /** Активный запуск фазы (running или pending) — для исключения параллельных drain. */
+  findActiveForPhase(phaseId: string): Promise<PhaseRun | null>;
+  /** Зависшие running (рестарт воркера) → failed. */
+  failStaleActiveRuns(phaseId: string, staleAfterMs: number): Promise<number>;
   listActive(): Promise<PhaseRun[]>;
   list(filter?: PhaseRunFilter): Promise<PhaseRun[]>;
   appendLog(id: string, entry: PhaseRunLogEntry): Promise<void>;

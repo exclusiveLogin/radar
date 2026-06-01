@@ -123,23 +123,23 @@ export class PhaseRunner {
   }
 
   /**
-   * Manual run из админки: тот же claim-batch, но цикл до пустой очереди
-   * (как `worker:phase:run` без --watch), один phase_run.
+   * Drain: батчи claim до пустой очереди, один phase_run (manual / scheduled).
    */
-  async runManualRunDrain(input: {
+  async runDrain(input: {
     phase: PhaseDefinitionRecord;
     runId: string;
     batchSize: number;
+    trigger: PhaseTrigger;
   }): Promise<PhaseRunStats> {
     const run = await this.resolveRunForTick({
       phase: input.phase,
-      trigger: "manual",
+      trigger: input.trigger,
       existingRunId: input.runId,
     });
     await this.deps.phaseRuns.appendLog(run.id, {
       at: new Date().toISOString(),
       level: "info",
-      message: `manual drain started phase=${input.phase.id} batchSize=${input.batchSize}`,
+      message: `${input.trigger} drain started phase=${input.phase.id} batchSize=${input.batchSize}`,
     });
 
     const enabledPhases = await this.deps.phaseDefinitions.listEnabled();
@@ -191,7 +191,7 @@ export class PhaseRunner {
         const batchStats = await this.runBatch({
           phase: input.phase,
           runId: run.id,
-          trigger: "manual",
+          trigger: input.trigger,
           tasks,
         });
         totals = mergePhaseRunStats(totals, batchStats);
@@ -216,6 +216,15 @@ export class PhaseRunner {
       await this.deps.phaseRuns.updateStatus(run.id, "failed", { error: message });
       throw err;
     }
+  }
+
+  /** @deprecated используй runDrain */
+  async runManualRunDrain(input: {
+    phase: PhaseDefinitionRecord;
+    runId: string;
+    batchSize: number;
+  }): Promise<PhaseRunStats> {
+    return this.runDrain({ ...input, trigger: "manual" });
   }
 
   /** Полный тик scheduled/manual: claim → run → finalize run. */

@@ -1,8 +1,14 @@
-import type { IPhaseDefinitionRepository, PhaseDefinitionRecord } from "@radar/shared";
+import type {
+  IPhaseCoverageRepository,
+  IPhaseDefinitionRepository,
+  IPhaseRunRepository,
+  PhaseDefinitionRecord,
+} from "@radar/shared";
 import { PhaseRunner } from "./phaseRunner.js";
 import { sortPhasesByOrder } from "./phaseOrder.js";
 
 const DEFAULT_POLL_MS = 15_000;
+const DEFAULT_STALE_RUN_MS = 2 * 60 * 60 * 1000;
 
 function isPhaseDaemonEnabled(): boolean {
   const raw = process.env.RADAR_PHASE_DAEMON_ENABLED?.trim().toLowerCase();
@@ -15,17 +21,26 @@ function resolvePollMs(): number {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_POLL_MS;
 }
 
+function resolveStaleRunMs(): number {
+  const parsed = Number(process.env.RADAR_PHASE_RUN_STALE_MS);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_STALE_RUN_MS;
+}
+
 /**
- * Планировщик scheduled-фаз: interval per phase из policy.intervalMs.
+ * Scheduled-фазы: один drain на фазу, без параллельных phase_run.
+ * Тик пропускается, если в БД уже есть running/pending или очередь пуста.
  */
 export class PhaseDaemonService {
   private timers = new Map<string, ReturnType<typeof setInterval>>();
   private scheduleRefreshTimer: ReturnType<typeof setInterval> | null = null;
+  /** In-process: drain может длиться дольше intervalMs. */
   private running = new Set<string>();
   private stopped = false;
 
   constructor(
     private readonly phases: IPhaseDefinitionRepository,
+    private readonly phaseRuns: IPhaseRunRepository,
+    private readonly coverage: IPhaseCoverageRepository,
     private readonly runner: PhaseRunner,
   ) {}
 
@@ -77,10 +92,33 @@ export class PhaseDaemonService {
     if (this.stopped || this.running.has(phase.id)) return;
     this.running.add(phase.id);
     try {
-      await this.runner.runPhaseTick({
-        phase,
+      const stale = await this.phaseRuns.failStaleActiveRuns(phase.id, resolveStaleRunMs());
+      if (stale > 0) {
+        console.warn(`PhaseDaemon[${phase.id}]: failed ${stale} stale run(s)`);
+      }
+
+      const active = await this.phaseRuns.findActiveForPhase(phase.id);
+      if (active) {
+        return;
+      }
+
+      const counts = await this.coverage.countByStatus(phase.id);
+      const pendingWork = counts.pending + counts.processing;
+      if (pendingWork === 0) {
+        return;
+      }
+
+      const run = await this.phaseRuns.create({
+        phaseId: phase.id,
         trigger: "scheduled",
+        status: "pending",
+      });
+
+      await this.runner.runDrain({
+        phase,
+        runId: run.id,
         batchSize: phase.policy.batchSize,
+        trigger: "scheduled",
       });
     } catch (err) {
       console.error(`PhaseDaemon[${phase.id}]:`, err);

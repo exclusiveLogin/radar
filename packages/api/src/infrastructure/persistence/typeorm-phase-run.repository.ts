@@ -63,6 +63,38 @@ export class TypeOrmPhaseRunRepository implements IPhaseRunRepository {
     return rows[0] ? this.toRun(rows[0]) : null;
   }
 
+  async findActiveForPhase(phaseId: string): Promise<PhaseRun | null> {
+    const rows = readTypeOrmQueryRows<RunRow>(
+      await this.dataSource.query(
+        `SELECT * FROM phase_runs
+         WHERE phase_id = $1 AND status IN ('running', 'pending')
+         ORDER BY created_at DESC
+         LIMIT 1`,
+        [phaseId],
+      ),
+    );
+    return rows[0] ? this.toRun(rows[0]) : null;
+  }
+
+  async failStaleActiveRuns(phaseId: string, staleAfterMs: number): Promise<number> {
+    const ms = Math.max(staleAfterMs, 60_000);
+    const rows = readTypeOrmQueryRows<{ id: string }>(
+      await this.dataSource.query(
+        `UPDATE phase_runs SET
+           status = 'failed',
+           error = 'stale: no heartbeat (worker restart or hung run)',
+           finished_at = now(),
+           updated_at = now()
+         WHERE phase_id = $1
+           AND status IN ('running', 'pending')
+           AND updated_at < now() - ($2::bigint * interval '1 millisecond')
+         RETURNING id`,
+        [phaseId, ms],
+      ),
+    );
+    return rows.length;
+  }
+
   async listActive(): Promise<PhaseRun[]> {
     return this.list({ status: "running", limit: 50 });
   }
