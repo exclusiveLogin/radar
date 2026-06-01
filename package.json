@@ -7,7 +7,7 @@
   "scripts": {
     "up": "docker compose up -d && npm run dev:app",
     "cold:up": "node scripts/cold-up.mjs",
-    "predev:app": "npm run build -w @radar/shared && npm run build -w @radar/api",
+    "predev:app": "node scripts/free-dev-ports.mjs && npm run build -w @radar/shared && npm run build -w @radar/api",
     "predev": "npm run predev:app && npm run build -w @radar/worker",
     "dev": "node scripts/dev-stack.mjs --full",
     "dev:app": "node scripts/dev-stack.mjs",

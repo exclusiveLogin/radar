@@ -9,6 +9,7 @@
  */
 import { spawn } from 'node:child_process';
 import { platform } from 'node:os';
+import { freeDevPorts } from './free-dev-ports.mjs';
 import { repoRoot, run } from './utils.mjs';
 
 const full = process.argv.includes('--full');
@@ -55,6 +56,8 @@ function spawnConcurrently() {
 async function main() {
   console.log('\x1b[36m=== Radar dev: bootstrap ===\x1b[0m');
   console.log(`Профиль: ${full ? 'full (+ worker)' : 'app (shared + api + web)'}`);
+
+  freeDevPorts();
 
   console.log('\n\x1b[36m(dist уже собран predev — см. package.json)\x1b[0m');
   console.log('\n\x1b[32mЗапуск процессов (web после /api/ready, worker после dist)\x1b[0m');
