@@ -2,12 +2,17 @@ import { Injectable } from "@nestjs/common";
 import { InjectDataSource } from "@nestjs/typeorm";
 import type { PlaceStateEvent, StateLevel, WsServerMessage } from "@radar/shared";
 import type { DataSource } from "typeorm";
-import { MoreThan } from "typeorm";
 import {
   PlaceStatusHistoryEntity,
   StatusDictionaryEntity,
 } from "../events/entities";
 import { resolvePlaceMapCentroid } from "./map-centroid.resolver";
+import {
+  advanceHistoryPollCursor,
+  createHistoryPollCursor,
+  historyAfterCursorWhere,
+  type HistoryPollCursor,
+} from "./history-poller-cursor";
 
 type Emit = (message: WsServerMessage) => void;
 
@@ -18,7 +23,7 @@ type Emit = (message: WsServerMessage) => void;
 @Injectable()
 export class PlaceStatePoller {
   private timer: NodeJS.Timeout | null = null;
-  private cursor = new Date();
+  private cursor: HistoryPollCursor = createHistoryPollCursor();
   private readonly pollMs = 1000;
   private levelByStatus = new Map<string, StateLevel>();
 
@@ -26,7 +31,7 @@ export class PlaceStatePoller {
 
   start(emit: Emit): void {
     if (this.timer) return;
-    this.cursor = new Date();
+    this.cursor = createHistoryPollCursor();
     void this.loadDictionary();
     this.timer = setInterval(() => void this.tick(emit), this.pollMs);
   }
@@ -51,14 +56,17 @@ export class PlaceStatePoller {
       await this.loadDictionary();
     }
 
+    const afterCursor = historyAfterCursorWhere("h.event_at", "h.id", this.cursor);
     const rows = await this.dataSource
       .getRepository(PlaceStatusHistoryEntity)
-      .find({
-        where: { eventAt: MoreThan(this.cursor) },
-        order: { eventAt: "ASC" },
-        take: 200,
-        relations: { place: { region: true } },
-      });
+      .createQueryBuilder("h")
+      .innerJoinAndSelect("h.place", "place")
+      .innerJoinAndSelect("place.region", "region")
+      .where(afterCursor.clause, afterCursor.params)
+      .orderBy("h.eventAt", "ASC")
+      .addOrderBy("h.id", "ASC")
+      .take(200)
+      .getMany();
     if (rows.length === 0) return;
 
     for (const row of rows) {
@@ -91,6 +99,10 @@ export class PlaceStatePoller {
       emit({ type: "place-state", payload });
     }
 
-    this.cursor = rows[rows.length - 1].eventAt;
+    const last = rows[rows.length - 1]!;
+    this.cursor = advanceHistoryPollCursor(this.cursor, {
+      at: last.eventAt,
+      id: last.id,
+    });
   }
 }

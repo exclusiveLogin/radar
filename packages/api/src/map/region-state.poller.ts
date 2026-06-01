@@ -2,13 +2,19 @@ import { Injectable } from "@nestjs/common";
 import { InjectDataSource } from "@nestjs/typeorm";
 import type { WsServerMessage } from "@radar/shared";
 import type { DataSource } from "typeorm";
-import { In, MoreThan } from "typeorm";
+import { In } from "typeorm";
 import {
   RegionStateActiveEntity,
   RegionStateHistoryEntity,
 } from "../events/entities";
 import { RegionEntity } from "../geo/entities";
 import { resolveRegionCentroid } from "./map-centroid.resolver";
+import {
+  advanceHistoryPollCursor,
+  createHistoryPollCursor,
+  historyAfterCursorWhere,
+  type HistoryPollCursor,
+} from "./history-poller-cursor";
 
 type Emit = (message: WsServerMessage) => void;
 
@@ -28,14 +34,14 @@ const WARNING_TITLES: Record<string, string> = {
 @Injectable()
 export class RegionStatePoller {
   private timer: NodeJS.Timeout | null = null;
-  private cursor = new Date();
+  private cursor: HistoryPollCursor = createHistoryPollCursor();
   private readonly pollMs = 1000;
 
   constructor(@InjectDataSource() private readonly dataSource: DataSource) {}
 
   start(emit: Emit): void {
     if (this.timer) return;
-    this.cursor = new Date();
+    this.cursor = createHistoryPollCursor();
     this.timer = setInterval(() => void this.tick(emit), this.pollMs);
   }
 
@@ -46,13 +52,15 @@ export class RegionStatePoller {
   }
 
   private async tick(emit: Emit): Promise<void> {
+    const afterCursor = historyAfterCursorWhere("h.changed_at", "h.id", this.cursor);
     const rows = await this.dataSource
       .getRepository(RegionStateHistoryEntity)
-      .find({
-        where: { changedAt: MoreThan(this.cursor) },
-        order: { changedAt: "ASC" },
-        take: 200,
-      });
+      .createQueryBuilder("h")
+      .where(afterCursor.clause, afterCursor.params)
+      .orderBy("h.changedAt", "ASC")
+      .addOrderBy("h.id", "ASC")
+      .take(200)
+      .getMany();
     if (rows.length === 0) return;
 
     const activity = await this.loadActivity();
@@ -95,7 +103,11 @@ export class RegionStatePoller {
         },
       });
     }
-    this.cursor = rows[rows.length - 1].changedAt;
+    const last = rows[rows.length - 1]!;
+    this.cursor = advanceHistoryPollCursor(this.cursor, {
+      at: last.changedAt,
+      id: last.id,
+    });
   }
 
   private async loadRegions(ids: string[]): Promise<Map<string, RegionEntity>> {

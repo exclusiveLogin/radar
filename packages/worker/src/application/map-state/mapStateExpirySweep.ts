@@ -23,6 +23,7 @@ export type MapStateExpiryResult = {
 
 /**
  * Сбрасывает устаревшие статусы: регионы → grey, места → deactivate.
+ * TTL по времени события (status_event_at / meta.statusEventAt), не по updated_at проекции.
  * Пишет history — API-поллеры отдадут изменения по WS.
  */
 export class MapStateExpirySweep {

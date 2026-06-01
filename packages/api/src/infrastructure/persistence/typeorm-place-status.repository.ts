@@ -9,7 +9,6 @@ import {
   readPlaceStatusEventAt,
 } from "@radar/shared";
 import type { DataSource } from "typeorm";
-import { LessThan } from "typeorm";
 import {
   PlaceStatusActiveEntity,
   PlaceStatusHistoryEntity,
@@ -128,10 +127,27 @@ async upsertActive(input: PlaceStatusActiveRecord): Promise<void> {
   async listActiveUpdatedBefore(
     updatedBeforeIso: string,
   ): Promise<PlaceStatusActiveRecord[]> {
-    const rows = await this.dataSource.getRepository(PlaceStatusActiveEntity).find({
-      where: { updatedAt: LessThan(new Date(updatedBeforeIso)) },
-      order: { updatedAt: "ASC" },
-    });
+    const cutoff = new Date(updatedBeforeIso);
+    const rows = await this.dataSource
+      .getRepository(PlaceStatusActiveEntity)
+      .createQueryBuilder("psa")
+      .where(
+        `COALESCE(
+           NULLIF(psa.meta->>'${PLACE_STATUS_EVENT_AT_META_KEY}', '')::timestamptz,
+           psa.started_at,
+           psa.updated_at
+         ) < :cutoff`,
+        { cutoff },
+      )
+      .orderBy(
+        `COALESCE(
+           NULLIF(psa.meta->>'${PLACE_STATUS_EVENT_AT_META_KEY}', '')::timestamptz,
+           psa.started_at,
+           psa.updated_at
+         )`,
+        "ASC",
+      )
+      .getMany();
     return rows.map((row) => this.toRecord(row));
   }
 

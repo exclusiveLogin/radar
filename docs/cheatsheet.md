@@ -168,7 +168,7 @@ ORDER BY rm.posted_at DESC LIMIT 10;
 | Bootstrap golden set | `npm run parse:golden:bootstrap -- --input tests` |
 | Скоринг по golden | `npm run parse:score -- --input tests` |
 
-**TTL:** `RADAR_MAP_STATE_TTL_HOURS` (default 24), daemon в worker db mode.
+**TTL:** `RADAR_MAP_STATE_TTL_HOURS` (default 24), от `status_event_at` / `meta.statusEventAt` (не `updated_at`), daemon в worker db mode.
 
 ---
 

@@ -3,13 +3,10 @@ import type {
   RegionStateActiveRecord,
 } from "@radar/shared";
 import type { DataSource } from "typeorm";
-import { LessThan, Not } from "typeorm";
 import {
   RegionStateActiveEntity,
   RegionStateHistoryEntity,
 } from "../../events/entities";
-
-type StateLevel = RegionStateActiveRecord["stateLevel"];
 
 export class TypeOrmRegionStateRepository implements IRegionStateRepository {
   constructor(private readonly dataSource: DataSource) {}
@@ -47,20 +44,25 @@ export class TypeOrmRegionStateRepository implements IRegionStateRepository {
   async listAlarmUpdatedBefore(
     updatedBeforeIso: string,
   ): Promise<RegionStateActiveRecord[]> {
-    const rows = await this.dataSource.getRepository(RegionStateActiveEntity).find({
-      where: {
-        stateLevel: Not("grey" as StateLevel),
-        updatedAt: LessThan(new Date(updatedBeforeIso)),
-      },
-    });
+    const cutoff = new Date(updatedBeforeIso);
+    const rows = await this.dataSource
+      .getRepository(RegionStateActiveEntity)
+      .createQueryBuilder("rsa")
+      .where("rsa.state_level <> :grey", { grey: "grey" })
+      .andWhere(
+        `(rsa.status_event_at IS NOT NULL AND rsa.status_event_at < :cutoff)
+         OR (rsa.status_event_at IS NULL AND rsa.updated_at < :cutoff)`,
+        { cutoff },
+      )
+      .getMany();
     return rows.map((row) => this.toRecord(row));
   }
 
   async appendHistory(input: {
     regionId: string;
     regionCode: string;
-    stateLevel: StateLevel;
-    previousLevel: StateLevel;
+    stateLevel: RegionStateActiveRecord["stateLevel"];
+    previousLevel: RegionStateActiveRecord["stateLevel"];
     reason?: string;
     changedAt: string;
   }): Promise<void> {
