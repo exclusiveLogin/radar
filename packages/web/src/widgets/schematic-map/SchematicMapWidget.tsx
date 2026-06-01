@@ -1,5 +1,6 @@
-import { useMemo } from "react";
-import type { MapRegionSnapshot } from "@radar/shared";
+import { useMemo, useState } from "react";
+import { createPortal } from "react-dom";
+import type { MapRegionSnapshot, StateLevel } from "@radar/shared";
 import { Panel } from "../../shared/ds";
 import { LEVEL_COLORS, LEVEL_LABELS } from "../../shared/config/mapConfig.service";
 import { formatDateTime } from "../../shared/format/dateTime";
@@ -7,14 +8,24 @@ import { useObservable } from "../../shared/hooks/useObservable";
 import { regionsByCode$ } from "../../shared/state/mapStore";
 import { selectRegion, selectedRegion$ } from "../../shared/state/selectionStore";
 import type { WidgetProps } from "../widgetProps";
+import {
+  buildCompactLayoutGrid,
+  compactTile,
+  fitViewBoxFromCenters,
+} from "./compactLayoutGrid";
 
-// Соты: pointy-top гексагоны, нечётные ряды со сдвигом на половину ширины.
-const HEX_R = 28; // радиус соты (крупнее прежних кружков)
-const HEX_W = Math.sqrt(3) * HEX_R; // ширина pointy-top гексагона
-const HEX_VSTEP = 1.5 * HEX_R; // шаг между рядами
+const HEX_R = 28;
+const HEX_W = Math.sqrt(3) * HEX_R;
+const HEX_VSTEP = 1.5 * HEX_R;
 const PADDING = 16;
 
-/** Вершины pointy-top гексагона (верхняя вершина строго вверх). */
+const LEVEL_Z: Record<StateLevel, number> = {
+  grey: 0,
+  green: 1,
+  yellow: 2,
+  red: 3,
+};
+
 function hexPoints(cx: number, cy: number, r: number): string {
   const points: string[] = [];
   for (let i = 0; i < 6; i += 1) {
@@ -24,7 +35,6 @@ function hexPoints(cx: number, cy: number, r: number): string {
   return points.join(" ");
 }
 
-/** Центр соты по тайлу layout (col/row) с honeycomb-сдвигом нечётных рядов. */
 function hexCenter(col: number, row: number): { cx: number; cy: number } {
   const offset = row % 2 === 1 ? HEX_W / 2 : 0;
   return {
@@ -33,77 +43,169 @@ function hexCenter(col: number, row: number): { cx: number; cy: number } {
   };
 }
 
-/** Схема обстановки: регион = крупная сота (honeycomb), цвет = уровень состояния. */
+function regionHoverTip(region: MapRegionSnapshot): string {
+  return [
+    `${region.regionCode} — ${region.name}`,
+    LEVEL_LABELS[region.stateLevel],
+    region.activity > 0 ? `×${region.activity}` : null,
+    region.statusEventAt
+      ? `статус с ${formatDateTime(region.statusEventAt)}`
+      : null,
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+type HoverTip = {
+  region: MapRegionSnapshot;
+  x: number;
+  y: number;
+};
+
+/** Схема: уплотнённый honeycomb, подсказка в portal (не режется glass-панелью). */
 export function SchematicMapWidget(_props: WidgetProps) {
   const regions = useObservable(regionsByCode$, new Map<string, MapRegionSnapshot>());
   const selected = useObservable(selectedRegion$, null);
+  const [hoverTip, setHoverTip] = useState<HoverTip | null>(null);
 
-  /** Все субъекты с координатой в layout.json (фиксированная географическая сетка). */
   const layoutRegions = useMemo(
     () => [...regions.values()].filter((region) => region.layout),
     [regions],
   );
 
-  const dims = useMemo(() => {
-    if (layoutRegions.length === 0) return { cols: 0, rows: 0 };
-    const cols = Math.max(...layoutRegions.map((t) => t.layout!.col)) + 1;
-    const rows = Math.max(...layoutRegions.map((t) => t.layout!.row)) + 1;
-    return { cols, rows };
-  }, [layoutRegions]);
+  const compactGrid = useMemo(
+    () => buildCompactLayoutGrid(layoutRegions),
+    [layoutRegions],
+  );
 
-  // +HEX_W/2 — запас под honeycomb-сдвиг нечётных рядов.
-  const width = dims.cols * HEX_W + HEX_W / 2 + PADDING * 2;
-  const height = (Math.max(dims.rows - 1, 0)) * HEX_VSTEP + HEX_R * 2 + PADDING * 2;
+  const activeRegions = useMemo(
+    () => layoutRegions.filter((region) => region.stateLevel !== "grey"),
+    [layoutRegions],
+  );
+
+  const tiles = useMemo(
+    () =>
+      [...layoutRegions].sort(
+        (a, b) => LEVEL_Z[a.stateLevel] - LEVEL_Z[b.stateLevel],
+      ),
+    [layoutRegions],
+  );
+
+  const fullWidth =
+    (compactGrid?.compactCols ?? 0) * HEX_W + HEX_W / 2 + PADDING * 2;
+  const fullHeight =
+    (Math.max((compactGrid?.compactRows ?? 1) - 1, 0)) * HEX_VSTEP +
+    HEX_R * 2 +
+    PADDING * 2;
+
+  const viewBox = useMemo(() => {
+    if (!compactGrid) return `0 0 ${fullWidth} ${fullHeight}`;
+    const centers = activeRegions.map((region) => {
+      const tile = compactTile(
+        compactGrid,
+        region.layout!.col,
+        region.layout!.row,
+      );
+      return hexCenter(tile.col, tile.row);
+    });
+    return fitViewBoxFromCenters(centers, HEX_R, PADDING, {
+      width: fullWidth,
+      height: fullHeight,
+    });
+  }, [activeRegions, compactGrid, fullWidth, fullHeight]);
+
+  const tooltipPortal =
+    hoverTip &&
+    createPortal(
+      <div
+        className="schematic-hex-tip"
+        style={{ left: hoverTip.x + 12, top: hoverTip.y + 12 }}
+        role="tooltip"
+      >
+        {regionHoverTip(hoverTip.region)
+          .split("\n")
+          .map((line) => (
+            <div key={line}>{line}</div>
+          ))}
+      </div>,
+      document.body,
+    );
 
   return (
     <Panel title="Схема обстановки" variant="glass" className="schematic-panel" collapsible>
-      {layoutRegions.length === 0 ? (
+      {layoutRegions.length === 0 || !compactGrid ? (
         <p className="ds-muted">Нет регионов в layout.json.</p>
       ) : (
-        <svg width="100%" viewBox={`0 0 ${width} ${height}`} role="img">
-          {layoutRegions.map((region) => {
-            const { cx, cy } = hexCenter(region.layout!.col, region.layout!.row);
-            const isSelected = region.regionCode === selected;
-            return (
-              <g
-                key={region.regionCode}
-                onClick={() => selectRegion(region.regionCode)}
-                style={{ cursor: "pointer" }}
-              >
-                <title>
-                  {[
-                    `${region.regionCode} — ${region.name}`,
-                    LEVEL_LABELS[region.stateLevel],
-                    region.activity > 0 ? `×${region.activity}` : null,
-                    region.statusEventAt
-                      ? `статус с ${formatDateTime(region.statusEventAt)}`
-                      : null,
-                  ]
-                    .filter(Boolean)
-                    .join("\n")}
-                </title>
-                <polygon
-                  points={hexPoints(cx, cy, HEX_R - 1.5)}
-                  fill={LEVEL_COLORS[region.stateLevel]}
-                  stroke={isSelected ? "#fff" : "#0d0f14"}
-                  strokeWidth={isSelected ? 2.5 : 1}
-                  strokeLinejoin="round"
-                />
-                <text
-                  x={cx}
-                  y={cy + 1}
-                  textAnchor="middle"
-                  dominantBaseline="middle"
-                  fontSize={12}
-                  fill={region.stateLevel === "grey" ? "#c8cdd6" : "#0d0f14"}
-                  fontWeight={700}
+        <div className="schematic-panel__canvas">
+          <svg
+            width="100%"
+            viewBox={viewBox}
+            preserveAspectRatio="xMidYMid meet"
+            role="img"
+          >
+            {tiles.map((region) => {
+              const tile = compactTile(
+                compactGrid,
+                region.layout!.col,
+                region.layout!.row,
+              );
+              const { cx, cy } = hexCenter(tile.col, tile.row);
+              const isSelected = region.regionCode === selected;
+              const isGrey = region.stateLevel === "grey";
+              const tip = regionHoverTip(region);
+
+              return (
+                <g
+                  key={region.regionCode}
+                  onClick={() => selectRegion(region.regionCode)}
+                  style={{ cursor: "pointer" }}
                 >
-                  {region.regionCode.replace("RU-", "")}
-                </text>
-              </g>
-            );
-          })}
-        </svg>
+                  <polygon
+                    points={hexPoints(cx, cy, HEX_R - 1.5)}
+                    fill={isGrey ? "#252830" : LEVEL_COLORS[region.stateLevel]}
+                    fillOpacity={isGrey ? 0.85 : 1}
+                    stroke={
+                      isSelected ? "#fff" : isGrey ? "#3d4452" : "#0d0f14"
+                    }
+                    strokeWidth={isSelected ? 2.5 : 1}
+                    strokeLinejoin="round"
+                    title={tip}
+                    onMouseEnter={(event) => {
+                      setHoverTip({
+                        region,
+                        x: event.clientX,
+                        y: event.clientY,
+                      });
+                    }}
+                    onMouseMove={(event) => {
+                      setHoverTip({
+                        region,
+                        x: event.clientX,
+                        y: event.clientY,
+                      });
+                    }}
+                    onMouseLeave={() => setHoverTip(null)}
+                  />
+                  {!isGrey ? (
+                    <text
+                      x={cx}
+                      y={cy + 1}
+                      textAnchor="middle"
+                      dominantBaseline="middle"
+                      fontSize={11}
+                      fill="#0d0f14"
+                      fontWeight={700}
+                      pointerEvents="none"
+                    >
+                      {region.regionCode.replace("RU-", "")}
+                    </text>
+                  ) : null}
+                </g>
+              );
+            })}
+          </svg>
+          {tooltipPortal}
+        </div>
       )}
     </Panel>
   );

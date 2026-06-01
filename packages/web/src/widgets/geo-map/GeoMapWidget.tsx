@@ -147,6 +147,15 @@ function placesCollection(
   };
 }
 
+/** Контуры только для fitBounds (оперативные регионы, не grey). */
+function activeRegionFeaturesForFit(
+  regionFeatures: PolygonFeature[],
+): PolygonFeature[] {
+  return regionFeatures.filter(
+    (feature) => feature.properties.stateLevel !== "grey",
+  );
+}
+
 function fitMapView(
   map: MapLibreMap,
   regionFeatures: PolygonFeature[],
@@ -173,7 +182,9 @@ function fitMapView(
     for (const part of coords) walkCoords(part);
   };
 
-  for (const feature of regionFeatures) walkCoords(feature.geometry.coordinates);
+  for (const feature of activeRegionFeaturesForFit(regionFeatures)) {
+    walkCoords(feature.geometry.coordinates);
+  }
   for (const feature of placeFeatures) {
     const [lon, lat] = feature.geometry.coordinates;
     extend(lon, lat);
@@ -221,7 +232,8 @@ export function GeoMapWidget(_props: WidgetProps) {
         !didFitRef.current
         || (!hadPlaces && hasPlaces);
       if (!shouldFit) return;
-      if (regionFeatures.length === 0 && placeFeatures.length === 0) return;
+      const activeRegions = activeRegionFeaturesForFit(regionFeatures);
+      if (activeRegions.length === 0 && placeFeatures.length === 0) return;
       fitMapView(map, regionFeatures, placeFeatures);
       didFitRef.current = true;
     };
