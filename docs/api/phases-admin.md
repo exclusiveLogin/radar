@@ -48,6 +48,3 @@ Content-Type: application/json
 
 Polling ~10s (WS `phase-progress` — backlog).
 
-## Legacy
-
-`/api/admin/jobs/*` — совместимость. Не дублируйте `enrich-*` jobs, если те же фазы enabled в `phase_definitions`.

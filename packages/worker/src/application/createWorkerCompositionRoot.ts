@@ -10,8 +10,6 @@ import type {
   IChannelRepository,
   IEventLocationRepository,
   IIngestBackfillJobRepository,
-  IJobDefinitionRepository,
-  IJobRunRepository,
   IIngestBindingRepository,
   IIngestCursorRepository,
   IIngestProviderRepository,
@@ -71,8 +69,6 @@ import {
   BackfillDaemonService,
   isBackfillDaemonEnabled,
 } from "./ingest/backfillDaemonService.js";
-import { JobDaemonService, isJobDaemonEnabled } from "./jobs/jobDaemonService.js";
-import { MONOREPO_ROOT } from "@repo/root";
 import {
   WorkerStorageMode,
   resolveWorkerStorageModeFromEnv,
@@ -157,7 +153,6 @@ export async function createWorkerCompositionRoot(
   let ingestOrchestrator: IngestOrchestrator | undefined;
   let backfillDaemon: BackfillDaemonService | undefined;
   let mapStateExpiryDaemon: MapStateExpiryDaemon | undefined;
-  let jobDaemon: JobDaemonService | undefined;
   let phaseDaemon: PhaseDaemonService | undefined;
   let phaseRunner: PhaseRunner | undefined;
   let coverageEnqueuer: CoverageEnqueuer | undefined;
@@ -176,8 +171,6 @@ export async function createWorkerCompositionRoot(
   let ingestBindings: IIngestBindingRepository | undefined;
   let channels: IChannelRepository | undefined;
   let backfillJobs: IIngestBackfillJobRepository | undefined;
-  let jobDefinitions: IJobDefinitionRepository | undefined;
-  let jobRuns: IJobRunRepository | undefined;
   let workerRepos: WorkerDbRepositories | undefined;
 
   if (storageMode === WorkerStorageMode.Db) {
@@ -202,9 +195,6 @@ export async function createWorkerCompositionRoot(
     ingestBindings = repos.ingestBindings;
     channels = repos.channels;
     backfillJobs = repos.backfillJobs;
-    jobDefinitions = repos.jobDefinitions;
-    jobRuns = repos.jobRuns;
-
     // Технический след парсинга в БД (parse_attempts) для лога/агрегатов админки.
     const parseAttemptWriter = new ParseAttemptWriter(repos.parseAttempts);
     bus.subscribe("MessageParsed", parseAttemptWriter.handler);
@@ -240,7 +230,6 @@ export async function createWorkerCompositionRoot(
     shutdown = async () => {
       outboxRelay?.stop();
       mapStateExpiryDaemon?.stop();
-      jobDaemon?.stop();
       phaseDaemon?.stop();
       await backfillDaemon?.stop();
       await parseWorkerPool?.shutdown();
@@ -360,9 +349,6 @@ export async function createWorkerCompositionRoot(
       );
     }
 
-    if (jobDefinitions && jobRuns && isJobDaemonEnabled()) {
-      jobDaemon = new JobDaemonService(jobDefinitions, jobRuns, MONOREPO_ROOT);
-    }
   }
 
   return {
@@ -378,7 +364,6 @@ export async function createWorkerCompositionRoot(
     ingestOrchestrator,
     backfillDaemon,
     mapStateExpiryDaemon,
-    jobDaemon,
     phaseDaemon,
     phaseRunner,
     coverageEnqueuer,

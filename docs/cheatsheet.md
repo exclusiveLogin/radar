@@ -207,8 +207,6 @@ npm run worker:reparse:raw                 # invalidate + ingest-поток (н�
 Виджет **«Фазы обогащения»** + REST `/api/admin/phases/*` — см.
 [api/phases-admin.md](./api/phases-admin.md).
 
-Legacy jobs API (`/api/admin/jobs/*`) сохранён для совместимости.
-
 ---
 
 ## Web UI (OSINT shell)

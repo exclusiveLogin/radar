@@ -27,15 +27,6 @@ import type {
   PhaseRunStatus,
 } from "../schemas/enrichment/phase-run";
 import type { ManualRunScope } from "../schemas/enrichment/phase";
-import type {
-  CreateJobDefinition,
-  JobDefinition,
-  JobRun,
-  JobRunStatus,
-  JobType,
-  UpdateJobDefinition,
-} from "../schemas/jobs/job";
-
 export type RegionRecord = {
   id: string;
   code: string;
@@ -509,40 +500,3 @@ export interface IPhaseRunRepository {
   findRawIdsForManualRun(phaseId: string, scope?: ManualRunScope): Promise<string[]>;
 }
 
-/** Реестр определений задач планировщика (что и по какому cron). */
-export interface IJobDefinitionRepository {
-  listAll(): Promise<JobDefinition[]>;
-  listEnabled(): Promise<JobDefinition[]>;
-  findById(id: string): Promise<JobDefinition | null>;
-  create(input: CreateJobDefinition): Promise<JobDefinition>;
-  update(id: string, patch: UpdateJobDefinition): Promise<JobDefinition | null>;
-  remove(id: string): Promise<void>;
-}
-
-export type JobRunFilter = {
-  definitionId?: string;
-  type?: JobType;
-  status?: JobRunStatus;
-  limit?: number;
-};
-
-/** Запуски задач (instances) с прогрессом — durable-журнал планировщика. */
-export interface IJobRunRepository {
-  /** Создать запуск (pending) — материализация из cron либо ручной триггер. */
-  create(input: {
-    definitionId?: string | null;
-    type: JobType;
-    params?: Record<string, unknown>;
-  }): Promise<JobRun>;
-  findById(id: string): Promise<JobRun | null>;
-  /** Следующий pending к исполнению (по priority, затем по дате). */
-  findRunnable(): Promise<JobRun | null>;
-  /** Последний запуск определения (для cron-«due»-расчёта). */
-  latestForDefinition(definitionId: string): Promise<JobRun | null>;
-  updateStatus(
-    id: string,
-    status: JobRunStatus,
-    patch?: { stats?: Record<string, unknown>; error?: string | null },
-  ): Promise<void>;
-  list(filter?: JobRunFilter): Promise<JobRun[]>;
-}

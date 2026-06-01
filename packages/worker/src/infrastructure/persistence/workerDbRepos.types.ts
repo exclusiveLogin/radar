@@ -11,8 +11,6 @@ import type {
   IIngestBindingRepository,
   IIngestCursorRepository,
   IIngestProviderRepository,
-  IJobDefinitionRepository,
-  IJobRunRepository,
   IParseAttemptRepository,
   IParsedEventRepository,
   IPhaseDefinitionRepository,
@@ -49,8 +47,6 @@ export type WorkerDbRepositories = {
   phaseCoverage: IPhaseCoverageRepository;
   phaseDefinitions: IPhaseDefinitionRepository;
   phaseRuns: IPhaseRunRepository;
-  jobDefinitions: IJobDefinitionRepository;
-  jobRuns: IJobRunRepository;
 };
 
 /** Structural typing для runtime import API persistence (без компиляции api в worker). */
@@ -77,8 +73,6 @@ export type ApiPersistenceModule = {
     dataSource: DataSource,
   ) => IPhaseDefinitionRepository;
   TypeOrmPhaseRunRepository: new (dataSource: DataSource) => IPhaseRunRepository;
-  TypeOrmJobDefinitionRepository: new (dataSource: DataSource) => IJobDefinitionRepository;
-  TypeOrmJobRunRepository: new (dataSource: DataSource) => IJobRunRepository;
 };
 
 export type ApiOutboxModule = {

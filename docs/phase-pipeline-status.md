@@ -25,7 +25,7 @@
 | WS `phase-progress` | ❌ polling REST |
 | `policy.concurrency` параллельные run | ❌ один batch на фазу |
 | `POST /replay` + `runEagerNow` в API | ⚠️ invalidate+catchUp; eager только через worker/reparse |
-| JobsAdmin deprecated alias | ⚠️ legacy живёт |
+| JobDaemon / job_* tables | ✅ удалены (`DropJobScheduler1748600000000`) |
 | Rate-limit / debounce `minIntervalMs` в daemon | ⚠️ interval per phase, debounce упрощён |
 
 ## Не в scope v1

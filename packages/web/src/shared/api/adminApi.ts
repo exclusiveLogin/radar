@@ -4,8 +4,6 @@ import {
   backfillJobRecordSchema,
   channelAdminItemSchema,
   channelStatsSchema,
-  jobDefinitionSchema,
-  jobRunSchema,
   parseAttemptItemSchema,
   statsOverviewSchema,
   type AdminTelemetry,
@@ -14,12 +12,8 @@ import {
   type BackfillStrategy,
   type ChannelAdminItem,
   type ChannelStats,
-  type CreateJobDefinition,
-  type JobDefinition,
-  type JobRun,
   type ParseAttemptItem,
   type StatsOverview,
-  type UpdateJobDefinition,
   phaseDefinitionSchema,
   phaseRunSchema,
 } from "@radar/shared";
@@ -29,8 +23,6 @@ import { z } from "zod";
 const channelsSchema = z.array(channelAdminItemSchema);
 const backfillJobsSchema = z.array(backfillJobListItemSchema);
 const parseAttemptsSchema = z.array(parseAttemptItemSchema);
-const jobDefinitionsSchema = z.array(jobDefinitionSchema);
-const jobRunsSchema = z.array(jobRunSchema);
 const phasesSchema = z.array(phaseDefinitionSchema);
 const phaseRunsSchema = z.array(phaseRunSchema);
 
@@ -134,26 +126,6 @@ export const adminApi = {
     if (params?.channelKey) query.set("channelKey", params.channelKey);
     query.set("limit", String(params?.limit ?? 100));
     return getJson(`/api/admin/parse-attempts?${query.toString()}`, parseAttemptsSchema);
-  },
-
-  // ─── Планировщик задач (ADR-003, Фаза G) ────────────────────────────────
-  jobDefinitions: (): Promise<JobDefinition[]> =>
-    getJson("/api/admin/jobs/definitions", jobDefinitionsSchema),
-
-  createJobDefinition: (input: CreateJobDefinition): Promise<JobDefinition> =>
-    postJson("/api/admin/jobs/definitions", input, jobDefinitionSchema),
-
-  updateJobDefinition: (id: string, patch: UpdateJobDefinition): Promise<JobDefinition> =>
-    sendJson("PATCH", `/api/admin/jobs/definitions/${encodeURIComponent(id)}`, patch, jobDefinitionSchema),
-
-  triggerJob: (id: string): Promise<JobRun> =>
-    postJson(`/api/admin/jobs/definitions/${encodeURIComponent(id)}/trigger`, undefined, jobRunSchema),
-
-  jobRuns: (params?: { definitionId?: string; limit?: number }): Promise<JobRun[]> => {
-    const query = new URLSearchParams();
-    if (params?.definitionId) query.set("definitionId", params.definitionId);
-    query.set("limit", String(params?.limit ?? 20));
-    return getJson(`/api/admin/jobs/runs?${query.toString()}`, jobRunsSchema);
   },
 
   // ─── Phase-pipeline v2 ───────────────────────────────────────────────────

@@ -64,9 +64,18 @@ npm run worker:reparse:raw
 | Переменная | Смысл |
 |------------|--------|
 | `RADAR_STORAGE_MODE` | `db` для pipeline |
-| `RADAR_PHASE_DAEMON_ENABLED` | `0`/`false` — выключить scheduled |
+| `RADAR_PHASE_DAEMON_ENABLED` | `0`/`false` — выключить scheduled (в db по умолчанию **вкл**) |
 | `RADAR_PHASE_DAEMON_POLL_MS` | Обновление расписания фаз (default 15000) |
-| `RADAR_REPARSE_BATCH` | Не используется в ingest-flow reparse (legacy) |
+## Единственный оркестратор обогащения
+
+```
+ingest/backfill → RawMessageIngested → phaseIngestFlow (eager)
+                                      → phase_coverage (pending)
+PhaseDaemon (scheduled) → PhaseRunner → parsed_events
+manual: worker:phase:run / админка Run
+```
+
+Таблицы `job_definitions` / `job_runs` и JobDaemon **удалены** (миграция `1748600000000`).
 
 ## Прогресс
 
@@ -78,7 +87,6 @@ npm run worker:reparse:raw
 
 Виджет **«Фазы обогащения»**, REST: [api/phases-admin.md](./api/phases-admin.md).
 
-Legacy `JobDaemon` / `/api/admin/jobs/*` — отключите дублирующие job-типы, если фазы уже в `phase_definitions`.
 
 ## Диагностика
 
