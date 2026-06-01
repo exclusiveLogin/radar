@@ -207,6 +207,68 @@ body {
   white-space: nowrap;
 }
 
+/* ISO-чипы регионов (лента, исходное сообщение) */
+.ds-region-chips {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.ds-region-chips__label {
+  font-size: 10px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.ds-region-chips__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  min-width: 0;
+}
+
+.ds-region-chip {
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 1px 6px;
+  font-size: 10px;
+  font-weight: 600;
+  font-family: ui-monospace, monospace;
+  cursor: pointer;
+  line-height: 1.4;
+}
+
+.ds-region-chip:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.ds-region-chip--selected {
+  border-color: #fff;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.35);
+}
+
+.ds-region-chips--inline {
+  flex: 1 1 auto;
+  flex-direction: row;
+  align-items: center;
+  min-width: 0;
+}
+
+.ds-region-chips--inline .ds-region-chips__row {
+  flex: 1;
+  justify-content: flex-start;
+}
+
+.ds-accordion__head .ds-region-chip {
+  font-size: 11px;
+  padding: 2px 8px;
+}
+
 /* ── Аккордеон ── */
 .ds-accordion__item {
   border-bottom: 1px solid var(--border);
@@ -226,8 +288,22 @@ body {
   cursor: pointer;
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
   font-size: 13px;
+}
+
+.ds-accordion__head-title {
+  flex: 1 1 120px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ds-accordion__head-time {
+  margin-left: auto;
+  flex-shrink: 0;
 }
 
 .ds-accordion__head:hover {

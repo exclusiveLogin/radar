@@ -50,6 +50,10 @@ export {
   messageFeedItemSchema,
   messageFeedResponseSchema,
 } from "./message-feed";
+export {
+  stateChangeEventItemSchema,
+  stateChangeEventsResponseSchema,
+} from "./state-change-event";
 export { ingestManifestEntrySchema, ingestManifestSchema } from "./ingest-manifest";
 export {
   sessionKindSchema,
@@ -99,6 +103,10 @@ export type {
   TimelineResponse,
 } from "./ingest-timeline";
 export type { MessageFeedItem, MessageFeedResponse } from "./message-feed";
+export type {
+  StateChangeEventItem,
+  StateChangeEventsResponse,
+} from "./state-change-event";
 export type { IngestManifestEntry, IngestManifest } from "./ingest-manifest";
 export type {
   SessionKind,

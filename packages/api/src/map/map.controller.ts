@@ -3,6 +3,7 @@ import { ApiQuery } from "@nestjs/swagger";
 import {
   mapSnapshotSchema,
   messageFeedResponseSchema,
+  stateChangeEventsResponseSchema,
   statusDictionarySchema,
   sourceMessageResponseSchema,
   warningSchema,
@@ -119,6 +120,15 @@ export class MapController {
   async recentMessages(@Query("limit") limit?: string) {
     return messageFeedResponseSchema.parse({
       items: await this.map.getRecentMessages(parseLimit(limit, 80)),
+    });
+  }
+
+  /** Лента изменений: parsed_event + регионы из event_locations (1 событие = 1 карточка). */
+  @Get("map/events/recent")
+  @ApiQuery({ name: "limit", required: false })
+  async recentStateChangeEvents(@Query("limit") limit?: string) {
+    return stateChangeEventsResponseSchema.parse({
+      items: await this.map.getRecentStateChangeEvents(parseLimit(limit, 80)),
     });
   }
 }

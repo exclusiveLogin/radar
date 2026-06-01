@@ -119,6 +119,11 @@ export const MAP_INITIAL_VIEW = {
 /** Inset-контур активного региона (отдельная геометрия, не line-offset). */
 export const REGION_MAP_STROKE_WIDTH = 2.8;
 
+/** Выделение региона по selectedRegion$ (кнопка «Контур на карте» и чипы в ленте). */
+export const REGION_MAP_SELECTED_STROKE_WIDTH = 4.5;
+export const REGION_MAP_SELECTED_FILL_OPACITY = 0.5;
+export const REGION_MAP_SELECTION_HALO = "#ffffff";
+
 /** Полупрозрачная заливка региона тем же цветом, что и контур. */
 export const REGION_MAP_FILL_OPACITY = 0.24;
 

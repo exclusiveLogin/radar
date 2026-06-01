@@ -1,6 +1,7 @@
 import {
   healthResponseSchema,
   messageFeedResponseSchema,
+  stateChangeEventsResponseSchema,
   readyResponseSchema,
   workerStatusResponseSchema,
   mapSnapshotSchema,
@@ -11,6 +12,7 @@ import {
 import type {
   MapSnapshot,
   MessageFeedResponse,
+  StateChangeEventsResponse,
   SourceMessage,
   StatusDictionary,
   Warning,
@@ -87,6 +89,8 @@ export const mapApi = {
   /** Лента сырых сообщений всех каналов. */
   recentMessages: (limit = 80): Promise<MessageFeedResponse> =>
     getJson(`/api/map/messages/recent?limit=${limit}`, messageFeedResponseSchema),
+  recentStateChangeEvents: (limit = 80): Promise<StateChangeEventsResponse> =>
+    getJson(`/api/map/events/recent?limit=${limit}`, stateChangeEventsResponseSchema),
   regionSourceMessage: (
     regionCode: string,
   ): Promise<{ message: SourceMessage | null }> =>

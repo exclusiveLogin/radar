@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { LiveBadge, LiveClock, ThemeToggle } from "../shared/ds";
 import { startMapStore } from "../shared/state/mapStore";
 import { startMessagesStore } from "../shared/state/messagesStore";
+import { startStateChangesFeedStore } from "../shared/state/stateChangesFeedStore";
 import { startProvidersStore } from "../shared/state/providersStore";
 import { WIDGETS, type WidgetZone } from "./widgetRegistry";
 
@@ -25,6 +26,7 @@ export function AppShell() {
     startMapStore();
     startProvidersStore();
     startMessagesStore();
+    startStateChangesFeedStore();
   }, []);
 
   const toggle = (id: string): void =>

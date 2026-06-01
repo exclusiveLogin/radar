@@ -12,6 +12,8 @@ export const messageFeedItemSchema = z.object({
   ingestMode: ingestModeSchema,
   /** Тип события после parse (null — ещё не разобрано). */
   eventType: z.string().nullable().optional(),
+  /** Семантика из parse/LLM (threat, clear, other, …). */
+  eventCategory: z.string().nullable().optional(),
   /** Уровень карты из status_dictionary (null — нет parse или неизвестный код). */
   stateLevel: stateLevelSchema.nullable().optional(),
   regionCodes: z.array(z.string()).default([]),

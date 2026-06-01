@@ -1,70 +1,97 @@
 import { useMemo } from "react";
-import type { Warning } from "@radar/shared";
+import type { StateChangeEventItem } from "@radar/shared";
 import { Accordion, Badge, Panel } from "../../shared/ds";
 import type { AccordionItem } from "../../shared/ds";
-import { SourceMessageBlock } from "../../shared/components/SourceMessageBlock";
+import { RegionCodeChips } from "../../shared/components/RegionCodeChips";
 import { formatDateTime, formatTimeShort } from "../../shared/format/dateTime";
 import { useObservable } from "../../shared/hooks/useObservable";
-import { stateChanges$ } from "../../shared/state/mapStore";
+import { stateChangesFeed$ } from "../../shared/state/stateChangesFeedStore";
 import { selectRegion, selectedRegion$ } from "../../shared/state/selectionStore";
 import type { WidgetProps } from "../widgetProps";
-import {
-  formatGroupedRegionsLabel,
-  groupStateChanges,
-} from "./groupStateChanges";
 
-/** Лента смен состояния регионов (region_state_history + WS). */
+function sourceLabel(row: StateChangeEventItem): string {
+  return row.channelTitle?.trim() || row.channelKey;
+}
+
+function parseMetaLine(row: StateChangeEventItem): string | null {
+  const parts = [
+    row.eventType ? `тип: ${row.eventType}` : null,
+    row.eventCategory ? `категория: ${row.eventCategory}` : null,
+  ].filter(Boolean);
+  return parts.length > 0 ? parts.join(" · ") : null;
+}
+
+function regionsTip(row: StateChangeEventItem): string {
+  const names = [...new Set(row.regionNames)].filter(Boolean);
+  if (names.length === 0) return row.regionCodes.join(", ");
+  return names.join(" · ");
+}
+
+/**
+ * Лента изменений: 1 parsed_event = 1 карточка, регионы видны в свёрнутой строке.
+ */
 export function StateChangesWidget({ defaultCollapsed = false }: WidgetProps) {
-  const changes = useObservable(stateChanges$, [] as Warning[]);
+  const events = useObservable(stateChangesFeed$, []);
   const selected = useObservable(selectedRegion$, null);
 
   const visible = useMemo(() => {
-    const filtered = selected
-      ? changes.filter(
-          (row) =>
-            row.regionCode === selected ||
-            row.regionId === selected,
-        )
-      : changes;
-    return groupStateChanges(filtered);
-  }, [changes, selected]);
+    if (!selected) return events;
+    return events.filter((row) => row.regionCodes.includes(selected));
+  }, [events, selected]);
 
   const items: AccordionItem[] = visible.map((row) => {
-    const headRegion = formatGroupedRegionsLabel(row.regions);
-    const codesLine = row.regions
-      .map((r) => r.regionCode)
-      .filter((code): code is string => Boolean(code))
-      .join(" · ");
-    const sourceRegionCode = row.regions[0]?.regionCode;
+    const regionCodes = [...new Set(row.regionCodes)];
+    const parseLine = parseMetaLine(row);
+    const namesLine = regionsTip(row);
 
     return {
-      id: row.id,
-      headTip: [headRegion, codesLine, row.title, row.text].filter(Boolean).join("\n"),
+      id: row.parsedEventId,
+      headTip: [
+        namesLine,
+        ...regionCodes,
+        sourceLabel(row),
+        formatDateTime(row.postedAt),
+        parseLine,
+        row.rawText.trim(),
+      ]
+        .filter(Boolean)
+        .join("\n"),
       head: (
         <>
-          <Badge level={row.stateLevel ?? "grey"} />
-          <span>{headRegion}</span>
-          {codesLine && row.regions.length > 1 ? (
-            <span className="ds-muted">{codesLine}</span>
-          ) : row.regions.length === 1 && row.regions[0]?.regionCode ? (
-            <span className="ds-muted">{row.regions[0].regionCode}</span>
-          ) : null}
-          <span className="ds-muted" style={{ marginLeft: "auto" }}>
-            {formatTimeShort(row.eventAt)}
+          <Badge level={row.stateLevel} />
+          <RegionCodeChips codes={regionCodes} inline />
+          <span className="ds-muted ds-accordion__head-time">
+            {formatTimeShort(row.postedAt)}
           </span>
         </>
       ),
       body: (
         <>
-          <div>{row.title}</div>
           <div className="ds-muted" style={{ fontSize: 11 }}>
-            Запись: {formatDateTime(row.eventAt)}
-            {row.regions.length > 1 ? ` · ${row.regions.length} региона` : null}
+            {sourceLabel(row)} · {formatDateTime(row.postedAt)}
           </div>
-          {row.text && <div className="ds-muted">{row.text}</div>}
-          {sourceRegionCode ? (
-            <SourceMessageBlock regionCode={sourceRegionCode} />
-          ) : null}
+          {namesLine && (
+            <div className="ds-muted" style={{ fontSize: 11, marginTop: 4 }}>
+              {namesLine}
+            </div>
+          )}
+          {parseLine && (
+            <div className="ds-muted" style={{ fontSize: 11, marginTop: 4 }}>
+              {parseLine}
+            </div>
+          )}
+          <pre
+            style={{
+              margin: "8px 0 0",
+              whiteSpace: "pre-wrap",
+              wordBreak: "break-word",
+              fontFamily: "inherit",
+              fontSize: 12,
+              color: "var(--text)",
+            }}
+          >
+            {row.rawText.trim()}
+          </pre>
         </>
       ),
     };
@@ -90,7 +117,7 @@ export function StateChangesWidget({ defaultCollapsed = false }: WidgetProps) {
       defaultCollapsed={defaultCollapsed}
     >
       {items.length === 0 ? (
-        <p className="ds-muted">Нет записей в журнале.</p>
+        <p className="ds-muted">Нет событий с привязкой к регионам на карте.</p>
       ) : (
         <Accordion items={items} />
       )}

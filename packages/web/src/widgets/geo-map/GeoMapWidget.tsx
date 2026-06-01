@@ -15,13 +15,16 @@ import {
   MAP_INITIAL_VIEW,
   REGION_MAP_FILL_OPACITY,
   REGION_MAP_INSET_FACTOR,
+  REGION_MAP_SELECTED_FILL_OPACITY,
+  REGION_MAP_SELECTED_STROKE_WIDTH,
+  REGION_MAP_SELECTION_HALO,
   REGION_MAP_STROKE_WIDTH,
   resolveMapBasemapStyle,
 } from "../../shared/config/mapConfig.service";
 import { formatDateTime } from "../../shared/format/dateTime";
 import { isPlaceVisibleOnMap } from "../../shared/state/derivations";
 import { placesById$, regionsByCode$ } from "../../shared/state/mapStore";
-import { selectRegion } from "../../shared/state/selectionStore";
+import { selectRegion, selectedRegion$ } from "../../shared/state/selectionStore";
 import type { WidgetProps } from "../widgetProps";
 import { insetRegionGeometry } from "./regionInsetOutline";
 
@@ -29,6 +32,7 @@ const REGIONS_SOURCE = "regions";
 const REGIONS_OUTLINE_SOURCE = "regions-outline-inset";
 const REGIONS_FILL = "regions-fill";
 const REGIONS_OUTLINE = "regions-outline";
+const REGIONS_SELECTION = "regions-selection";
 const PLACES_SOURCE = "places";
 const PLACES_LAYER = "places-circles";
 
@@ -62,6 +66,7 @@ type GeoJsonCollection = {
 function paintRegionOutlines(
   base: GeoJsonCollection,
   regions: Map<string, MapRegionSnapshot>,
+  selectedCode: string | null,
 ): GeoJsonCollection {
   return {
     type: "FeatureCollection",
@@ -77,6 +82,7 @@ function paintRegionOutlines(
           stateLevel,
           color: LEVEL_COLORS[stateLevel],
           kind: "region",
+          selected: code === selectedCode ? 1 : 0,
         },
       };
     }),
@@ -200,6 +206,50 @@ function fitMapView(
   );
 }
 
+/** Центрирует карту на выбранном регионе (selectedRegion$). */
+function flyToRegion(
+  map: MapLibreMap,
+  regionCode: string,
+  base: GeoJsonCollection,
+): void {
+  const feature = base.features.find(
+    (row) => String(row.properties.regionCode ?? "") === regionCode,
+  );
+  if (!feature) return;
+
+  let minLon = Infinity;
+  let maxLon = -Infinity;
+  let minLat = Infinity;
+  let maxLat = -Infinity;
+
+  const extend = (lon: number, lat: number): void => {
+    minLon = Math.min(minLon, lon);
+    maxLon = Math.max(maxLon, lon);
+    minLat = Math.min(minLat, lat);
+    maxLat = Math.max(maxLat, lat);
+  };
+
+  const walkCoords = (coords: unknown): void => {
+    if (!Array.isArray(coords)) return;
+    if (typeof coords[0] === "number" && typeof coords[1] === "number") {
+      extend(coords[0], coords[1]);
+      return;
+    }
+    for (const part of coords) walkCoords(part);
+  };
+
+  walkCoords(feature.geometry.coordinates);
+  if (!Number.isFinite(minLon)) return;
+
+  map.fitBounds(
+    [
+      [minLon, minLat],
+      [maxLon, maxLat],
+    ],
+    { padding: 72, maxZoom: 8, duration: 500 },
+  );
+}
+
 /**
  * Гео-карта: заливка + внутренний контур региона (цвет stateLevel) + точки places.
  */
@@ -217,6 +267,8 @@ export function GeoMapWidget(_props: WidgetProps) {
     let disposed = false;
     let unsubRegions: Subscription | undefined;
     let unsubPlaces: Subscription | undefined;
+    let unsubSelected: Subscription | undefined;
+    let selectedCode: string | null = selectedRegion$.value;
     let geoReloadTimer: ReturnType<typeof setTimeout> | undefined;
     let placePopup: Popup | null = null;
     let regionPopup: Popup | null = null;
@@ -245,6 +297,7 @@ export function GeoMapWidget(_props: WidgetProps) {
         const painted = paintRegionOutlines(
           baseRegionsRef.current,
           regionsByCode$.value,
+          selectedCode,
         );
         setRegionOutlines(painted.features.length);
         const fillSource = map.getSource(REGIONS_SOURCE) as
@@ -282,6 +335,7 @@ export function GeoMapWidget(_props: WidgetProps) {
           const painted = paintRegionOutlines(
             baseRegionsRef.current,
             regionsByCode$.value,
+            selectedCode,
           );
           fitIfNeeded(painted.features, collection.features);
         }
@@ -347,7 +401,12 @@ export function GeoMapWidget(_props: WidgetProps) {
           filter: ["==", ["get", "kind"], "region"],
           paint: {
             "fill-color": ["coalesce", ["get", "color"], LEVEL_COLORS.grey],
-            "fill-opacity": REGION_MAP_FILL_OPACITY,
+            "fill-opacity": [
+              "case",
+              ["==", ["get", "selected"], 1],
+              REGION_MAP_SELECTED_FILL_OPACITY,
+              REGION_MAP_FILL_OPACITY,
+            ],
           },
         });
         map.addLayer({
@@ -357,8 +416,28 @@ export function GeoMapWidget(_props: WidgetProps) {
           filter: ["==", ["get", "kind"], "region"],
           paint: {
             "line-color": ["coalesce", ["get", "color"], LEVEL_COLORS.grey],
-            "line-width": REGION_MAP_STROKE_WIDTH,
+            "line-width": [
+              "case",
+              ["==", ["get", "selected"], 1],
+              REGION_MAP_SELECTED_STROKE_WIDTH,
+              REGION_MAP_STROKE_WIDTH,
+            ],
             "line-opacity": 0.95,
+          },
+        });
+        map.addLayer({
+          id: REGIONS_SELECTION,
+          type: "line",
+          source: REGIONS_OUTLINE_SOURCE,
+          filter: [
+            "all",
+            ["==", ["get", "kind"], "region"],
+            ["==", ["get", "selected"], 1],
+          ],
+          paint: {
+            "line-color": REGION_MAP_SELECTION_HALO,
+            "line-width": REGION_MAP_SELECTED_STROKE_WIDTH + 1.5,
+            "line-opacity": 0.9,
           },
         });
 
@@ -480,6 +559,16 @@ export function GeoMapWidget(_props: WidgetProps) {
 
         unsubRegions = regionsByCode$.subscribe(() => scheduleMapRefresh());
         unsubPlaces = placesById$.subscribe(() => applyPlaces());
+        unsubSelected = selectedRegion$.subscribe((code) => {
+          selectedCode = code;
+          applyRegions();
+          if (!code || !map || !baseRegionsRef.current) return;
+          whenStyleReady(map, () => {
+            if (map && code && baseRegionsRef.current) {
+              flyToRegion(map, code, baseRegionsRef.current);
+            }
+          });
+        });
 
         // Снапшот мог прийти до mount виджета — повторно кладём точки на карту.
         if (placesById$.value.size > 0) {
@@ -497,6 +586,7 @@ export function GeoMapWidget(_props: WidgetProps) {
       regionPopup = null;
       unsubRegions?.unsubscribe();
       unsubPlaces?.unsubscribe();
+      unsubSelected?.unsubscribe();
       map?.remove();
     };
   }, []);

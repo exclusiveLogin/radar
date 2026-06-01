@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { mapApi } from "../api/mapApi";
 import { formatDateTime } from "../format/dateTime";
+import { RegionCodeChips } from "./RegionCodeChips";
 
 type Props = {
   regionCode?: string;
@@ -53,8 +54,7 @@ export function SourceMessageBlock({ regionCode, placeId }: Props) {
   if (error) return <p className="ds-muted">{error}</p>;
   if (!text) return <p className="ds-muted">Исходное сообщение не найдено.</p>;
 
-  const regionsLabel =
-    regionCodes.length > 0 ? [...new Set(regionCodes)].join(" · ") : null;
+  const messageRegionCodes = [...new Set(regionCodes)];
 
   return (
     <div style={{ marginTop: 8 }}>
@@ -62,10 +62,11 @@ export function SourceMessageBlock({ regionCode, placeId }: Props) {
         {channelKey ? `@${channelKey} · ` : null}
         {formatDateTime(postedAt)}
       </div>
-      {regionsLabel && (
-        <div className="ds-muted" style={{ fontSize: 11, marginBottom: 6 }}>
-          Регионы: {regionsLabel}
-        </div>
+      {messageRegionCodes.length > 0 && (
+        <RegionCodeChips
+          codes={messageRegionCodes}
+          label="По сообщению"
+        />
       )}
       <pre
         style={{
