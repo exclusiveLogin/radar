@@ -1,7 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { InjectDataSource } from "@nestjs/typeorm";
 import type { DataSource } from "typeorm";
-import { MoreThan } from "typeorm";
+import { In, MoreThan } from "typeorm";
 import type {
   MapPlaceSnapshot,
   MapRegionSnapshot,
@@ -20,7 +20,8 @@ import {
 import { PlaceEntity, RegionEntity } from "../geo/entities";
 import { resolvePlaceMapCentroid, resolveRegionCentroid } from "./map-centroid.resolver";
 import { loadLayout } from "./layout.loader";
-import { maxStateLevel } from "@radar/shared";
+import { maxStateLevel, readPlaceStatusEventAt } from "@radar/shared";
+import type { SourceMessage } from "@radar/shared";
 import type { GeoRegionRef, PlaceRef } from "./map.dto";
 import {
   RegionGeometryCatalog,
@@ -113,6 +114,7 @@ export class MapQueryService {
         layout: tile,
         centroidLat: centroid?.lat,
         centroidLon: centroid?.lon,
+        statusEventAt: state?.statusEventAt?.toISOString(),
       });
     }
 
@@ -188,10 +190,12 @@ export class MapQueryService {
         order: { changedAt: "DESC" },
         take: params.limit,
       });
+    const regionNames = await this.loadRegionNames(rows.map((row) => row.regionId));
     return rows.map((row) => ({
       id: row.id,
       regionId: row.regionId,
       regionCode: row.regionCode,
+      regionName: regionNames.get(row.regionId),
       title: this.warningTitle(row.stateLevel),
       text: row.reason ?? undefined,
       stateLevel: row.stateLevel,
@@ -240,6 +244,7 @@ export class MapQueryService {
         regionCode: string;
         statusCodes: string[];
         updatedAt: Date;
+        statusEventAt: string | undefined;
       }
     >();
 
@@ -251,14 +256,19 @@ export class MapQueryService {
       const coords = resolvePlaceMapCentroid({ place });
       if (!coords) continue;
 
+      const rowEventAt = readPlaceStatusEventAt(row.meta);
       const bucket = byPlace.get(place.id) ?? {
         place,
         regionCode,
         statusCodes: [],
         updatedAt: row.updatedAt,
+        statusEventAt: rowEventAt,
       };
       bucket.statusCodes.push(row.statusCode);
       if (row.updatedAt > bucket.updatedAt) bucket.updatedAt = row.updatedAt;
+      if (rowEventAt && (!bucket.statusEventAt || rowEventAt > bucket.statusEventAt)) {
+        bucket.statusEventAt = rowEventAt;
+      }
       byPlace.set(place.id, bucket);
     }
 
@@ -280,10 +290,58 @@ export class MapQueryService {
         lat: coords.lat,
         lon: coords.lon,
         updatedAt: entry.updatedAt.toISOString(),
+        statusEventAt: entry.statusEventAt,
       });
     }
 
     return items;
+  }
+
+  /** Последнее raw-сообщение, привязанное к региону (по ISO-коду). */
+  async getRegionSourceMessage(regionCode: string): Promise<SourceMessage | null> {
+    const rows = (await this.dataSource.query(
+      `SELECT rm.raw_text, rm.posted_at, c.key AS channel_key
+       FROM raw_messages rm
+       INNER JOIN channels c ON c.id = rm.channel_id
+       INNER JOIN parsed_events pe ON pe.raw_message_id = rm.id
+       INNER JOIN event_locations el ON el.parsed_event_id = pe.id
+       INNER JOIN regions r ON r.id = el.region_id
+       WHERE r.iso = $1 AND r.is_active = true
+       ORDER BY rm.posted_at DESC
+       LIMIT 1`,
+      [regionCode],
+    )) as Array<{ raw_text: string; posted_at: Date; channel_key: string }>;
+
+    const row = rows[0];
+    if (!row) return null;
+    return {
+      rawText: row.raw_text,
+      postedAt: row.posted_at.toISOString(),
+      channelKey: row.channel_key,
+    };
+  }
+
+  /** Последнее raw-сообщение, привязанное к населённому пункту. */
+  async getPlaceSourceMessage(placeId: string): Promise<SourceMessage | null> {
+    const rows = (await this.dataSource.query(
+      `SELECT rm.raw_text, rm.posted_at, c.key AS channel_key
+       FROM raw_messages rm
+       INNER JOIN channels c ON c.id = rm.channel_id
+       INNER JOIN parsed_events pe ON pe.raw_message_id = rm.id
+       INNER JOIN event_locations el ON el.parsed_event_id = pe.id
+       WHERE el.place_id = $1
+       ORDER BY rm.posted_at DESC
+       LIMIT 1`,
+      [placeId],
+    )) as Array<{ raw_text: string; posted_at: Date; channel_key: string }>;
+
+    const row = rows[0];
+    if (!row) return null;
+    return {
+      rawText: row.raw_text,
+      postedAt: row.posted_at.toISOString(),
+      channelKey: row.channel_key,
+    };
   }
 
   private async loadStatusLevels(): Promise<Map<string, StateLevel>> {
@@ -291,6 +349,15 @@ export class MapQueryService {
       .getRepository(StatusDictionaryEntity)
       .find({ where: { isActive: true } });
     return new Map(rows.map((row) => [row.code, row.stateLevel as StateLevel]));
+  }
+
+  private async loadRegionNames(ids: string[]): Promise<Map<string, string>> {
+    const unique = [...new Set(ids)];
+    if (unique.length === 0) return new Map();
+    const rows = await this.dataSource.getRepository(RegionEntity).find({
+      where: { id: In(unique) },
+    });
+    return new Map(rows.map((row) => [row.id, row.name]));
   }
 
   private warningTitle(level: RegionStateLevel): string {

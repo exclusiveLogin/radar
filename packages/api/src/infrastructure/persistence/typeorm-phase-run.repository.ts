@@ -10,6 +10,7 @@ import type {
   PhaseTrigger,
 } from "@radar/shared";
 import { phaseRunStatsSchema } from "@radar/shared";
+import { resolveRawMessagePostedAtOrder } from "@radar/shared";
 import type { DataSource } from "typeorm";
 import {
   pgTimestampToIso,
@@ -170,7 +171,7 @@ export class TypeOrmPhaseRunRepository implements IPhaseRunRepository {
       sql += ` AND rm.posted_at <= $${params.length}::timestamptz`;
     }
 
-    const order = scope?.tail ? "DESC" : "ASC";
+    const order = scope?.tail ? "DESC" : resolveRawMessagePostedAtOrder();
     sql += ` ORDER BY rm.posted_at ${order}`;
 
     if (scope?.limit) {

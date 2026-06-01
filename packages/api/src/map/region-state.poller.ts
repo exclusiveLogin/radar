@@ -56,6 +56,7 @@ export class RegionStatePoller {
     if (rows.length === 0) return;
 
     const activity = await this.loadActivity();
+    const statusEventAt = await this.loadStatusEventAt(rows.map((row) => row.regionId));
     const regionById = await this.loadRegions(rows.map((row) => row.regionId));
 
     for (const row of rows) {
@@ -63,6 +64,7 @@ export class RegionStatePoller {
       const centroid = region
         ? resolveRegionCentroid({ region })
         : undefined;
+      const eventAtIso = statusEventAt.get(row.regionId)?.toISOString();
 
       emit({
         type: "region-state",
@@ -74,6 +76,7 @@ export class RegionStatePoller {
           activity: activity.get(row.regionId) ?? 0,
           reason: row.reason ?? undefined,
           changedAt: row.changedAt.toISOString(),
+          statusEventAt: eventAtIso,
           centroidLat: centroid?.lat,
           centroidLon: centroid?.lon,
         },
@@ -84,6 +87,7 @@ export class RegionStatePoller {
           id: row.id,
           regionId: row.regionId,
           regionCode: row.regionCode,
+          regionName: region?.name,
           title: WARNING_TITLES[row.stateLevel] ?? row.stateLevel,
           text: row.reason ?? undefined,
           stateLevel: row.stateLevel,
@@ -108,5 +112,18 @@ export class RegionStatePoller {
       .getRepository(RegionStateActiveEntity)
       .find();
     return new Map(rows.map((row) => [row.regionId, row.activity]));
+  }
+
+  private async loadStatusEventAt(ids: string[]): Promise<Map<string, Date>> {
+    const unique = [...new Set(ids)];
+    if (unique.length === 0) return new Map();
+    const rows = await this.dataSource.getRepository(RegionStateActiveEntity).find({
+      where: { regionId: In(unique) },
+    });
+    const map = new Map<string, Date>();
+    for (const row of rows) {
+      if (row.statusEventAt) map.set(row.regionId, row.statusEventAt);
+    }
+    return map;
   }
 }

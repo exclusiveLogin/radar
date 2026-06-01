@@ -100,6 +100,8 @@ export {
   mapSnapshotSchema,
   regionAdjacencySchema,
   warningSchema,
+  sourceMessageSchema,
+  sourceMessageResponseSchema,
 } from "./geo";
 export {
   enrichmentSourceSchema,
@@ -247,6 +249,7 @@ export type {
   MapSnapshot,
   RegionAdjacency,
   Warning,
+  SourceMessage,
 } from "./geo";
 export type {
   EnrichmentSource,

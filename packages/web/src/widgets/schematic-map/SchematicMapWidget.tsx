@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import type { MapRegionSnapshot } from "@radar/shared";
 import { Panel } from "../../shared/ds";
 import { LEVEL_COLORS, LEVEL_LABELS } from "../../shared/config/mapConfig.service";
+import { formatDateTime } from "../../shared/format/dateTime";
 import { useObservable } from "../../shared/hooks/useObservable";
 import { regionsByCode$ } from "../../shared/state/mapStore";
 import { selectRegion, selectedRegion$ } from "../../shared/state/selectionStore";
@@ -68,7 +69,16 @@ export function SchematicMapWidget(_props: WidgetProps) {
                 style={{ cursor: "pointer" }}
               >
                 <title>
-                  {`${region.regionCode} — ${region.name}\n${LEVEL_LABELS[region.stateLevel]} · ×${region.activity}`}
+                  {[
+                    `${region.regionCode} — ${region.name}`,
+                    LEVEL_LABELS[region.stateLevel],
+                    region.activity > 0 ? `×${region.activity}` : null,
+                    region.statusEventAt
+                      ? `статус с ${formatDateTime(region.statusEventAt)}`
+                      : null,
+                  ]
+                    .filter(Boolean)
+                    .join("\n")}
                 </title>
                 <polygon
                   points={hexPoints(cx, cy, HEX_R - 1.5)}

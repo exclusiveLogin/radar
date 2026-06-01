@@ -26,6 +26,8 @@ export {
   mapSnapshotSchema,
   regionAdjacencySchema,
   warningSchema,
+  sourceMessageSchema,
+  sourceMessageResponseSchema,
 } from "./region-state";
 
 // --- type-only exports ---
@@ -45,6 +47,7 @@ export type {
   MapSnapshot,
   RegionAdjacency,
   Warning,
+  SourceMessage,
 } from "./region-state";
 export type {
   GeoEnrichmentArtifact,

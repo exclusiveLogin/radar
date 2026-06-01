@@ -4,6 +4,7 @@ import {
   mapSnapshotSchema,
   messageFeedResponseSchema,
   statusDictionarySchema,
+  sourceMessageResponseSchema,
   warningSchema,
 } from "@radar/shared";
 import { z } from "zod";
@@ -84,6 +85,18 @@ export class MapController {
       limit: parseLimit(limit, 100),
     });
     return z.array(warningSchema).parse(warnings);
+  }
+
+  @Get("map/regions/by-code/:code/source-message")
+  async regionSourceMessage(@Param("code") code: string) {
+    const message = await this.map.getRegionSourceMessage(code);
+    return sourceMessageResponseSchema.parse({ message });
+  }
+
+  @Get("map/places/:placeId/source-message")
+  async placeSourceMessage(@Param("placeId") placeId: string) {
+    const message = await this.map.getPlaceSourceMessage(placeId);
+    return sourceMessageResponseSchema.parse({ message });
   }
 
   @Get("warnings")

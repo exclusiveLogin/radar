@@ -14,6 +14,8 @@ export const regionStateRecordSchema = z.object({
   activity: z.number().int().min(0).default(0),
   reason: z.string().optional(),
   updatedAt: z.string().datetime(),
+  /** Момент сообщения, зафиксировавшего текущий уровень (posted_at raw). */
+  statusEventAt: z.string().datetime().optional(),
 });
 
 /** Полезная нагрузка доменного события `RegionStateChanged`. */
@@ -25,6 +27,8 @@ export const regionStateEventSchema = z.object({
   activity: z.number().int().min(0).default(0),
   reason: z.string().optional(),
   changedAt: z.string().datetime(),
+  /** Момент сообщения-источника статуса (для подписи на карте). */
+  statusEventAt: z.string().datetime().optional(),
   /** Для гео-карты при live-обновлении (если в БД нет centroid). */
   centroidLat: z.number().finite().optional(),
   centroidLon: z.number().finite().optional(),
@@ -46,6 +50,7 @@ export const mapRegionSnapshotSchema = z.object({
   layout: layoutTileSchema.optional(),
   centroidLat: z.number().finite().optional(),
   centroidLon: z.number().finite().optional(),
+  statusEventAt: z.string().datetime().optional(),
 });
 
 /** Населённый пункт на гео-карте: активный статус ≠ grey и есть координаты. */
@@ -59,6 +64,7 @@ export const mapPlaceSnapshotSchema = z.object({
   lat: z.number().finite(),
   lon: z.number().finite(),
   updatedAt: z.string().datetime(),
+  statusEventAt: z.string().datetime().optional(),
 });
 
 /** Событие смены статуса места (WS `place-state`). */
@@ -93,10 +99,22 @@ export const warningSchema = z.object({
   id: z.string(),
   regionId: z.string().uuid().optional(),
   regionCode: z.string().optional(),
+  regionName: z.string().optional(),
   title: z.string().min(1),
   text: z.string().optional(),
   stateLevel: stateLevelSchema.optional(),
   eventAt: z.string().datetime(),
+});
+
+/** Исходное сообщение, последнее привязанное к региону/месту. */
+export const sourceMessageSchema = z.object({
+  rawText: z.string(),
+  postedAt: z.string().datetime(),
+  channelKey: z.string().optional(),
+});
+
+export const sourceMessageResponseSchema = z.object({
+  message: sourceMessageSchema.nullable(),
 });
 
 export type RegionStateRecord = z.infer<typeof regionStateRecordSchema>;
@@ -108,3 +126,4 @@ export type PlaceStateEvent = z.infer<typeof placeStateEventSchema>;
 export type MapSnapshot = z.infer<typeof mapSnapshotSchema>;
 export type RegionAdjacency = z.infer<typeof regionAdjacencySchema>;
 export type Warning = z.infer<typeof warningSchema>;
+export type SourceMessage = z.infer<typeof sourceMessageSchema>;

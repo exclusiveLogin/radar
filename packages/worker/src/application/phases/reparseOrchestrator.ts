@@ -1,3 +1,4 @@
+import { resolveRawMessagePostedAtOrder } from "@radar/shared";
 import type { DataSource } from "typeorm";
 import type { WorkerDbRepositories } from "../../infrastructure/persistence/workerDbRepos.types.js";
 import type { PhaseIngestFlowDeps } from "./phaseIngestFlow.js";
@@ -39,8 +40,9 @@ export async function runFullReparseLikeIngest(input: FullReparseInput): Promise
     await input.repos.phaseCoverage.enqueueCatchUp(phaseId);
   }
 
+  const postedOrder = resolveRawMessagePostedAtOrder();
   const rows = (await input.dataSource.query(
-    `SELECT id FROM raw_messages ORDER BY posted_at ASC`,
+    `SELECT id FROM raw_messages ORDER BY posted_at ${postedOrder}`,
   )) as Array<{ id: string }>;
 
   let index = 0;

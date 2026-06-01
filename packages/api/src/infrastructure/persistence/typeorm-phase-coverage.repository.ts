@@ -1,4 +1,9 @@
-import type { IPhaseCoverageRepository, PhaseCoverageStatus, PhaseCoverageTask } from "@radar/shared";
+import {
+  resolveRawMessagePostedAtOrder,
+  type IPhaseCoverageRepository,
+  type PhaseCoverageStatus,
+  type PhaseCoverageTask,
+} from "@radar/shared";
 import type { DataSource } from "typeorm";
 import {
   pgTimestampToIso,
@@ -73,6 +78,9 @@ export class TypeOrmPhaseCoverageRepository implements IPhaseCoverageRepository 
         ? [phaseId, limit, prerequisitePhaseIds]
         : [phaseId, limit];
 
+    const postedOrder = resolveRawMessagePostedAtOrder();
+    const createdOrder = postedOrder === "DESC" ? "DESC" : "ASC";
+
     const rows = readTypeOrmQueryRows<CoverageRow>(
       await this.dataSource.query(
         `UPDATE phase_coverage SET status = 'processing', updated_at = now()
@@ -81,7 +89,7 @@ export class TypeOrmPhaseCoverageRepository implements IPhaseCoverageRepository 
          INNER JOIN raw_messages rm ON rm.id = pc.raw_message_id
          WHERE pc.status = 'pending' AND pc.phase_id = $1
          ${prereq}
-         ORDER BY rm.posted_at ASC, pc.created_at ASC
+         ORDER BY rm.posted_at ${postedOrder}, pc.created_at ${createdOrder}
          LIMIT $2
          FOR UPDATE SKIP LOCKED
        )

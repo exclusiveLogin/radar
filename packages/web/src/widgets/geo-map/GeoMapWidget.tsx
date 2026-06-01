@@ -18,6 +18,7 @@ import {
   REGION_MAP_STROKE_WIDTH,
   resolveMapBasemapStyle,
 } from "../../shared/config/mapConfig.service";
+import { formatDateTime } from "../../shared/format/dateTime";
 import { placesById$, regionsByCode$ } from "../../shared/state/mapStore";
 import { selectRegion } from "../../shared/state/selectionStore";
 import type { WidgetProps } from "../widgetProps";
@@ -428,6 +429,9 @@ export function GeoMapWidget(_props: WidgetProps) {
           const lines = [
             `${code} — ${region?.name ?? code}`,
             region ? `${LEVEL_LABELS[region.stateLevel]} · ×${region.activity}` : null,
+            region?.statusEventAt
+              ? `статус с ${formatDateTime(region.statusEventAt)}`
+              : null,
           ].filter(Boolean);
 
           regionPopup?.remove();

@@ -4,13 +4,21 @@ import {
   readyResponseSchema,
   workerStatusResponseSchema,
   mapSnapshotSchema,
+  sourceMessageResponseSchema,
   statusDictionarySchema,
   warningSchema,
 } from "@radar/shared";
-import type { MapSnapshot, MessageFeedResponse, StatusDictionary, Warning } from "@radar/shared";
+import type {
+  MapSnapshot,
+  MessageFeedResponse,
+  SourceMessage,
+  StatusDictionary,
+  Warning,
+} from "@radar/shared";
 import { z } from "zod";
 
 const warningsSchema = z.array(warningSchema);
+const sourceMessageResponse = sourceMessageResponseSchema;
 
 const geoRegionRefSchema = z.object({
   regionId: z.string(),
@@ -79,6 +87,20 @@ export const mapApi = {
   /** Лента сырых сообщений всех каналов. */
   recentMessages: (limit = 80): Promise<MessageFeedResponse> =>
     getJson(`/api/map/messages/recent?limit=${limit}`, messageFeedResponseSchema),
+  regionSourceMessage: (
+    regionCode: string,
+  ): Promise<{ message: SourceMessage | null }> =>
+    getJson(
+      `/api/map/regions/by-code/${encodeURIComponent(regionCode)}/source-message`,
+      sourceMessageResponse,
+    ),
+  placeSourceMessage: (
+    placeId: string,
+  ): Promise<{ message: SourceMessage | null }> =>
+    getJson(
+      `/api/map/places/${encodeURIComponent(placeId)}/source-message`,
+      sourceMessageResponse,
+    ),
 };
 
 const geoJsonFeatureCollectionSchema = z.object({

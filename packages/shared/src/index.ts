@@ -68,6 +68,8 @@ export {
   mapSnapshotSchema,
   regionAdjacencySchema,
   warningSchema,
+  sourceMessageSchema,
+  sourceMessageResponseSchema,
   wsChannelSchema,
   wsClientMessageSchema,
   wsServerMessageSchema,
@@ -151,6 +153,10 @@ export {
 } from "./domain/regionLookupCode";
 export { layoutTileToCentroid } from "./domain/layoutCentroid";
 export { maxStateLevel } from "./domain/maxStateLevel";
+export {
+  resolveRawMessagePostedAtOrder,
+  type RawMessagePostedAtOrder,
+} from "./domain/phases/phaseClaimOrder";
 export { SourceUniquenessRegistry } from "./ports/source-uniqueness";
 
 // --- type-only exports ---
@@ -223,6 +229,7 @@ export type {
   MapSnapshot,
   RegionAdjacency,
   Warning,
+  SourceMessage,
   WsChannel,
   WsClientMessage,
   WsServerMessage,
