@@ -16,6 +16,15 @@ import {
   type RegionRecord,
 } from "@radar/shared";
 import { randomUUID } from "node:crypto";
+import {
+  isCoordConsistentWithRegion,
+  isTrustedGeocodeSource,
+  resolveRegionCodeForCoords,
+} from "../../domain/geo/coordRegionReconcile.js";
+import {
+  lookupLocalityRegionForPlace,
+} from "../../domain/geo/geographicTextContext.js";
+import { KnownLocalityCatalog } from "../../infrastructure/geo-catalog/knownLocalityCatalog.js";
 
 export type GeoValidationResult = {
   decision: "matched_existing" | "created_new" | "rejected";
@@ -159,12 +168,47 @@ export class GeoValidationService {
     return merged;
   }
 
+  /** Субъект РФ с учётом справочника НП и согласования coords vs текст. */
+  private async resolveEffectiveRegion(
+    location: EventLocation,
+  ): Promise<RegionRecord | null> {
+    const catalog = KnownLocalityCatalog.loadFromDictionaries().list();
+    if (location.placeName) {
+      const fromCatalog = lookupLocalityRegionForPlace(
+        location.placeName,
+        catalog,
+      );
+      if (fromCatalog) {
+        const region = await this.regions.findByCode(fromCatalog);
+        if (region) {
+          return region;
+        }
+      }
+    }
+
+    const textRegion = await this.regions.findByCode(location.regionCode);
+    const allRegions = await this.regions.listActive();
+    const reconciledCode = resolveRegionCodeForCoords(
+      location,
+      textRegion,
+      allRegions,
+    );
+    if (reconciledCode) {
+      const reconciled = await this.regions.findByCode(reconciledCode);
+      if (reconciled) {
+        return reconciled;
+      }
+    }
+
+    return textRegion;
+  }
+
   async validate(
     rawQuery: string,
     location: EventLocation,
     context: GeoValidationContext = {},
   ): Promise<GeoValidationResult> {
-    const region = await this.regions.findByCode(location.regionCode);
+    const region = await this.resolveEffectiveRegion(location);
     if (!region) {
       return { decision: "rejected", location: null };
     }
@@ -178,7 +222,12 @@ export class GeoValidationService {
 
     const provider = context.providerHint ?? sourceToProvider(location.source);
     const trust = toTrustState(provider, context.confidence);
-    const matched = await this.matchPlace(location.placeName, region.id, location.placeFias);
+    const matched = await this.matchPlace(
+      location.placeName,
+      region,
+      location,
+      location.placeFias,
+    );
 
     if (matched) {
       await this.aliases.upsertAlias({
@@ -256,9 +305,15 @@ export class GeoValidationService {
 
   private async matchPlace(
     placeName: string,
-    regionId: string,
+    region: RegionRecord,
+    location: EventLocation,
     placeFias?: string,
   ): Promise<PlaceRecord | null> {
+    const regionId = region.id;
+    const regionsById = new Map(
+      (await this.regions.listActive()).map((row) => [row.id, row]),
+    );
+
     if (placeFias) {
       const byFias = await this.places.findByFias(placeFias);
       if (byFias?.regionId === regionId) {
@@ -272,9 +327,26 @@ export class GeoValidationService {
         continue;
       }
       const place = await this.places.findById(row.placeId);
-      if (place?.regionId === regionId) {
+      if (!place) {
+        continue;
+      }
+      if (place.regionId === regionId) {
         return place;
       }
+      if (
+        location.lat != null
+        && location.lon != null
+        && isTrustedGeocodeSource(location.source)
+      ) {
+        const placeRegion = regionsById.get(place.regionId);
+        if (
+          placeRegion
+          && !isCoordConsistentWithRegion(location.lat, location.lon, placeRegion)
+        ) {
+          continue;
+        }
+      }
+      return place;
     }
 
     return this.places.findByNameInRegion(placeName, regionId);

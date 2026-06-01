@@ -25,11 +25,14 @@ export function mapDadataSuggestion(
   const lon = lonRaw != null && lonRaw !== "" ? Number(lonRaw) : undefined;
 
   const placeName = pickPlaceName(data, best.value);
-  const regionCode =
-    input.regionCodeHint?.trim()
-    || pickString(data, "region_iso_code")
-    || pickString(data, "region_kladr_id")
-    || "";
+  const dadataRegion =
+    pickString(data, "region_iso_code")
+    || pickString(data, "region_kladr_id");
+  const hasCoords = Number.isFinite(lat) && Number.isFinite(lon);
+  // С координатами — субъект из ответа DaData важнее hint из текста (омонимы вроде «Юбилейный»).
+  const regionCode = hasCoords && dadataRegion
+    ? dadataRegion
+    : input.regionCodeHint?.trim() || dadataRegion || "";
 
   const placeFias =
     pickString(data, "fias_id")
