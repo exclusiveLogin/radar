@@ -49,7 +49,7 @@ export async function runWorkerBootstrap(): Promise<void> {
     }
     if (runtime.placeEnrichmentDaemon) {
       console.log(
-        "GeoParseDaemon запущен (scheduled geoParse → place_enrichment_jobs; лог батчей в консоль, подробно: RADAR_VERBOSE_GEO_LOG=1).",
+        "GeoParseDaemon запущен (scheduled geoParse → place_enrichment_jobs; в консоль: [geo:nominatim] ok|miss|fail, подробно: RADAR_VERBOSE_GEO_LOG=1).",
       );
     }
 

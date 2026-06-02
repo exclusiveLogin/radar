@@ -1,4 +1,9 @@
 import { stripChannelPlaceSuffix } from "../parsing/channelCityListPromo.js";
+import {
+  buildCatalogPlaceGeocodeQuery,
+  buildRegionScopedGeocodeQuery,
+  isFederalSubjectLabel,
+} from "@radar/shared";
 
 /**
  * Контекстная геопривязка по тексту сообщения.
@@ -22,16 +27,6 @@ export type RegionCandidate = {
   fiasId?: string;
   aliases?: string[];
 };
-
-const SUBJECT_TYPE_TOKENS = new Set([
-  "область",
-  "обл",
-  "край",
-  "республика",
-  "респ",
-  "ао",
-  "округ",
-]);
 
 function normalize(value: string): string {
   return value
@@ -70,10 +65,7 @@ export function regionCodesEquivalent(a: string, b: string): boolean {
 
 /** Явное упоминание субъекта РФ: в алиасе есть тип или полное каноническое имя. */
 export function isExplicitFederalSubjectAlias(alias: string): boolean {
-  const tokens = normalize(alias)
-    .split(/\s+/)
-    .map((token) => token.replace(/\./g, ""));
-  return tokens.some((token) => SUBJECT_TYPE_TOKENS.has(token));
+  return isFederalSubjectLabel(alias);
 }
 
 /** Есть ли в тексте явная отсылка к этому субъекту (не только стем прилагательного). */
@@ -309,18 +301,7 @@ type GeocodeCatalogPlace = {
   kind: string;
 };
 
-/** Запрос в DaData/Nominatim с привязкой к субъекту (омонимы «…ский район»). */
-export function buildRegionScopedGeocodeQuery(
-  placeName: string,
-  regionName: string,
-): string {
-  const place = placeName.trim();
-  const region = regionName.trim();
-  if (!place || !region) {
-    return place || region;
-  }
-  return `${place}, ${region}, Россия`;
-}
+export { buildRegionScopedGeocodeQuery };
 
 /** Результат подготовки запроса к DaData/Nominatim. */
 export type EnricherGeocodeResolution = {
@@ -371,7 +352,10 @@ export function resolveEnricherGeocode(
 
   if (primaryPlace.kind === "district" || explicitRegion) {
     return {
-      query: buildRegionScopedGeocodeQuery(primaryPlace.name, parentRegion.name),
+      query: buildCatalogPlaceGeocodeQuery({
+        placeName: primaryPlace.name,
+        region: { name: parentRegion.name },
+      }),
       bindPlaceName: primaryPlace.name,
     };
   }

@@ -25,6 +25,15 @@ export function logGeoBatchSummary(input: {
   );
 }
 
+/** Короткая строка на каждый place — видно движение в консоли (~1/с для nominatim). */
+export function logGeoPlaceOutcome(input: {
+  provider: PlaceEnrichmentProvider;
+  placeName: string;
+  outcome: "ok" | "miss" | "skip" | "fail";
+}): void {
+  console.log(`[geo:${input.provider}] ${input.outcome} ${input.placeName}`);
+}
+
 export function logGeoPlaceVerbose(input: {
   provider: PlaceEnrichmentProvider;
   placeId: string;

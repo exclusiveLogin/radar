@@ -155,6 +155,17 @@ export {
   canonicalRegionCode,
   parseKladrSubjectPrefix,
 } from "./domain/regionLookupCode";
+export {
+  buildCatalogPlaceGeocodeQuery,
+  buildRegionScopedGeocodeQuery,
+  formatFederalSubjectLabel,
+  isFederalSubjectLabel,
+  normalizeFederalSubjectDisplay,
+  parseRegionViewbox,
+  resolveGeocodeCountryLabel,
+  resolveNominatimCountryCode,
+} from "./domain/geo/catalogPlaceGeocodeQuery";
+export type { CatalogPlaceGeocodeInput, NominatimViewbox } from "./domain/geo/catalogPlaceGeocodeQuery";
 export { normalizeRegionCodeAlias } from "./domain/regionCodeAlias";
 export { layoutTileToCentroid } from "./domain/layoutCentroid";
 export { maxStateLevel } from "./domain/maxStateLevel";

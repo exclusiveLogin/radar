@@ -11,7 +11,7 @@ import { sortPhasesByOrder } from "../phases/phaseOrder.js";
 const DEFAULT_POLL_MS = 15_000;
 const DEFAULT_STALE_RUN_MS = 2 * 60 * 60 * 1000;
 /** Нет heartbeat у phase_run — считаем run сиротой (worker умер / рестарт). */
-const DEFAULT_ORPHAN_RUN_MS = 120_000;
+const DEFAULT_ORPHAN_RUN_MS = 60_000;
 
 function resolvePollMs(): number {
   const parsed = Number(process.env.RADAR_GEO_PARSE_DAEMON_POLL_MS);
@@ -47,8 +47,26 @@ export class PlaceEnrichmentDaemonService {
 
   start(): void {
     this.stopped = false;
-    void this.refreshSchedules();
+    void this.bootstrap().then(() => this.refreshSchedules());
     this.refreshTimer = setInterval(() => void this.refreshSchedules(), resolvePollMs());
+  }
+
+  /** После рестарта worker: reclaim processing и сразу resume active geo run. */
+  private async bootstrap(): Promise<void> {
+    const scheduled = sortPhasesByOrder(await this.phases.listEnabled("scheduled", "geoParse"));
+    for (const phase of scheduled) {
+      const provider = resolveGeoEnrichmentProvider(phase);
+      if (!provider) continue;
+
+      const active = await this.phaseRuns.findActiveForPhase(phase.id);
+      if (!active) continue;
+
+      const reset = await this.placeJobs.resetProcessingForProvider(provider);
+      console.warn(
+        `GeoParseDaemon[${phase.id}]: startup resume run=${active.id.slice(0, 8)} processing→pending=${reset}`,
+      );
+      void this.tickPhase(phase);
+    }
   }
 
   stop(): void {
@@ -102,26 +120,40 @@ export class PlaceEnrichmentDaemonService {
         if (orphans > 0) {
           const reset = await this.placeJobs.resetProcessingForProvider(provider);
           console.warn(
-            `GeoParseDaemon[${phase.id}]: сиротский run сброшен, processing→pending=${reset}`,
+            `GeoParseDaemon[${phase.id}]: stale run failed, processing→pending=${reset}`,
           );
           active = await this.phaseRuns.findActiveForPhase(phase.id);
         }
       }
-      if (active) return;
 
       const counts = await this.placeJobs.countByStatus(provider);
       const pendingWork = counts.pending + counts.processing;
       if (pendingWork === 0) return;
 
-      const run = await this.phaseRuns.create({
-        phaseId: phase.id,
-        trigger: "scheduled",
-        status: "pending",
-      });
+      const runId =
+        active && (active.status === "running" || active.status === "pending")
+          ? active.id
+          : (
+              await this.phaseRuns.create({
+                phaseId: phase.id,
+                trigger: "scheduled",
+                status: "pending",
+              })
+            ).id;
+
+      if (active && runId === active.id) {
+        console.log(
+          `GeoParseDaemon[${phase.id}]: resume drain run=${runId.slice(0, 8)} pending≈${pendingWork}`,
+        );
+      } else {
+        console.log(
+          `GeoParseDaemon[${phase.id}]: new drain run=${runId.slice(0, 8)} pending≈${pendingWork}`,
+        );
+      }
 
       await this.runner.runDrain({
         phase,
-        runId: run.id,
+        runId,
         batchSize: phase.policy.batchSize,
         trigger: "scheduled",
       });

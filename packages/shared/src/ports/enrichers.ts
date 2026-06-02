@@ -9,10 +9,21 @@ export type LocationCandidate = {
   raw: Record<string, unknown>;
 };
 
+export type LocationEnrichInput = {
+  rawText: string;
+  regionCode?: string;
+  /** ISO3166-1 alpha2 для Nominatim (ru, ua). */
+  countryCode?: string;
+  /** Bbox региона — мягкая привязка Nominatim viewbox. */
+  viewbox?: {
+    west: number;
+    south: number;
+    east: number;
+    north: number;
+  };
+};
+
 export interface ILocationEnricher {
   readonly name: "dadata" | "nominatim" | "llm";
-  enrich(input: {
-    rawText: string;
-    regionCode?: string;
-  }): Promise<LocationCandidate | null>;
+  enrich(input: LocationEnrichInput): Promise<LocationCandidate | null>;
 }

@@ -468,12 +468,14 @@ export class PhaseRunner {
         `phase run ${input.existingRunId} phase mismatch: ${existing.phaseId} vs ${input.phase.id}`,
       );
     }
-    if (existing.status !== "pending") {
+    if (existing.status !== "pending" && existing.status !== "running") {
       throw new Error(
         `phase run ${input.existingRunId} not executable (status=${existing.status})`,
       );
     }
-    await this.deps.phaseRuns.updateStatus(existing.id, "running");
+    if (existing.status === "pending") {
+      await this.deps.phaseRuns.updateStatus(existing.id, "running");
+    }
     return existing;
   }
 

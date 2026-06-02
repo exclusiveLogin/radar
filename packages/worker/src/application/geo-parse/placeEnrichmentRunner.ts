@@ -1,4 +1,4 @@
-import { canonicalRegionCode, type IPlaceAliasRepository, type IPlaceEnrichmentJobRepository, type IPlaceRepository, type IRegionRepository, type PlaceContribution, type PlaceEnrichmentProvider } from "@radar/shared";
+import { canonicalRegionCode, type IPlaceAliasRepository, type IPlaceEnrichmentJobRepository, type IPlaceRepository, type IRegionRepository, type PlaceContribution, type PlaceEnrichmentProvider, type PlaceRecord, buildCatalogPlaceGeocodeQuery, parseRegionViewbox, resolveNominatimCountryCode } from "@radar/shared";
 import { DadataEnricher } from "../../infrastructure/enrichers/dadataEnricher.js";
 import { loadDadataToken } from "../../infrastructure/enrichers/dadataConfig.js";
 import { LlmEnricher } from "../../infrastructure/enrichers/llmEnricher.js";
@@ -7,6 +7,7 @@ import { NominatimEnricher } from "../../infrastructure/enrichers/nominatimEnric
 import { syncPlaceGeoQueueForProvider } from "./placeGeoQueueSync.js";
 import {
   logGeoBatchSummary,
+  logGeoPlaceOutcome,
   logGeoPlaceVerbose,
 } from "./geoEnrichmentLog.js";
 
@@ -122,18 +123,39 @@ export class PlaceEnrichmentRunner {
     }
 
     const regionsById = new Map((await this.regions.listActive()).map((row) => [row.id, row]));
+    const placeIds = [...new Set(claimed.map((job) => job.placeId))];
+    const placesById = new Map<string, PlaceRecord>();
+    for (const placeId of placeIds) {
+      const place = await this.places.findById(placeId);
+      if (place) placesById.set(placeId, place);
+    }
+    const parentIds = [
+      ...new Set(
+        [...placesById.values()]
+          .map((place) => place.parentPlaceId)
+          .filter((id): id is string => Boolean(id)),
+      ),
+    ];
+    for (const parentId of parentIds) {
+      if (placesById.has(parentId)) continue;
+      const parent = await this.places.findById(parentId);
+      if (parent) placesById.set(parentId, parent);
+    }
+
     let processed = 0;
     let failed = 0;
 
     for (let i = 0; i < claimed.length; i += 1) {
       const job = claimed[i]!;
       try {
-        const place = await this.places.findById(job.placeId);
+        const place = placesById.get(job.placeId) ?? (await this.places.findById(job.placeId));
         if (!place || place.kind === "region") {
+          const placeName = place?.name ?? job.placeId;
+          logGeoPlaceOutcome({ provider, placeName, outcome: "skip" });
           logGeoPlaceVerbose({
             provider,
             placeId: job.placeId,
-            placeName: place?.name ?? job.placeId,
+            placeName,
             query: "",
             outcome: "skip_region",
           });
@@ -142,15 +164,42 @@ export class PlaceEnrichmentRunner {
           continue;
         }
         const region = regionsById.get(place.regionId);
-        const regionCode = region ? canonicalRegionCode(region) : undefined;
-        const query = [place.nameWithType ?? place.name, region?.name].filter(Boolean).join(", ");
+        if (!region) {
+          logGeoPlaceOutcome({ provider, placeName: place.name, outcome: "fail" });
+          await this.jobs.markFailed(job.id, `${provider}: region not found`);
+          failed += 1;
+          continue;
+        }
+        const regionCode = canonicalRegionCode(region);
+        const parent = place.parentPlaceId ? placesById.get(place.parentPlaceId) : undefined;
+        const query = buildCatalogPlaceGeocodeQuery({
+          placeName: place.name,
+          placeNameWithType: place.nameWithType,
+          region,
+          parentPlaceName: parent?.name,
+          parentPlaceNameWithType: parent?.nameWithType,
+        });
+        const nominatimHints =
+          provider === "nominatim"
+            ? {
+                countryCode: resolveNominatimCountryCode(region.iso),
+                viewbox: parseRegionViewbox(region.bbox),
+              }
+            : undefined;
 
-        const contribution = await this.buildContribution(provider, place.id, query, regionCode);
+        const contribution = await this.buildContribution(
+          provider,
+          place.id,
+          query,
+          regionCode,
+          nominatimHints,
+        );
         if (!contribution) {
           if (this.isDadataSuggestionsBlocked(provider)) {
             await this.abortBatchOnDadataBlocked(claimed, i);
             break;
           }
+          logGeoPlaceOutcome({ provider, placeName: place.name, outcome: "miss" });
           logGeoPlaceVerbose({
             provider,
             placeId: place.id,
@@ -164,6 +213,7 @@ export class PlaceEnrichmentRunner {
         }
         const applied = await this.applyContribution(place.id, provider, contribution);
         if (!applied.ok) {
+          logGeoPlaceOutcome({ provider, placeName: place.name, outcome: "fail" });
           console.warn(
             `[geo:${provider}] merge fail place=${place.name} query=${JSON.stringify(query)} ${applied.reason}`,
           );
@@ -178,6 +228,7 @@ export class PlaceEnrichmentRunner {
             source: "auto",
           });
         }
+        logGeoPlaceOutcome({ provider, placeName: place.name, outcome: "ok" });
         logGeoPlaceVerbose({
           provider,
           placeId: place.id,
@@ -192,6 +243,11 @@ export class PlaceEnrichmentRunner {
         failed += 1;
         const message = error instanceof Error ? error.message : String(error);
         const place = await this.places.findById(job.placeId);
+        logGeoPlaceOutcome({
+          provider,
+          placeName: place?.name ?? job.placeId,
+          outcome: "fail",
+        });
         logGeoPlaceVerbose({
           provider,
           placeId: job.placeId,
@@ -232,6 +288,10 @@ export class PlaceEnrichmentRunner {
     placeId: string,
     query: string,
     regionCode: string | undefined,
+    nominatimHints?: {
+      countryCode?: string;
+      viewbox?: ReturnType<typeof parseRegionViewbox>;
+    },
   ): Promise<PlaceContribution | null> {
     if (provider === "dadata") {
       const hit = await this.getDadata().enrich({ rawText: query, regionCode });
@@ -246,7 +306,12 @@ export class PlaceEnrichmentRunner {
     }
 
     if (provider === "nominatim") {
-      const hit = await this.nominatim.enrich({ rawText: query, regionCode });
+      const hit = await this.nominatim.enrich({
+        rawText: query,
+        regionCode,
+        countryCode: nominatimHints?.countryCode,
+        viewbox: nominatimHints?.viewbox,
+      });
       if (!hit) return null;
       return this.toContribution(provider, placeId, {
         lat: hit.lat,
