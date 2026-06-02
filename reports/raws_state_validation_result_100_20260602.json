@@ -1,0 +1,140 @@
+{
+  "generatedAt": "2026-06-02T08:51:53.592Z",
+  "snapshotPath": "C:\\Users\\Fox\\OneDrive\\Документы\\GitHub\\radar\\reports\\raws_state_snapshot_100_20260602.jsonl",
+  "totalSnapshotRows": 100,
+  "totalRegionsCompared": 55,
+  "mismatches": [
+    {
+      "iso": "RU-BEL",
+      "expected": "red",
+      "actual": "green",
+      "self": "red",
+      "causeType": "danger",
+      "causeKind": "rule",
+      "causePostedAt": "2026-06-02T05:07:45+00:00",
+      "rawId": "14842201-b971-4cd6-b853-6500f3172516",
+      "parsedEventId": "f95f760d-343b-4903-a1fb-e4ab61a23559"
+    },
+    {
+      "iso": "RU-KDA",
+      "expected": "red",
+      "actual": "green",
+      "self": "red",
+      "causeType": "pvo_work",
+      "causeKind": "rule",
+      "causePostedAt": "2026-06-02T01:16:01+00:00",
+      "rawId": "60c95434-a743-4d01-8186-4439f99c42d9",
+      "parsedEventId": "540aa578-7be4-4d6c-b29d-862b7817a59c"
+    },
+    {
+      "iso": "RU-SAM",
+      "expected": "red",
+      "actual": "yellow",
+      "self": "red",
+      "causeType": "attention",
+      "causeKind": "rule",
+      "causePostedAt": "2026-06-02T00:25:49+00:00",
+      "rawId": "0817ef8f-76c9-416e-8544-4f0564e9c4e2",
+      "parsedEventId": "f71a588d-1f9c-488e-8aa4-da1c137c2764"
+    },
+    {
+      "iso": "RU-KLU",
+      "expected": "red",
+      "actual": "green",
+      "self": "red",
+      "causeType": "danger",
+      "causeKind": "rule",
+      "causePostedAt": "2026-06-01T23:50:27+00:00",
+      "rawId": "313f93be-6088-4950-8e9c-49ca7deda9a5",
+      "parsedEventId": "fc813f39-ee88-4636-8e1d-eb02e7d6b00a"
+    },
+    {
+      "iso": "RU-NGR",
+      "expected": "red",
+      "actual": "green",
+      "self": "red",
+      "causeType": "danger",
+      "causeKind": "rule",
+      "causePostedAt": "2026-06-01T19:40:25+00:00",
+      "rawId": "5f271684-12ca-41d5-8e79-afe5b9496e73",
+      "parsedEventId": "47cc6f07-8ec2-4955-b830-847c7239b1d6"
+    },
+    {
+      "iso": "RU-TVE",
+      "expected": "red",
+      "actual": "green",
+      "self": "red",
+      "causeType": "danger",
+      "causeKind": "rule",
+      "causePostedAt": "2026-06-01T19:16:30+00:00",
+      "rawId": "a952cab4-546a-4453-8fe9-9de130b54adf",
+      "parsedEventId": "537e9034-7e30-44a6-8021-2f7d850e7cc8"
+    },
+    {
+      "iso": "RU-CR",
+      "expected": "yellow",
+      "actual": "grey",
+      "self": "grey",
+      "causeType": null,
+      "causeKind": null,
+      "causePostedAt": null,
+      "rawId": null,
+      "parsedEventId": null
+    },
+    {
+      "iso": "RU-AD",
+      "expected": "yellow",
+      "actual": "grey",
+      "self": "grey",
+      "causeType": null,
+      "causeKind": null,
+      "causePostedAt": null,
+      "rawId": null,
+      "parsedEventId": null
+    },
+    {
+      "iso": "RU-MOS",
+      "expected": "yellow",
+      "actual": "green",
+      "self": "grey",
+      "causeType": null,
+      "causeKind": null,
+      "causePostedAt": null,
+      "rawId": null,
+      "parsedEventId": null
+    },
+    {
+      "iso": "RU-YAR",
+      "expected": "yellow",
+      "actual": "grey",
+      "self": "grey",
+      "causeType": null,
+      "causeKind": null,
+      "causePostedAt": null,
+      "rawId": null,
+      "parsedEventId": null
+    },
+    {
+      "iso": "UA-43",
+      "expected": "grey",
+      "actual": "red",
+      "self": "grey",
+      "causeType": null,
+      "causeKind": null,
+      "causePostedAt": null,
+      "rawId": null,
+      "parsedEventId": null
+    },
+    {
+      "iso": "RU-SE",
+      "expected": "grey",
+      "actual": "red",
+      "self": "grey",
+      "causeType": null,
+      "causeKind": null,
+      "causePostedAt": null,
+      "rawId": null,
+      "parsedEventId": null
+    }
+  ]
+}
