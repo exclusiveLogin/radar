@@ -15,11 +15,11 @@ export class CoverageEnqueuer {
 
   /** После ingest: pending для всех enabled eager + scheduled фаз. */
   async onNewRawMessage(rawMessageId: string): Promise<void> {
-    const phases = await this.phases.listEnabled();
-    const autoPhases = phases.filter(
-      (p) => p.trigger === "eager" || p.trigger === "scheduled",
-    );
-    for (const phase of autoPhases) {
+    const [eager, scheduled] = await Promise.all([
+      this.phases.listEnabled("eager"),
+      this.phases.listEnabled("scheduled"),
+    ]);
+    for (const phase of [...eager, ...scheduled]) {
       await this.coverage.enqueuePending({ rawMessageId, phaseId: phase.id });
     }
   }
@@ -31,7 +31,10 @@ export class CoverageEnqueuer {
   }
 
   async listAutoPhases(): Promise<PhaseDefinitionRecord[]> {
-    const phases = await this.phases.listEnabled();
-    return phases.filter((p) => p.trigger === "eager" || p.trigger === "scheduled");
+    const [eager, scheduled] = await Promise.all([
+      this.phases.listEnabled("eager"),
+      this.phases.listEnabled("scheduled"),
+    ]);
+    return [...eager, ...scheduled];
   }
 }

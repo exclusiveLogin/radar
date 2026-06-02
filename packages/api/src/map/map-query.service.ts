@@ -1,7 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { InjectDataSource } from "@nestjs/typeorm";
 import type { DataSource } from "typeorm";
-import { In, MoreThan } from "typeorm";
+import { In } from "typeorm";
 import type {
   MapPlaceSnapshot,
   MapRegionSnapshot,
@@ -13,15 +13,12 @@ import type {
   Warning,
 } from "@radar/shared";
 import {
-  PlaceStatusActiveEntity,
-  RegionStateActiveEntity,
-  RegionStateHistoryEntity,
   StatusDictionaryEntity,
 } from "../events/entities";
 import { PlaceEntity, RegionEntity } from "../geo/entities";
 import { resolvePlaceMapCentroid, resolveRegionCentroid } from "./map-centroid.resolver";
 import { loadLayout } from "./layout.loader";
-import { maxStateLevel, readPlaceStatusEventAt } from "@radar/shared";
+import { maxStateLevel } from "@radar/shared";
 import type { SourceMessage } from "@radar/shared";
 import type { GeoRegionRef, PlaceRef } from "./map.dto";
 import {
@@ -30,6 +27,7 @@ import {
 } from "./region-geometry.catalog";
 
 type RegionStateLevel = MapRegionSnapshot["stateLevel"];
+const REGION_DRAW_SUPPRESS_AGE_MS = 3 * 60 * 60 * 1000;
 
 /** Преобразует numeric-строку TypeORM в число (или undefined). */
 function toNumber(value: string | null): number | undefined {
@@ -47,9 +45,7 @@ export class MapQueryService {
   /** Полигоны активных регионов (OSM GeoJSON) + stateLevel из region_state_active. */
   async getRegionsGeoJsonLayer(): Promise<RegionsGeoJsonLayer> {
     await this.ensureCatalogBound();
-    const states = await this.dataSource
-      .getRepository(RegionStateActiveEntity)
-      .find();
+    const states = await this.loadRegionStateRows();
 
     const stateByIso = new Map<string, StateLevel>();
     for (const row of states) {
@@ -57,7 +53,7 @@ export class MapQueryService {
       stateByIso.set(row.regionCode, row.stateLevel as StateLevel);
     }
 
-    // Все субъекты РФ: grey — контур на карте; places для grey не отдаём в snapshot.
+    // Полный набор контуров: цвет/видимость задаёт клиент по WS snapshot (не режем геометрию).
     return RegionGeometryCatalog.getInstance().buildLayer(stateByIso, {
       includeGrey: true,
     });
@@ -86,9 +82,7 @@ export class MapQueryService {
       where: { isActive: true },
       order: { name: "ASC" },
     });
-    const states = await this.dataSource
-      .getRepository(RegionStateActiveEntity)
-      .find();
+    const states = await this.loadRegionStateRows();
     const stateByRegionId = new Map(states.map((s) => [s.regionId, s]));
     const layout = loadLayout();
     const sinceDate = since ? new Date(since) : null;
@@ -98,7 +92,8 @@ export class MapQueryService {
     const items: MapRegionSnapshot[] = [];
     for (const region of regions) {
       const state = stateByRegionId.get(region.id);
-      if (sinceDate && (!state || state.updatedAt <= sinceDate)) continue;
+      if (!state) continue;
+      if (sinceDate && state.updatedAt <= sinceDate) continue;
 
       const code = region.iso ?? region.fiasId ?? region.name;
       const tile = layout.tiles[code];
@@ -110,12 +105,12 @@ export class MapQueryService {
         regionId: region.id,
         regionCode: code,
         name: region.name,
-        stateLevel: (state?.stateLevel ?? "grey") as RegionStateLevel,
-        activity: state?.activity ?? 0,
+        stateLevel: state.stateLevel as RegionStateLevel,
+        activity: state.activity ?? 0,
         layout: tile,
         centroidLat: centroid?.lat,
         centroidLon: centroid?.lon,
-        statusEventAt: state?.statusEventAt?.toISOString(),
+        statusEventAt: state.statusEventAt?.toISOString(),
       });
     }
 
@@ -181,26 +176,39 @@ export class MapQueryService {
   async getWarnings(
     params: { regionId?: string; since?: string; limit: number },
   ): Promise<Warning[]> {
-    const rows = await this.dataSource
-      .getRepository(RegionStateHistoryEntity)
-      .find({
-        where: {
-          ...(params.regionId ? { regionId: params.regionId } : {}),
-          ...(params.since ? { changedAt: MoreThan(new Date(params.since)) } : {}),
-        },
-        order: { changedAt: "DESC" },
-        take: params.limit,
-      });
-    const regionNames = await this.loadRegionNames(rows.map((row) => row.regionId));
+    const rows = (await this.dataSource.query(
+      `
+      SELECT rm.region_id,
+             rm.region_code,
+             rm.state_level,
+             rm.status_code,
+             rm.updated_at,
+             rm.winner_occurred_at
+      FROM region_status_read_model rm
+      WHERE ($1::uuid IS NULL OR rm.region_id = $1::uuid)
+        AND ($2::timestamptz IS NULL OR rm.updated_at > $2::timestamptz)
+      ORDER BY rm.updated_at DESC
+      LIMIT $3
+      `,
+      [params.regionId ?? null, params.since ?? null, params.limit],
+    )) as Array<{
+      region_id: string;
+      region_code: string;
+      state_level: RegionStateLevel;
+      status_code: string;
+      updated_at: Date;
+      winner_occurred_at: Date;
+    }>;
+    const regionNames = await this.loadRegionNames(rows.map((row) => row.region_id));
     return rows.map((row) => ({
-      id: row.id,
-      regionId: row.regionId,
-      regionCode: row.regionCode,
-      regionName: regionNames.get(row.regionId),
-      title: this.warningTitle(row.stateLevel),
-      text: row.reason ?? undefined,
-      stateLevel: row.stateLevel,
-      eventAt: row.changedAt.toISOString(),
+      id: `${row.region_id}:${new Date(row.updated_at).toISOString()}`,
+      regionId: row.region_id,
+      regionCode: row.region_code,
+      regionName: regionNames.get(row.region_id),
+      title: this.warningTitle(row.state_level),
+      text: row.status_code ?? undefined,
+      stateLevel: row.state_level,
+      eventAt: new Date(row.winner_occurred_at).toISOString(),
     }));
   }
 
@@ -234,9 +242,7 @@ export class MapQueryService {
   private async loadMapPlaces(
     levelByStatus: Map<string, StateLevel>,
   ): Promise<MapPlaceSnapshot[]> {
-    const rows = await this.dataSource.getRepository(PlaceStatusActiveEntity).find({
-      relations: { place: { region: true } },
-    });
+    const rows = await this.loadPlaceStateRows();
 
     const byPlace = new Map<
       string,
@@ -257,7 +263,7 @@ export class MapQueryService {
       const coords = resolvePlaceMapCentroid({ place });
       if (!coords) continue;
 
-      const rowEventAt = readPlaceStatusEventAt(row.meta);
+      const rowEventAt = row.statusEventAt;
       const bucket = byPlace.get(place.id) ?? {
         place,
         regionCode,
@@ -540,5 +546,98 @@ export class MapQueryService {
       bbox: region.bbox ?? undefined,
       geometryArtifactKey: region.geometryArtifactKey ?? undefined,
     };
+  }
+
+  private async loadRegionStateRows(): Promise<
+    Array<{
+      regionId: string;
+      regionCode: string;
+      stateLevel: StateLevel;
+      activity: number;
+      updatedAt: Date;
+      statusEventAt: Date | null;
+    }>
+  > {
+    const rows = (await this.dataSource.query(
+      `
+      SELECT rm.region_id,
+             rm.region_code,
+             rm.state_level,
+             0::int AS activity,
+             rm.updated_at,
+             rm.winner_occurred_at AS status_event_at
+      FROM region_status_read_model rm
+      WHERE NOT (
+        rm.state_level IN ('green', 'grey')
+        AND rm.winner_occurred_at < $1::timestamptz
+      )
+      `,
+      [new Date(Date.now() - REGION_DRAW_SUPPRESS_AGE_MS).toISOString()],
+    )) as Array<{
+      region_id: string;
+      region_code: string;
+      state_level: StateLevel;
+      activity: number;
+      updated_at: Date;
+      status_event_at: Date | null;
+    }>;
+
+    return rows.map((row) => ({
+      regionId: row.region_id,
+      regionCode: row.region_code,
+      stateLevel: row.state_level,
+      activity: Number(row.activity ?? 0),
+      updatedAt: new Date(row.updated_at),
+      statusEventAt: row.status_event_at ? new Date(row.status_event_at) : null,
+    }));
+  }
+
+  private async loadPlaceStateRows(): Promise<
+    Array<{
+      place: PlaceEntity;
+      statusCode: string;
+      updatedAt: Date;
+      statusEventAt: string | undefined;
+    }>
+  > {
+    const readRows = (await this.dataSource.query(
+      `
+      SELECT psm.place_id,
+             psm.status_code,
+             psm.updated_at,
+             psm.winner_occurred_at
+      FROM place_status_read_model psm
+      WHERE psm.action = 'raise'
+      `,
+    )) as Array<{
+      place_id: string;
+      status_code: string;
+      updated_at: Date;
+      winner_occurred_at: Date | null;
+    }>;
+
+    const allPlaceIds = [...new Set(readRows.map((row) => row.place_id))];
+    if (allPlaceIds.length === 0) return [];
+
+    const places = await this.dataSource.getRepository(PlaceEntity).find({
+      where: { id: In(allPlaceIds) },
+      relations: { region: true },
+    });
+    const byPlaceId = new Map(places.map((row) => [row.id, row]));
+
+    const fromRead = readRows
+      .map((row) => {
+        const place = byPlaceId.get(row.place_id);
+        if (!place) return null;
+        return {
+          place,
+          statusCode: row.status_code,
+          updatedAt: new Date(row.updated_at),
+          statusEventAt: row.winner_occurred_at?.toISOString(),
+        };
+      })
+      .filter((row): row is NonNullable<typeof row> => row !== null);
+
+    return fromRead;
   }
 }

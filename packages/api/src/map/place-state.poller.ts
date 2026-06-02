@@ -3,11 +3,9 @@ import { InjectDataSource } from "@nestjs/typeorm";
 import type { PlaceStateEvent, StateLevel, WsServerMessage } from "@radar/shared";
 import type { DataSource } from "typeorm";
 import {
-  PlaceStatusActiveEntity,
-  PlaceStatusHistoryEntity,
   StatusDictionaryEntity,
 } from "../events/entities";
-import { resolvePlaceMapCentroid } from "./map-centroid.resolver";
+import { PlaceEntity } from "../geo/entities";
 import {
   advanceHistoryPollCursor,
   createHistoryPollCursor,
@@ -18,7 +16,7 @@ import {
 type Emit = (message: WsServerMessage) => void;
 
 /**
- * Realtime по местам: опрашивает place_status_history и эмитит place-state.
+ * Realtime по местам: опрашивает place_status_read_model и эмитит place-state.
  * Координаты: только собственный центроид места (без coords — точка не эмитится).
  */
 @Injectable()
@@ -45,35 +43,52 @@ export class PlaceStatePoller {
 
   /**
    * Принудительно снять все активные места с карты у подписчиков WS
-   * (до/после operational reset в БД). Не меняет place_status_active.
+   * (до/после operational reset в БД). Не меняет БД.
    */
   async broadcastActivePlaceDeactivations(emit: Emit): Promise<number> {
     if (this.levelByStatus.size === 0) {
       await this.loadDictionary();
     }
 
-    const rows = await this.dataSource.getRepository(PlaceStatusActiveEntity).find({
-      relations: { place: { region: true } },
-    });
+    const rows = (await this.dataSource.query(
+      `
+      SELECT psm.place_id,
+             psm.status_code,
+             p.name AS place_name,
+             p.region_id,
+             r.iso AS region_code,
+             p.centroid_lat,
+             p.centroid_lon
+      FROM place_status_read_model psm
+      JOIN places p ON p.id = psm.place_id
+      JOIN regions r ON r.id = p.region_id
+      WHERE psm.action = 'raise'
+      `,
+    )) as Array<{
+      place_id: string;
+      status_code: string;
+      place_name: string;
+      region_id: string;
+      region_code: string | null;
+      centroid_lat: string | null;
+      centroid_lon: string | null;
+    }>;
 
     let sent = 0;
     for (const row of rows) {
-      const place = row.place;
-      const region = place?.region;
-      if (!place || !region) continue;
-
-      const coords = resolvePlaceMapCentroid({ place });
-      const stateLevel = this.levelByStatus.get(row.statusCode) ?? "grey";
+      const stateLevel = this.levelByStatus.get(row.status_code) ?? "grey";
+      const lat = row.centroid_lat ? Number(row.centroid_lat) : undefined;
+      const lon = row.centroid_lon ? Number(row.centroid_lon) : undefined;
       const payload: PlaceStateEvent = {
-        placeId: row.placeId,
-        placeName: place.name,
-        regionId: region.id,
-        regionCode: region.iso ?? region.name,
-        statusCode: row.statusCode,
+        placeId: row.place_id,
+        placeName: row.place_name,
+        regionId: row.region_id,
+        regionCode: row.region_code ?? "",
+        statusCode: row.status_code,
         stateLevel,
         action: "deactivate",
-        lat: coords?.lat,
-        lon: coords?.lon,
+        lat,
+        lon,
         changedAt: new Date().toISOString(),
       };
       emit({ type: "place-state", payload });
@@ -96,43 +111,62 @@ export class PlaceStatePoller {
       await this.loadDictionary();
     }
 
-    const afterCursor = historyAfterCursorWhere("h.event_at", "h.id", this.cursor);
-    const rows = await this.dataSource
-      .getRepository(PlaceStatusHistoryEntity)
-      .createQueryBuilder("h")
-      .innerJoinAndSelect("h.place", "place")
-      .innerJoinAndSelect("place.region", "region")
+    const afterCursor = historyAfterCursorWhere("psm.updated_at", "psm.place_id", this.cursor);
+    const rows = (await this.dataSource
+      .createQueryBuilder()
+      .select("psm.place_id", "place_id")
+      .addSelect("psm.region_id", "region_id")
+      .addSelect("psm.status_code", "status_code")
+      .addSelect("psm.state_level", "state_level")
+      .addSelect("psm.action", "action")
+      .addSelect("psm.updated_at", "updated_at")
+      .addSelect("psm.winner_occurred_at", "winner_occurred_at")
+      .addSelect("p.name", "place_name")
+      .addSelect("r.iso", "region_code")
+      .addSelect("p.centroid_lat", "centroid_lat")
+      .addSelect("p.centroid_lon", "centroid_lon")
+      .from("place_status_read_model", "psm")
+      .innerJoin(PlaceEntity, "p", "p.id = psm.place_id")
+      .innerJoin("regions", "r", "r.id = p.region_id")
       .where(afterCursor.clause, afterCursor.params)
-      .orderBy("h.eventAt", "ASC")
-      .addOrderBy("h.id", "ASC")
-      .take(200)
-      .getMany();
+      .orderBy("psm.updated_at", "ASC")
+      .addOrderBy("psm.place_id", "ASC")
+      .limit(200)
+      .getRawMany()) as Array<{
+      place_id: string;
+      place_name: string;
+      region_id: string;
+      region_code: string | null;
+      status_code: string;
+      state_level: StateLevel;
+      action: "raise" | "clear";
+      updated_at: Date;
+      winner_occurred_at: Date;
+      centroid_lat: string | null;
+      centroid_lon: string | null;
+    }>;
     if (rows.length === 0) return;
 
     for (const row of rows) {
-      const stateLevel = this.levelByStatus.get(row.statusCode) ?? "grey";
-      const place = row.place;
-      const region = place?.region;
-      if (!place || !region) continue;
-
-      const regionCode = region.iso ?? region.name;
-      const coords = resolvePlaceMapCentroid({ place });
+      const stateLevel = this.levelByStatus.get(row.status_code) ?? row.state_level ?? "grey";
+      const lat = row.centroid_lat ? Number(row.centroid_lat) : undefined;
+      const lon = row.centroid_lon ? Number(row.centroid_lon) : undefined;
 
       const payload: PlaceStateEvent = {
-        placeId: row.placeId,
-        placeName: place.name,
-        regionId: region.id,
-        regionCode,
-        statusCode: row.statusCode,
+        placeId: row.place_id,
+        placeName: row.place_name,
+        regionId: row.region_id,
+        regionCode: row.region_code ?? "",
+        statusCode: row.status_code,
         stateLevel,
-        action: row.action,
-        lat: coords?.lat,
-        lon: coords?.lon,
-        changedAt: row.eventAt.toISOString(),
+        action: row.action === "raise" ? "activate" : "deactivate",
+        lat,
+        lon,
+        changedAt: new Date(row.winner_occurred_at).toISOString(),
       };
 
-      if (row.action === "activate" && stateLevel === "grey") continue;
-      if (row.action === "activate" && (payload.lat === undefined || payload.lon === undefined)) {
+      if (payload.action === "activate" && stateLevel === "grey") continue;
+      if (payload.action === "activate" && (payload.lat === undefined || payload.lon === undefined)) {
         continue;
       }
 
@@ -141,8 +175,8 @@ export class PlaceStatePoller {
 
     const last = rows[rows.length - 1]!;
     this.cursor = advanceHistoryPollCursor(this.cursor, {
-      at: last.eventAt,
-      id: last.id,
+      at: new Date(last.updated_at),
+      id: last.place_id,
     });
   }
 }

@@ -42,9 +42,6 @@ export async function runPipelineOperationalReset(
   const { dataSource, repos } = input;
 
   const mapReset = new MapStateFullReset({
-    regionState: repos.regionState,
-    placeStatus: repos.placeStatus,
-    regions: repos.regions,
     dataSource,
   });
   const map = await mapReset.run(new Date(), PIPELINE_RESET_REASON);

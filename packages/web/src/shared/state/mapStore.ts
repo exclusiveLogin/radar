@@ -9,6 +9,7 @@ import type {
 } from "@radar/shared";
 import { mapApi } from "../api/mapApi";
 import { connectMapWs } from "../realtime/ws";
+import { isRegionVisibleOnMap } from "./derivations";
 
 /** Состояние регионов по regionCode (ISO) — источник для всех карт-виджетов. */
 export const regionsByCode$ = new BehaviorSubject<Map<string, MapRegionSnapshot>>(
@@ -67,7 +68,7 @@ function prunePlacesForRegions(
   const next = new Map<string, MapPlaceSnapshot>();
   for (const place of places.values()) {
     const region = regions.get(place.regionCode);
-    if (!region || region.stateLevel === "grey" || place.stateLevel === "grey") continue;
+    if (!region || !isRegionVisibleOnMap(region) || place.stateLevel === "grey") continue;
     next.set(place.placeId, place);
   }
   return next;
@@ -138,7 +139,7 @@ function applyPlaceState(event: PlaceStateEvent): void {
   if (event.lat === undefined || event.lon === undefined) return;
 
   const region = regionsByCode$.value.get(event.regionCode);
-  if (!region || region.stateLevel === "grey") {
+  if (!region || !isRegionVisibleOnMap(region)) {
     next.delete(event.placeId);
     placesById$.next(next);
     return;

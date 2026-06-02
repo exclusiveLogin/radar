@@ -20,6 +20,12 @@ export const eventLocationSchema = z.object({
   precision: locationPrecisionSchema,
   lat: z.number().finite().optional(),
   lon: z.number().finite().optional(),
+  entityKind: z.enum(["region", "place", "point"]).optional(),
+  confidence: z.number().min(0).max(1).optional(),
+  authorChannelKey: z.string().min(1).optional(),
+  action: z.enum(["raise", "clear"]).optional(),
+  statusCode: z.string().min(1).optional(),
+  occurredAt: z.string().datetime().optional(),
   source: z.enum(["db", "dadata", "nominatim", "llm", "cache"]),
 });
 

@@ -1,12 +1,8 @@
 import { Injectable } from "@nestjs/common";
 import { InjectDataSource } from "@nestjs/typeorm";
-import type { WsServerMessage } from "@radar/shared";
+import type { StateLevel, WsServerMessage } from "@radar/shared";
 import type { DataSource } from "typeorm";
 import { In } from "typeorm";
-import {
-  RegionStateActiveEntity,
-  RegionStateHistoryEntity,
-} from "../events/entities";
 import { RegionEntity } from "../geo/entities";
 import { resolveRegionCentroid } from "./map-centroid.resolver";
 import {
@@ -27,7 +23,7 @@ const WARNING_TITLES: Record<string, string> = {
 };
 
 /**
- * Realtime-источник для WS: опрашивает region_state_history по курсору changedAt
+ * Realtime-источник для WS: опрашивает region_status_read_model по updated_at
  * и эмитит смены состояния (region-state) и предупреждения (warnings).
  * Курсор стартует с момента запуска — начальное состояние клиент получает snapshot'ом.
  */
@@ -52,38 +48,49 @@ export class RegionStatePoller {
   }
 
   private async tick(emit: Emit): Promise<void> {
-    const afterCursor = historyAfterCursorWhere("h.changed_at", "h.id", this.cursor);
-    const rows = await this.dataSource
-      .getRepository(RegionStateHistoryEntity)
-      .createQueryBuilder("h")
+    const afterCursor = historyAfterCursorWhere("rm.updated_at", "rm.region_id", this.cursor);
+    const rows = (await this.dataSource
+      .createQueryBuilder()
+      .select("rm.region_id", "region_id")
+      .addSelect("rm.region_code", "region_code")
+      .addSelect("rm.state_level", "state_level")
+      .addSelect("rm.status_code", "reason")
+      .addSelect("rm.updated_at", "updated_at")
+      .addSelect("rm.winner_occurred_at", "changed_at")
+      .from("region_status_read_model", "rm")
       .where(afterCursor.clause, afterCursor.params)
-      .orderBy("h.changedAt", "ASC")
-      .addOrderBy("h.id", "ASC")
-      .take(200)
-      .getMany();
+      .orderBy("rm.updated_at", "ASC")
+      .addOrderBy("rm.region_id", "ASC")
+      .limit(200)
+      .getRawMany()) as Array<{
+      region_id: string;
+      region_code: string;
+      state_level: StateLevel;
+      reason: string;
+      updated_at: Date;
+      changed_at: Date;
+    }>;
     if (rows.length === 0) return;
 
-    const activity = await this.loadActivity();
-    const statusEventAt = await this.loadStatusEventAt(rows.map((row) => row.regionId));
-    const regionById = await this.loadRegions(rows.map((row) => row.regionId));
+    const regionById = await this.loadRegions(rows.map((row) => row.region_id));
 
     for (const row of rows) {
-      const region = regionById.get(row.regionId);
+      const region = regionById.get(row.region_id);
       const centroid = region
         ? resolveRegionCentroid({ region })
         : undefined;
-      const eventAtIso = statusEventAt.get(row.regionId)?.toISOString();
+      const eventAtIso = new Date(row.changed_at).toISOString();
 
       emit({
         type: "region-state",
         payload: {
-          regionId: row.regionId,
-          regionCode: row.regionCode,
-          stateLevel: row.stateLevel,
-          previousLevel: row.previousLevel,
-          activity: activity.get(row.regionId) ?? 0,
+          regionId: row.region_id,
+          regionCode: row.region_code,
+          stateLevel: row.state_level as StateLevel,
+          previousLevel: "grey",
+          activity: 0,
           reason: row.reason ?? undefined,
-          changedAt: row.changedAt.toISOString(),
+          changedAt: new Date(row.changed_at).toISOString(),
           statusEventAt: eventAtIso,
           centroidLat: centroid?.lat,
           centroidLon: centroid?.lon,
@@ -92,21 +99,21 @@ export class RegionStatePoller {
       emit({
         type: "warning",
         payload: {
-          id: row.id,
-          regionId: row.regionId,
-          regionCode: row.regionCode,
+          id: `${row.region_id}:${new Date(row.updated_at).toISOString()}`,
+          regionId: row.region_id,
+          regionCode: row.region_code,
           regionName: region?.name,
-          title: WARNING_TITLES[row.stateLevel] ?? row.stateLevel,
+          title: WARNING_TITLES[row.state_level] ?? row.state_level,
           text: row.reason ?? undefined,
-          stateLevel: row.stateLevel,
-          eventAt: row.changedAt.toISOString(),
+          stateLevel: row.state_level as StateLevel,
+          eventAt: new Date(row.changed_at).toISOString(),
         },
       });
     }
     const last = rows[rows.length - 1]!;
     this.cursor = advanceHistoryPollCursor(this.cursor, {
-      at: last.changedAt,
-      id: last.id,
+      at: new Date(last.updated_at),
+      id: last.region_id,
     });
   }
 
@@ -119,23 +126,4 @@ export class RegionStatePoller {
     return new Map(rows.map((row) => [row.id, row]));
   }
 
-  private async loadActivity(): Promise<Map<string, number>> {
-    const rows = await this.dataSource
-      .getRepository(RegionStateActiveEntity)
-      .find();
-    return new Map(rows.map((row) => [row.regionId, row.activity]));
-  }
-
-  private async loadStatusEventAt(ids: string[]): Promise<Map<string, Date>> {
-    const unique = [...new Set(ids)];
-    if (unique.length === 0) return new Map();
-    const rows = await this.dataSource.getRepository(RegionStateActiveEntity).find({
-      where: { regionId: In(unique) },
-    });
-    const map = new Map<string, Date>();
-    for (const row of rows) {
-      if (row.statusEventAt) map.set(row.regionId, row.statusEventAt);
-    }
-    return map;
-  }
 }

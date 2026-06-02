@@ -259,13 +259,21 @@ export class ParseRawMessageHandler {
 
     const persisted = await this.parsedEvents.upsert(parsed);
     const priorLocations = await this.eventLocations.listForParsedEvent(persisted.id);
+    const factLocations: EventLocation[] = validatedLocations.map((location) => ({
+      ...location,
+      entityKind: location.entityKind ?? (location.placeId ? "place" : "region"),
+      authorChannelKey: raw.channelKey,
+      action: location.action ?? (activation.isActive ? "raise" : "clear"),
+      statusCode: location.statusCode ?? parsed.eventType,
+      occurredAt: parsed.postedAt,
+    }));
 
-    let projectionLocations = validatedLocations;
+    let projectionLocations: EventLocation[] = factLocations;
     if (activation.isActive) {
-      await this.eventLocations.replaceForParsedEvent(persisted.id, validatedLocations);
+      await this.eventLocations.replaceForParsedEvent(persisted.id, factLocations);
     } else {
       projectionLocations =
-        priorLocations.length > 0 ? priorLocations : validatedLocations;
+        priorLocations.length > 0 ? priorLocations : factLocations;
       await this.eventLocations.replaceForParsedEvent(persisted.id, []);
     }
 
@@ -289,6 +297,12 @@ export class ParseRawMessageHandler {
           regionCode: location.regionCode,
           placeId: location.placeId,
           precision: location.precision,
+          entityKind: location.entityKind ?? (location.placeId ? "place" : "region"),
+          confidence: location.confidence,
+          authorChannelKey: raw.channelKey,
+          action: location.action ?? (activation.isActive ? "raise" : "clear"),
+          statusCode: location.statusCode ?? parsed.eventType,
+          occurredAt: parsed.postedAt,
         })),
       },
     });

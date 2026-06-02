@@ -38,6 +38,8 @@
     "worker:phase:run": "tsx src/cli/phaseRunCli.ts",
     "worker:backfill:place-status-history": "tsx src/cli/backfillPlaceStatusHistoryCli.ts",
     "worker:map-state:expire": "tsx src/cli/mapStateExpireCli.ts",
+    "worker:backfill:status-read-models": "tsx src/cli/backfillStatusReadModelsCli.ts",
+    "worker:reparse:ssot": "tsx src/cli/reparseRawCli.ts",
     "verify:parse-threads": "tsx scripts/verify-parse-threads.mjs",
     "verify:bootstrap": "tsx scripts/verify-worker-bootstrap.mjs"
   },

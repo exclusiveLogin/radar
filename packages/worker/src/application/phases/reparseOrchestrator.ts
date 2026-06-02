@@ -24,17 +24,14 @@ export async function runFullReparseLikeIngest(input: FullReparseInput): Promise
   messages: number;
   phasesInvalidated: number;
 }> {
-  const autoPhases = sortPhasesByOrder(
-    (await input.repos.phaseDefinitions.listEnabled()).filter(
-      (p) => p.trigger === "eager" || p.trigger === "scheduled",
-    ),
-  );
+  const [eager, scheduled] = await Promise.all([
+    input.repos.phaseDefinitions.listEnabled("eager"),
+    input.repos.phaseDefinitions.listEnabled("scheduled"),
+  ]);
+  const autoPhases = sortPhasesByOrder([...eager, ...scheduled]);
   const phaseIds = autoPhases.map((p) => p.id);
 
   const mapReset = new MapStateFullReset({
-    regionState: input.repos.regionState,
-    placeStatus: input.repos.placeStatus,
-    regions: input.repos.regions,
     dataSource: input.dataSource,
   });
   await mapReset.run(new Date(), "reparse:invalidate");

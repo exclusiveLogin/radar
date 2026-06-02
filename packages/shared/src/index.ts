@@ -154,6 +154,7 @@ export {
   canonicalRegionCode,
   parseKladrSubjectPrefix,
 } from "./domain/regionLookupCode";
+export { normalizeRegionCodeAlias } from "./domain/regionCodeAlias";
 export { layoutTileToCentroid } from "./domain/layoutCentroid";
 export { maxStateLevel } from "./domain/maxStateLevel";
 export {

@@ -4,6 +4,7 @@ import { MapStateFullReset } from "../application/map-state/mapStateFullReset.js
 import { runFullReparseLikeIngest } from "../application/phases/reparseOrchestrator.js";
 import { WorkerStorageMode } from "../infrastructure/persistence/storageMode.js";
 import { loadRootEnv } from "../infrastructure/config/loadRootEnv.js";
+import { notifyMapPushSnapshot } from "../infrastructure/notifyMapPushSnapshot.js";
 import { createProgress } from "./progress.js";
 
 /**
@@ -25,9 +26,6 @@ async function main(): Promise<void> {
   const repos = runtime.workerRepos;
 
   const reset = new MapStateFullReset({
-    regionState: repos.regionState,
-    placeStatus: repos.placeStatus,
-    regions: repos.regions,
     dataSource: runtime.dataSource,
   });
   const resetResult = await reset.run();
@@ -64,6 +62,7 @@ async function main(): Promise<void> {
     `Reparse done: messages=${result.messages}, coverageInvalidated=${result.phasesInvalidated}. ` +
       "Scheduled-фазы догонит PhaseDaemon в worker:dev (после done catalog по order).",
   );
+  await notifyMapPushSnapshot();
   await runtime.shutdown?.();
 }
 

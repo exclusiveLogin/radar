@@ -50,4 +50,22 @@ export class EventLocationEntity {
 
   @Column({ name: "source", type: "text" })
   source!: "db" | "dadata" | "nominatim" | "llm" | "cache";
+
+  @Column({ name: "entity_kind", type: "text", default: "region" })
+  entityKind!: "region" | "place" | "point";
+
+  @Column({ name: "confidence", type: "numeric", precision: 4, scale: 3, nullable: true })
+  confidence!: string | null;
+
+  @Column({ name: "author_channel_key", type: "text", nullable: true })
+  authorChannelKey!: string | null;
+
+  @Column({ name: "action", type: "text", default: "raise" })
+  action!: "raise" | "clear";
+
+  @Column({ name: "status_code", type: "text", nullable: true })
+  statusCode!: string | null;
+
+  @Column({ name: "occurred_at", type: "timestamptz", default: () => "now()" })
+  occurredAt!: Date;
 }

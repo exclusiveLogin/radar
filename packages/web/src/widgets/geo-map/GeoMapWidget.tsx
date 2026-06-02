@@ -22,7 +22,7 @@ import {
   resolveMapBasemapStyle,
 } from "../../shared/config/mapConfig.service";
 import { formatDateTime } from "../../shared/format/dateTime";
-import { isPlaceVisibleOnMap } from "../../shared/state/derivations";
+import { isPlaceVisibleOnMap, isRegionVisibleOnMap } from "../../shared/state/derivations";
 import { placesById$, regionsByCode$ } from "../../shared/state/mapStore";
 import { selectRegion, selectedRegion$ } from "../../shared/state/selectionStore";
 import type { WidgetProps } from "../widgetProps";
@@ -75,24 +75,25 @@ function paintRegionOutlines(
   base: GeoJsonCollection,
   regions: Map<string, MapRegionSnapshot>,
 ): GeoJsonCollection {
-  return {
-    type: "FeatureCollection",
-    features: base.features.map((feature): PolygonFeature => {
-      const code = String(feature.properties.regionCode ?? "");
-      const region = regions.get(code);
-      const stateLevel = (region?.stateLevel ?? "grey") as StateLevel;
-      return {
-        ...feature,
-        properties: {
-          ...feature.properties,
-          regionCode: code,
-          stateLevel,
-          color: LEVEL_COLORS[stateLevel],
-          kind: "region",
-        },
-      };
-    }),
-  };
+  const features: PolygonFeature[] = [];
+  for (const feature of base.features) {
+    const code = String(feature.properties.regionCode ?? "");
+    const region = regions.get(code);
+    if (!region || !isRegionVisibleOnMap(region)) continue;
+
+    const stateLevel = region.stateLevel as StateLevel;
+    features.push({
+      ...feature,
+      properties: {
+        ...feature.properties,
+        regionCode: code,
+        stateLevel,
+        color: LEVEL_COLORS[stateLevel],
+        kind: "region",
+      },
+    });
+  }
+  return { type: "FeatureCollection", features };
 }
 
 /** Мгновенное выделение: без пересборки GeoJSON (setData на тысячах полигонов — медленно). */
@@ -183,15 +184,6 @@ function placesCollection(
   };
 }
 
-/** Контуры только для fitBounds (оперативные регионы, не grey). */
-function activeRegionFeaturesForFit(
-  regionFeatures: PolygonFeature[],
-): PolygonFeature[] {
-  return regionFeatures.filter(
-    (feature) => feature.properties.stateLevel !== "grey",
-  );
-}
-
 function fitMapView(
   map: MapLibreMap,
   regionFeatures: PolygonFeature[],
@@ -219,7 +211,7 @@ function fitMapView(
     for (const part of coords) walkCoords(part);
   };
 
-  for (const feature of activeRegionFeaturesForFit(regionFeatures)) {
+  for (const feature of regionFeatures) {
     walkCoords(feature.geometry.coordinates);
   }
   for (const feature of placeFeatures) {
@@ -227,7 +219,14 @@ function fitMapView(
     extend(lon, lat);
   }
 
-  if (!Number.isFinite(minLon)) return;
+  if (!Number.isFinite(minLon)) {
+    map.flyTo({
+      center: MAP_INITIAL_VIEW.center,
+      zoom: MAP_INITIAL_VIEW.zoom,
+      duration,
+    });
+    return;
+  }
   map.fitBounds(
     [
       [minLon, minLat],
@@ -261,7 +260,17 @@ function flyToRegion(
   const feature = base.features.find(
     (row) => String(row.properties.regionCode ?? "") === regionCode,
   );
-  if (!feature) return;
+  if (!feature) {
+    const region = regionsByCode$.value.get(regionCode);
+    if (region?.centroidLat != null && region?.centroidLon != null) {
+      map.flyTo({
+        center: [region.centroidLon, region.centroidLat],
+        zoom: 6,
+        duration,
+      });
+    }
+    return;
+  }
 
   let minLon = Infinity;
   let maxLon = -Infinity;
@@ -315,9 +324,21 @@ export function GeoMapWidget(_props: WidgetProps) {
     let unsubPlaces: Subscription | undefined;
     let unsubSelected: Subscription | undefined;
     let highlightedCode: string | null = selectedRegion$.value;
+    /** Сброс фильтра до загрузки контуров — догоняем fit после regions-geojson. */
+    let requestOverviewFit = !highlightedCode;
     let geoReloadTimer: ReturnType<typeof setTimeout> | undefined;
     let placePopup: Popup | null = null;
     let regionPopup: Popup | null = null;
+
+    const tryFitOverview = (duration: number): void => {
+      if (!map || !baseRegionsRef.current || highlightedCode) return;
+      whenStyleReady(map, () => {
+        if (!map || !baseRegionsRef.current || highlightedCode) return;
+        map.stop();
+        fitOperationalOverview(map, baseRegionsRef.current, duration);
+        requestOverviewFit = false;
+      });
+    };
 
     const fitIfNeeded = (
       regionFeatures: PolygonFeature[],
@@ -330,8 +351,7 @@ export function GeoMapWidget(_props: WidgetProps) {
         !didFitRef.current
         || (!hadPlaces && hasPlaces);
       if (!shouldFit) return;
-      const activeRegions = activeRegionFeaturesForFit(regionFeatures);
-      if (activeRegions.length === 0 && placeFeatures.length === 0) return;
+      if (regionFeatures.length === 0 && placeFeatures.length === 0) return;
       fitMapView(map, regionFeatures, placeFeatures);
       didFitRef.current = true;
     };
@@ -361,6 +381,9 @@ export function GeoMapWidget(_props: WidgetProps) {
           regionsByCode$.value,
         );
         fitIfNeeded(painted.features, placeFeatures);
+        if (requestOverviewFit) {
+          tryFitOverview(0);
+        }
       });
     };
 
@@ -388,6 +411,9 @@ export function GeoMapWidget(_props: WidgetProps) {
             setRegionFeatureSelected(map, highlightedCode, true);
           }
           fitIfNeeded(painted.features, collection.features);
+          if (requestOverviewFit) {
+            tryFitOverview(0);
+          }
         }
       });
     };
@@ -616,19 +642,19 @@ export function GeoMapWidget(_props: WidgetProps) {
             applyRegionSelection(map, prev, code);
           }
           highlightedCode = code;
+
+          if (!code) {
+            requestOverviewFit = true;
+            tryFitOverview(350);
+            return;
+          }
+          requestOverviewFit = false;
           if (!map || !baseRegionsRef.current) return;
+          if (code === prev) return;
 
           whenStyleReady(map, () => {
             if (!map || !baseRegionsRef.current) return;
             map.stop();
-
-            if (!code) {
-              fitOperationalOverview(map, baseRegionsRef.current, 350);
-              return;
-            }
-            if (code === prev) return;
-
-            // Анимация только при входе с обзора; смена чипа — мгновенно.
             const animate = prev === null;
             flyToRegion(map, code, baseRegionsRef.current, animate ? 320 : 0);
           });

@@ -4,6 +4,18 @@ import type { DonutSegment } from "../ds/Donut";
 
 const ALL_LEVELS: StateLevel[] = ["red", "orange", "yellow", "green", "grey"];
 
+/** Старые green/grey не рисуем на карте (гео и схема). */
+const REGION_CALM_STALE_MS = 3 * 60 * 60 * 1000;
+
+/** Регион показываем на карте: alarm-уровни всегда; green/grey — только первые 3ч. */
+export function isRegionVisibleOnMap(region: MapRegionSnapshot): boolean {
+  if (region.stateLevel !== "green" && region.stateLevel !== "grey") {
+    return true;
+  }
+  if (!region.statusEventAt) return false;
+  return Date.now() - new Date(region.statusEventAt).getTime() < REGION_CALM_STALE_MS;
+}
+
 /** Счётчики регионов по уровню состояния. */
 export function countRegionsByLevel(
   regions: Map<string, MapRegionSnapshot>,
@@ -63,8 +75,8 @@ export function isPlaceVisibleOnMap(
   regions: Map<string, MapRegionSnapshot>,
 ): boolean {
   const region = regions.get(place.regionCode);
-  if (!region) return false;
-  return region.stateLevel !== "grey" && place.stateLevel !== "grey";
+  if (!region || !isRegionVisibleOnMap(region)) return false;
+  return place.stateLevel !== "grey";
 }
 
 /** Счётчики мест на карте (с учётом grey-регионов), по уровню place. */

@@ -54,7 +54,6 @@ import type {
   ResolvedEnricherFlags,
 } from "../infrastructure/enrichers/enricherChainFactory.js";
 import { GeoCatalog } from "../infrastructure/geo-catalog/index.js";
-import { loadRegionAdjacency } from "../infrastructure/geo-catalog/adjacencyLoader.js";
 import {
   isMapStateExpiryEnabled,
   resolveMapStateExpiryPollMs,
@@ -62,7 +61,7 @@ import {
 } from "../infrastructure/config/mapStateExpiryConfig.js";
 import { MapStateExpiryDaemon } from "./map-state/mapStateExpiryDaemon.js";
 import { MapStateExpirySweep } from "./map-state/mapStateExpirySweep.js";
-import { RegionStateProjection } from "./subscribers/regionStateProjection.js";
+import { LastWinnerReadModelProjection } from "./subscribers/lastWinnerReadModelProjection.js";
 import { GeoValidationService } from "./parsing/geoValidationService.js";
 import { createParsePipeline } from "./parsing/createParsePipeline.js";
 import { isParseWorkerPoolEnabled, ParseWorkerPool } from "./parsing/parseWorkerPool.js";
@@ -207,23 +206,15 @@ export async function createWorkerCompositionRoot(
     bus.subscribe("MessageParsed", parseAttemptWriter.handler);
     bus.subscribe("MessageParseFailed", parseAttemptWriter.handler);
 
-    // Проекция операционного состояния регионов: MessageParsed -> place_status + region_state.
-    const regionStateProjection = new RegionStateProjection({
-      regionState: repos.regionState,
-      placeStatus: repos.placeStatus,
+    const lastWinnerProjection = new LastWinnerReadModelProjection({
+      dataSource,
       statusDictionary: repos.statusDictionary,
-      regions: repos.regions,
-      adjacency: loadRegionAdjacency(),
-      mapStateTtlMs: resolveMapStateTtlMs(),
     });
-    bus.subscribe("MessageParsed", regionStateProjection.handler);
+    bus.subscribe("MessageParsed", lastWinnerProjection.handler);
 
     if (isMapStateExpiryEnabled()) {
       const sweep = new MapStateExpirySweep({
-        regionState: repos.regionState,
-        placeStatus: repos.placeStatus,
-        regions: repos.regions,
-        adjacency: loadRegionAdjacency(),
+        dataSource,
         ttlMs: resolveMapStateTtlMs(),
       });
       mapStateExpiryDaemon = new MapStateExpiryDaemon(

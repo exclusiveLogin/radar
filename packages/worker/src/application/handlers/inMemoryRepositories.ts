@@ -121,10 +121,15 @@ export class InMemoryRegionRepository implements IRegionRepository {
     }
   }
   async findByCode(code: string): Promise<RegionRecord | null> {
-    const direct = this.rows.get(code);
+    const normalized = code.trim().toUpperCase() === "UA-43"
+      ? "RU-CR"
+      : code.trim().toUpperCase() === "RU-SE"
+        ? "RU-SEV"
+        : code;
+    const direct = this.rows.get(normalized);
     if (direct) return direct;
 
-    const prefix = parseKladrSubjectPrefix(code);
+    const prefix = parseKladrSubjectPrefix(normalized);
     if (!prefix) return null;
 
     return this.rows.get(prefix) ?? null;

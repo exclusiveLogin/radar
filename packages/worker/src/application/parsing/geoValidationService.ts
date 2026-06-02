@@ -346,7 +346,12 @@ export class GeoValidationService {
           continue;
         }
       }
-      return place;
+      /**
+       * Не матчим alias из чужого региона по одному имени:
+       * это и давало "Красноармейский район" -> Приморский край
+       * при явном контексте "Краснодарский край".
+       */
+      continue;
     }
 
     return this.places.findByNameInRegion(placeName, regionId);

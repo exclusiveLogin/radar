@@ -62,7 +62,9 @@
     "parse:ab": "npm run parse:ab -w @radar/worker --",
     "parse:score": "npm run parse:score -w @radar/worker --",
     "parse:golden:bootstrap": "npm run parse:golden:bootstrap -w @radar/worker --",
-    "worker:map-state:expire": "npm run worker:map-state:expire -w @radar/worker"
+    "worker:map-state:expire": "npm run worker:map-state:expire -w @radar/worker",
+    "worker:ssot:init": "npm run migration:run && npm run worker:reparse:raw",
+    "worker:rebuild:ssot": "npm run worker:reparse:raw"
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",

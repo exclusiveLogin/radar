@@ -37,6 +37,14 @@ function toRegionIdentityWhere(record: RegionRecord) {
     : [{ iso: code }, { name: record.name }];
 }
 
+function normalizeRegionCodeAlias(code: string): string {
+  const raw = code.trim().toUpperCase();
+  if (!raw) return raw;
+  if (raw === "UA-43") return "RU-CR";
+  if (raw === "RU-SE") return "RU-SEV";
+  return raw;
+}
+
 export class TypeOrmRegionRepository implements IRegionRepository {
   constructor(private readonly dataSource: DataSource) {}
 
@@ -82,19 +90,20 @@ export class TypeOrmRegionRepository implements IRegionRepository {
 
   /** Finds region by ISO/FIAS/name или по префиксу kladr_id (первые 2 цифры субъекта РФ). */
   async findByCode(code: string): Promise<RegionRecord | null> {
+    const normalizedCode = normalizeRegionCodeAlias(code);
     const row = await this.repo().findOne({
       where: [
-        { fiasId: code },
-        { iso: code },
-        { name: code },
-        { kladrId: code },
+        { fiasId: normalizedCode },
+        { iso: normalizedCode },
+        { name: normalizedCode },
+        { kladrId: normalizedCode },
       ],
     });
     if (row) {
       return toRegionRecord(row);
     }
 
-    const kladrPrefix = parseKladrSubjectPrefix(code);
+    const kladrPrefix = parseKladrSubjectPrefix(normalizedCode);
     if (!kladrPrefix) {
       return null;
     }

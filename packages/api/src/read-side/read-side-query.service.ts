@@ -6,8 +6,6 @@ import {
   EventLocationEntity,
   ParseAttemptEntity,
   ParsedEventEntity,
-  PlaceStatusActiveEntity,
-  PlaceStatusHistoryEntity,
 } from "../events/entities";
 import { GeoSyncLogEntity, RegionEntity } from "../geo/entities";
 
@@ -15,13 +13,6 @@ type StatusQuery = {
   placeId?: string;
   statusCode?: string;
 };
-
-function buildStatusWhere(params: StatusQuery): StatusQuery {
-  return {
-    ...(params.placeId ? { placeId: params.placeId } : {}),
-    ...(params.statusCode ? { statusCode: params.statusCode } : {}),
-  };
-}
 
 @Injectable()
 export class ReadSideQueryService {
@@ -206,21 +197,96 @@ export class ReadSideQueryService {
     });
   }
 
-  async getPlaceStatuses(params: StatusQuery & { limit: number }): Promise<PlaceStatusActiveEntity[]> {
-    return this.dataSource.getRepository(PlaceStatusActiveEntity).find({
-      where: buildStatusWhere(params),
-      order: { updatedAt: "DESC" },
-      take: params.limit,
-    });
+  async getPlaceStatuses(params: StatusQuery & { limit: number }): Promise<
+    Array<{
+      placeId: string;
+      regionId: string;
+      statusCode: string;
+      stateLevel: string;
+      action: "raise" | "clear";
+      authorChannelKey: string | null;
+      updatedAt: string;
+      occurredAt: string;
+    }>
+  > {
+    const rows = (await this.dataSource.query(
+      `
+      SELECT place_id, region_id, status_code, state_level, action,
+             author_channel_key, updated_at, winner_occurred_at
+      FROM place_status_read_model
+      WHERE ($1::uuid IS NULL OR place_id = $1::uuid)
+        AND ($2::text IS NULL OR status_code = $2::text)
+      ORDER BY updated_at DESC
+      LIMIT $3
+      `,
+      [params.placeId ?? null, params.statusCode ?? null, params.limit],
+    )) as Array<{
+      place_id: string;
+      region_id: string;
+      status_code: string;
+      state_level: string;
+      action: "raise" | "clear";
+      author_channel_key: string | null;
+      updated_at: Date;
+      winner_occurred_at: Date;
+    }>;
+    return rows.map((row) => ({
+      placeId: row.place_id,
+      regionId: row.region_id,
+      statusCode: row.status_code,
+      stateLevel: row.state_level,
+      action: row.action,
+      authorChannelKey: row.author_channel_key,
+      updatedAt: row.updated_at.toISOString(),
+      occurredAt: row.winner_occurred_at.toISOString(),
+    }));
   }
 
   async getPlaceStatusHistory(
     params: StatusQuery & { limit: number },
-  ): Promise<PlaceStatusHistoryEntity[]> {
-    return this.dataSource.getRepository(PlaceStatusHistoryEntity).find({
-      where: buildStatusWhere(params),
-      order: { eventAt: "DESC" },
-      take: params.limit,
-    });
+  ): Promise<
+    Array<{
+      eventLocationId: string;
+      placeId: string;
+      regionId: string;
+      statusCode: string;
+      action: "raise" | "clear";
+      authorChannelKey: string | null;
+      occurredAt: string;
+    }>
+  > {
+    const rows = (await this.dataSource.query(
+      `
+      SELECT el.id, el.place_id, el.region_id,
+             COALESCE(el.status_code, pe.event_type) AS status_code,
+             COALESCE(el.action, CASE WHEN pe.event_type='cleared' THEN 'clear' ELSE 'raise' END) AS action,
+             el.author_channel_key, COALESCE(el.occurred_at, pe.parsed_at) AS occurred_at
+      FROM event_locations el
+      JOIN parsed_events pe ON pe.id = el.parsed_event_id
+      WHERE el.place_id IS NOT NULL
+        AND ($1::uuid IS NULL OR el.place_id = $1::uuid)
+        AND ($2::text IS NULL OR COALESCE(el.status_code, pe.event_type) = $2::text)
+      ORDER BY COALESCE(el.occurred_at, pe.parsed_at) DESC, el.id DESC
+      LIMIT $3
+      `,
+      [params.placeId ?? null, params.statusCode ?? null, params.limit],
+    )) as Array<{
+      id: string;
+      place_id: string;
+      region_id: string;
+      status_code: string;
+      action: "raise" | "clear";
+      author_channel_key: string | null;
+      occurred_at: Date;
+    }>;
+    return rows.map((row) => ({
+      eventLocationId: row.id,
+      placeId: row.place_id,
+      regionId: row.region_id,
+      statusCode: row.status_code,
+      action: row.action,
+      authorChannelKey: row.author_channel_key,
+      occurredAt: row.occurred_at.toISOString(),
+    }));
   }
 }

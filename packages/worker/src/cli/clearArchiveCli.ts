@@ -59,7 +59,7 @@ async function main(): Promise<void> {
   console.log(`  parsed_events: ${result.parsedEventsDeleted}`);
   console.log(`  parse_attempts: ${result.parseAttemptsDeleted}`);
   console.log(
-    `  карта: places=${result.map.placesActiveRemoved} regions→grey=${result.map.regionsGrey} history=${result.map.regionHistoryRemoved}`,
+    `  карта(read-model): places=${result.map.placesCleared} regions=${result.map.regionsCleared}`,
   );
   console.log(`  phase_runs: ${result.phaseRunsDeleted} (остановлено ${result.phaseRunsStopped})`);
   console.log(`  phase_coverage queue: ${result.queueCleared}`);

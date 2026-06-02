@@ -6,6 +6,7 @@ import { LEVEL_COLORS, LEVEL_LABELS } from "../../shared/config/mapConfig.servic
 import { formatDateTime } from "../../shared/format/dateTime";
 import { useBehaviorSubject } from "../../shared/hooks/useBehaviorSubject";
 import { useObservable } from "../../shared/hooks/useObservable";
+import { isRegionVisibleOnMap } from "../../shared/state/derivations";
 import { regionsByCode$ } from "../../shared/state/mapStore";
 import { selectRegion, selectedRegion$ } from "../../shared/state/selectionStore";
 import type { WidgetProps } from "../widgetProps";
@@ -80,15 +81,15 @@ export function SchematicMapWidget(_props: WidgetProps) {
   );
 
   const activeRegions = useMemo(
-    () => layoutRegions.filter((region) => region.stateLevel !== "grey"),
+    () => layoutRegions.filter(isRegionVisibleOnMap),
     [layoutRegions],
   );
 
   const tiles = useMemo(
     () =>
-      [...layoutRegions].sort(
-        (a, b) => LEVEL_Z[a.stateLevel] - LEVEL_Z[b.stateLevel],
-      ),
+      [...layoutRegions]
+        .filter(isRegionVisibleOnMap)
+        .sort((a, b) => LEVEL_Z[a.stateLevel] - LEVEL_Z[b.stateLevel]),
     [layoutRegions],
   );
 

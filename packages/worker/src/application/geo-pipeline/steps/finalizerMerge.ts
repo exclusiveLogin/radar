@@ -265,6 +265,8 @@ export function buildFinalizerResult(
     regionCode: region.code,
     regionFias: region.fiasId,
     precision: "region",
+    entityKind: "region",
+    action: "raise",
     source: "db",
     placeName: region.name,
   }));
@@ -286,6 +288,8 @@ export function buildFinalizerResult(
       regionId: "00000000-0000-0000-0000-000000000000",
       regionCode,
       precision: toEventLocationPrecision(place.kind),
+      entityKind: "place",
+      action: "raise",
       source: eventLocationSource,
       placeName: place.name,
       placeFias: place.fiasId,
