@@ -12,13 +12,13 @@ import { hasAnyFlag, parseLongFlagsMap } from "./workerCliArgs.js";
 
 function printPlan(): void {
   console.log(`
-clear:raw — удаление архива raw_messages:
+parse-engine:clear:raw — удаление архива raw_messages:
 
   • phase_runs активные — cancel (безопасность)
   • DELETE raw_messages (CASCADE: raw_message_telegram, phase_coverage)
 
 Требует пустых parsed_events и parse_attempts.
-Если есть события: npm run clear:pipeline  или  npm run clear:raw -- --with-pipeline
+Если есть события: npm run parse-engine:reset  или  parse-engine:clear:raw -- --with-pipeline
 `);
 }
 
@@ -29,7 +29,7 @@ async function main(): Promise<void> {
   const withPipeline = hasAnyFlag(flags, ["with-pipeline", "withPipeline"]);
 
   if (hasAnyFlag(flags, ["help", "h"])) {
-    console.log("Usage: npm run clear:raw [--dry-run] [--with-pipeline]");
+    console.log("Usage: npm run parse-engine:clear:raw [--dry-run] [--with-pipeline]");
     printPlan();
     process.exit(0);
   }
@@ -38,7 +38,7 @@ async function main(): Promise<void> {
 
   const runtime = await createWorkerCompositionRoot({
     storageMode: WorkerStorageMode.Db,
-    startPhaseDaemon: false,
+    startIngestParseDaemon: false,
   });
   if (!runtime.dataSource || !runtime.workerRepos) {
     console.error("clear:raw: нужен RADAR_STORAGE_MODE=db и DATABASE_URL");
@@ -60,7 +60,7 @@ async function main(): Promise<void> {
     const { runPipelineOperationalReset } = await import(
       "../application/phases/pipelineOperationalReset.js"
     );
-    console.log("clear:raw: сначала clear:pipeline…");
+    console.log("parse-engine:clear:raw: сначала parse-engine:reset…");
     await stopAllActivePhaseRuns({
       dataSource: runtime.dataSource,
       repos: runtime.workerRepos,

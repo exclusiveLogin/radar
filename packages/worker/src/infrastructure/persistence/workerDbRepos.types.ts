@@ -7,6 +7,7 @@ import type {
   IPhaseCoverageRepository,
   IPhaseRunRepository,
   IEventLocationRepository,
+  IEventEvidenceRepository,
   IIngestBackfillJobRepository,
   IIngestBindingRepository,
   IIngestCursorRepository,
@@ -15,12 +16,10 @@ import type {
   IParsedEventRepository,
   IPhaseDefinitionRepository,
   IPlaceAliasRepository,
-  IPlaceEvidenceRepository,
+  IPlaceEnrichmentJobRepository,
   IPlaceRepository,
-  IPlaceStatusRepository,
   IRawMessageRepository,
   IRegionRepository,
-  IRegionStateRepository,
   IStatusDictionaryRepository,
 } from "@radar/shared";
 
@@ -28,17 +27,16 @@ export type WorkerDbRepositories = {
   rawMessages: IRawMessageRepository;
   parsedEvents: IParsedEventRepository;
   eventLocations: IEventLocationRepository;
+  eventEvidence: IEventEvidenceRepository;
   regions: IRegionRepository;
   places: IPlaceRepository;
   aliases: IPlaceAliasRepository;
-  placeEvidence: IPlaceEvidenceRepository;
+  placeEnrichmentJobs: IPlaceEnrichmentJobRepository;
   cursors: IIngestCursorRepository;
   ingestProviders: IIngestProviderRepository;
   ingestBindings: IIngestBindingRepository;
   channels: IChannelRepository;
   backfillJobs: IIngestBackfillJobRepository;
-  regionState: IRegionStateRepository;
-  placeStatus: IPlaceStatusRepository;
   statusDictionary: IStatusDictionaryRepository;
   domainEvents: IDomainEventRepository;
   parseAttempts: IParseAttemptRepository;
@@ -57,14 +55,15 @@ export type ApiPersistenceModule = {
   TypeOrmRegionRepository: new (dataSource: DataSource) => IRegionRepository;
   TypeOrmPlaceRepository: new (dataSource: DataSource) => IPlaceRepository;
   TypeOrmPlaceAliasRepository: new (dataSource: DataSource) => IPlaceAliasRepository;
-  TypeOrmPlaceEvidenceRepository: new (dataSource: DataSource) => IPlaceEvidenceRepository;
+  TypeOrmPlaceEnrichmentJobRepository: new (
+    dataSource: DataSource,
+  ) => IPlaceEnrichmentJobRepository;
+  TypeOrmEventEvidenceRepository: new (dataSource: DataSource) => IEventEvidenceRepository;
   TypeOrmIngestCursorRepository: new (dataSource: DataSource) => IIngestCursorRepository;
   TypeOrmIngestProviderRepository: new (dataSource: DataSource) => IIngestProviderRepository;
   TypeOrmIngestBindingRepository: new (dataSource: DataSource) => IIngestBindingRepository;
   TypeOrmChannelRepository: new (dataSource: DataSource) => IChannelRepository;
   TypeOrmIngestBackfillJobRepository: new (dataSource: DataSource) => IIngestBackfillJobRepository;
-  TypeOrmRegionStateRepository: new (dataSource: DataSource) => IRegionStateRepository;
-  TypeOrmPlaceStatusRepository: new (dataSource: DataSource) => IPlaceStatusRepository;
   TypeOrmStatusDictionaryRepository: new (dataSource: DataSource) => IStatusDictionaryRepository;
   TypeOrmDomainEventRepository: new (dataSource: DataSource) => IDomainEventRepository;
   TypeOrmParseAttemptRepository: new (dataSource: DataSource) => IParseAttemptRepository;

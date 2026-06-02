@@ -8,7 +8,7 @@
 |---------|--------|
 | Схемы `trigger`, `policy`, `phase_coverage`, `phase_runs` | ✅ |
 | Миграция `1748500000000-PhasePipelineV2` | ✅ |
-| `PhaseRunner`, `CoverageEnqueuer`, `PhaseDaemon` | ✅ |
+| `PhaseRunner`, `CoverageEnqueuer`, `IngestParseDaemon` | ✅ |
 | Ingest SSOT `phaseIngestFlow` | ✅ |
 | Reparse = invalidate + ingest-поток | ✅ |
 | Порядок фаз (`order`) в `claimBatch` | ✅ |

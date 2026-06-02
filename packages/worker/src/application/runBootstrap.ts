@@ -44,14 +44,19 @@ export async function runWorkerBootstrap(): Promise<void> {
       console.log("MapStateExpiryDaemon запущен (TTL статусов карты).");
     }
 
-    if (runtime.phaseDaemon) {
-      console.log("PhaseDaemon запущен (scheduled-фазы → phase_coverage).");
+    if (runtime.ingestParseDaemon) {
+      console.log("IngestParseDaemon запущен (scheduled ingestParse → phase_coverage).");
+    }
+    if (runtime.placeEnrichmentDaemon) {
+      console.log(
+        "GeoParseDaemon запущен (scheduled geoParse → place_enrichment_jobs; лог батчей в консоль, подробно: RADAR_VERBOSE_GEO_LOG=1).",
+      );
     }
 
     const shutdown = async () => {
       console.log("Остановка worker...");
       workerRuntimeStatus.setStopped();
-      probe.server.close();
+      probe.server?.close();
       await runtime.shutdown?.();
       process.exit(0);
     };

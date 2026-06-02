@@ -5,14 +5,14 @@ import { loadRootEnv } from "../infrastructure/config/loadRootEnv.js";
 import { WorkerStorageMode } from "../infrastructure/persistence/storageMode.js";
 
 /**
- * CLI: cancel runs + удалить pending/processing из phase_coverage.
+ * CLI: cancel runs + очистка ingest (phase_coverage) и geo (place_enrichment_jobs).
  */
 async function main(): Promise<void> {
   loadRootEnv(MONOREPO_ROOT);
 
   const runtime = await createWorkerCompositionRoot({
     storageMode: WorkerStorageMode.Db,
-    startPhaseDaemon: false,
+    startIngestParseDaemon: false,
   });
 
   if (!runtime.dataSource || !runtime.workerRepos) {
@@ -26,7 +26,7 @@ async function main(): Promise<void> {
   });
 
   console.log(
-    `Остановлено runs: ${result.phaseRunsClosed}, очередь удалена: ${result.queueCleared}`,
+    `Остановлено runs: ${result.phaseRunsClosed}, ingest coverage: ${result.queueCleared}, geo jobs: ${result.geoJobsCleared}`,
   );
   await runtime.shutdown?.();
 }

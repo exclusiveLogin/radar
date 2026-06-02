@@ -9,11 +9,18 @@ function readProbePort(): number {
   return Number.isFinite(port) && port > 0 ? port : DEFAULT_PORT;
 }
 
+export type WorkerProbeHandle = {
+  port: number;
+  server: Server | null;
+  enabled: boolean;
+};
+
 /**
  * Мини HTTP probe worker: GET /status → JSON runtime-снимок.
  * Порт: WORKER_PROBE_PORT (default 3010). API проксирует через GET /api/worker/status.
+ * При EADDRINUSE worker продолжает работу (часто — второй экземпляр / tsx watch).
  */
-export function startWorkerProbeServer(): { port: number; server: Server } {
+export function startWorkerProbeServer(): WorkerProbeHandle {
   const port = readProbePort();
 
   const server = createServer((req, res) => {
@@ -31,9 +38,23 @@ export function startWorkerProbeServer(): { port: number; server: Server } {
     res.end("not found");
   });
 
+  let enabled = false;
+
+  server.on("error", (err: NodeJS.ErrnoException) => {
+    if (err.code === "EADDRINUSE") {
+      console.warn(
+        `Worker probe: порт ${port} занят (EADDRINUSE) — probe отключён, ingest/geo продолжают работу. ` +
+          "Закрой старый worker или: node scripts/free-dev-ports.mjs",
+      );
+      return;
+    }
+    console.error("Worker probe:", err);
+  });
+
   server.listen(port, "127.0.0.1", () => {
+    enabled = true;
     console.log(`Worker probe: http://127.0.0.1:${port}/status`);
   });
 
-  return { port, server };
+  return { port, server, enabled };
 }

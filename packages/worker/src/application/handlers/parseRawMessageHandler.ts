@@ -1,10 +1,12 @@
-﻿import type {
+import type {
   DomainEvent,
   EventLocation,
+  EventEvidenceRecord,
+  IEventEvidenceRepository,
   IEventLocationRepository,
   IEventPublisher,
   IParsedEventRepository,
-  IPlaceCacheRepository,
+  IPlaceRepository,
   RawMessage,
 } from "@radar/shared";
 import type { GeoValidationService } from "../parsing/geoValidationService.js";
@@ -14,6 +16,8 @@ import type { ParseWorkerPool } from "../parsing/parseWorkerPool.js";
 import { resolveParsedEventActivation } from "../../domain/parsing/resolveParsedEventActivation.js";
 import { PARSER_VERSION } from "../../domain/parsing/version.js";
 import { buildDomainEvent } from "./domainEventFactory.js";
+import { randomUUID } from "node:crypto";
+import { isPlaceCentricGeoEnabled } from "../../infrastructure/config/placeCentricFeatureFlag.js";
 
 type EnricherProvider = "dadata" | "nominatim" | "llm";
 
@@ -108,8 +112,9 @@ export class ParseRawMessageHandler {
     private readonly pipeline: ParsePipelineService,
     private readonly parsedEvents: IParsedEventRepository,
     private readonly eventLocations: IEventLocationRepository,
+    private readonly eventEvidence: IEventEvidenceRepository,
+    private readonly places: IPlaceRepository,
     private readonly validation: GeoValidationService,
-    private readonly placeCache: IPlaceCacheRepository,
     private readonly events: IEventPublisher,
     /** Опционально: classify/geo в worker_threads (не блокирует event loop). */
     private readonly parseWorkerPool?: ParseWorkerPool,
@@ -242,21 +247,6 @@ export class ParseRawMessageHandler {
       await this.events.publish(telemetryEvents);
     }
 
-    if (primaryProvider) {
-      await this.placeCache.put(
-        raw.rawText.toLowerCase().trim(),
-        primaryProvider,
-        {
-          sourceText: raw.rawText,
-          resolvedLocations: pipelineResult.locations,
-        },
-        {
-          validator: "rule",
-          validatedAt: new Date().toISOString(),
-        },
-      );
-    }
-
     const persisted = await this.parsedEvents.upsert(parsed);
     const priorLocations = await this.eventLocations.listForParsedEvent(persisted.id);
     const factLocations: EventLocation[] = validatedLocations.map((location) => ({
@@ -275,6 +265,41 @@ export class ParseRawMessageHandler {
       projectionLocations =
         priorLocations.length > 0 ? priorLocations : factLocations;
       await this.eventLocations.replaceForParsedEvent(persisted.id, []);
+    }
+
+    if (isPlaceCentricGeoEnabled()) {
+      const providerKind = raw.sourceKind;
+      const sourceProviderId = raw.providerKey;
+      const sourceMessageId = raw.externalMessageId;
+      const evidenceTargets = (activation.isActive ? factLocations : projectionLocations)
+        .map((location) => location.placeId)
+        .filter((placeId): placeId is string => typeof placeId === "string");
+      const uniquePlaceIds = [...new Set(evidenceTargets)];
+      const evidenceObservedAt = parsed.postedAt;
+      const evidenceRows: EventEvidenceRecord[] = uniquePlaceIds.map((placeId) => ({
+        id: randomUUID(),
+        eventId: persisted.id,
+        eventType: parsed.eventType,
+        placeId,
+        observedAt: evidenceObservedAt,
+        timeBucket15m: evidenceObservedAt,
+        providerKind,
+        sourceProviderId,
+        sourceChannelKey: raw.channelKey,
+        sourceMessageId,
+        traceId: raw.hash,
+        payload: {
+          rawMessageId,
+          rawPayload: raw.rawPayload ?? null,
+          rawText: raw.rawText,
+          channelKey: raw.channelKey,
+        },
+        trustScore: undefined,
+        createdAt: new Date().toISOString(),
+      }));
+      for (const evidence of evidenceRows) {
+        await this.eventEvidence.append(evidence);
+      }
     }
 
     const success = buildDomainEvent({

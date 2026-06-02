@@ -5,7 +5,6 @@ export {
   InMemoryEventLocationRepository,
   InMemoryPlaceAliasRepository,
   InMemoryPlaceCacheRepository,
-  InMemoryPlaceEvidenceRepository,
   InMemoryPlaceRepository,
   InMemoryParsedEventRepository,
   InMemoryRegionRepository,

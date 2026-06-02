@@ -11,6 +11,9 @@ export class PhaseDefinitionEntity {
   @Column({ name: "trigger", type: "text" })
   trigger!: string;
 
+  @Column({ name: "scope", type: "text", default: "ingestParse" })
+  scope!: string;
+
   @Column({ name: "kind", type: "text", nullable: true })
   kind!: string | null;
 

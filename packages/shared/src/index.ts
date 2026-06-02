@@ -1,4 +1,4 @@
-﻿// --- runtime exports (schemas, functions, classes) ---
+// --- runtime exports (schemas, functions, classes) ---
 export {
   aliasDraftSchema,
   channelManifestEntrySchema,
@@ -121,6 +121,7 @@ export {
   PRECISION_RANK,
   enricherIdSchema,
   phaseTriggerSchema,
+  phaseScopeSchema,
   phaseKindSchema,
   enrichStageSchema,
   phasePolicySchema,
@@ -161,7 +162,16 @@ export {
   resolveRawMessagePostedAtOrder,
   type RawMessagePostedAtOrder,
 } from "./domain/phases/phaseClaimOrder";
+export { resolveGeoEnrichmentProvider } from "./domain/phases/phaseGeoProvider";
+export { phaseRunsOverviewSchema, type PhaseRunsOverview } from "./schemas/enrichment/phase-admin";
 export { SourceUniquenessRegistry } from "./ports/source-uniqueness";
+export type {
+  EventEvidenceRecord,
+  IEventEvidenceRepository,
+  IPlaceEnrichmentJobRepository,
+  PlaceEnrichmentJobRecord,
+  PlaceEnrichmentProvider,
+} from "./ports/repositories";
 
 // --- type-only exports ---
 export type {
@@ -284,6 +294,7 @@ export type {
   FieldProvenance,
   EnricherId,
   PhaseTrigger,
+  PhaseScope,
   PhaseKind,
   EnrichStage,
   PhasePolicy,
@@ -338,11 +349,7 @@ export type {
   IParsedEventRepository,
   IPlaceAliasRepository,
   IPlaceCacheRepository,
-  IPlaceEvidenceRepository,
   IPlaceRepository,
-  IPlaceStatusHistoryRepository,
-  IPlaceStatusRepository,
-  IRegionStateRepository,
   IRawMessageRepository,
   IRegionRepository,
   IStatusDictionaryRepository,
@@ -358,15 +365,11 @@ export type {
   IPhaseRunRepository,
   PhaseRunFilter,
   ChannelRecord,
-  PlaceStatusActiveRecord,
-  PlaceStatusHistoryRecord,
-  RegionStateActiveRecord,
   PlaceAliasRecord,
   PlaceCacheHit,
   PlaceCacheProvider,
   PlaceCachePutMeta,
   PlaceContribution,
-  PlaceEvidenceRecord,
   PlaceProvider,
   PlaceRecord,
   RegionRecord,

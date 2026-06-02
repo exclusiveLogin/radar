@@ -1,18 +1,20 @@
 import type { PhaseRunStats } from "@radar/shared";
 
-/** Доля выполнения drain по stats phase_run (0–100) или null, если данных ещё нет. */
+/** Доля выполнения drain текущего run (0–100) или null, если данных ещё нет. */
 export function phaseRunProgressPercent(stats: PhaseRunStats): number | null {
   const pending = stats.pendingRemaining;
-  const total = stats.totalKnown;
+  const processed =
+    stats.processed > 0 ? stats.processed : (stats.ok ?? 0) + (stats.failed ?? 0);
 
+  // Только прогресс этого run: обработано vs хвост очереди (не все done в БД за всё время).
+  if (pending != null && processed + pending > 0) {
+    return Math.min(100, Math.round((processed / (processed + pending)) * 100));
+  }
+
+  const total = stats.totalKnown;
   if (total != null && total > 0 && pending != null) {
     const done = Math.max(0, total - pending);
     return Math.min(100, Math.round((done / total) * 100));
-  }
-
-  const processed = stats.processed > 0 ? stats.processed : stats.ok + stats.failed;
-  if (pending != null && processed + pending > 0) {
-    return Math.min(100, Math.round((processed / (processed + pending)) * 100));
   }
 
   return null;

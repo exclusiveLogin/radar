@@ -7,7 +7,6 @@ import {
   canonicalRegionCode,
   type EventLocation,
   type IPlaceAliasRepository,
-  type IPlaceEvidenceRepository,
   type IPlaceRepository,
   type PlaceContribution,
   type PlaceProvider,
@@ -35,8 +34,10 @@ export type GeoValidationContext = {
   providerHint?: PlaceProvider;
   confidence?: number;
   traceId?: string;
-  /** Обоснование привязки от LLM (персистится в place_evidence для анализа). */
+  /** Обоснование привязки от LLM для диагностики. */
   reason?: string;
+  /** Разрешает изменять существующий place из ingest-потока (по умолчанию выключено). */
+  allowPlaceUpdates?: boolean;
 };
 
 const TRUSTED_PROVIDERS = new Set<PlaceProvider>([
@@ -113,7 +114,6 @@ export class GeoValidationService {
     private readonly regions: IRegionRepository,
     private readonly places: IPlaceRepository,
     private readonly aliases: IPlaceAliasRepository,
-    private readonly placeEvidence: IPlaceEvidenceRepository,
   ) {}
 
   private buildMatchedContribution(input: {
@@ -151,27 +151,29 @@ export class GeoValidationService {
   async applyProviderContribution(
     input: PlaceContribution,
   ): Promise<{ updated: PlaceRecord; appliedFields: string[] }> {
-    const merged = await this.places.mergeContribution(input);
-    await this.placeEvidence.append({
-      id: randomUUID(),
-      placeId: input.placeId,
-      provider: input.provider,
-      action: merged.appliedFields.length > 0 ? "enrich" : "confirm",
-      confidence: input.confidence,
-      traceId: input.traceId,
-      payload: {
-        ...(input.rawPayload ?? {}),
-        appliedFields: merged.appliedFields,
-      },
-      createdAt: new Date().toISOString(),
-    });
-    return merged;
+    return this.places.mergeContribution(input);
   }
 
-  /** Субъект РФ с учётом справочника НП и согласования coords vs текст. */
+  /** Матч субъекта через place(kind=region) + place_aliases. */
+  private async resolveRegionByAlias(text: string | undefined): Promise<RegionRecord | null> {
+    if (!text?.trim()) return null;
+    const aliasMatches = await this.aliases.findByAlias(normalize(text));
+    for (const row of aliasMatches) {
+      const place = await this.places.findById(row.placeId);
+      if (!place || place.kind !== "region") continue;
+      const region = await this.regions.findById(place.regionId);
+      if (region) return region;
+    }
+    return null;
+  }
+
+  /** Субъект РФ: alias → словарь regions → coords reconcile → каталог НП. */
   private async resolveEffectiveRegion(
     location: EventLocation,
   ): Promise<RegionRecord | null> {
+    const fromRegionCodeAlias = await this.resolveRegionByAlias(location.regionCode);
+    if (fromRegionCodeAlias) return fromRegionCodeAlias;
+
     const catalog = KnownLocalityCatalog.loadFromDictionaries().list();
     if (location.placeName) {
       const fromCatalog = lookupLocalityRegionForPlace(
@@ -186,7 +188,9 @@ export class GeoValidationService {
       }
     }
 
-    const textRegion = await this.regions.findByCode(location.regionCode);
+    const textRegion =
+      (await this.resolveRegionByAlias(location.placeName)) ??
+      (await this.regions.findByCode(location.regionCode));
     const allRegions = await this.regions.listActive();
     const reconciledCode = resolveRegionCodeForCoords(
       location,
@@ -231,29 +235,30 @@ export class GeoValidationService {
 
     if (matched) {
       await this.aliases.upsertAlias({
-        targetKind: "place",
         placeId: matched.id,
         alias: location.placeName,
         source: "auto",
       });
-      const merged = await this.applyProviderContribution(
-        this.buildMatchedContribution({
-          placeId: matched.id,
-          provider,
-          context,
-          trust,
-          location,
-          rawQuery,
-        }),
-      );
+      if (context.allowPlaceUpdates) {
+        await this.applyProviderContribution(
+          this.buildMatchedContribution({
+            placeId: matched.id,
+            provider,
+            context,
+            trust,
+            location,
+            rawQuery,
+          }),
+        );
+      }
 
       return {
         decision: "matched_existing",
         location: {
           ...withResolvedRegion(location, region),
           placeId: matched.id,
-          placeName: merged.updated.name,
-          placeFias: merged.updated.fiasId,
+          placeName: matched.name,
+          placeFias: matched.fiasId,
         },
       };
     }
@@ -276,27 +281,10 @@ export class GeoValidationService {
       },
     ]);
     await this.aliases.upsertAlias({
-      targetKind: "place",
       placeId,
       alias: location.placeName,
       source: "auto",
     });
-    await this.placeEvidence.append({
-      id: randomUUID(),
-      placeId,
-      provider,
-      action: "candidate",
-      confidence: context.confidence,
-      traceId: context.traceId,
-      payload: {
-        rawQuery,
-        reason: "created_from_validation",
-        locationSource: location.source,
-        ...(context.reason ? { llmReason: context.reason } : {}),
-      },
-      createdAt: new Date().toISOString(),
-    });
-
     return {
       decision: "created_new",
       location: { ...withResolvedRegion(location, region), placeId },
@@ -323,11 +311,8 @@ export class GeoValidationService {
 
     const aliasMatches = await this.aliases.findByAlias(normalize(placeName));
     for (const row of aliasMatches) {
-      if (!row.placeId) {
-        continue;
-      }
       const place = await this.places.findById(row.placeId);
-      if (!place) {
+      if (!place || place.kind === "region") {
         continue;
       }
       if (place.regionId === regionId) {

@@ -46,7 +46,7 @@ async function main(): Promise<void> {
 
   const runtime = await createWorkerCompositionRoot({
     storageMode: WorkerStorageMode.Db,
-    startPhaseDaemon: false,
+    startIngestParseDaemon: false,
   });
 
   if (!runtime.ingestOrchestrator || !runtime.dataSource) {

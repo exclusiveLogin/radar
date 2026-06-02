@@ -94,7 +94,6 @@ export class GeoValidationService {
   /** Upserts auto-generated alias for resolved place. */
   private async upsertAutoAlias(placeId: string, alias: string): Promise<void> {
     await this.aliases.upsertAlias({
-      targetKind: "place",
       placeId,
       alias,
       source: "auto",

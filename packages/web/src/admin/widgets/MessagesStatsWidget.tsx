@@ -21,6 +21,7 @@ export function MessagesStatsWidget() {
   }
 
   const events = stats.parsedEvents;
+  const placesCatalog = stats.placesCatalogActive;
 
   return (
     <Panel title="Сводка сообщений">
@@ -59,6 +60,71 @@ export function MessagesStatsWidget() {
                 </span>
               </div>
             ))}
+          </div>
+        </>
+      )}
+
+      {stats.geoEnrichment.length > 0 && (
+        <>
+          <p
+            className="ds-muted"
+            style={{ fontSize: 10, margin: "14px 0 6px", lineHeight: 1.35 }}
+          >
+            Geo (place_enrichment_jobs): полоска — доля каталога с{" "}
+            <strong>evidence★</strong> (провайдер в <code>places</code>).{" "}
+            <strong>осталось</strong> — places без evidence; при <strong>pend/proc</strong> worker
+            ещё крутит очередь.
+          </p>
+          <div className="admin-phase-enrich-grid">
+            {stats.geoEnrichment.map(({ phaseId, provider, enabled, counts }) => {
+              const catalogDone = counts.doneWithEvidence;
+              const catalogPct = pct(catalogDone, placesCatalog);
+              const queueActive = counts.pending + counts.processing > 0;
+              const barWidth =
+                placesCatalog > 0
+                  ? Math.min(100, Math.round((catalogDone / placesCatalog) * 100))
+                  : 0;
+
+              return (
+                <div
+                  key={phaseId}
+                  className="admin-phase-enrich-card"
+                  style={{ opacity: enabled ? 1 : 0.55 }}
+                >
+                  <span className="admin-phase-enrich-card__id">
+                    {phaseId}
+                    {enabled && queueActive && (
+                      <span style={{ marginLeft: 4, color: "var(--status-warn)" }}>▶</span>
+                    )}
+                    {!enabled && (
+                      <span className="ds-muted" style={{ marginLeft: 4 }}>
+                        (выкл)
+                      </span>
+                    )}
+                  </span>
+                  <span className="admin-phase-enrich-card__main">
+                    evidence★ {catalogDone}{" "}
+                    <span className="ds-muted">({catalogPct})</span>
+                  </span>
+                  <div
+                    className="ds-progress ds-progress--thin"
+                    title={`каталог ${catalogPct} · осталось ${counts.catalogRemaining}`}
+                    style={{ margin: "2px 0" }}
+                    role="progressbar"
+                    aria-valuenow={barWidth}
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                  >
+                    <div className="ds-progress__fill" style={{ width: `${barWidth}%` }} />
+                  </div>
+                  <span className="ds-muted" style={{ fontSize: 10 }}>
+                    {provider ?? "—"} · осталось {counts.catalogRemaining} · jobs done{" "}
+                    {counts.done} · fail {counts.failed} · pend {counts.pending}
+                    {counts.processing > 0 ? ` · proc ${counts.processing}` : ""}
+                  </span>
+                </div>
+              );
+            })}
           </div>
         </>
       )}

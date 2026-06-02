@@ -3,6 +3,7 @@ import type {
   PhaseDefinitionRecord,
   PhaseManifestEntry,
   PhasePolicy,
+  PhaseScope,
   PhaseTrigger,
 } from "@radar/shared";
 import { DEFAULT_PHASE_POLICY, phasePolicySchema } from "@radar/shared";
@@ -11,6 +12,7 @@ import type { DataSource } from "typeorm";
 type PhaseRow = {
   id: string;
   trigger: string;
+  scope: PhaseScope;
   enrichers: PhaseManifestEntry["enrichers"];
   policy: Record<string, unknown>;
   enabled: boolean;
@@ -24,26 +26,28 @@ export class TypeOrmPhaseDefinitionRepository implements IPhaseDefinitionReposit
 
   async listAll(): Promise<PhaseDefinitionRecord[]> {
     const rows = (await this.dataSource.query(
-      `SELECT id, trigger, enrichers, policy, enabled, order_index, updated_at
+      `SELECT id, trigger, scope, enrichers, policy, enabled, order_index, updated_at
        FROM phase_definitions ORDER BY order_index`,
     )) as PhaseRow[];
     return rows.map((row) => this.toRecord(row));
   }
 
-  async listEnabled(trigger?: PhaseTrigger): Promise<PhaseDefinitionRecord[]> {
+  async listEnabled(trigger?: PhaseTrigger, scope?: PhaseScope): Promise<PhaseDefinitionRecord[]> {
     const rows = (await this.dataSource.query(
-      `SELECT id, trigger, enrichers, policy, enabled, order_index, updated_at
+      `SELECT id, trigger, scope, enrichers, policy, enabled, order_index, updated_at
        FROM phase_definitions
-       WHERE enabled = true AND ($1::text IS NULL OR trigger = $1)
+       WHERE enabled = true
+         AND ($1::text IS NULL OR trigger = $1)
+         AND ($2::text IS NULL OR scope = $2)
        ORDER BY order_index`,
-      [trigger ?? null],
+      [trigger ?? null, scope ?? null],
     )) as PhaseRow[];
     return rows.map((row) => this.toRecord(row));
   }
 
   async findById(id: string): Promise<PhaseDefinitionRecord | null> {
     const rows = (await this.dataSource.query(
-      `SELECT id, trigger, enrichers, policy, enabled, order_index, updated_at
+      `SELECT id, trigger, scope, enrichers, policy, enabled, order_index, updated_at
        FROM phase_definitions WHERE id = $1`,
       [id],
     )) as PhaseRow[];
@@ -56,12 +60,13 @@ export class TypeOrmPhaseDefinitionRepository implements IPhaseDefinitionReposit
     const legacyStage = entry.trigger === "scheduled" ? entry.id : null;
 
     await this.dataSource.query(
-      `INSERT INTO phase_definitions (id, kind, stage, trigger, enrichers, policy, enabled, order_index, updated_at)
-       VALUES ($1, $2, $3, $4, $5::jsonb, $6::jsonb, $7, $8, now())
+      `INSERT INTO phase_definitions (id, kind, stage, trigger, scope, enrichers, policy, enabled, order_index, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8, $9, now())
        ON CONFLICT (id) DO UPDATE SET
          kind = EXCLUDED.kind,
          stage = EXCLUDED.stage,
          trigger = EXCLUDED.trigger,
+         scope = EXCLUDED.scope,
          enrichers = EXCLUDED.enrichers,
          policy = EXCLUDED.policy,
          enabled = EXCLUDED.enabled,
@@ -72,6 +77,7 @@ export class TypeOrmPhaseDefinitionRepository implements IPhaseDefinitionReposit
         legacyKind,
         legacyStage,
         entry.trigger,
+        entry.scope,
         JSON.stringify(entry.enrichers),
         JSON.stringify(entry.policy),
         entry.enabled,
@@ -101,6 +107,7 @@ export class TypeOrmPhaseDefinitionRepository implements IPhaseDefinitionReposit
     return {
       id: row.id,
       trigger: row.trigger as PhaseTrigger,
+      scope: row.scope ?? "ingestParse",
       enrichers: row.enrichers,
       policy: phasePolicySchema.parse({ ...DEFAULT_PHASE_POLICY, ...row.policy }),
       enabled: row.enabled,

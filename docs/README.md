@@ -5,6 +5,7 @@
 | Документ | Когда читать |
 |----------|----------------|
 | **[cheatsheet.md](./cheatsheet.md)** | **Шпаргалка:** ingest, backfill CLI, SQL, UI, диагностика |
+| **[shpargalka-operacii.md](./shpargalka-operacii.md)** | **Кратко:** dev, `phase_coverage`, reparse, stop/reset |
 | **[getting-started.md](./getting-started.md)** | **Запуск всего продукта локально** (API, web, worker, БД, ingest) |
 | [architecture-layers-and-wiring.md](./architecture-layers-and-wiring.md) | Полная схема слоёв, DIP/wiring и форматы данных |
 | [plan.md](./plan.md) | Продуктовое видение и roadmap |

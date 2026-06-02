@@ -1,4 +1,4 @@
-﻿// --- runtime exports (schemas, functions, classes) ---
+// --- runtime exports (schemas, functions, classes) ---
 export { healthResponseSchema, readyResponseSchema } from "./health";
 export {
   processMetricsSchema,
@@ -114,6 +114,7 @@ export {
   PRECISION_RANK,
   enricherIdSchema,
   phaseTriggerSchema,
+  phaseScopeSchema,
   phaseKindSchema,
   enrichStageSchema,
   phasePolicySchema,
@@ -130,6 +131,7 @@ export {
   phaseRunStatsSchema,
   phaseRunSchema,
   phaseReplayRequestSchema,
+  phaseRunsOverviewSchema,
 } from "./enrichment";
 export {
   wsChannelSchema,
@@ -262,6 +264,7 @@ export type {
   FieldProvenance,
   EnricherId,
   PhaseTrigger,
+  PhaseScope,
   PhaseKind,
   EnrichStage,
   PhasePolicy,
@@ -275,6 +278,7 @@ export type {
   PhaseRunStats,
   PhaseRun,
   PhaseReplayRequest,
+  PhaseRunsOverview,
 } from "./enrichment";
 export type {
   WsChannel,

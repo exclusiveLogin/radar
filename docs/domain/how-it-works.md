@@ -165,7 +165,7 @@ flowchart TD
 | trigger | Когда |
 |---------|--------|
 | `eager` | Сразу после ingest/reparse (`phaseIngestFlow`) |
-| `scheduled` | `PhaseDaemonService` по `policy.intervalMs` |
+| `scheduled` | `IngestParseDaemonService` по `policy.intervalMs` |
 | `manual` | CLI / админка Run |
 
 **Покрытие:** `phase_coverage (raw_message_id, phase_id)` → `pending|processing|done|failed`.
@@ -187,7 +187,7 @@ flowchart TD
 |-----------|------|
 | Ingest SSOT | `packages/worker/.../phases/phaseIngestFlow.ts` |
 | Runner | `packages/worker/.../phases/phaseRunner.ts` |
-| Daemon | `packages/worker/.../phases/phaseDaemonService.ts` |
+| Daemon | `packages/worker/.../phases/ingestParseDaemonService.ts` |
 | Coverage repo | `packages/api/.../typeorm-phase-coverage.repository.ts` |
 | Merge SSOT | `packages/shared/src/domain/mergeContribution.ts` |
 | CLI phase | `packages/worker/.../cli/phaseRunCli.ts` |

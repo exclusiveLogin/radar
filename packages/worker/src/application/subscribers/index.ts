@@ -2,7 +2,6 @@
 export { MetricsAggregator } from "./metricsAggregator.js";
 export { ParseAttemptLogger } from "./parseAttemptLogger.js";
 export { ParseAttemptWriter } from "./parseAttemptWriter.js";
-export { RegionStateProjection } from "./regionStateProjection.js";
 
 // --- type-only exports ---
 export {};

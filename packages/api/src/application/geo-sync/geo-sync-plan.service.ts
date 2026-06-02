@@ -57,11 +57,8 @@ export class GeoSyncPlanService {
   /** Maps active alias rows from storage into draft representation. */
   private toAliasDrafts(rows: Awaited<ReturnType<IPlaceAliasRepository["listActive"]>>): AliasDraft[] {
     return rows.map((row) => ({
-      targetKind: row.targetKind,
-      targetExternalKey:
-        row.targetKind === "region"
-          ? `region:${row.regionId ?? ""}`
-          : `place:${row.placeId ?? ""}`,
+      targetKind: "place" as const,
+      targetExternalKey: `place:${row.placeId}`,
       alias: row.alias,
       source: row.source ?? "auto",
     }));

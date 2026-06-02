@@ -15,6 +15,7 @@ import { randomUUID } from "node:crypto";
 import { normalizeName, placeDraftKey } from "./diff-engine";
 import { regionStemKey } from "../../infrastructure/geo-providers/region-canonicalization";
 import { GeoSyncPlanService } from "./geo-sync-plan.service";
+import { syncRegionCanonicalPlaces } from "./region-place-mirror.js";
 
 export class GeoSyncApplyService {
   private readonly planner: GeoSyncPlanService;
@@ -164,37 +165,31 @@ export class GeoSyncApplyService {
     aliases: AliasDraft[];
     placeDrafts: PlaceDraft[];
     regionByExternalKey: Map<string, RegionRecord>;
+    regionPlaceByRegionId: Map<string, string>;
     placeByExternalKey: Map<string, PlaceRecord>;
   }): PlaceAliasRecord[] {
     const aliasRows: PlaceAliasRecord[] = [];
     const pushAlias = (aliasDraft: AliasDraft): void => {
       const aliasNormalized = normalizeName(aliasDraft.alias);
       if (!aliasNormalized) return;
+
+      let placeId: string | undefined;
       if (aliasDraft.targetKind === "region") {
         const region = this.resolveRegion(
           options.regionByExternalKey,
           aliasDraft.targetExternalKey,
         );
-        if (!region) return;
-        aliasRows.push({
-          id: randomUUID(),
-          alias: aliasDraft.alias,
-          aliasNormalized,
-          targetKind: "region",
-          regionId: region.id,
-          source: aliasDraft.source,
-        });
-        return;
+        placeId = region ? options.regionPlaceByRegionId.get(region.id) : undefined;
+      } else {
+        placeId = options.placeByExternalKey.get(aliasDraft.targetExternalKey)?.id;
       }
+      if (!placeId) return;
 
-      const place = options.placeByExternalKey.get(aliasDraft.targetExternalKey);
-      if (!place) return;
       aliasRows.push({
         id: randomUUID(),
+        placeId,
         alias: aliasDraft.alias,
         aliasNormalized,
-        targetKind: "place",
-        placeId: place.id,
         source: aliasDraft.source,
       });
     };
@@ -246,6 +241,11 @@ export class GeoSyncApplyService {
         this.toRegionRecord(draft, snapshot.sourceRevision),
       );
       await this.regions.upsertMany(regionRows);
+      const regionPlaceByRegionId = await syncRegionCanonicalPlaces(
+        this.regions,
+        this.places,
+        this.aliases,
+      );
       const regionByExternalKey = this.buildRegionIndex(await this.regions.listActive());
 
       const placeRows = snapshot.places
@@ -275,6 +275,7 @@ export class GeoSyncApplyService {
         aliases: snapshot.aliases,
         placeDrafts: snapshot.places,
         regionByExternalKey,
+        regionPlaceByRegionId,
         placeByExternalKey,
       });
       await this.aliases.upsertMany(aliasRows);

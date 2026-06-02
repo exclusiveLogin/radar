@@ -8,7 +8,8 @@
 
 1. `ParsePipelineService` возвращает кандидаты `EventLocation`.
 2. `GeoValidationService.validate` для каждого кандидата:
-   - match по alias/region или создание нового place;
+   - резолв субъекта: `place_aliases` → `place(kind=region)` → `regions`;
+   - match НП по alias/name в scope `regions.id`;
    - `applyProviderContribution` → `mergeContribution` + `placeEvidence.append`.
 3. `mergePlaceContribution` (shared) — монотонный `trustState`, правила перезаписи полей по confidence.
 4. `TypeOrmPlaceRepository.mergeContribution` — TX + `pessimistic_write` lock.

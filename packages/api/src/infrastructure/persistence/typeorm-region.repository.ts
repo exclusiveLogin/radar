@@ -88,6 +88,11 @@ export class TypeOrmRegionRepository implements IRegionRepository {
     });
   }
 
+  async findById(id: string): Promise<RegionRecord | null> {
+    const row = await this.repo().findOne({ where: { id } });
+    return row ? toRegionRecord(row) : null;
+  }
+
   /** Finds region by ISO/FIAS/name или по префиксу kladr_id (первые 2 цифры субъекта РФ). */
   async findByCode(code: string): Promise<RegionRecord | null> {
     const normalizedCode = normalizeRegionCodeAlias(code);

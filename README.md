@@ -182,9 +182,9 @@ UUID bindings: SQL в [cheatsheet § SQL](docs/cheatsheet.md#полезный-sq
 |---------|------------|
 | `npm run migration:run` | миграции БД (в т.ч. `phase_coverage`, `phase_runs`) |
 | `npm run phase:manifest:import` | манифест фаз → `phase_definitions` |
-| `npm run worker:dev` | ingest + PhaseDaemon (scheduled) |
-| `npm run worker:phase:run -- --phase=llm` | ручной прогон фазы |
-| `npm run worker:reparse:raw` | invalidate parsed + coverage, ingest-поток (eager) |
+| `npm run worker:dev` | ingest + IngestParseDaemon + GeoParseDaemon (scheduled) |
+| `npm run parse-engine:phase:run -- --phase=llm` | ручной прогон фазы |
+| `npm run parse-engine:rebuild` | invalidate parsed + coverage, ingest-поток (eager) |
 
 Документация: [docs/phase-pipeline.md](./docs/phase-pipeline.md) · [cheatsheet](./docs/cheatsheet.md) · [статус внедрения](./docs/phase-pipeline-status.md).
 
@@ -323,7 +323,7 @@ Live:  region-state | place-state | warning  →  патч store (не refetch s
 
 Поллеры API читают `region_state_history` / `place_status_history` (раз в 1 с). События **до перезапуска API** по WS не переигрываются — только snapshot при connect.
 
-Данные на карте после ingest: `npm run worker:reparse:raw` (пересчёт проекций из `raw_messages`).
+Данные на карте после ingest: `npm run parse-engine:rebuild` (пересчёт проекций из `raw_messages`).
 
 **TTL статусов (24 ч по умолчанию):** в `db`-режиме worker запускает `MapStateExpiryDaemon` — регионы с `state_level ≠ grey` и места в `place_status_active`, не обновлявшиеся дольше порога, сбрасываются (`grey` / `deactivate`) с записью в `*_history` → WS. Ручной прогон: `npm run worker:map-state:expire`. Env: `RADAR_MAP_STATE_TTL_HOURS`, `RADAR_MAP_STATE_EXPIRY_ENABLED`, `RADAR_MAP_STATE_EXPIRY_POLL_MS`.
 
@@ -445,7 +445,7 @@ npm run migration:run
 | `npm run up`      | **Docker + dev:app** (API + web, без worker) |
 | `npm run dev`     | shared + API + web + worker (**без** Docker) |
 | `npm run dev:app` | shared + API + web (**без** worker) |
-| `npm run worker:reparse:raw` | перепарсить `raw_messages` и обновить проекции карты |
+| `npm run parse-engine:rebuild` | перепарсить `raw_messages` и обновить проекции карты |
 | `npm run worker:map-state:expire` | одноразовый TTL-sweep регионов/places (без полного worker) |
 | `npm run ingest:manifest:import` | import провайдеров/каналов из `.radar/ingest.manifest.json` (auto-bootstrap из examples) |
 | `npm run worker:ingest:backfill -- --all-bindings --batch-size=100` | backfill по всем enabled каналам (CLI chunk) |

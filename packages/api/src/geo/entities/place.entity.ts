@@ -9,7 +9,14 @@ import { Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, OneToMany, Pri
 import { PlaceAliasEntity } from "./place-alias.entity";
 import { RegionEntity } from "./region.entity";
 
-export type PlaceKind = "district" | "city" | "locality" | "settlement" | "urban_okrug" | "mo_go";
+export type PlaceKind =
+  | "region"
+  | "district"
+  | "city"
+  | "locality"
+  | "settlement"
+  | "urban_okrug"
+  | "mo_go";
 export type PlaceTrustState = "unverified" | "partially_verified" | "verified" | "rejected";
 
 @Entity({ name: "places" })

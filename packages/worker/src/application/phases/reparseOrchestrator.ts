@@ -18,15 +18,15 @@ export type FullReparseInput = {
 
 /**
  * Полный reparse: инвалидация coverage + parsed_events, затем ingest-поток по каждому raw.
- * Scheduled-фазы догоняет PhaseDaemon (после done всех eager по order).
+ * Scheduled ingestParse догоняет IngestParseDaemon (после done всех eager по order).
  */
 export async function runFullReparseLikeIngest(input: FullReparseInput): Promise<{
   messages: number;
   phasesInvalidated: number;
 }> {
   const [eager, scheduled] = await Promise.all([
-    input.repos.phaseDefinitions.listEnabled("eager"),
-    input.repos.phaseDefinitions.listEnabled("scheduled"),
+    input.repos.phaseDefinitions.listEnabled("eager", "ingestParse"),
+    input.repos.phaseDefinitions.listEnabled("scheduled", "ingestParse"),
   ]);
   const autoPhases = sortPhasesByOrder([...eager, ...scheduled]);
   const phaseIds = autoPhases.map((p) => p.id);

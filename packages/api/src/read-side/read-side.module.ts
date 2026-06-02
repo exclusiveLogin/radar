@@ -3,8 +3,6 @@ import { TypeOrmModule } from "@nestjs/typeorm";
 import { EventLocationEntity } from "../events/entities";
 import { ParseAttemptEntity } from "../events/entities";
 import { ParsedEventEntity } from "../events/entities";
-import { PlaceStatusActiveEntity } from "../events/entities";
-import { PlaceStatusHistoryEntity } from "../events/entities";
 import { StatusDictionaryEntity } from "../events/entities";
 import { GeoSyncLogEntity } from "../geo/entities";
 import { PlaceAliasEntity } from "../geo/entities";
@@ -28,8 +26,6 @@ import { ReadSideQueryService } from "./read-side-query.service";
       StatusDictionaryEntity,
       ChannelEntity,
       RawMessageEntity,
-      PlaceStatusActiveEntity,
-      PlaceStatusHistoryEntity,
     ]),
   ],
   providers: [ReadSideQueryService],

@@ -8,12 +8,12 @@ import { hasAnyFlag, parseLongFlagsMap } from "./workerCliArgs.js";
 
 function printPlan(): void {
   console.log(`
-clear:archive — полный сброс операционного контента (конфиг сохраняется):
+parse-engine:clear — полный сброс операционного контента (конфиг сохраняется):
 
   • phase_runs, phase_coverage, domain_events
   • parsed_events, parse_attempts, event_locations
   • region_state → grey, place_status, history лент
-  • place_evidence, place_cache
+  • event_evidence, place_enrichment_jobs
   • ingest cursors/backfill
   • raw_messages
 
@@ -29,7 +29,7 @@ async function main(): Promise<void> {
   const dryRun = hasAnyFlag(flags, ["dry-run", "dryRun"]);
 
   if (hasAnyFlag(flags, ["help", "h"])) {
-    console.log("Usage: npm run clear:archive [--dry-run]");
+    console.log("Usage: npm run parse-engine:clear [--dry-run]");
     printPlan();
     process.exit(0);
   }
@@ -42,10 +42,10 @@ async function main(): Promise<void> {
 
   const runtime = await createWorkerCompositionRoot({
     storageMode: WorkerStorageMode.Db,
-    startPhaseDaemon: false,
+    startIngestParseDaemon: false,
   });
   if (!runtime.dataSource || !runtime.workerRepos) {
-    console.error("clear:archive: нужен RADAR_STORAGE_MODE=db и DATABASE_URL");
+    console.error("parse-engine:clear: нужен RADAR_STORAGE_MODE=db и DATABASE_URL");
     process.exit(1);
   }
 
@@ -54,7 +54,7 @@ async function main(): Promise<void> {
     repos: runtime.workerRepos,
   });
 
-  console.log("\nРезультат clear:archive:");
+  console.log("\nРезультат parse-engine:clear:");
   console.log(`  raw_messages: ${result.rawMessagesDeleted}`);
   console.log(`  parsed_events: ${result.parsedEventsDeleted}`);
   console.log(`  parse_attempts: ${result.parseAttemptsDeleted}`);
@@ -64,7 +64,9 @@ async function main(): Promise<void> {
   console.log(`  phase_runs: ${result.phaseRunsDeleted} (остановлено ${result.phaseRunsStopped})`);
   console.log(`  phase_coverage queue: ${result.queueCleared}`);
   console.log(`  domain_events: ${result.domainEventsDeleted}`);
-  console.log(`  place_evidence: ${result.placeEvidenceDeleted} place_cache: ${result.placeCacheDeleted}`);
+  console.log(
+    `  event_evidence: ${result.eventEvidenceDeleted} place_enrichment_jobs: ${result.placeEnrichmentJobsDeleted}`,
+  );
   console.log(
     `  ingest: backfill=${result.ingest.backfillJobsDeleted} cursors=${result.ingest.cursorsDeleted}`,
   );

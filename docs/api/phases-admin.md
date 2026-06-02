@@ -7,13 +7,13 @@
 | Метод | Путь | Описание |
 |-------|------|----------|
 | GET | `/` | Список `phase_definitions` |
-| PATCH | `/{id}` | `{ enabled?, policy?, enrichers? }` — при `enabled=true` catch-up |
+| PATCH | `/{id}` | `{ enabled?, policy?, enrichers? }` — при `enabled=true`: ingest → `phase_coverage` catch-up; geo → `place_enrichment_jobs` catch-up |
 
 ## Runs и прогресс
 
 | Метод | Путь | Описание |
 |-------|------|----------|
-| GET | `/runs/overview` | `runningCount`, `byPhase[].coverage` — **главный KPI бэклога** |
+| GET | `/runs/overview` | `ingest.byPhase[].coverage` + `geo.byPhase[].jobs` (раздельно) |
 | GET | `/runs?phaseId&status&limit` | История `phase_runs` |
 | GET | `/runs/{id}` | Карточка + `logTail` |
 | POST | `/{id}/run` | Manual: enqueue scope → `phase_run` pending (исполнение — worker/CLI) |
@@ -44,7 +44,7 @@ Content-Type: application/json
 
 ## Web UI
 
-Виджет **phases** в OSINT-админке: список фаз, coverage, Run, последние runs, Cancel.
+Виджет **Parse-engine** в OSINT-админке: две секции **Ingest** / **Geo**, тогглы ВКЛ/ВЫКЛ, Run, очереди, runs.
 
 Polling ~10s (WS `phase-progress` — backlog).
 

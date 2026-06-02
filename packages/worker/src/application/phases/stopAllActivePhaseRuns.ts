@@ -15,33 +15,44 @@ async function listActiveRuns(repos: WorkerDbRepositories): Promise<PhaseRun[]> 
 
 export type StopAllActivePhaseRunsResult = {
   phaseRunsClosed: number;
-  /** Удалено строк phase_coverage (pending + processing). */
+  /** Удалено строк phase_coverage (pending + processing), ingest. */
   queueCleared: number;
+  /** Удалено строк place_enrichment_jobs (pending + processing), geo. */
+  geoJobsCleared: number;
   /** @deprecated оставлено для совместимости API; всегда 0 (очередь удаляется, не pending). */
   processingReleased: number;
 };
 
 /**
- * Полная остановка энричеров: cancel runs + выбросить очередь phase_coverage.
- * Иначе scheduled-тик снова стартует drain по pending.
+ * Полная остановка parse-engine: cancel runs + ingest coverage + geo jobs.
+ * Иначе scheduled-тик / GeoParseDaemon снова подхватят backlog.
  */
 export async function stopAllActivePhaseRuns(input: {
   dataSource: DataSource;
   repos: WorkerDbRepositories;
   reason?: string;
-  /** Ограничить очистку очереди фазами; по умолчанию — все фазы из phase_definitions. */
-  phaseIds?: string[];
+  /** Ограничить очистку ingest-очереди; по умолчанию — все ingestParse фазы. */
+  ingestPhaseIds?: string[];
+  /** false — не трогать place_enrichment_jobs (узкий сброс только ingest). */
+  clearGeoJobs?: boolean;
 }): Promise<StopAllActivePhaseRunsResult> {
   const reason = input.reason ?? STOP_ALL_PHASE_RUNS_REASON;
-  const phaseIds =
-    input.phaseIds ?? (await input.repos.phaseDefinitions.listAll()).map((p) => p.id);
+  const ingestPhaseIds =
+    input.ingestPhaseIds ??
+    (await input.repos.phaseDefinitions.listAll())
+      .filter((p) => p.scope === "ingestParse")
+      .map((p) => p.id);
 
   const toStop = await listActiveRuns(input.repos);
   for (const run of toStop) {
     await input.repos.phaseRuns.requestControl(run.id, "cancel");
   }
 
-  const queueCleared = await input.repos.phaseCoverage.clearQueuedWork(phaseIds);
+  const queueCleared = await input.repos.phaseCoverage.clearQueuedWork(ingestPhaseIds);
+  const geoJobsCleared =
+    input.clearGeoJobs === false
+      ? 0
+      : await input.repos.placeEnrichmentJobs.clearQueuedWork();
 
   const closedRows = (await input.dataSource.query(
     `UPDATE phase_runs SET
@@ -58,6 +69,7 @@ export async function stopAllActivePhaseRuns(input: {
   return {
     phaseRunsClosed: closedRows.length,
     queueCleared,
+    geoJobsCleared,
     processingReleased: 0,
   };
 }

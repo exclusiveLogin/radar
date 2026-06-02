@@ -1,4 +1,4 @@
-﻿import * as fs from "node:fs";
+import * as fs from "node:fs";
 import * as path from "node:path";
 import { MONOREPO_ROOT } from "@repo/root";
 import {
@@ -10,7 +10,6 @@ import { WorkerStorageMode } from "../infrastructure/persistence/storageMode.js"
 import { GeoValidationService } from "../application/parsing/geoValidationService.js";
 import {
   InMemoryPlaceAliasRepository,
-  InMemoryPlaceEvidenceRepository,
   InMemoryPlaceRepository,
   InMemoryRegionRepository,
 } from "../application/handlers/inMemoryRepositories.js";
@@ -171,7 +170,6 @@ export async function runParseSnap(
       new InMemoryRegionRepository(),
       new InMemoryPlaceRepository(),
       new InMemoryPlaceAliasRepository(),
-      new InMemoryPlaceEvidenceRepository(),
     );
     let known = 0;
     let created = 0;

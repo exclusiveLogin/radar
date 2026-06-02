@@ -10,6 +10,7 @@ export {
 export {
   enricherIdSchema,
   phaseTriggerSchema,
+  phaseScopeSchema,
   phaseKindSchema,
   enrichStageSchema,
   phasePolicySchema,
@@ -29,6 +30,7 @@ export {
   phaseRunSchema,
   phaseReplayRequestSchema,
 } from "./phase-run";
+export { phaseRunsOverviewSchema } from "./phase-admin";
 
 // --- type-only exports ---
 export type {
@@ -40,6 +42,7 @@ export type {
 export type {
   EnricherId,
   PhaseTrigger,
+  PhaseScope,
   PhaseKind,
   EnrichStage,
   PhasePolicy,
@@ -56,3 +59,4 @@ export type {
   PhaseRun,
   PhaseReplayRequest,
 } from "./phase-run";
+export type { PhaseRunsOverview } from "./phase-admin";

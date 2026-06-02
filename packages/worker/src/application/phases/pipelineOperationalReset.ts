@@ -68,7 +68,7 @@ export async function runPipelineOperationalReset(
   const catchUpByPhase: Record<string, number> = {};
   if (input.enqueueCatchUp !== false) {
     const enabledAuto = sortPhasesByOrder(
-      (await repos.phaseDefinitions.listEnabled()).filter(
+      (await repos.phaseDefinitions.listEnabled(undefined, "ingestParse")).filter(
         (p) => p.trigger === "eager" || p.trigger === "scheduled",
       ),
     );

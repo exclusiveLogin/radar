@@ -24,7 +24,9 @@ export async function runPostIngestPhaseFlow(
   await deps.enqueuer.onNewRawMessage(rawMessageId);
 
   const eagerPhases = sortPhasesByOrder(
-    (await deps.phases.listEnabled("eager")).filter((p) => p.policy.eagerMode === "inline"),
+    (await deps.phases.listEnabled("eager", "ingestParse")).filter(
+      (p) => p.policy.eagerMode === "inline",
+    ),
   );
 
   for (const phase of eagerPhases) {

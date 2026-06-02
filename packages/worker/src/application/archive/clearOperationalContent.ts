@@ -14,8 +14,8 @@ export type ClearOperationalContentResult = {
   map: Awaited<ReturnType<typeof clearOperationalMapState>>;
   parsedEventsDeleted: number;
   parseAttemptsDeleted: number;
-  placeEvidenceDeleted: number;
-  placeCacheDeleted: number;
+  eventEvidenceDeleted: number;
+  placeEnrichmentJobsDeleted: number;
   domainEventsDeleted: number;
   ingest: Awaited<ReturnType<typeof clearIngestOperationalState>>;
   rawMessagesDeleted: number;
@@ -50,12 +50,12 @@ export async function clearOperationalContent(input: {
   )) as Array<{ id: string }>;
 
   const evidenceRows = (await dataSource.query(
-    `DELETE FROM place_evidence RETURNING id`,
+    `DELETE FROM event_evidence RETURNING id`,
   )) as Array<{ id: string }>;
 
-  const cacheRows = (await dataSource.query(
-    `DELETE FROM place_cache RETURNING query_norm`,
-  )) as Array<{ query_norm: string }>;
+  const jobsRows = (await dataSource.query(
+    `DELETE FROM place_enrichment_jobs RETURNING id`,
+  )) as Array<{ id: string }>;
 
   const phaseRunRows = (await dataSource.query(
     `DELETE FROM phase_runs RETURNING id`,
@@ -78,8 +78,8 @@ export async function clearOperationalContent(input: {
     map,
     parsedEventsDeleted: parsedRows.length,
     parseAttemptsDeleted: parseAttemptRows.length,
-    placeEvidenceDeleted: evidenceRows.length,
-    placeCacheDeleted: cacheRows.length,
+    eventEvidenceDeleted: evidenceRows.length,
+    placeEnrichmentJobsDeleted: jobsRows.length,
     domainEventsDeleted: domainRows.length,
     ingest,
     rawMessagesDeleted: raw.rawMessagesDeleted,

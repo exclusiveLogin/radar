@@ -114,6 +114,14 @@ export class TypeOrmPlaceRepository implements IPlaceRepository {
     return this.toRecord(row);
   }
 
+  /** Субъект РФ как place(kind=region) для данного regions.id. */
+  async findRegionPlaceByRegionId(regionId: string): Promise<PlaceRecord | null> {
+    const row = await this.repo().findOne({
+      where: { regionId, kind: "region", isActive: true },
+    });
+    return row ? this.toRecord(row) : null;
+  }
+
   /** Finds place by FIAS id. */
   async findByFias(fiasId: string): Promise<PlaceRecord | null> {
     const row = await this.repo().findOne({ where: { fiasId } });

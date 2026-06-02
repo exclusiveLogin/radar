@@ -2,6 +2,8 @@
 
 Краткий справочник команд и типовых сценариев. Подробности: [getting-started.md](./getting-started.md), [ingest-providers.md](./ingest-providers.md), [backfill-v2-pipeline.md](./backfill-v2-pipeline.md).
 
+**На одной странице (dev · очереди · reparse · сброс):** [shpargalka-operacii.md](./shpargalka-operacii.md)
+
 ---
 
 ## Запуск
@@ -155,16 +157,37 @@ ORDER BY rm.posted_at DESC LIMIT 10;
 
 ---
 
-## Карта и parse
+## Parse engine (операции)
+
+**Высокий уровень** — сценарии «что сделать с данными»:
 
 | Задача | Команда |
 |--------|---------|
-| Пересчёт проекций из raw | `npm run worker:reparse:raw` |
-| Сброс карты + parsed + очередей фаз (raw сохранить) | `npm run clear:pipeline` |
-| Сброс ingest (курсоры, backfill; конфиг сохранить) | `npm run clear:ingest` |
-| Удалить raw_messages (нужен пустой parsed) | `npm run clear:raw` или `clear:raw -- --with-pipeline` |
-| Полный сброс контента (raw→карта→очереди→outbox, конфиг остаётся) | `npm run clear:archive` |
-| _(legacy)_ то же что clear:pipeline | `npm run reset:pipeline` |
+| Первый прогон parse-engine (манифест фаз + reparse raw) | `npm run parse-engine:init` |
+| Пересчёт из raw (eager catalog) | `npm run parse-engine:rebuild` |
+| Reparse + drain scheduled | `npm run parse-engine:rebuild:drain` |
+| Догнать все очереди (ingest + geo) | `npm run parse-engine:drain` |
+| Сводка очередей и активных runs | `npm run parse-engine:status` |
+| Сброс событий/карты/очередей (raw сохранить) | `npm run parse-engine:reset` |
+| Полный сброс контента (конфиг остаётся) | `npm run parse-engine:clear` |
+| Удалить только raw | `npm run parse-engine:clear:raw` |
+| Сброс ingest (курсоры, backfill) | `npm run parse-engine:clear:ingest` |
+
+**Низкий уровень** — drain, backfill, одна фаза, диагностика:
+
+| Задача | Команда |
+|--------|---------|
+| Очередь ingest (phase_coverage) | `npm run parse-engine:queue:ingest` |
+| Очередь geo (place_enrichment_jobs) | `npm run parse-engine:queue:geo` |
+| Активные phase_runs | `npm run parse-engine:runs:status` |
+| Drain scheduled ingest | `npm run parse-engine:ingest:drain` [`--phase=id`] |
+| Drain scheduled geo | `npm run parse-engine:geo:drain` [`--phase=id`] [`--provider=dadata`] |
+| Ingest backfill | `npm run parse-engine:ingest:backfill` |
+| Ручной прогон фазы | `npm run parse-engine:phase:run -- --phase=llm` |
+| Стоп runs + очистка coverage | `npm run parse-engine:phase:stop` |
+| Импорт/экспорт манифеста | `npm run parse-engine:manifest:import` |
+
+## Карта и parse (лаборатория)
 | TTL-sweep статусов | `npm run worker:map-state:expire` |
 | Оффлайн-тест парсера | `npm run worker:parse:report -- --input tests` |
 | Snap + LLM | `npm run worker:parse:snap:ollama -- --input tests/snap_001.txt` |
@@ -179,7 +202,7 @@ ORDER BY rm.posted_at DESC LIMIT 10;
 ## Async-обогащение (фазы, ADR-003)
 
 **Phase-pipeline v2:** фазы `catalog|llm|dadata|nominatim`, очередь `phase_coverage`,
-оркестратор `PhaseRunner` + `PhaseDaemon`. Подробно: [phase-pipeline.md](./phase-pipeline.md).
+оркестратор `PhaseRunner` + `IngestParseDaemon`. Подробно: [phase-pipeline.md](./phase-pipeline.md).
 
 ```powershell
 npm run migration:run
@@ -188,22 +211,22 @@ npm run phase:manifest:export
 ```
 
 **DaData:** в корневом `.env` задать `DADATA_TOKEN=` (ключ с [dadata.ru](https://dadata.ru/profile/#info)).
-Eager catalog-фаза по умолчанию: `enrichers: ["catalog","dadata"]`; finalizer берёт `geo_lat`/`geo_lon` из namespace `dadata` (поверх llm).
+Eager catalog по умолчанию: `enrichers: ["catalog"]`; DaData — фаза `geo-dadata` (`geoParse`). LLM — ingest `llm`.
 Порядок шагов: `RADAR_GEO_PIPELINE_ORDER=catalog,dadata,llm,nominatim`.
 
 | trigger | Поведение |
 |---------|-----------|
 | `eager` | После ingest/reparse — inline catalog (по `order`) |
-| `scheduled` | PhaseDaemon, `intervalMs`, batch из coverage |
-| `manual` | `worker:phase:run`, админка Run |
+| `scheduled` | IngestParseDaemon, `intervalMs`, batch из coverage |
+| `manual` | `parse-engine:phase:run`, админка Run |
 
 ```powershell
 После **completed** phase_run worker дергает `POST /api/map/push-snapshot` (`RADAR_MAP_SNAPSHOT_AFTER_PHASE=1`, по умолчанию вкл.).
 
 ```powershell
-npm run worker:phase:run -- --phase=llm --batch=100 [--watch]
+npm run parse-engine:phase:run -- --phase=llm --batch=100 [--watch]
 npm run worker:enrich:run -- --stage=llm   # алиас
-npm run worker:reparse:raw                 # invalidate + ingest-поток (не прямой catalog)
+npm run parse-engine:rebuild               # invalidate + ingest-поток (не прямой catalog)
 ```
 
 **Прогресс:** `GET /api/admin/phases/runs/overview` (coverage per phase), виджет «Фазы».
@@ -251,12 +274,12 @@ npm run worker:reparse:raw                 # invalidate + ingest-поток (н�
 | Ingest не в БД | `RADAR_STORAGE_MODE=db`, перезапуск worker |
 | Нет каналов | `npm run ingest:manifest:import`, provider `active` |
 | Backfill pending | worker db + `BackfillDaemon запущен` |
-| Карта пустая после ingest | `npm run worker:reparse:raw` (инвалидация + ingest-поток, не прямой catalog) |
+| Карта пустая после ingest | `npm run parse-engine:rebuild` |
 | API_ID_INVALID | свои `TELEGRAM_API_ID/HASH` с my.telegram.org |
 | `[api] EBUSY` при `npm run dev` | остановить все `node`/dev; удалить `packages/api/dist`; репо в OneDrive — пауза синхронизации или вынести клон из OneDrive; `nest-cli` без `deleteOutDir` |
 | CLI прогресс «листает» строки | `ParseAttemptLogger` больше не пишет в stdout при баре; подробности: `RADAR_VERBOSE_PARSE_LOG=1` → stderr |
 
-**CLI с live-progress (`cli-progress`):** `reset:pipeline` — нет; `reparse:raw`, `phase:run`, `ingest:backfill` (по сообщениям), `parse:score/ab`, `golden` — да. Лаборатория `parse:snap/report` — без бара. **Админ-логи parse** — из БД `parse_attempts` (не из stdout CLI).
+**CLI с live-progress (`cli-progress`):** `parse-engine:reset` — нет; `parse-engine:rebuild`, `parse-engine:phase:run`, `parse-engine:ingest:backfill` — да. Лаборатория `parse:snap/report` — без бара.
 
 ```powershell
 # EBUSY: освободить dist перед повторным dev

@@ -4,7 +4,8 @@
     {
       "id": "catalog",
       "trigger": "eager",
-      "enrichers": ["catalog", "dadata"],
+      "scope": "ingestParse",
+      "enrichers": ["catalog"],
       "policy": { "batchSize": 100, "eagerMode": "inline" },
       "enabled": true,
       "order": 0
@@ -12,6 +13,7 @@
     {
       "id": "llm",
       "trigger": "scheduled",
+      "scope": "ingestParse",
       "enrichers": ["llm"],
       "policy": { "batchSize": 50, "intervalMs": 60000, "minIntervalMs": 5000 },
       "enabled": true,
@@ -20,18 +22,47 @@
     {
       "id": "dadata",
       "trigger": "scheduled",
+      "scope": "ingestParse",
       "enrichers": ["dadata"],
       "policy": { "batchSize": 100, "intervalMs": 120000 },
-      "enabled": true,
+      "enabled": false,
       "order": 2
     },
     {
       "id": "nominatim",
       "trigger": "scheduled",
+      "scope": "ingestParse",
       "enrichers": ["nominatim"],
       "policy": { "batchSize": 100, "intervalMs": 180000 },
       "enabled": false,
       "order": 3
+    },
+    {
+      "id": "geo-llm",
+      "trigger": "scheduled",
+      "scope": "geoParse",
+      "enrichers": ["llm"],
+      "policy": { "batchSize": 50, "intervalMs": 60000, "minIntervalMs": 5000 },
+      "enabled": false,
+      "order": 10
+    },
+    {
+      "id": "geo-dadata",
+      "trigger": "scheduled",
+      "scope": "geoParse",
+      "enrichers": ["dadata"],
+      "policy": { "batchSize": 100, "intervalMs": 120000 },
+      "enabled": false,
+      "order": 11
+    },
+    {
+      "id": "geo-nominatim",
+      "trigger": "scheduled",
+      "scope": "geoParse",
+      "enrichers": ["nominatim"],
+      "policy": { "batchSize": 50, "intervalMs": 120000, "minIntervalMs": 1100 },
+      "enabled": true,
+      "order": 12
     }
   ]
 }

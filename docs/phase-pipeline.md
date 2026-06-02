@@ -25,7 +25,7 @@ flowchart LR
   ingest[Ingest / Reparse] --> flow[phaseIngestFlow]
   flow --> cov[phase_coverage pending]
   flow --> eager[eager inline по order]
-  cov --> daemon[PhaseDaemon scheduled]
+  cov --> daemon[IngestParseDaemon scheduled]
   daemon --> claim[claimBatch + prerequisites]
   claim --> runner[PhaseRunner]
   runner --> pe[parsed_events]
@@ -34,7 +34,7 @@ flowchart LR
 | trigger | Исполнение |
 |---------|------------|
 | `eager` | Сразу после ingest/reparse (`runPostIngestPhaseFlow`) |
-| `scheduled` | `PhaseDaemonService`, `RADAR_PHASE_DAEMON_ENABLED` (default on в db) |
+| `scheduled` | `IngestParseDaemonService`, `RADAR_INGEST_PARSE_DAEMON_ENABLED` (legacy: `RADAR_PHASE_DAEMON_ENABLED`) |
 | `manual` | `worker:phase:run`, админка Run → enqueue; исполняет worker |
 
 **Порядок фаз:** `order` в манифесте. Scheduled не claim'ит сообщение, пока все фазы с меньшим `order` не `done` для этого raw.
@@ -71,7 +71,7 @@ npm run worker:reparse:raw
 ```
 ingest/backfill → RawMessageIngested → phaseIngestFlow (eager)
                                       → phase_coverage (pending)
-PhaseDaemon (scheduled) → PhaseRunner → parsed_events
+IngestParseDaemon (scheduled) → PhaseRunner → parsed_events
 manual: worker:phase:run / админка Run
 ```
 

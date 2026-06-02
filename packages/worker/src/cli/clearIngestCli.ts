@@ -7,7 +7,7 @@ import { hasAnyFlag, parseLongFlagsMap } from "./workerCliArgs.js";
 
 function printPlan(): void {
   console.log(`
-clear:ingest — операционный сброс ingest (конфиг сохраняется):
+parse-engine:clear:ingest — операционный сброс ingest (конфиг сохраняется):
 
   • ingest_backfill_jobs — cancel активных + DELETE всех
   • ingest_cursors — DELETE
@@ -25,7 +25,7 @@ async function main(): Promise<void> {
   const skipEvents = hasAnyFlag(flags, ["no-domain-events", "noDomainEvents"]);
 
   if (hasAnyFlag(flags, ["help", "h"])) {
-    console.log("Usage: npm run clear:ingest [--dry-run] [--no-domain-events]");
+    console.log("Usage: npm run parse-engine:clear:ingest [--dry-run] [--no-domain-events]");
     printPlan();
     process.exit(0);
   }
@@ -38,7 +38,7 @@ async function main(): Promise<void> {
 
   const runtime = await createWorkerCompositionRoot({
     storageMode: WorkerStorageMode.Db,
-    startPhaseDaemon: false,
+    startIngestParseDaemon: false,
   });
   if (!runtime.dataSource) {
     console.error("clear:ingest: нужен RADAR_STORAGE_MODE=db и DATABASE_URL");

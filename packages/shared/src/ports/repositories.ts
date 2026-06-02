@@ -17,6 +17,7 @@ import type { TimelineQuery } from "../schemas/ingest/ingest-timeline";
 import type {
   PhaseManifestEntry,
   PhasePolicy,
+  PhaseScope,
   PhaseTrigger,
 } from "../schemas/enrichment/phase";
 import type {
@@ -51,7 +52,14 @@ export type PlaceRecord = {
   id: string;
   regionId: string;
   parentPlaceId?: string;
-  kind: "district" | "city" | "locality" | "settlement" | "urban_okrug" | "mo_go";
+  kind:
+    | "region"
+    | "district"
+    | "city"
+    | "locality"
+    | "settlement"
+    | "urban_okrug"
+    | "mo_go";
   name: string;
   nameWithType?: string;
   fiasId?: string;
@@ -75,11 +83,9 @@ export type PlaceCacheProvider = "dadata" | "nominatim" | "llm";
 
 export type PlaceAliasRecord = {
   id: string;
+  placeId: string;
   alias: string;
   aliasNormalized: string;
-  targetKind: "region" | "place";
-  regionId?: string;
-  placeId?: string;
   source?: "auto" | "manual";
 };
 
@@ -93,49 +99,6 @@ export type StatusDictionaryRecord = {
   priority?: number;
 };
 
-export type PlaceStatusActiveRecord = {
-  placeId: string;
-  statusCode: string;
-  source: "parser" | "operator" | "system";
-  startedAt: string;
-  updatedAt: string;
-  meta?: Record<string, unknown>;
-};
-
-export type PlaceStatusHistoryRecord = {
-  id: string;
-  placeId: string;
-  statusCode: string;
-  action: "activate" | "deactivate";
-  source: "parser" | "operator" | "system";
-  eventAt: string;
-  meta?: Record<string, unknown>;
-};
-
-export type RegionStateActiveRecord = {
-  regionId: string;
-  regionCode: string;
-  /** Эффективный уровень (с учётом соседей) — то, что показывает карта. */
-  stateLevel: "grey" | "green" | "yellow" | "orange" | "red";
-  /** Собственный уровень региона по его событиям (база для пересчёта propagation). */
-  selfLevel: "grey" | "green" | "yellow" | "orange" | "red";
-  activity: number;
-  reason?: string;
-  updatedAt: string;
-  /** postedAt сообщения, выставившего текущий stateLevel/selfLevel. */
-  statusEventAt?: string | null;
-};
-
-export type PlaceEvidenceRecord = {
-  id: string;
-  placeId: string;
-  provider: PlaceProvider;
-  action: "candidate" | "confirm" | "reject" | "enrich";
-  confidence?: number;
-  payload?: Record<string, unknown>;
-  traceId?: string;
-  createdAt: string;
-};
 
 export type PlaceContribution = {
   placeId: string;
@@ -180,6 +143,7 @@ export type PlaceCachePutMeta = {
 };
 
 export interface IRegionRepository {
+  findById(id: string): Promise<RegionRecord | null>;
   findByCode(code: string): Promise<RegionRecord | null>;
   listActive(): Promise<RegionRecord[]>;
   upsertMany(regions: RegionRecord[]): Promise<void>;
@@ -188,6 +152,7 @@ export interface IRegionRepository {
 export interface IPlaceRepository {
   findById(id: string): Promise<PlaceRecord | null>;
   findByFias(fiasId: string): Promise<PlaceRecord | null>;
+  findRegionPlaceByRegionId(regionId: string): Promise<PlaceRecord | null>;
   findByNameInRegion(name: string, regionId: string): Promise<PlaceRecord | null>;
   listActive(): Promise<PlaceRecord[]>;
   upsertMany(places: PlaceRecord[]): Promise<void>;
@@ -198,9 +163,7 @@ export interface IPlaceAliasRepository {
   findByAlias(aliasNormalized: string): Promise<PlaceAliasRecord[]>;
   listActive(): Promise<PlaceAliasRecord[]>;
   upsertAlias(input: {
-    targetKind: "region" | "place";
-    regionId?: string;
-    placeId?: string;
+    placeId: string;
     alias: string;
     source: "auto" | "manual";
   }): Promise<void>;
@@ -359,44 +322,58 @@ export interface IStatusDictionaryRepository {
   findByCode(code: string): Promise<StatusDictionaryRecord | null>;
 }
 
-export interface IPlaceStatusRepository {
-  upsertActive(input: PlaceStatusActiveRecord): Promise<void>;
-  deactivate(placeId: string, statusCode: string, atIso: string): Promise<void>;
-  listActive(placeId: string): Promise<PlaceStatusActiveRecord[]>;
-  /** Активные статусы всех НП внутри региона (каскадный сброс при отбое). */
-  listActiveByRegionId(regionId: string): Promise<PlaceStatusActiveRecord[]>;
-  /** Все строки place_status_active (для полного сброса перед reparse). */
-  listAllActive(): Promise<PlaceStatusActiveRecord[]>;
-  /** Активные статусы, чьё событие-источник старше порога (meta.statusEventAt / startedAt). */
-  listActiveUpdatedBefore(updatedBeforeIso: string): Promise<PlaceStatusActiveRecord[]>;
+
+export type PlaceEnrichmentProvider = "dadata" | "llm" | "nominatim";
+export type PlaceEnrichmentJobStatus = "pending" | "processing" | "done" | "failed";
+
+export type PlaceEnrichmentJobRecord = {
+  id: string;
+  placeId: string;
+  provider: PlaceEnrichmentProvider;
+  status: PlaceEnrichmentJobStatus;
+  attempts: number;
+  lastError?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export interface IPlaceEnrichmentJobRepository {
+  enqueue(placeId: string, provider: PlaceEnrichmentProvider): Promise<void>;
+  /** Активные places (не region) без провайдера в evidence_providers → pending job. */
+  enqueueCatchUp(provider: PlaceEnrichmentProvider): Promise<{ enqueued: number }>;
+  claimBatch(
+    provider: PlaceEnrichmentProvider,
+    limit: number,
+  ): Promise<PlaceEnrichmentJobRecord[]>;
+  markDone(id: string): Promise<void>;
+  markFailed(id: string, error: string): Promise<void>;
+  /** Вернуть processing → pending (инфра-сбой, не ошибка place). */
+  releaseToPending(ids: string[]): Promise<number>;
+  /** Сброс всех processing → pending для провайдера (сиротский run после рестарта worker). */
+  resetProcessingForProvider(provider: PlaceEnrichmentProvider): Promise<number>;
+  countByStatus(provider: PlaceEnrichmentProvider): Promise<Record<PlaceEnrichmentJobStatus, number>>;
+  clearQueuedWork(provider?: PlaceEnrichmentProvider): Promise<number>;
 }
 
-export interface IRegionStateRepository {
-  /** Записывает текущий срез состояния региона (проекция region_state_active). */
-  upsert(input: RegionStateActiveRecord): Promise<void>;
-  get(regionId: string): Promise<RegionStateActiveRecord | null>;
-  listAll(): Promise<RegionStateActiveRecord[]>;
-  /** Регионы с `state_level ≠ grey` и `status_event_at` старше порога (TTL по времени сообщения). */
-  listAlarmUpdatedBefore(updatedBeforeIso: string): Promise<RegionStateActiveRecord[]>;
-  /** Добавляет запись в историю смен region_state_history. */
-  appendHistory(input: {
-    regionId: string;
-    regionCode: string;
-    stateLevel: "grey" | "green" | "yellow" | "orange" | "red";
-    previousLevel: "grey" | "green" | "yellow" | "orange" | "red";
-    reason?: string;
-    changedAt: string;
-  }): Promise<void>;
-}
+export type EventEvidenceRecord = {
+  id: string;
+  eventId: string;
+  eventType: string;
+  placeId: string;
+  observedAt: string;
+  timeBucket15m: string;
+  providerKind: string;
+  sourceProviderId?: string;
+  sourceChannelKey?: string;
+  sourceMessageId?: string;
+  traceId?: string;
+  payload: Record<string, unknown>;
+  trustScore?: number;
+  createdAt: string;
+};
 
-export interface IPlaceStatusHistoryRepository {
-  append(record: PlaceStatusHistoryRecord): Promise<void>;
-  listByPlace(placeId: string, limit: number): Promise<PlaceStatusHistoryRecord[]>;
-}
-
-export interface IPlaceEvidenceRepository {
-  append(record: PlaceEvidenceRecord): Promise<void>;
-  listByPlace(placeId: string, limit: number): Promise<PlaceEvidenceRecord[]>;
+export interface IEventEvidenceRepository {
+  append(record: EventEvidenceRecord): Promise<void>;
 }
 
 export interface ISyncAuditRepository {
@@ -472,7 +449,7 @@ export type PhaseDefinitionRecord = PhaseManifestEntry & { updatedAt: string };
 
 export interface IPhaseDefinitionRepository {
   listAll(): Promise<PhaseDefinitionRecord[]>;
-  listEnabled(trigger?: PhaseTrigger): Promise<PhaseDefinitionRecord[]>;
+  listEnabled(trigger?: PhaseTrigger, scope?: PhaseScope): Promise<PhaseDefinitionRecord[]>;
   findById(id: string): Promise<PhaseDefinitionRecord | null>;
   upsert(entry: PhaseManifestEntry): Promise<void>;
   setEnabled(id: string, enabled: boolean): Promise<void>;

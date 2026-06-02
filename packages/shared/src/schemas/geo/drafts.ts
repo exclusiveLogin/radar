@@ -20,6 +20,7 @@ export const placeDraftSchema = z.object({
   regionCode: z.string().min(1),
   parentExternalKey: z.string().optional(),
   kind: z.enum([
+    "region",
     "district",
     "city",
     "locality",

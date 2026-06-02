@@ -11,7 +11,7 @@ export class ClearRawArchiveBlockedError extends Error {
   ) {
     super(
       `Нельзя удалить raw: остались parsed_events=${parsedEventsCount}, parse_attempts=${parseAttemptsCount}. ` +
-        `Сначала: npm run clear:pipeline`,
+        `Сначала: npm run parse-engine:reset`,
     );
     this.name = "ClearRawArchiveBlockedError";
   }

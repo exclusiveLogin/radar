@@ -61,6 +61,14 @@ export class PhasesAdminController {
     return this.phases.startRun(id, body);
   }
 
+  @Post(":id/clear-queue")
+  @ApiOperation({
+    summary: "Удалить pending/processing очередь фазы (geo jobs / phase_coverage) + cancel runs",
+  })
+  clearPhaseQueue(@Param("id") id: string) {
+    return this.phases.clearPhaseQueue(id);
+  }
+
   @Post("runs/stop-all")
   @ApiOperation({ summary: "Отменить все активные runs (running/paused/pending)" })
   stopAllRuns() {

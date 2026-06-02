@@ -17,6 +17,10 @@ export type EnricherId = z.infer<typeof enricherIdSchema>;
 export const phaseTriggerSchema = z.enum(["eager", "scheduled", "manual"]);
 export type PhaseTrigger = z.infer<typeof phaseTriggerSchema>;
 
+/** Контур исполнения: ingestParse (raw->event) или geoParse (place enrichment). */
+export const phaseScopeSchema = z.enum(["ingestParse", "geoParse"]);
+export type PhaseScope = z.infer<typeof phaseScopeSchema>;
+
 /** @deprecated Используйте phaseTriggerSchema; lazy → scheduled при import. */
 export const phaseKindSchema = z.enum(["eager", "lazy"]);
 export type PhaseKind = z.infer<typeof phaseKindSchema>;
@@ -43,6 +47,7 @@ export const DEFAULT_PHASE_POLICY: PhasePolicy = phasePolicySchema.parse({});
 export const phaseManifestEntrySchema = z.object({
   id: z.string().min(1),
   trigger: phaseTriggerSchema,
+  scope: phaseScopeSchema.default("ingestParse"),
   enrichers: z.array(enricherIdSchema).min(1),
   policy: phasePolicySchema.default({}),
   enabled: z.boolean().default(true),
@@ -92,6 +97,7 @@ export function normalizePhaseManifestEntry(raw: Record<string, unknown>): Phase
   return phaseManifestEntrySchema.parse({
     id,
     trigger,
+    scope: raw.scope ?? "ingestParse",
     enrichers,
     policy,
     enabled: raw.enabled ?? true,

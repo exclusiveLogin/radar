@@ -3,6 +3,7 @@ import { MONOREPO_ROOT } from "@repo/root";
 import { loadRootEnv } from "../infrastructure/config/loadRootEnv.js";
 import { createWorkerDataSource } from "../infrastructure/persistence/createWorkerDataSource.js";
 import { createWorkerDbRepositories } from "../infrastructure/persistence/workerDbRepos.js";
+import { resolveGeoEnrichmentProvider } from "@radar/shared";
 import {
   exportPhaseManifest,
   importPhaseManifest,
@@ -27,9 +28,18 @@ async function main(): Promise<void> {
       const stats = await importPhaseManifest(manifest, db.phaseDefinitions);
       for (const phase of manifest.phases) {
         if (!phase.enabled) continue;
+        if (phase.scope === "geoParse") {
+          const provider = resolveGeoEnrichmentProvider(phase);
+          if (!provider) continue;
+          const catchUp = await db.placeEnrichmentJobs.enqueueCatchUp(provider);
+          if (catchUp.enqueued > 0) {
+            console.log(`geo catch-up ${phase.id} (${provider}): +${catchUp.enqueued} jobs`);
+          }
+          continue;
+        }
         const catchUp = await db.phaseCoverage.enqueueCatchUp(phase.id);
         if (catchUp.enqueued > 0) {
-          console.log(`catch-up ${phase.id}: +${catchUp.enqueued} pending`);
+          console.log(`ingest catch-up ${phase.id}: +${catchUp.enqueued} pending`);
         }
       }
       console.log("Import OK:", stats);

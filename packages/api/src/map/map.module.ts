@@ -1,12 +1,6 @@
 import { Module } from "@nestjs/common";
 import { TypeOrmModule } from "@nestjs/typeorm";
-import {
-  PlaceStatusActiveEntity,
-  PlaceStatusHistoryEntity,
-  RegionStateActiveEntity,
-  RegionStateHistoryEntity,
-  StatusDictionaryEntity,
-} from "../events/entities";
+import { StatusDictionaryEntity } from "../events/entities";
 import { PlaceEntity, RegionEntity } from "../geo/entities";
 import { MapController } from "./map.controller";
 import { MapGateway } from "./map.gateway";
@@ -20,10 +14,6 @@ import { RegionStatePoller } from "./region-state.poller";
     TypeOrmModule.forFeature([
       RegionEntity,
       PlaceEntity,
-      RegionStateActiveEntity,
-      RegionStateHistoryEntity,
-      PlaceStatusActiveEntity,
-      PlaceStatusHistoryEntity,
       StatusDictionaryEntity,
     ]),
   ],

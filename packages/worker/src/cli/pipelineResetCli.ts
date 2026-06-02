@@ -23,7 +23,7 @@ function printPlan(): void {
 
 Не трогает: raw_messages, ingest_*, channels, places/regions (справочник), phase_definitions.
 
-После сброса: npm run worker:dev  или  npm run worker:reparse:raw
+После сброса: npm run worker:dev  или  npm run parse-engine:rebuild
 `);
 }
 
@@ -37,7 +37,7 @@ async function main(): Promise<void> {
   const noCatchUp = hasAnyFlag(flags, ["no-catch-up", "noCatchUp"]);
 
   if (hasAnyFlag(flags, ["help", "h"])) {
-    console.log("Usage: npm run clear:pipeline [--dry-run] [--no-catch-up]  (alias: reset:pipeline)");
+    console.log("Usage: npm run parse-engine:reset [--dry-run] [--no-catch-up]");
     printPlan();
     process.exit(0);
   }
@@ -51,11 +51,11 @@ async function main(): Promise<void> {
 
   const runtime = await createWorkerCompositionRoot({
     storageMode: WorkerStorageMode.Db,
-    startPhaseDaemon: false,
+    startIngestParseDaemon: false,
   });
 
   if (!runtime.dataSource || !runtime.workerRepos) {
-    console.error("reset:pipeline: нужен RADAR_STORAGE_MODE=db и DATABASE_URL");
+    console.error("parse-engine:reset: нужен RADAR_STORAGE_MODE=db и DATABASE_URL");
     process.exit(1);
   }
 
@@ -74,7 +74,7 @@ async function main(): Promise<void> {
   console.log(`  phase_runs закрыто: ${result.phaseRunsClosed}`);
   if (!noCatchUp) {
     console.log(`  catch-up: ${JSON.stringify(result.catchUpByPhase)}`);
-    console.log("\nДальше: npm run worker:dev (scheduled) или npm run worker:reparse:raw (catalog по всем raw).");
+    console.log("\nДальше: npm run worker:dev (scheduled) или npm run parse-engine:rebuild.");
   } else {
     console.log("\nCatch-up пропущен (--no-catch-up).");
   }

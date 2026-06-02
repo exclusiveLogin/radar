@@ -8,6 +8,7 @@
 import type { DataSource } from "typeorm";
 import type {
   IChannelRepository,
+  IEventEvidenceRepository,
   IEventLocationRepository,
   IIngestBackfillJobRepository,
   IIngestBindingRepository,
@@ -16,7 +17,7 @@ import type {
   IParsedEventRepository,
   IPlaceAliasRepository,
   IPlaceCacheRepository,
-  IPlaceEvidenceRepository,
+  IPlaceEnrichmentJobRepository,
   IPlaceRepository,
   IRawMessageRepository,
   IRegionRepository,
@@ -31,15 +32,18 @@ import { createPhaseIngestHandler } from "./subscribers/phaseIngestSubscriber.js
 import { createRawMessageIngestedHandler } from "./subscribers/rawMessageIngestedSubscriber.js";
 import { CoverageEnqueuer } from "./phases/coverageEnqueuer.js";
 import { PhaseRunner } from "./phases/phaseRunner.js";
-import { PhaseDaemonService } from "./phases/phaseDaemonService.js";
+import { IngestParseDaemonService } from "./phases/ingestParseDaemonService.js";
 import { PhaseManualRunPoller } from "./phases/phaseManualRunPoller.js";
+import { PlaceEnrichmentDaemonService } from "./geo-parse/placeEnrichmentDaemonService.js";
+import { PlaceEnrichmentRunner } from "./geo-parse/placeEnrichmentRunner.js";
 import { IngestRawMessageHandler } from "./handlers/ingestRawMessageHandler.js";
 import { ParseRawMessageHandler } from "./handlers/parseRawMessageHandler.js";
 import {
   InMemoryEventLocationRepository,
+  InMemoryEventEvidenceRepository,
   InMemoryPlaceAliasRepository,
   InMemoryPlaceCacheRepository,
-  InMemoryPlaceEvidenceRepository,
+  InMemoryPlaceEnrichmentJobRepository,
   InMemoryPlaceRepository,
   InMemoryParsedEventRepository,
   InMemoryRegionRepository,
@@ -106,10 +110,10 @@ export type WorkerCompositionOptions = {
   /** Поверх `loadLlmRuntimeConfig()` (например `enabled: true` при `--enrich-llm`). */
   llmRuntimeOverride?: Partial<LlmRuntimeConfig>;
   /**
-   * PhaseDaemon (scheduled-фазы). Для one-shot CLI (reparse, phase:run) — false:
-   * догон идёт в отдельном `worker:dev`.
+   * IngestParseDaemon (scheduled ingestParse). Для one-shot CLI — false;
+   * догон — в `worker:dev` / `parse-engine:ingest:drain`.
    */
-  startPhaseDaemon?: boolean;
+  startIngestParseDaemon?: boolean;
 };
 
 /** Дешёвый детерминированный синхронный путь: только каталог, без внешних провайдеров. */
@@ -158,7 +162,8 @@ export async function createWorkerCompositionRoot(
   let ingestOrchestrator: IngestOrchestrator | undefined;
   let backfillDaemon: BackfillDaemonService | undefined;
   let mapStateExpiryDaemon: MapStateExpiryDaemon | undefined;
-  let phaseDaemon: PhaseDaemonService | undefined;
+  let ingestParseDaemon: IngestParseDaemonService | undefined;
+  let placeEnrichmentDaemon: PlaceEnrichmentDaemonService | undefined;
   let phaseManualRunPoller: PhaseManualRunPoller | undefined;
   let phaseRunner: PhaseRunner | undefined;
   let coverageEnqueuer: CoverageEnqueuer | undefined;
@@ -168,16 +173,18 @@ export async function createWorkerCompositionRoot(
   let rawMessages: IRawMessageRepository = new InMemoryRawMessageRepository();
   let parsedEvents: IParsedEventRepository = new InMemoryParsedEventRepository();
   let eventLocations: IEventLocationRepository = new InMemoryEventLocationRepository();
+  let eventEvidence: IEventEvidenceRepository = new InMemoryEventEvidenceRepository();
   let regions: IRegionRepository = new InMemoryRegionRepository();
   let places: IPlaceRepository = new InMemoryPlaceRepository();
   let aliases: IPlaceAliasRepository = new InMemoryPlaceAliasRepository();
-  let placeEvidence: IPlaceEvidenceRepository = new InMemoryPlaceEvidenceRepository();
+  let placeEnrichmentJobs: IPlaceEnrichmentJobRepository = new InMemoryPlaceEnrichmentJobRepository();
   let cursors: IIngestCursorRepository | undefined;
   let ingestProviders: IIngestProviderRepository | undefined;
   let ingestBindings: IIngestBindingRepository | undefined;
   let channels: IChannelRepository | undefined;
   let backfillJobs: IIngestBackfillJobRepository | undefined;
   let workerRepos: WorkerDbRepositories | undefined;
+  let placeEnrichmentRunner: PlaceEnrichmentRunner | undefined;
 
   if (storageMode === WorkerStorageMode.Db) {
     dataSource = await createWorkerDataSource();
@@ -192,10 +199,11 @@ export async function createWorkerCompositionRoot(
     rawMessages = repos.rawMessages;
     parsedEvents = repos.parsedEvents;
     eventLocations = repos.eventLocations;
+    eventEvidence = repos.eventEvidence;
     regions = repos.regions;
     places = repos.places;
     aliases = repos.aliases;
-    placeEvidence = repos.placeEvidence;
+    placeEnrichmentJobs = repos.placeEnrichmentJobs;
     cursors = repos.cursors;
     ingestProviders = repos.ingestProviders;
     ingestBindings = repos.ingestBindings;
@@ -230,7 +238,8 @@ export async function createWorkerCompositionRoot(
       outboxRelay?.stop();
       mapStateExpiryDaemon?.stop();
       phaseManualRunPoller?.stop();
-      phaseDaemon?.stop();
+      ingestParseDaemon?.stop();
+      placeEnrichmentDaemon?.stop();
       await backfillDaemon?.stop();
       await parseWorkerPool?.shutdown();
       await ingestOrchestrator?.stop();
@@ -255,7 +264,7 @@ export async function createWorkerCompositionRoot(
     llmRuntimeConfig,
   };
   const { pipeline, resolution } = createParsePipeline(pipelineConfig, placeCache);
-  const validation = new GeoValidationService(regions, places, aliases, placeEvidence);
+  const validation = new GeoValidationService(regions, places, aliases);
 
   if (storageMode === WorkerStorageMode.Db && isParseWorkerPoolEnabled()) {
     parseWorkerPool = new ParseWorkerPool(pipelineConfig);
@@ -270,13 +279,20 @@ export async function createWorkerCompositionRoot(
     pipeline,
     parsedEvents,
     eventLocations,
+    eventEvidence,
+    places,
     validation,
-    placeCache,
     bus,
     parseWorkerPool,
   );
 
   if (workerRepos) {
+    placeEnrichmentRunner = new PlaceEnrichmentRunner(
+      workerRepos.placeEnrichmentJobs,
+      workerRepos.places,
+      workerRepos.aliases,
+      workerRepos.regions,
+    );
     phaseRunner = new PhaseRunner({
       rawMessages: workerRepos.rawMessages,
       coverage: workerRepos.phaseCoverage,
@@ -284,9 +300,13 @@ export async function createWorkerCompositionRoot(
       phaseRuns: workerRepos.phaseRuns,
       parsedEvents: workerRepos.parsedEvents,
       eventLocations: workerRepos.eventLocations,
+      eventEvidence: workerRepos.eventEvidence,
+      placeEnrichmentJobs: workerRepos.placeEnrichmentJobs,
+      places: workerRepos.places,
       validation,
       placeCache,
       events: bus,
+      placeEnrichmentRunner,
     });
     coverageEnqueuer = new CoverageEnqueuer(
       workerRepos.phaseCoverage,
@@ -301,20 +321,28 @@ export async function createWorkerCompositionRoot(
         runner: phaseRunner,
       }),
     );
-    if (PhaseDaemonService.enabled() && options.startPhaseDaemon !== false) {
-      phaseDaemon = new PhaseDaemonService(
+    if (IngestParseDaemonService.enabled() && options.startIngestParseDaemon !== false) {
+      ingestParseDaemon = new IngestParseDaemonService(
         workerRepos.phaseDefinitions,
         workerRepos.phaseRuns,
         workerRepos.phaseCoverage,
         phaseRunner,
       );
-      phaseDaemon.start();
+      ingestParseDaemon.start();
       phaseManualRunPoller = new PhaseManualRunPoller(
         workerRepos.phaseDefinitions,
         workerRepos.phaseRuns,
         phaseRunner,
       );
       phaseManualRunPoller.start();
+
+      placeEnrichmentDaemon = new PlaceEnrichmentDaemonService(
+        workerRepos.phaseDefinitions,
+        workerRepos.phaseRuns,
+        workerRepos.placeEnrichmentJobs,
+        phaseRunner,
+      );
+      placeEnrichmentDaemon.start();
     }
   } else {
     bus.subscribe(
@@ -374,7 +402,9 @@ export async function createWorkerCompositionRoot(
     ingestOrchestrator,
     backfillDaemon,
     mapStateExpiryDaemon,
-    phaseDaemon,
+    ingestParseDaemon,
+    placeEnrichmentDaemon,
+    placeEnrichmentRunner,
     phaseRunner,
     coverageEnqueuer,
     workerRepos,

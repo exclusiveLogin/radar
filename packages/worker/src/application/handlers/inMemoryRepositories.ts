@@ -1,20 +1,23 @@
 import { parseKladrSubjectPrefix } from "@radar/shared";
 import type {
   EventLocation,
+  EventEvidenceRecord,
+  IEventEvidenceRepository,
   IPlaceAliasRepository,
   PlaceCacheHit,
   PlaceCacheProvider,
   PlaceCachePutMeta,
   IPlaceCacheRepository,
+  IPlaceEnrichmentJobRepository,
+  PlaceEnrichmentJobRecord,
+  PlaceEnrichmentProvider,
   PlaceContribution,
-  IPlaceEvidenceRepository,
   IPlaceRepository,
   IRegionRepository,
   IEventLocationRepository,
   IParsedEventRepository,
   IRawMessageRepository,
   PlaceAliasRecord,
-  PlaceEvidenceRecord,
   PlaceRecord,
   ParsedEvent,
   RegionRecord,
@@ -82,6 +85,144 @@ export class InMemoryEventLocationRepository implements IEventLocationRepository
   }
 }
 
+export class InMemoryEventEvidenceRepository implements IEventEvidenceRepository {
+  private readonly rows: EventEvidenceRecord[] = [];
+
+  async append(record: EventEvidenceRecord): Promise<void> {
+    this.rows.push(record);
+  }
+}
+
+export class InMemoryPlaceEnrichmentJobRepository
+implements IPlaceEnrichmentJobRepository {
+  private readonly rows = new Map<string, PlaceEnrichmentJobRecord>();
+
+  async enqueue(placeId: string, provider: PlaceEnrichmentProvider): Promise<void> {
+    const key = `${placeId}:${provider}`;
+    const existing = this.rows.get(key);
+    if (existing?.status === "done") return;
+    const now = new Date().toISOString();
+    this.rows.set(key, {
+      id: existing?.id ?? randomUUID(),
+      placeId,
+      provider,
+      status: "pending",
+      attempts: existing?.attempts ?? 0,
+      lastError: existing?.lastError,
+      createdAt: existing?.createdAt ?? now,
+      updatedAt: now,
+    });
+  }
+
+  async enqueueCatchUp(_provider: PlaceEnrichmentProvider): Promise<{ enqueued: number }> {
+    return { enqueued: 0 };
+  }
+
+  async claimBatch(
+    provider: PlaceEnrichmentProvider,
+    limit: number,
+  ): Promise<PlaceEnrichmentJobRecord[]> {
+    const rows = [...this.rows.values()]
+      .filter((row) => row.provider === provider && row.status === "pending")
+      .slice(0, limit)
+      .map((row) => ({
+        ...row,
+        status: "processing" as const,
+        updatedAt: new Date().toISOString(),
+      }));
+    for (const row of rows) {
+      this.rows.set(`${row.placeId}:${row.provider}`, row);
+    }
+    return rows;
+  }
+
+  async markDone(id: string): Promise<void> {
+    for (const [key, row] of this.rows) {
+      if (row.id !== id) continue;
+      this.rows.set(key, {
+        ...row,
+        status: "done",
+        updatedAt: new Date().toISOString(),
+      });
+      return;
+    }
+  }
+
+  async markFailed(id: string, error: string): Promise<void> {
+    for (const [key, row] of this.rows) {
+      if (row.id !== id) continue;
+      this.rows.set(key, {
+        ...row,
+        status: "failed",
+        attempts: row.attempts + 1,
+        lastError: error,
+        updatedAt: new Date().toISOString(),
+      });
+      return;
+    }
+  }
+
+  async releaseToPending(ids: string[]): Promise<number> {
+    const idSet = new Set(ids);
+    let released = 0;
+    for (const [key, row] of this.rows) {
+      if (!idSet.has(row.id) || row.status !== "processing") continue;
+      this.rows.set(key, {
+        ...row,
+        status: "pending",
+        lastError: undefined,
+        updatedAt: new Date().toISOString(),
+      });
+      released += 1;
+    }
+    return released;
+  }
+
+  async resetProcessingForProvider(provider: PlaceEnrichmentProvider): Promise<number> {
+    let reset = 0;
+    for (const [key, row] of this.rows) {
+      if (row.provider !== provider || row.status !== "processing") continue;
+      this.rows.set(key, {
+        ...row,
+        status: "pending",
+        lastError: undefined,
+        updatedAt: new Date().toISOString(),
+      });
+      reset += 1;
+    }
+    return reset;
+  }
+
+  async countByStatus(
+    provider: PlaceEnrichmentProvider,
+  ): Promise<Record<PlaceEnrichmentJobRecord["status"], number>> {
+    const base: Record<PlaceEnrichmentJobRecord["status"], number> = {
+      pending: 0,
+      processing: 0,
+      done: 0,
+      failed: 0,
+    };
+    for (const row of this.rows.values()) {
+      if (row.provider === provider) {
+        base[row.status] += 1;
+      }
+    }
+    return base;
+  }
+
+  async clearQueuedWork(provider?: PlaceEnrichmentProvider): Promise<number> {
+    let cleared = 0;
+    for (const [key, row] of this.rows) {
+      if (provider && row.provider !== provider) continue;
+      if (row.status === "pending" || row.status === "processing") {
+        this.rows.delete(key);
+        cleared += 1;
+      }
+    }
+    return cleared;
+  }
+}
+
 export class InMemoryRegionRepository implements IRegionRepository {
   private readonly rows = new Map<string, RegionRecord>();
 
@@ -120,6 +261,12 @@ export class InMemoryRegionRepository implements IRegionRepository {
       this.rows.set(row.code, row);
     }
   }
+  async findById(id: string): Promise<RegionRecord | null> {
+    for (const row of this.rows.values()) {
+      if (row.id === id) return row;
+    }
+    return null;
+  }
   async findByCode(code: string): Promise<RegionRecord | null> {
     const normalized = code.trim().toUpperCase() === "UA-43"
       ? "RU-CR"
@@ -153,6 +300,14 @@ export class InMemoryPlaceRepository implements IPlaceRepository {
   async findByFias(fiasId: string): Promise<PlaceRecord | null> {
     for (const row of this.rows.values()) {
       if (row.fiasId === fiasId) {
+        return row;
+      }
+    }
+    return null;
+  }
+  async findRegionPlaceByRegionId(regionId: string): Promise<PlaceRecord | null> {
+    for (const row of this.rows.values()) {
+      if (row.regionId === regionId && row.kind === "region") {
         return row;
       }
     }
@@ -210,14 +365,12 @@ export class InMemoryPlaceAliasRepository implements IPlaceAliasRepository {
     return [...this.rows.values()];
   }
   async upsertAlias(input: {
-    targetKind: "region" | "place";
-    regionId?: string;
-    placeId?: string;
+    placeId: string;
     alias: string;
     source: "auto" | "manual";
   }): Promise<void> {
     const aliasNormalized = input.alias.toLowerCase().trim();
-    const key = `${input.targetKind}:${input.regionId ?? ""}:${input.placeId ?? ""}:${aliasNormalized}`;
+    const key = `${input.placeId}:${aliasNormalized}`;
     const existing = this.rows.get(key);
     if (existing) {
       existing.alias = input.alias;
@@ -225,17 +378,15 @@ export class InMemoryPlaceAliasRepository implements IPlaceAliasRepository {
     }
     this.rows.set(key, {
       id: randomUUID(),
+      placeId: input.placeId,
       alias: input.alias,
       aliasNormalized,
-      targetKind: input.targetKind,
-      regionId: input.regionId,
-      placeId: input.placeId,
       source: input.source,
     });
   }
   async upsertMany(aliases: PlaceAliasRecord[]): Promise<void> {
     for (const row of aliases) {
-      const key = `${row.targetKind}:${row.regionId ?? ""}:${row.placeId ?? ""}:${row.aliasNormalized}`;
+      const key = `${row.placeId}:${row.aliasNormalized}`;
       this.rows.set(key, row);
     }
   }
@@ -274,17 +425,3 @@ export class InMemoryPlaceCacheRepository implements IPlaceCacheRepository {
   }
 }
 
-export class InMemoryPlaceEvidenceRepository implements IPlaceEvidenceRepository {
-  private readonly rows = new Map<string, PlaceEvidenceRecord[]>();
-
-  async append(record: PlaceEvidenceRecord): Promise<void> {
-    const current = this.rows.get(record.placeId) ?? [];
-    current.push(record);
-    this.rows.set(record.placeId, current);
-  }
-
-  async listByPlace(placeId: string, limit: number): Promise<PlaceEvidenceRecord[]> {
-    const rows = this.rows.get(placeId) ?? [];
-    return rows.slice(-limit).reverse();
-  }
-}

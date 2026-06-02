@@ -6,16 +6,19 @@ import { WorkerStorageMode } from "../infrastructure/persistence/storageMode.js"
 import { loadRootEnv } from "../infrastructure/config/loadRootEnv.js";
 import { notifyMapPushSnapshot } from "../infrastructure/notifyMapPushSnapshot.js";
 import { createProgress } from "./progress.js";
+import { hasAnyFlag, parseLongFlagsMap } from "./workerCliArgs.js";
 
 /**
  * Полный reparse: сброс карты + инвалидация parsed/coverage, затем ingest-поток (eager inline).
- * Scheduled-фазы — PhaseDaemon, строго после eager по order в манифесте.
+ * Scheduled ingestParse — IngestParseDaemon, после eager по order в манифесте.
  */
 async function main(): Promise<void> {
   loadRootEnv(MONOREPO_ROOT);
+  const flags = parseLongFlagsMap(process.argv);
+  const drainScheduled = hasAnyFlag(flags, ["drain-scheduled", "drainScheduled"]);
   const runtime = await createWorkerCompositionRoot({
     storageMode: WorkerStorageMode.Db,
-    startPhaseDaemon: false,
+    startIngestParseDaemon: false,
   });
 
   if (!runtime.dataSource || !runtime.phaseRunner || !runtime.workerRepos || !runtime.coverageEnqueuer) {
@@ -60,8 +63,40 @@ async function main(): Promise<void> {
 
   console.log(
     `Reparse done: messages=${result.messages}, coverageInvalidated=${result.phasesInvalidated}. ` +
-      "Scheduled-фазы догонит PhaseDaemon в worker:dev (после done catalog по order).",
+      "Scheduled ingestParse догонит IngestParseDaemon в worker:dev (после done catalog по order).",
   );
+
+  if (drainScheduled) {
+    const scheduledIngest = await repos.phaseDefinitions.listEnabled("scheduled", "ingestParse");
+    for (const phase of scheduledIngest) {
+      const run = await repos.phaseRuns.create({
+        phaseId: phase.id,
+        trigger: "manual",
+      });
+      await runtime.phaseRunner.runDrain({
+        phase,
+        runId: run.id,
+        trigger: "manual",
+        batchSize: 50,
+      });
+    }
+    const scheduledGeo = await repos.phaseDefinitions.listEnabled("scheduled", "geoParse");
+    for (const phase of scheduledGeo) {
+      const provider = phase.enrichers.includes("llm")
+        ? "llm"
+        : phase.enrichers.includes("dadata")
+          ? "dadata"
+          : phase.enrichers.includes("nominatim")
+            ? "nominatim"
+            : null;
+      if (!provider || !runtime.placeEnrichmentRunner) continue;
+      await runtime.placeEnrichmentRunner.runDrain(provider, phase.policy.batchSize);
+    }
+    console.log(
+      `Scheduled drain done: ingestPhases=${scheduledIngest.length}, geoPhases=${scheduledGeo.length}`,
+    );
+  }
+
   await notifyMapPushSnapshot();
   await runtime.shutdown?.();
 }

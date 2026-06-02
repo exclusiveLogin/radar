@@ -15,6 +15,8 @@ import {
   type ParseAttemptItem,
   type StatsOverview,
   phaseDefinitionSchema,
+  phaseRunsOverviewSchema,
+  type PhaseRunsOverview,
   phaseRunSchema,
 } from "@radar/shared";
 import type { PhaseDefinition, PhaseRun } from "@radar/shared";
@@ -135,14 +137,8 @@ export const adminApi = {
   phasesPatch: (id: string, patch: Record<string, unknown>): Promise<PhaseDefinition> =>
     sendJson("PATCH", `/api/admin/phases/${encodeURIComponent(id)}`, patch, phaseDefinitionSchema),
 
-  phasesRunsOverview: (): Promise<{
-    runningCount: number;
-    byPhase: Array<{
-      phaseId: string;
-      activeRun: PhaseRun | null;
-      coverage: Record<string, number>;
-    }>;
-  }> => getJson("/api/admin/phases/runs/overview", z.any()),
+  phasesRunsOverview: (): Promise<PhaseRunsOverview> =>
+    getJson("/api/admin/phases/runs/overview", phaseRunsOverviewSchema),
 
   phasesRuns: (params?: { phaseId?: string; status?: string; limit?: number }): Promise<PhaseRun[]> => {
     const query = new URLSearchParams();
@@ -155,6 +151,17 @@ export const adminApi = {
   phasesStartRun: (phaseId: string, body: Record<string, unknown>): Promise<PhaseRun> =>
     postJson(`/api/admin/phases/${encodeURIComponent(phaseId)}/run`, body, phaseRunSchema),
 
+  phasesClearQueue: (phaseId: string): Promise<{ ok: true; cleared: number; runsCanceled: number }> =>
+    postJson(
+      `/api/admin/phases/${encodeURIComponent(phaseId)}/clear-queue`,
+      undefined,
+      z.object({
+        ok: z.literal(true),
+        cleared: z.number().int().nonnegative(),
+        runsCanceled: z.number().int().nonnegative(),
+      }),
+    ),
+
   phasesCancelRun: (runId: string): Promise<{ ok: true }> =>
     postJson(`/api/admin/phases/runs/${encodeURIComponent(runId)}/cancel`, undefined, z.object({ ok: z.literal(true) })),
 
@@ -163,6 +170,7 @@ export const adminApi = {
     ok: true;
     phaseRunsClosed: number;
     queueCleared: number;
+    geoJobsCleared: number;
     processingReleased: number;
   }> =>
     postJson(
@@ -172,6 +180,7 @@ export const adminApi = {
         ok: z.literal(true),
         phaseRunsClosed: z.number().int().nonnegative(),
         queueCleared: z.number().int().nonnegative(),
+        geoJobsCleared: z.number().int().nonnegative(),
         processingReleased: z.number().int().nonnegative(),
       }),
     ),

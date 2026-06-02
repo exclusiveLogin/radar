@@ -10,14 +10,20 @@ import { sortPhasesByOrder } from "./phaseOrder.js";
 const DEFAULT_POLL_MS = 15_000;
 const DEFAULT_STALE_RUN_MS = 2 * 60 * 60 * 1000;
 
-function isPhaseDaemonEnabled(): boolean {
-  const raw = process.env.RADAR_PHASE_DAEMON_ENABLED?.trim().toLowerCase();
+/** Включён ли демон ingestParse (legacy: RADAR_PHASE_DAEMON_ENABLED). */
+function isIngestParseDaemonEnabled(): boolean {
+  const raw =
+    process.env.RADAR_INGEST_PARSE_DAEMON_ENABLED?.trim().toLowerCase() ??
+    process.env.RADAR_PHASE_DAEMON_ENABLED?.trim().toLowerCase();
   if (raw === "0" || raw === "false" || raw === "no") return false;
   return process.env.RADAR_STORAGE_MODE?.trim().toLowerCase() === "db";
 }
 
 function resolvePollMs(): number {
-  const parsed = Number(process.env.RADAR_PHASE_DAEMON_POLL_MS);
+  const parsed = Number(
+    process.env.RADAR_INGEST_PARSE_DAEMON_POLL_MS ??
+      process.env.RADAR_PHASE_DAEMON_POLL_MS,
+  );
   return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_POLL_MS;
 }
 
@@ -27,13 +33,12 @@ function resolveStaleRunMs(): number {
 }
 
 /**
- * Scheduled-фазы: один drain на фазу, без параллельных phase_run.
- * Тик пропускается, если в БД уже есть running/pending или очередь пуста.
+ * Scheduled ingestParse-фазы: drain phase_coverage → PhaseRunner.
+ * Параллельно с GeoParseDaemon (place_enrichment_jobs).
  */
-export class PhaseDaemonService {
+export class IngestParseDaemonService {
   private timers = new Map<string, ReturnType<typeof setInterval>>();
   private scheduleRefreshTimer: ReturnType<typeof setInterval> | null = null;
-  /** In-process: drain может длиться дольше intervalMs. */
   private running = new Set<string>();
   private stopped = false;
 
@@ -45,7 +50,7 @@ export class PhaseDaemonService {
   ) {}
 
   static enabled(): boolean {
-    return isPhaseDaemonEnabled();
+    return isIngestParseDaemonEnabled();
   }
 
   start(): void {
@@ -70,7 +75,9 @@ export class PhaseDaemonService {
 
   private async refreshSchedules(): Promise<void> {
     if (this.stopped) return;
-    const scheduled = sortPhasesByOrder(await this.phases.listEnabled("scheduled"));
+    const scheduled = sortPhasesByOrder(
+      await this.phases.listEnabled("scheduled", "ingestParse"),
+    );
     const ids = new Set(scheduled.map((p) => p.id));
 
     for (const [id, timer] of this.timers) {
@@ -94,19 +101,15 @@ export class PhaseDaemonService {
     try {
       const stale = await this.phaseRuns.failStaleActiveRuns(phase.id, resolveStaleRunMs());
       if (stale > 0) {
-        console.warn(`PhaseDaemon[${phase.id}]: failed ${stale} stale run(s)`);
+        console.warn(`IngestParseDaemon[${phase.id}]: failed ${stale} stale run(s)`);
       }
 
       const active = await this.phaseRuns.findActiveForPhase(phase.id);
-      if (active) {
-        return;
-      }
+      if (active) return;
 
       const counts = await this.coverage.countByStatus(phase.id);
       const pendingWork = counts.pending + counts.processing;
-      if (pendingWork === 0) {
-        return;
-      }
+      if (pendingWork === 0) return;
 
       const run = await this.phaseRuns.create({
         phaseId: phase.id,
@@ -121,7 +124,7 @@ export class PhaseDaemonService {
         trigger: "scheduled",
       });
     } catch (err) {
-      console.error(`PhaseDaemon[${phase.id}]:`, err);
+      console.error(`IngestParseDaemon[${phase.id}]:`, err);
     } finally {
       this.running.delete(phase.id);
     }

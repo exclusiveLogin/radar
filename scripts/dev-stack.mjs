@@ -27,8 +27,10 @@ const commands = [
   `npx wait-on -t ${waitTimeoutMs} ${apiReady} && npm run dev -w @radar/web`,
 ];
 if (full) {
+  // Worker ждёт api/ready (nest watch уже собрал dist), не только файл с predev —
+  // иначе гонка: worker стартует, пока api:dev ещё пересобирает/чистит dist.
   commands.push(
-    `npx wait-on -t ${waitTimeoutMs} ${apiDistMain} ${workerParseDist} && npm run dev -w @radar/worker`,
+    `npx wait-on -t ${waitTimeoutMs} ${apiReady} ${workerParseDist} && node scripts/free-worker-probe-port.mjs && npm run dev -w @radar/worker --ignore-scripts`,
   );
 }
 
@@ -60,7 +62,11 @@ async function main() {
   freeDevPorts();
 
   console.log('\n\x1b[36m(dist уже собран predev — см. package.json)\x1b[0m');
-  console.log('\n\x1b[32mЗапуск процессов (web после /api/ready, worker после dist)\x1b[0m');
+  console.log('\n\x1b[32mЗапуск процессов (web и worker после /api/ready)\x1b[0m');
+  console.log(
+    '\x1b[33mПервый старт 40–90с: predev (shared+api+worker), потом api → web → worker. Не закрывай терминал.\x1b[0m',
+  );
+  console.log('\x1b[90mТолько UI без worker: npm run dev:app\x1b[0m\n');
   spawnConcurrently();
 }
 

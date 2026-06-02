@@ -13,11 +13,11 @@ export class CoverageEnqueuer {
     private readonly phases: IPhaseDefinitionRepository,
   ) {}
 
-  /** После ingest: pending для всех enabled eager + scheduled фаз. */
+  /** После ingest: pending для всех enabled ingestParse eager + scheduled фаз. */
   async onNewRawMessage(rawMessageId: string): Promise<void> {
     const [eager, scheduled] = await Promise.all([
-      this.phases.listEnabled("eager"),
-      this.phases.listEnabled("scheduled"),
+      this.phases.listEnabled("eager", "ingestParse"),
+      this.phases.listEnabled("scheduled", "ingestParse"),
     ]);
     for (const phase of [...eager, ...scheduled]) {
       await this.coverage.enqueuePending({ rawMessageId, phaseId: phase.id });
@@ -32,8 +32,8 @@ export class CoverageEnqueuer {
 
   async listAutoPhases(): Promise<PhaseDefinitionRecord[]> {
     const [eager, scheduled] = await Promise.all([
-      this.phases.listEnabled("eager"),
-      this.phases.listEnabled("scheduled"),
+      this.phases.listEnabled("eager", "ingestParse"),
+      this.phases.listEnabled("scheduled", "ingestParse"),
     ]);
     return [...eager, ...scheduled];
   }

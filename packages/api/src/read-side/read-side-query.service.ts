@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { InjectDataSource } from "@nestjs/typeorm";
-import { statsOverviewSchema, type StatsOverview } from "@radar/shared";
+import { resolveGeoEnrichmentProvider, statsOverviewSchema, type StatsOverview } from "@radar/shared";
 import type { DataSource } from "typeorm";
 import {
   EventLocationEntity,
@@ -150,12 +150,105 @@ export class ReadSideQueryService {
        ORDER BY pc.phase_id`,
     );
 
+    const [placesCatalog] = await this.dataSource.query<Array<{ total: string }>>(
+      `SELECT COUNT(*)::int AS total
+       FROM places
+       WHERE is_active = true AND kind <> 'region'`,
+    );
+
+    const geoPhaseRows = await this.dataSource.query<
+      Array<{ id: string; enabled: boolean; enrichers: string[] }>
+    >(
+      `SELECT id, enabled, enrichers
+       FROM phase_definitions
+       WHERE scope = 'geoParse'
+       ORDER BY id`,
+    );
+
+    const geoJobRows = await this.dataSource.query<
+      Array<{ provider: string; status: string; count: string }>
+    >(
+      `SELECT provider, status, COUNT(*)::int AS count
+       FROM place_enrichment_jobs
+       GROUP BY provider, status`,
+    );
+
+    const geoEvidenceRows = await this.dataSource.query<
+      Array<{ provider: string; count: string }>
+    >(
+      `SELECT j.provider, COUNT(DISTINCT j.place_id)::int AS count
+       FROM place_enrichment_jobs j
+       JOIN places p ON p.id = j.place_id
+       WHERE j.status = 'done'
+         AND COALESCE(p.evidence_providers, '[]'::jsonb) @> to_jsonb(ARRAY[j.provider]::text[])
+       GROUP BY j.provider`,
+    );
+
+    const geoCatalogRemainingRows = await this.dataSource.query<
+      Array<{ provider: string; count: string }>
+    >(
+      `SELECT prov.provider, COUNT(*)::int AS count
+       FROM places p
+       CROSS JOIN (VALUES ('dadata'), ('llm'), ('nominatim')) AS prov(provider)
+       WHERE p.is_active = true
+         AND p.kind <> 'region'
+         AND NOT COALESCE(p.evidence_providers, '[]'::jsonb) @> to_jsonb(ARRAY[prov.provider]::text[])
+       GROUP BY prov.provider`,
+    );
+
+    const geoJobsByProvider = new Map<
+      string,
+      { pending: number; processing: number; done: number; failed: number }
+    >();
+    for (const row of geoJobRows) {
+      const bucket = geoJobsByProvider.get(row.provider) ?? {
+        pending: 0,
+        processing: 0,
+        done: 0,
+        failed: 0,
+      };
+      if (row.status === "pending") bucket.pending = Number(row.count);
+      else if (row.status === "processing") bucket.processing = Number(row.count);
+      else if (row.status === "done") bucket.done = Number(row.count);
+      else if (row.status === "failed") bucket.failed = Number(row.count);
+      geoJobsByProvider.set(row.provider, bucket);
+    }
+
+    const geoEvidenceByProvider = new Map(
+      geoEvidenceRows.map((row) => [row.provider, Number(row.count ?? 0)]),
+    );
+
+    const geoCatalogRemainingByProvider = new Map(
+      geoCatalogRemainingRows.map((row) => [row.provider, Number(row.count ?? 0)]),
+    );
+
+    const geoEnrichment = geoPhaseRows.map((phase) => {
+      const enrichers = phase.enrichers as Array<
+        "dadata" | "nominatim" | "llm" | "catalog" | "rule"
+      >;
+      const provider = resolveGeoEnrichmentProvider({ enrichers });
+      const jobs = provider
+        ? geoJobsByProvider.get(provider) ?? { pending: 0, processing: 0, done: 0, failed: 0 }
+        : { pending: 0, processing: 0, done: 0, failed: 0 };
+      return {
+        phaseId: phase.id,
+        provider,
+        enabled: phase.enabled,
+        counts: {
+          ...jobs,
+          doneWithEvidence: provider ? (geoEvidenceByProvider.get(provider) ?? 0) : 0,
+          catalogRemaining: provider ? (geoCatalogRemainingByProvider.get(provider) ?? 0) : 0,
+        },
+      };
+    });
+
     return statsOverviewSchema.parse({
       rawTotal: Number(raw?.raw_total ?? 0),
       live: Number(raw?.live ?? 0),
       backfill: Number(raw?.backfill ?? 0),
       manual: Number(raw?.manual ?? 0),
       parsedEvents: Number(parsedEvents?.total ?? 0),
+      placesCatalogActive: Number(placesCatalog?.total ?? 0),
       phaseEnrichment: phaseRows.map((row) => ({
         phaseId: row.phase_id,
         counts: {
@@ -166,6 +259,7 @@ export class ReadSideQueryService {
           doneForParsed: Number(row.done_for_parsed ?? 0),
         },
       })),
+      geoEnrichment,
       parseOk: Number(parse?.ok ?? 0),
       parseFailed: Number(parse?.failed ?? 0),
       parseSkipped: Number(parse?.skipped ?? 0),

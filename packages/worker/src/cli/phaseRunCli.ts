@@ -2,8 +2,8 @@
  * Запуск фазы по phase_id (ADR-003 v2). Алиас: worker:enrich:run -- --stage= → --phase=
  *
  * Usage:
- *   npm run worker:phase:run -- --phase=llm --batch=100 [--watch]
- *   npm run worker:phase:run -- --phase=catalog --from=2024-01-01 --limit=50
+ *   npm run parse-engine:phase:run -- --phase=llm --batch=100 [--watch]
+ *   npm run parse-engine:phase:run -- --phase=catalog --from=2024-01-01 --limit=50
  */
 import { MONOREPO_ROOT } from "@repo/root";
 import { createWorkerCompositionRoot } from "../application/createWorkerCompositionRoot.js";
@@ -21,7 +21,7 @@ export async function runPhaseCli(): Promise<void> {
   const phaseId =
     readStringFlag(map, ["phase", "stage"])?.trim() ??
     (() => {
-      console.error("worker:phase:run: нужен --phase=<id> (catalog|llm|dadata|nominatim)");
+      console.error("parse-engine:phase:run: нужен --phase=<id>");
       process.exit(1);
     })();
 
@@ -31,10 +31,10 @@ export async function runPhaseCli(): Promise<void> {
 
   const runtime = await createWorkerCompositionRoot({
     storageMode: WorkerStorageMode.Db,
-    startPhaseDaemon: false,
+    startIngestParseDaemon: false,
   });
   if (!runtime.dataSource || !runtime.phaseRunner || !runtime.workerRepos) {
-    console.error("worker:phase:run: нужен RADAR_STORAGE_MODE=db");
+    console.error("parse-engine:phase:run: нужен RADAR_STORAGE_MODE=db");
     process.exit(1);
   }
 
