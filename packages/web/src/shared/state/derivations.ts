@@ -4,6 +4,28 @@ import type { DonutSegment } from "../ds/Donut";
 
 const ALL_LEVELS: StateLevel[] = ["red", "orange", "yellow", "green", "grey"];
 
+/** Числовой вес уровня: чем выше — тем опаснее. */
+const LEVEL_SEVERITY: Record<StateLevel, number> = {
+  grey: 0,
+  green: 1,
+  yellow: 2,
+  orange: 3,
+  red: 4,
+};
+
+/**
+ * Эффективный уровень места с учётом регионального контекста.
+ * Место наследует уровень региона если региональный выше собственного.
+ */
+export function effectivePlaceLevel(
+  placeLevel: StateLevel,
+  regionLevel: StateLevel,
+): StateLevel {
+  return LEVEL_SEVERITY[regionLevel] > LEVEL_SEVERITY[placeLevel]
+    ? regionLevel
+    : placeLevel;
+}
+
 /** Старые green/grey не рисуем на карте (гео и схема). */
 const REGION_CALM_STALE_MS = 3 * 60 * 60 * 1000;
 

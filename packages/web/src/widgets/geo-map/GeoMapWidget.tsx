@@ -27,7 +27,7 @@ import {
   resolveMapBasemapStyle,
 } from "../../shared/config/mapConfig.service";
 import { formatDateTime } from "../../shared/format/dateTime";
-import { isPlaceVisibleOnMap, isRegionVisibleOnMap } from "../../shared/state/derivations";
+import { effectivePlaceLevel, isPlaceVisibleOnMap, isRegionVisibleOnMap } from "../../shared/state/derivations";
 import { placesById$, regionsByCode$ } from "../../shared/state/mapStore";
 import { selectRegion, selectedRegion$ } from "../../shared/state/selectionStore";
 import type { WidgetProps } from "../widgetProps";
@@ -154,24 +154,28 @@ function placesToFeatures(
 ): PointFeature[] {
   return [...places.values()]
     .filter((place) => isPlaceVisibleOnMap(place, regions))
-    .map((place) => ({
-      type: "Feature" as const,
-      geometry: {
-        type: "Point" as const,
-        coordinates: [place.lon, place.lat],
-      },
-      properties: {
-        kind: "place",
-        placeId: place.placeId,
-        placeName: place.placeName,
-        regionCode: place.regionCode,
-        statusCode: place.statusCode,
-        stateLabel: LEVEL_LABELS[place.stateLevel],
-        color: LEVEL_COLORS[place.stateLevel],
-        // Для district дублируется полигоном — маленький кружок-якорь.
-        radius: DISTRICT_KINDS.has(place.kind ?? "") ? PLACE_CIRCLE_RADIUS_DISTRICT : PLACE_CIRCLE_RADIUS_DEFAULT,
-      },
-    }));
+    .map((place) => {
+      const regionLevel = regions.get(place.regionCode)?.stateLevel ?? "grey";
+      const level = effectivePlaceLevel(place.stateLevel, regionLevel);
+      return {
+        type: "Feature" as const,
+        geometry: {
+          type: "Point" as const,
+          coordinates: [place.lon, place.lat],
+        },
+        properties: {
+          kind: "place",
+          placeId: place.placeId,
+          placeName: place.placeName,
+          regionCode: place.regionCode,
+          statusCode: place.statusCode,
+          stateLabel: LEVEL_LABELS[level],
+          color: LEVEL_COLORS[level],
+          // Для district дублируется полигоном — маленький кружок-якорь.
+          radius: DISTRICT_KINDS.has(place.kind ?? "") ? PLACE_CIRCLE_RADIUS_DISTRICT : PLACE_CIRCLE_RADIUS_DEFAULT,
+        },
+      };
+    });
 }
 
 /**
@@ -197,11 +201,13 @@ function paintActiveDistricts(
     const place = byGeoFeatureId.get(featureId);
     if (!place) continue;
 
+    const regionLevel = regions.get(place.regionCode)?.stateLevel ?? "grey";
+    const level = effectivePlaceLevel(place.stateLevel, regionLevel);
     features.push({
       ...feature,
       properties: {
         ...feature.properties,
-        color: LEVEL_COLORS[place.stateLevel],
+        color: LEVEL_COLORS[level],
         placeId: place.placeId,
         placeName: place.placeName,
       },
@@ -373,9 +379,13 @@ export function GeoMapWidget(_props: WidgetProps) {
     let unsubRegions: Subscription | undefined;
     let unsubPlaces: Subscription | undefined;
     let unsubSelected: Subscription | undefined;
-    let highlightedCode: string | null = selectedRegion$.value;
+    /**
+     * Инициализируем null, чтобы первый emit BehaviorSubject всегда обрабатывался
+     * (иначе code === prev → early return → flyToRegion не вызывается).
+     */
+    let highlightedCode: string | null = null;
     /** Сброс фильтра до загрузки контуров — догоняем fit после regions-geojson. */
-    let requestOverviewFit = !highlightedCode;
+    let requestOverviewFit = !selectedRegion$.value;
     let geoReloadTimer: ReturnType<typeof setTimeout> | undefined;
     let placePopup: Popup | null = null;
     let regionPopup: Popup | null = null;
@@ -647,7 +657,10 @@ export function GeoMapWidget(_props: WidgetProps) {
         const onPick = (event: MapLayerMouseEvent): void => {
           const props = event.features?.[0]?.properties;
           const code = props?.regionCode;
-          if (typeof code === "string") selectRegion(code);
+          if (typeof code === "string") {
+            // Повторный клик по тому же региону сбрасывает выбор (toggle)
+            selectRegion(code === highlightedCode ? null : code);
+          }
         };
 
         const onPlaceHover = (event: MapLayerMouseEvent): void => {
