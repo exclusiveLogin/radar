@@ -54,7 +54,11 @@ export function startMapStore(): void {
     .snapshot()
     .then((snap) => {
       seedSnapshot(snap.regions, snap.places ?? []);
-      connectMapWs().subscribe(applyMessage);
+      connectMapWs().subscribe({
+        next: applyMessage,
+        // Не даём подписке прерваться на ошибке одного сообщения
+        error: reportError,
+      });
     })
     .catch(reportError);
   void mapApi.warnings().then((items) => stateChanges$.next(items)).catch(reportError);
