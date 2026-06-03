@@ -48,6 +48,21 @@ services:
       db:
         condition: service_healthy
 
+  adminer:
+    image: adminer:4
+    container_name: radar-adminer
+    restart: unless-stopped
+    environment:
+      # Хост Postgres внутри сети compose (логин/пароль — в UI из POSTGRES_* в .env)
+      ADMINER_DEFAULT_SERVER: db
+    ports:
+      - "${ADMINER_PORT:-8080}:8080"
+    networks:
+      - radar_net
+    depends_on:
+      db:
+        condition: service_healthy
+
   ollama:
     image: ollama/ollama:0.30.0-rc12
     restart: unless-stopped

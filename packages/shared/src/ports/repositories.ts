@@ -55,6 +55,7 @@ export type PlaceRecord = {
   kind:
     | "region"
     | "district"
+    | "city_district"
     | "city"
     | "locality"
     | "settlement"
@@ -62,6 +63,10 @@ export type PlaceRecord = {
     | "mo_go";
   name: string;
   nameWithType?: string;
+  /** Стем имени для матча без alias-роста; вычисляется через placeStem(). */
+  nameStem?: string;
+  /** FK на geo_feature; заполняется при import или parse-match. */
+  geoFeatureId?: string;
   fiasId?: string;
   kladrId?: string;
   oktmo?: string;
@@ -153,7 +158,13 @@ export interface IPlaceRepository {
   findById(id: string): Promise<PlaceRecord | null>;
   findByFias(fiasId: string): Promise<PlaceRecord | null>;
   findRegionPlaceByRegionId(regionId: string): Promise<PlaceRecord | null>;
+  /** Поиск по nameNormalized — legacy. Предпочтителен findByStemInRegion. */
   findByNameInRegion(name: string, regionId: string): Promise<PlaceRecord | null>;
+  /**
+   * Поиск по name_stem + region_id.
+   * preferKind: при коллизии предпочесть place с этим kind (city_district при городском якоре).
+   */
+  findByStemInRegion(stem: string, regionId: string, preferKind?: PlaceRecord["kind"]): Promise<PlaceRecord | null>;
   listActive(): Promise<PlaceRecord[]>;
   upsertMany(places: PlaceRecord[]): Promise<void>;
   mergeContribution(input: PlaceContribution): Promise<{ updated: PlaceRecord; appliedFields: string[] }>;

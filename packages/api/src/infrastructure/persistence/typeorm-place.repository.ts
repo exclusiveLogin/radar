@@ -1,4 +1,4 @@
-import { mergePlaceContribution } from "@radar/shared";
+import { mergePlaceContribution, placeStem } from "@radar/shared";
 import type { IPlaceRepository, PlaceContribution, PlaceProvider, PlaceRecord } from "@radar/shared";
 import type { DataSource } from "typeorm";
 import { PlaceEntity } from "../../geo/entities";
@@ -43,6 +43,8 @@ export class TypeOrmPlaceRepository implements IPlaceRepository {
       kind: row.kind,
       name: row.name,
       nameWithType: row.nameWithType ?? undefined,
+      nameStem: row.nameStem || undefined,
+      geoFeatureId: row.geoFeatureId ?? undefined,
       fiasId: row.fiasId ?? undefined,
       kladrId: row.kladrId ?? undefined,
       oktmo: row.oktmo ?? undefined,
@@ -86,6 +88,8 @@ export class TypeOrmPlaceRepository implements IPlaceRepository {
       name: place.name,
       nameWithType: place.nameWithType ?? null,
       nameNormalized: normalizedName,
+      nameStem: place.nameStem ?? placeStem(place.name),
+      geoFeatureId: place.geoFeatureId ?? null,
       fiasId: place.fiasId ?? null,
       kladrId: place.kladrId ?? null,
       oktmo: place.oktmo ?? null,
@@ -131,7 +135,7 @@ export class TypeOrmPlaceRepository implements IPlaceRepository {
     return this.toRecord(row);
   }
 
-  /** Finds place by normalized name scoped to region. */
+  /** Finds place by normalized name scoped to region (legacy, по nameNormalized). */
   async findByNameInRegion(
     name: string,
     regionId: string,
@@ -143,10 +147,33 @@ export class TypeOrmPlaceRepository implements IPlaceRepository {
         nameNormalized: normalized,
       },
     });
-    if (!row) {
-      return null;
+    return row ? this.toRecord(row) : null;
+  }
+
+  /**
+   * Поиск place по name_stem + region_id — основной метод после рефактора.
+   * При коллизии (≥2 совпадений по стему) — предпочитает kind=city_district
+   * если в аргументе указан cityAnchor.
+   */
+  async findByStemInRegion(
+    stem: string,
+    regionId: string,
+    preferKind?: PlaceRecord["kind"],
+  ): Promise<PlaceRecord | null> {
+    const rows = await this.repo().find({
+      where: { regionId, nameStem: stem, isActive: true },
+    });
+    if (rows.length === 0) return null;
+    if (rows.length === 1) return this.toRecord(rows[0]);
+
+    // При коллизии: предпочитаем preferKind (city_district при городском якоре)
+    if (preferKind) {
+      const preferred = rows.find((r) => r.kind === preferKind);
+      if (preferred) return this.toRecord(preferred);
     }
-    return this.toRecord(row);
+    // Иначе: catalog (isTrusted) > operational
+    const trusted = rows.find((r) => r.isTrusted);
+    return this.toRecord(trusted ?? rows[0]);
   }
 
   /** Returns all active places as domain records. */

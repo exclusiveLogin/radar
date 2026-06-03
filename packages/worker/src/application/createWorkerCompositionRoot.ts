@@ -263,7 +263,7 @@ export async function createWorkerCompositionRoot(
     pipelineOrder: order,
     llmRuntimeConfig,
   };
-  const { pipeline, resolution } = createParsePipeline(pipelineConfig, placeCache);
+  const { pipeline, resolution } = createParsePipeline(pipelineConfig, placeCache, geoCatalog);
   const validation = new GeoValidationService(regions, places, aliases);
 
   if (storageMode === WorkerStorageMode.Db && isParseWorkerPoolEnabled()) {

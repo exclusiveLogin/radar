@@ -15,7 +15,7 @@ import type {
 import {
   StatusDictionaryEntity,
 } from "../events/entities";
-import { PlaceEntity, RegionEntity } from "../geo/entities";
+import { GeoFeatureEntity, PlaceEntity, RegionEntity } from "../geo/entities";
 import { resolvePlaceMapCentroid, resolveRegionCentroid } from "./map-centroid.resolver";
 import { loadLayout } from "./layout.loader";
 import { maxStateLevel } from "@radar/shared";
@@ -41,6 +41,135 @@ export class MapQueryService {
   private catalogBound = false;
 
   constructor(@InjectDataSource() private readonly dataSource: DataSource) {}
+
+  /**
+   * Активные полигоны районов: только те geo_feature, у которых есть place
+   * с action='raise' в place_status_read_model.
+   * Возвращает несколько объектов вместо ~2500 — безопасно грузить при каждом обновлении places.
+   */
+  async getActiveDistrictsGeoJsonLayer(): Promise<{
+    type: "FeatureCollection";
+    features: Array<{
+      type: "Feature";
+      id: string;
+      properties: Record<string, string | number | null>;
+      geometry: Record<string, unknown>;
+    }>;
+  }> {
+    const rows = (await this.dataSource.query(
+      `SELECT DISTINCT ON (gf.id)
+              gf.id,
+              gf.name,
+              gf.layer,
+              gf.name_stem,
+              gf.region_id,
+              gf.centroid_lat::float8 AS centroid_lat,
+              gf.centroid_lon::float8 AS centroid_lon,
+              r.iso AS region_iso,
+              gf.geometry
+       FROM geo_feature gf
+       INNER JOIN places p ON p.geo_feature_id = gf.id AND p.is_active = true
+       INNER JOIN place_status_read_model psm ON psm.place_id = p.id AND psm.action = 'raise'
+       LEFT JOIN regions r ON r.id = gf.region_id
+       WHERE gf.layer = ANY($1)
+         AND gf.is_active = true
+         AND gf.geometry IS NOT NULL`,
+      [["district", "city_district"]],
+    )) as Array<{
+      id: string;
+      name: string;
+      layer: string;
+      name_stem: string;
+      region_id: string | null;
+      centroid_lat: number | null;
+      centroid_lon: number | null;
+      region_iso: string | null;
+      geometry: Record<string, unknown>;
+    }>;
+
+    return {
+      type: "FeatureCollection",
+      features: rows.map((row) => ({
+        type: "Feature",
+        id: row.id,
+        properties: {
+          name: row.name,
+          nameStem: row.name_stem,
+          layer: row.layer,
+          regionId: row.region_id,
+          regionIso: row.region_iso,
+          centroidLat: row.centroid_lat,
+          centroidLon: row.centroid_lon,
+        },
+        geometry: row.geometry,
+      })),
+    };
+  }
+
+  /**
+   * Контуры районов и городских округов из geo_feature (layer=district/city_district).
+   * Используется для детализированной подсветки карты.
+   */
+  async getDistrictsGeoJsonLayer(regionId?: string): Promise<{
+    type: "FeatureCollection";
+    features: Array<{
+      type: "Feature";
+      id: string;
+      properties: Record<string, string | number | null>;
+      geometry: Record<string, unknown>;
+    }>;
+  }> {
+    const params: unknown[] = [["district", "city_district"]];
+    const regionFilter = regionId ? `AND gf.region_id = $${params.push(regionId)}` : "";
+
+    const rows = (await this.dataSource.query(
+      `SELECT gf.id,
+              gf.name,
+              gf.layer,
+              gf.name_stem,
+              gf.region_id,
+              gf.centroid_lat::float8 AS centroid_lat,
+              gf.centroid_lon::float8 AS centroid_lon,
+              r.iso AS region_iso,
+              gf.geometry
+       FROM geo_feature gf
+       LEFT JOIN regions r ON r.id = gf.region_id
+       WHERE gf.layer = ANY($1)
+         AND gf.is_active = true
+         AND gf.geometry IS NOT NULL
+         ${regionFilter}
+       ORDER BY r.iso, gf.name`,
+      params,
+    )) as Array<{
+      id: string;
+      name: string;
+      layer: string;
+      name_stem: string;
+      region_id: string | null;
+      centroid_lat: number | null;
+      centroid_lon: number | null;
+      region_iso: string | null;
+      geometry: Record<string, unknown>;
+    }>;
+
+    return {
+      type: "FeatureCollection",
+      features: rows.map((row) => ({
+        type: "Feature",
+        id: row.id,
+        properties: {
+          name: row.name,
+          nameStem: row.name_stem,
+          layer: row.layer,
+          regionId: row.region_id,
+          regionIso: row.region_iso,
+          centroidLat: row.centroid_lat,
+          centroidLon: row.centroid_lon,
+        },
+        geometry: row.geometry,
+      })),
+    };
+  }
 
   /** Полигоны активных регионов (OSM GeoJSON) + stateLevel из region_state_active. */
   async getRegionsGeoJsonLayer(): Promise<RegionsGeoJsonLayer> {
@@ -258,13 +387,10 @@ export class MapQueryService {
     for (const row of rows) {
       const place = row.place;
       if (!place?.region) continue;
-      // Субъект РФ (kind=region) — только контур региона, не точка на карте.
+      // Субъект РФ (kind=region) — только контур, не маркер.
       if (place.kind === "region") continue;
 
       const regionCode = place.region.iso ?? place.region.name;
-      const coords = resolvePlaceMapCentroid({ place });
-      if (!coords) continue;
-
       const rowEventAt = row.statusEventAt;
       const bucket = byPlace.get(place.id) ?? {
         place,
@@ -281,12 +407,36 @@ export class MapQueryService {
       byPlace.set(place.id, bucket);
     }
 
+    // Batch-загрузка centroid из geo_feature для catalog-places (district/city_district),
+    // у которых place.centroid_* не заполнены, но geo_feature.centroid_* есть.
+    const geoFeatureIds = [...new Set(
+      [...byPlace.values()]
+        .map((e) => e.place.geoFeatureId)
+        .filter((id): id is string => id != null),
+    )];
+    const geoFeatureMap = new Map<string, { lat: number; lon: number }>();
+    if (geoFeatureIds.length > 0) {
+      const geoFeatures = await this.dataSource
+        .getRepository(GeoFeatureEntity)
+        .find({ where: { id: In(geoFeatureIds) } });
+      for (const gf of geoFeatures) {
+        const lat = toNumber(gf.centroidLat);
+        const lon = toNumber(gf.centroidLon);
+        if (lat !== undefined && lon !== undefined) {
+          geoFeatureMap.set(gf.id, { lat, lon });
+        }
+      }
+    }
+
     const items: MapPlaceSnapshot[] = [];
     for (const entry of byPlace.values()) {
       const stateLevel = maxStateLevel(entry.statusCodes, levelByStatus);
       if (stateLevel === "grey") continue;
 
-      const coords = resolvePlaceMapCentroid({ place: entry.place });
+      const geoFeatureCentroid = entry.place.geoFeatureId
+        ? geoFeatureMap.get(entry.place.geoFeatureId)
+        : undefined;
+      const coords = resolvePlaceMapCentroid({ place: entry.place, geoFeatureCentroid });
       if (!coords) continue;
 
       items.push({
@@ -296,6 +446,8 @@ export class MapQueryService {
         regionCode: entry.regionCode,
         statusCode: entry.statusCodes[0]!,
         stateLevel,
+        kind: entry.place.kind,
+        geoFeatureId: entry.place.geoFeatureId ?? undefined,
         lat: coords.lat,
         lon: coords.lon,
         updatedAt: entry.updatedAt.toISOString(),

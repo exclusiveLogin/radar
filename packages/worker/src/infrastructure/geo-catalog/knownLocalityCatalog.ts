@@ -29,6 +29,10 @@ export class KnownLocalityCatalog {
     this.anchors = anchors;
   }
 
+  static empty(): KnownLocalityCatalog {
+    return new KnownLocalityCatalog([]);
+  }
+
   static loadFromDictionaries(
     root = path.join(MONOREPO_ROOT, "data", "geo", "dictionaries"),
   ): KnownLocalityCatalog {

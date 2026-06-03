@@ -5,11 +5,11 @@ import type { StateLevel } from "@radar/shared";
  * Доменная семантика уровней — в shared; здесь только визуальное представление.
  */
 export const LEVEL_COLORS: Record<StateLevel, string> = {
-  grey: "#3a3f4b",
+  grey: "#384050",
   green: "#3ba55d",
-  yellow: "#d4b106",
-  orange: "#e8770e",
-  red: "#e23b3b",
+  yellow: "#c8a800",
+  orange: "#d9680a",
+  red: "#d93535",
 };
 
 export const LEVEL_LABELS: Record<StateLevel, string> = {
@@ -124,8 +124,21 @@ export const REGION_MAP_SELECTED_STROKE_WIDTH = 4.5;
 export const REGION_MAP_SELECTED_FILL_OPACITY = 0.5;
 export const REGION_MAP_SELECTION_HALO = "#ffffff";
 
-/** Полупрозрачная заливка региона тем же цветом, что и контур. */
-export const REGION_MAP_FILL_OPACITY = 0.24;
+/**
+ * Полупрозрачная заливка региона (субъект = нижний слой, темнее/тусклее районов).
+ * Районы рисуются выше с большей непрозрачностью → субъект = «подложка», район = «маркер».
+ */
+export const REGION_MAP_FILL_OPACITY = 0.18;
 
 /** Сжатие полигона к центроиду для inset-контура (~0.4%). */
 export const REGION_MAP_INSET_FACTOR = 0.996;
+
+/** Полигон района (district/city_district) — выше региона, насыщеннее. */
+export const DISTRICT_MAP_FILL_OPACITY = 0.35;
+export const DISTRICT_MAP_STROKE_WIDTH = 1.5;
+/** Минимальный zoom для показа полигонов районов (при мелком масштабе слишком мелко). */
+export const DISTRICT_MAP_MIN_ZOOM = 6;
+
+/** Радиус маркера place на карте: точка для district меньше, чтобы не перекрывать полигон. */
+export const PLACE_CIRCLE_RADIUS_DEFAULT = 9;
+export const PLACE_CIRCLE_RADIUS_DISTRICT = 6;

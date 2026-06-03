@@ -59,6 +59,25 @@ export class MapController {
     return await this.map.getRegionsGeoJsonLayer();
   }
 
+  /**
+   * GeoJSON только активных районов: geo_feature с place_status_read_model.action='raise'.
+   * Лёгкий ответ (~единицы объектов) — безопасно вызывать при каждом обновлении places.
+   */
+  @Get("map/districts-active-geojson")
+  async activeDistrictsGeoJson() {
+    return await this.map.getActiveDistrictsGeoJsonLayer();
+  }
+
+  /**
+   * GeoJSON всех районов из geo_feature (layer=district/city_district).
+   * Опционально: ?regionId=<uuid> для фильтрации по субъекту.
+   */
+  @Get("map/districts-geojson")
+  @ApiQuery({ name: "regionId", required: false })
+  async districtsGeoJson(@Query("regionId") regionId?: string) {
+    return await this.map.getDistrictsGeoJsonLayer(regionId);
+  }
+
   @Get("regions/:id/geometry")
   async regionGeometry(@Param("id") id: string) {
     const geometry = await this.map.getRegionGeometry(id);

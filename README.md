@@ -245,6 +245,7 @@ ADR: [docs/adr-003-phase-enrichment-accumulator.md](./docs/adr-003-phase-enrichm
 
 - **Монорепозиторий:** npm workspaces — `packages/api`, `packages/worker`, `packages/web`, **`packages/shared`** (общие Zod-схемы и типы)
 - **API:** NestJS, TypeORM, PostgreSQL, Swagger UI по адресу `/api/docs`
+- **Adminer:** в Docker, см. [docker/adminer/README.md](docker/adminer/README.md) (порт по умолчанию **8080**)
 - **pgAdmin:** в Docker, см. [docker/pgadmin/README.md](docker/pgadmin/README.md) (порт по умолчанию **5050**)
 - **Worker:** GramJS (user MTProto), сессия в корне репозитория (см. ниже)
 - **Web:** Vite + React; прокси **`/api`** и **`/ws`** → `http://127.0.0.1:3000`
@@ -295,6 +296,7 @@ npm run dev:app
 | [http://127.0.0.1:3000/api/docs](http://127.0.0.1:3000/api/docs) | Swagger |
 | [http://127.0.0.1:5173](http://127.0.0.1:5173) | OSINT-дашборд (geo + KPI + feed) |
 | [http://127.0.0.1:3000/api/worker/status](http://127.0.0.1:3000/api/worker/status) | probe worker (если поднят) |
+| [http://127.0.0.1:8080](http://127.0.0.1:8080) | Adminer (PostgreSQL) |
 | [http://127.0.0.1:5050](http://127.0.0.1:5050) | pgAdmin |
 
 Проверка карты (PowerShell):
@@ -451,7 +453,7 @@ npm run migration:run
 | `npm run worker:ingest:backfill -- --all-bindings --batch-size=100` | backfill по всем enabled каналам (CLI chunk) |
 | `npm run bot:dev` | запуск HLD-каркаса admin-bot |
 | `npm run start:api` | прод: `node dist/main.js` у API (**нужен** предварительный `npm run build`) |
-| `npm run db:up`   | `docker compose up -d` (Postgres + **pgAdmin**) |
+| `npm run db:up`   | `docker compose up -d` (Postgres + **Adminer** + **pgAdmin**) |
 | `npm run db:down` | `docker compose down`               |
 | `docker compose --profile llm up -d` | поднять `ollama` вместе с базовыми сервисами |
 | `docker compose --profile llm-ui up -d` | поднять `ollama` + `open-webui` для чат-интерфейса |

@@ -61,6 +61,10 @@ export const mapPlaceSnapshotSchema = z.object({
   regionCode: z.string().min(1),
   statusCode: z.string().min(1),
   stateLevel: stateLevelSchema,
+  /** kind place: district/city_district/city/locality/settlement — для визуального ранжирования. */
+  kind: z.string().optional(),
+  /** FK geo_feature: если есть — фронт может запросить/показать полигон района. */
+  geoFeatureId: z.string().uuid().optional(),
   lat: z.number().finite(),
   lon: z.number().finite(),
   updatedAt: z.string().datetime(),

@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { Badge, EllipsisText, Panel, Tip } from "../../shared/ds";
-import { useObservable } from "../../shared/hooks/useObservable";
+import { useBehaviorSubject } from "../../shared/hooks/useBehaviorSubject";
 import { topRegionsByActivity } from "../../shared/state/derivations";
 import { regionsByCode$ } from "../../shared/state/mapStore";
 import { selectRegion } from "../../shared/state/selectionStore";
@@ -8,7 +8,7 @@ import type { WidgetProps } from "../widgetProps";
 
 /** Топ регионов по activity (trending-список). */
 export function TopActivityWidget({ defaultCollapsed = false }: WidgetProps) {
-  const regions = useObservable(regionsByCode$, new Map());
+  const regions = useBehaviorSubject(regionsByCode$);
 
   const top = useMemo(() => topRegionsByActivity(regions, 10), [regions]);
 

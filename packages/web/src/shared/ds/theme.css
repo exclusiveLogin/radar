@@ -1,57 +1,57 @@
 /* ── Токены: тёмная тема (по умолчанию) ── */
 :root,
 [data-theme="dark"] {
-  --bg: #0a0e14;
-  --bg-panel: rgba(16, 22, 32, 0.82);
-  --bg-elev: rgba(24, 32, 48, 0.9);
-  --bg-glass: rgba(12, 18, 28, 0.72);
-  --border: rgba(249, 115, 22, 0.22);
-  --border-strong: rgba(251, 146, 60, 0.42);
-  --text: #ece6df;
-  --text-muted: #8a8278;
-  --accent: #f97316;
-  --accent-dim: rgba(249, 115, 22, 0.16);
-  --accent-glow: rgba(251, 146, 60, 0.45);
-  --header-bg: linear-gradient(135deg, rgba(14, 10, 8, 0.96) 0%, rgba(28, 18, 12, 0.94) 100%);
-  --shadow-panel: 0 4px 24px rgba(0, 0, 0, 0.45), 0 0 1px rgba(249, 115, 22, 0.25);
+  --bg: #090d13;
+  --bg-panel: rgba(12, 18, 28, 0.86);
+  --bg-elev: rgba(18, 26, 40, 0.93);
+  --bg-glass: rgba(8, 14, 22, 0.76);
+  --border: rgba(80, 130, 165, 0.20);
+  --border-strong: rgba(100, 158, 195, 0.38);
+  --text: #ccd8e2;
+  --text-muted: #5a7585;
+  --accent: #6aacca;
+  --accent-dim: rgba(106, 172, 202, 0.13);
+  --accent-glow: rgba(106, 172, 202, 0.32);
+  --header-bg: linear-gradient(135deg, rgba(6, 10, 16, 0.97) 0%, rgba(10, 16, 26, 0.95) 100%);
+  --shadow-panel: 0 4px 24px rgba(0, 0, 0, 0.58), 0 0 1px rgba(106, 172, 202, 0.15);
   --live-dot: #00e676;
   --status-ok: #00e676;
   --status-warn: #ffab00;
   --status-error: #ff5252;
-  --radius: 8px;
-  --radius-sm: 4px;
+  --radius: 0px;
+  --radius-sm: 0px;
   --gap: 10px;
   --rail-width: 320px;
   --header-height: 52px;
   --scrollbar-size: 6px;
   --scrollbar-track: transparent;
-  --scrollbar-thumb: rgba(249, 115, 22, 0.28);
-  --scrollbar-thumb-hover: rgba(251, 146, 60, 0.5);
+  --scrollbar-thumb: rgba(106, 172, 202, 0.22);
+  --scrollbar-thumb-hover: rgba(106, 172, 202, 0.42);
 }
 
 /* ── Светлая тема ── */
 [data-theme="light"] {
-  --bg: #eef1f6;
-  --bg-panel: rgba(255, 255, 255, 0.88);
-  --bg-elev: rgba(245, 247, 250, 0.95);
-  --bg-glass: rgba(255, 255, 255, 0.78);
-  --border: rgba(194, 88, 18, 0.22);
-  --border-strong: rgba(194, 88, 18, 0.38);
-  --text: #1f1814;
-  --text-muted: #6b5d52;
-  --accent: #ea580c;
-  --accent-dim: rgba(234, 88, 12, 0.12);
-  --accent-glow: rgba(234, 88, 12, 0.28);
-  --header-bg: linear-gradient(135deg, rgba(252, 246, 240, 0.98) 0%, rgba(245, 232, 220, 0.96) 100%);
-  --shadow-panel: 0 4px 20px rgba(0, 0, 0, 0.08), 0 0 1px rgba(194, 88, 18, 0.18);
+  --bg: #edf2f6;
+  --bg-panel: rgba(255, 255, 255, 0.90);
+  --bg-elev: rgba(240, 245, 250, 0.96);
+  --bg-glass: rgba(255, 255, 255, 0.80);
+  --border: rgba(58, 110, 150, 0.22);
+  --border-strong: rgba(42, 96, 138, 0.38);
+  --text: #182330;
+  --text-muted: #547080;
+  --accent: #2d7aaa;
+  --accent-dim: rgba(45, 122, 170, 0.12);
+  --accent-glow: rgba(45, 122, 170, 0.26);
+  --header-bg: linear-gradient(135deg, rgba(238, 244, 250, 0.98) 0%, rgba(224, 235, 245, 0.96) 100%);
+  --shadow-panel: 0 4px 20px rgba(0, 0, 0, 0.09), 0 0 1px rgba(42, 96, 138, 0.16);
   --live-dot: #2e7d32;
   --status-ok: #2e7d32;
   --status-warn: #f57c00;
   --status-error: #d32f2f;
   --scrollbar-size: 6px;
   --scrollbar-track: transparent;
-  --scrollbar-thumb: rgba(194, 88, 18, 0.3);
-  --scrollbar-thumb-hover: rgba(234, 88, 12, 0.5);
+  --scrollbar-thumb: rgba(42, 96, 138, 0.28);
+  --scrollbar-thumb-hover: rgba(42, 96, 138, 0.48);
 }
 
 * {
@@ -108,7 +108,7 @@ body {
 .ds-message-feed::-webkit-scrollbar-thumb,
 .ds-accordion::-webkit-scrollbar-thumb {
   background: var(--scrollbar-thumb);
-  border-radius: 999px;
+  border-radius: 2px;
 }
 
 .shell__rail::-webkit-scrollbar-thumb:hover,
@@ -200,9 +200,9 @@ body {
   align-items: center;
   gap: 4px;
   padding: 2px 8px;
-  border-radius: 999px;
+  border-radius: 2px;
   font-size: 11px;
-  color: #0a0e14;
+  color: #080d14;
   font-weight: 600;
   white-space: nowrap;
 }
@@ -231,9 +231,9 @@ body {
 
 .ds-region-chip {
   border: 1px solid var(--border);
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.05);
   color: var(--text);
-  border-radius: 6px;
+  border-radius: 2px;
   padding: 1px 6px;
   font-size: 10px;
   font-weight: 600;
@@ -248,8 +248,8 @@ body {
 }
 
 .ds-region-chip--selected {
-  border-color: #fff;
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.35);
+  border-color: rgba(200, 220, 235, 0.7);
+  box-shadow: 0 0 0 1px rgba(200, 220, 235, 0.28);
 }
 
 .ds-region-chips--inline {
@@ -436,7 +436,7 @@ body {
   gap: 6px;
   padding: 3px 10px;
   border: 1px solid var(--live-dot);
-  border-radius: 999px;
+  border-radius: 2px;
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.12em;
@@ -724,7 +724,7 @@ body {
 /* ── Прогресс-бар backfill ── */
 .ds-progress {
   height: 6px;
-  border-radius: 999px;
+  border-radius: 0;
   background: var(--accent-dim);
   overflow: hidden;
 }
@@ -826,15 +826,28 @@ body {
   flex-direction: column;
   height: 100%;
   background: var(--bg);
-  --bg: #0c0a09;
-  --bg-panel: rgba(20, 14, 10, 0.88);
-  --bg-elev: rgba(32, 22, 16, 0.92);
+  font-size: 14px;
+  --bg: #080c12;
+  --bg-panel: rgba(12, 18, 28, 0.90);
+  --bg-elev: rgba(16, 24, 36, 0.94);
 }
 
 [data-theme="light"] .admin-shell {
-  --bg: #f7f2eb;
-  --bg-panel: rgba(255, 252, 248, 0.92);
-  --bg-elev: rgba(255, 245, 235, 0.96);
+  --bg: #eef3f8;
+  --bg-panel: rgba(255, 255, 255, 0.92);
+  --bg-elev: rgba(240, 247, 253, 0.96);
+}
+
+.admin-shell .ds-metric-row {
+  font-size: 13px;
+}
+
+.admin-shell .ds-log-list {
+  font-size: 12px;
+}
+
+.admin-shell .ds-log-list__status {
+  font-size: 10px;
 }
 
 .admin-shell__header {
@@ -847,7 +860,7 @@ body {
   padding: 0 16px;
   background: var(--header-bg);
   border-bottom: 1px solid var(--border-strong);
-  box-shadow: 0 2px 16px rgba(249, 115, 22, 0.08);
+  box-shadow: 0 2px 16px rgba(106, 172, 202, 0.07);
 }
 
 .admin-shell__nav {
@@ -876,7 +889,7 @@ body {
 .admin-shell__nav a {
   color: var(--text-muted);
   text-decoration: none;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.06em;
@@ -908,7 +921,7 @@ body {
 
 .admin-section__title {
   margin: 0;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.14em;

@@ -1,154 +1,222 @@
-# Шпаргалка: dev, очереди, reparse, сброс
+# Шпаргалка: команды radar
 
-Кратко, без теории. PowerShell, корень репо. Нужны `DATABASE_URL`, `RADAR_STORAGE_MODE=db`, Postgres.
-
-Полный справочник: [cheatsheet.md](./cheatsheet.md) · фазы: [phase-pipeline.md](./phase-pipeline.md)
+PowerShell, корень репо. Нужны `DATABASE_URL`, `RADAR_STORAGE_MODE=db`, запущенный Postgres.
 
 ---
 
-## Запуск
+## Запуск dev-стека
 
-| Что | Команда |
-|-----|---------|
-| Всё (api + web + worker) | `npm run dev` |
-| Без worker | `npm run dev:app` |
-| Проверка API | `Invoke-WebRequest http://127.0.0.1:3000/api/ready -UseBasicParsing` → 200 |
+```
+npm run dev          # shared + api + web + worker (полный)
+npm run dev:app      # только shared + api + web (без worker)
+```
 
-**Первый старт `dev`:** 1–2 мин (сборка). Worker стартует **после** `/api/ready`.  
-**Ошибка worker «API dist не найден»** — api ещё не собрался; перезапусти `npm run dev` или сначала `npm run build -w @radar/api`.
-
-**Шум в логе web:** `ws proxy ECONNRESET` / `ECONNABORTED` — обрыв WebSocket, обычно не ломает UI.
+- Первый старт: **~40–90 с** (predev собирает все пакеты)
+- Worker стартует после `/api/ready` — не закрывай терминал раньше
+- Ошибка «API dist не найден»: api ещё не собрался; перезапусти `npm run dev`
 
 | URL | |
 |-----|---|
 | UI | http://localhost:5173 |
 | API | http://127.0.0.1:3000 |
+| Worker probe | http://127.0.0.1:3010/status |
 
 ---
 
-## Очереди — как устроено (30 секунд)
+## Пайплайн данных
 
 ```
-raw_messages  →  phase_coverage (raw + phase_id + status)  →  парс  →  parsed_events
-places        →  place_enrichment_jobs (place + provider)     →  geo   →  places.evidence_providers
+[Telegram / backfill]
+        │
+        ▼
+  raw_messages          ← ingest (каналы)
+        │
+        ▼
+  phase_coverage        ← очередь ingest-parse
+        │
+        ▼
+  parsed_events         ← parse (catalog eager + llm + dadata)
+  event_locations
+        │
+        ▼
+  place_enrichment_jobs ← geo (обогащение координат)
+        │
+        ▼
+  places.centroid_*     ← geo-обогащённые места
+  region_status_read_model
+  place_status_read_model  ← read-model карты
 ```
 
-| Таблица | Одна строка = |
-|---------|----------------|
-| `phase_coverage` | «сообщение X в фазе catalog/llm/…» (`pending` → `done`) |
-| `phase_runs` | журнал одного прогона фазы (не очередь сообщений) |
-| `place_enrichment_jobs` | «место Y обогатить dadata/llm» (не привязано к raw) |
+**Geo-каталог (структурные данные, не runtime):**
 
-На **одно raw** — **несколько** строк `phase_coverage` (по числу включённых ingest-фаз).
+```
+data/geo/catalog/regions.json  →  regions + places(kind=region)
+data/geo/artifacts/...GeoJSON  →  geo_feature + places(kind=district/...)
+```
 
 ---
 
-## Перепарсить все raw
+## Таблица ключевых команд
 
-**Worker/dev лучше остановить** (отдельный CLI поднимет свой процесс).
+### Запуск и сборка
 
-| Задача | Команда |
-|--------|---------|
-| Перепарсить все raw (catalog eager + очередь llm; dadata — geo) | `npm run parse-engine:rebuild` |
-| То же + сразу прогнать scheduled ingest + geo | `npm run parse-engine:rebuild:drain` |
-| Манифест фаз + первый прогон | `npm run parse-engine:init` |
-| Догнать очереди (worker должен крутиться или drain) | `npm run parse-engine:drain` |
-| Одна фаза | `npm run parse-engine:phase:run -- --phase=llm --batch=100` |
+| Команда | Что делает |
+|---------|-----------|
+| `npm run dev` | Полный dev: shared+api+web+worker |
+| `npm run dev:app` | Без worker |
+| `npm run build` | Собрать все пакеты |
+| `npm run migration:run` | Применить новые миграции БД |
+| `npm run up` | `docker compose up -d` + `dev:app` |
+| `npm run cold:up` | Поднять docker + применить миграции + `dev:app` |
 
-После `rebuild` без `:drain` — scheduled догоняет **worker** (`IngestParseDaemon`) или `npm run parse-engine:ingest:drain`.
+### Ingest — загрузка raw-сообщений
+
+| Команда | Что делает |
+|---------|-----------|
+| `npm run ingest:run -- --channels=<key>` | backfill канала (грузит старые сообщения) |
+| `npm run ingest:wipe` | Удалить raw + parsed + evloc + очереди + read-model. **Places/regions не трогает** |
+| `npm run ingest:reset` | noop (нечего сбрасывать) |
+
+### Parse — разбор сообщений → события
+
+| Команда | Что делает |
+|---------|-----------|
+| `npm run parse:run` | Перепарсить все raw (rebuild + drain) |
+| `npm run parse:wipe [-- --dry-run]` | Удалить parsed_events + evloc + read-model. **Raw остаётся** |
+| `npm run parse:reset` | noop |
+| `npm run parse-engine:rebuild` | Заново заполнить phase_coverage по всем raw (без drain) |
+| `npm run parse-engine:drain` | Догнать очереди (нужен worker) |
+| `npm run parse-engine:rebuild:drain` | rebuild + drain за один раз |
+| `npm run parse-engine:status` | Статус фаз (enabled/disabled, backlog) |
+| `npm run parse-engine:queue:ingest` | Очередь ingest-parse (pending/failed) |
+| `npm run parse-engine:queue:geo` | Очередь geo (pending/failed) |
+
+### Geo-каталог — структурные данные (регионы, контуры)
+
+| Команда | Что делает |
+|---------|-----------|
+| `npm run geo:init` | Полная инициализация с нуля: regions:seed → vendor → sync → seed → features:import |
+| `npm run geo:regions:seed` | Записать регионы из `data/geo/catalog/regions.json` → `regions` + `places(kind=region)` |
+| `npm run geo:features:import` | OSM GeoJSON → `geo_feature` + catalog `places` (district/city_district) + `place_geo_link` |
+| `npm run geo:vendor` | Скачать/клонировать OSM GeoJSON (data/geo/vendor) |
+| `npm run geo:sync` | Синхронизировать артефакты из vendor в data/geo/artifacts |
+| `npm run geo:seed` | Записать реестр `geo_dataset_file` (трекинг импорта) |
+| `npm run geo:update` | Обновить vendor + пересинк + re-import features |
+| `npm run vendor:wipe` | Удалить data/geo/artifacts + data/geo/vendor (диск, не БД) |
+| `npm run vendor:run` | `geo:vendor` + `geo:sync` |
+
+### Geo-обогащение мест (координаты)
+
+| Команда | Что делает |
+|---------|-----------|
+| `npm run geo:run` | `geo:regions:seed` + `geo:features:import` |
+| `npm run geo:reset [-- --dry-run]` | Обнулить centroid/bbox/trust у places; очистить jobs/evidence |
+| `npm run geo:wipe [-- --dry-run]` | Удалить все places + aliases. **geo_feature/regions остаются** |
+| `npm run geo-catalog:wipe [-- --dry-run]` | Удалить regions + geo_feature + place_geo_link |
+| `npm run parse-engine:geo:drain` | Прогнать geo-обогащение сейчас |
+| `npm run parse-engine:geo:check` | Проверить состояние geo-очереди |
+| `npm run parse-engine:geo:recover` | Разблокировать зависшие geo-jobs (processing → pending) |
+
+### Составные wipe-операции
+
+| Команда | Что удаляет |
+|---------|------------|
+| `npm run ingest-parse:wipe [-- --dry-run]` | raw + parsed + evloc + очереди + read-model |
+| `npm run vendor-ingest-parse-geo:wipe [-- --dry-run]` | всё выше + places + geo_feature + regions |
+| `npm run system:reset -- --confirm` | vendor:wipe + vendor-ingest-parse-geo:wipe + geo:init |
+| `npm run system:reset -- --confirm --wipe-only` | только wipe, без geo:init |
+
+### Очистить только очереди (без удаления данных)
+
+| Команда | Что очищает |
+|---------|------------|
+| `npm run phase:ingest:clear [-- --dry-run]` | `phase_coverage` + cancel phase_runs (ingest) |
+| `npm run phase:geo:clear [-- --dry-run]` | `place_enrichment_jobs` + cancel phase_runs (geo) |
+| `npm run phase:all:clear [-- --dry-run]` | обе очереди |
+
+### Отладка parse
+
+| Команда | Что делает |
+|---------|-----------|
+| `npm run worker:parse:snap -- "<текст>"` | Разобрать одно сообщение (catalog + llm) |
+| `npm run worker:parse:snap:ollama -- "<текст>"` | То же, только через ollama |
+| `npm run worker:parse:report -- --limit=20` | Последние разборы с решениями |
+| `npm run parse-engine:catalog:heal` | Heal catalog places (обогатить через dadata) |
+
+### Ingest manifest / backfill
+
+| Команда | Что делает |
+|---------|-----------|
+| `npm run ingest:manifest:import` | Загрузить каналы из файла в БД |
+| `npm run ingest:manifest:export` | Экспортировать каналы в файл |
 
 ---
 
-## Отменить всё запланированное (очереди)
+## Что никогда не удаляется wipe-командами
 
-**Сначала:** `Ctrl+C` на `npm run dev` (иначе daemon снова накидает `pending`).
+`channels`, `ingest_providers`, `ingest_bindings`, `phase_definitions`, `.env`, Telegram session
 
-| Задача | Команда |
-|--------|---------|
-| Снять ingest + geo очереди + cancel runs | `npm run parse-engine:phase:stop` |
-| То же из UI | админка **«Стоп всё»** |
-| Не крутить фазы снова | админка **ВЫКЛ** у llm / geo-dadata |
+---
 
-Geo (если без админки):
+## Семантика wipe / reset / clear
 
-```sql
-DELETE FROM place_enrichment_jobs WHERE status IN ('pending', 'processing');
+```
+wipe  — удалить весь контент фазы (до чистого состояния)
+reset — снять только обогащение (координаты, trust, jobs), строки остаются
+clear — только очереди (phase_coverage / place_enrichment_jobs), cancel runs
+run   — раскатить фазу заново (без удаления)
 ```
 
-Проверка:
+Все мутирующие команды поддерживают **`-- --dry-run`** — покажут что будет удалено.
+
+---
+
+## Сценарии
+
+### Полный сброс и накатка гео
 
 ```powershell
-npm run parse-engine:status
-npm run parse-engine:queue:ingest
-npm run parse-engine:queue:geo
+# Остановить dev (Ctrl+C)
+npm run system:reset -- --confirm
+# После: опционально перепарсить raw
+npm run parse:run
 ```
 
----
-
-## Удалить всё кроме raw
-
-| Задача | Команда |
-|--------|---------|
-| Сброс parse + карта + очереди, **raw остаётся** | `npm run parse-engine:reset -- --no-catch-up` |
-| Только снять pending (результаты parse остаются) | `npm run parse-engine:phase:stop` |
-
-**`reset` не трогает:** `raw_messages`, channels/providers, справочник `places`/`regions`, `phase_definitions`.
-
-**Может остаться после reset:** `place_enrichment_jobs`, `event_evidence`, `domain_events` — при необходимости:
-
-```sql
-DELETE FROM place_enrichment_jobs;
-DELETE FROM event_evidence;
-DELETE FROM domain_events;
-```
-
-| ⚠️ Не путать | |
-|--------------|---|
-| `parse-engine:clear` | удаляет **и raw тоже** |
-| `parse-engine:clear:raw` | удаляет **только** raw |
-
----
-
-## Типовой сценарий «обнулить и заново»
+### Перепарсить все raw без сброса гео-каталога
 
 ```powershell
-# 1. dev остановлен
-npm run parse-engine:phase:stop
-npm run parse-engine:reset -- --no-catch-up
+# Остановить worker если крутится
+npm run parse:wipe
+npm run parse:run
+```
 
-# 2. опционально geo/SQL выше
+### Обновить гео-данные (новые границы районов)
 
-# 3. перепарс
-npm run parse-engine:rebuild
-# или всё под ключ:
-npm run parse-engine:rebuild:drain
+```powershell
+npm run geo:update          # vendor → sync → re-import features
+```
 
-# 4. dev снова
+### Сбросить только очереди (не удалять данные)
+
+```powershell
+npm run phase:all:clear -- --dry-run   # проверить
+npm run phase:all:clear
+```
+
+### Накатить миграции после pull
+
+```powershell
+npm run migration:run
 npm run dev
 ```
 
 ---
 
-## Админка (фазы)
-
-| Кнопка | Эффект |
-|--------|--------|
-| **ВЫКЛ** | `enabled=false` + **снос очереди** этой фазы (geo jobs / coverage) |
-| **Сброс оч.** | только очередь фазы + cancel её runs |
-| **Стоп всё** | всё ingest + всё geo (кнопка активна при backlog, не только runs) |
-| **Run** | catch-up + drain (**нужен worker**) |
-
-Geo-демон **не создаёт** `phase_runs` — Cancel у run бесполезен, пока демон жрёт очередь; для geo — **Сброс оч.** / **ВЫКЛ** / **Стоп всё**.
-
----
-
-## Env (минимум parse-engine)
+## Env (минимум)
 
 ```env
 DATABASE_URL=postgresql://radar:radar@127.0.0.1:5432/radar
 RADAR_STORAGE_MODE=db
 ```
 
-Опционально: `DADATA_TOKEN`, Telegram `TELEGRAM_API_ID` / `HASH`, Ollama для LLM.
-
-**Лог geo-dadata в worker:** после каждого батча `GeoParse[geo-dadata] provider=dadata claimed=… ok=… failed=…`. Подробно по местам: `RADAR_VERBOSE_GEO_LOG=1` (ingest dadata виден в `parse:snap` / `EnricherInvoked`, geo — отдельный контур).
+Опционально: `DADATA_TOKEN`, `TELEGRAM_API_ID` / `TELEGRAM_API_HASH`, Ollama для LLM, `RADAR_VERBOSE_GEO_LOG=1` (подробный лог geo в worker).

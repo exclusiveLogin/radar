@@ -96,7 +96,47 @@ export class RegionCatalog {
   private constructor(entries: RegionCatalogEntry[]) {
     this.entries = entries;
   }
-static loadFromCsv(csvPath: string): RegionCatalog {
+
+  /** Пустой каталог для maintenance CLI без артефактов на диске. */
+  static empty(): RegionCatalog {
+    return new RegionCatalog([]);
+  }
+
+  /** SSOT регионов: data/geo/catalog/regions.json (после выпила hflabs). */
+  static loadFromCatalogJson(jsonPath: string): RegionCatalog {
+    const source = fs.readFileSync(jsonPath, "utf8").replace(/^\uFEFF/, "");
+    const rows = JSON.parse(source) as Array<{
+      iso?: string;
+      name?: string;
+      nameWithType?: string;
+      shortName?: string;
+      federalDistrict?: string;
+      fiasId?: string | null;
+    }>;
+
+    const entries: RegionCatalogEntry[] = rows
+      .filter((row) => row.iso && row.name)
+      .map((row) => {
+        const fullName = row.nameWithType?.trim() || row.name!.trim();
+        const aliases = new Set(buildAliases(row.name!, row.nameWithType));
+        if (row.shortName) {
+          for (const a of buildAliases(row.shortName, undefined)) {
+            aliases.add(a);
+          }
+        }
+        return {
+          code: row.iso!,
+          name: fullName,
+          fiasId: row.fiasId ?? undefined,
+          federalDistrict: row.federalDistrict,
+          aliases: [...aliases],
+        };
+      });
+
+    return new RegionCatalog(entries);
+  }
+
+  static loadFromCsv(csvPath: string): RegionCatalog {
     const source = fs.readFileSync(csvPath, "utf8");
     const lines = source.split(/\r?\n/).filter(Boolean);
     const rows = lines.slice(1);

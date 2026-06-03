@@ -32,7 +32,7 @@ flowchart LR
 | **Web** | `web:dev` / `dev` | UI |
 | **Worker** | `worker:dev` / `dev` | Ingest + parse + outbox relay (в db mode) |
 
-Опционально: **Ollama** (`docker compose --profile llm`), **pgAdmin** (:5050).
+Опционально: **Ollama** (`docker compose --profile llm`), **Adminer** (:8080), **pgAdmin** (:5050).
 
 ---
 
@@ -58,7 +58,7 @@ Copy-Item .env.example .env
 npm run cold:up
 ```
 
-`cold:up`: Docker (Postgres + pgAdmin), `npm install`, build shared, **миграции**.
+`cold:up`: Docker (Postgres + Adminer + pgAdmin), `npm install`, build shared, **миграции**.
 
 Опции cold:up: `-Geo` (geo pipeline), `-Dev` (сразу dev-серверы), `-Llm`, `-LlmUi` — см. [README § Быстрый старт](../README.md#быстрый-старт-windows).
 
@@ -84,6 +84,7 @@ npm run dev
 | http://127.0.0.1:3000/api/ready | БД доступна |
 | http://127.0.0.1:3000/api/docs | Swagger |
 | http://127.0.0.1:5173 | OSINT-дашборд (geo, KPI, ленты; правый рейл свёрнут по умолчанию) |
+| http://127.0.0.1:8080 | Adminer (PostgreSQL, сервер `db`, учётка из `POSTGRES_*`) |
 | http://127.0.0.1:5050 | pgAdmin (логин из `.env`) |
 | `GET /api/map/snapshot` | Снапшот карты (регионы + places) |
 | `WS /ws` | Realtime: snapshot + `region-state` / `place-state` |
@@ -204,13 +205,30 @@ BackfillDaemon (отдельно от Orchestrator) → streamHistory → тот
 
 ## Geo (опционально, для качества мест)
 
-Если нужны актуальные справочники регионов в БД:
+Если нужны регионы в БД и структурная геометрия (карта районов):
 
 ```powershell
 npm run cold:up -- -Geo
 ```
 
-или вручную: `geo:vendor` → `geo:sync` → `geo:seed` → `geo:db:apply` — [data/geo/README.md](../data/geo/README.md).
+**Чистый лист:** [phase-commands.md](./phase-commands.md) — `npm run system:reset -- --confirm`
+
+или вручную:
+
+```powershell
+npm run geo:regions:seed    # → regions + place(kind=region) из catalog/regions.json
+npm run geo:vendor          # → скачать OSM GeoJSON
+npm run geo:sync            # → geo_dataset_file
+npm run geo:seed            # → geo_dataset_file manifest
+npm run geo:features:import # → geo_feature + catalog place(kind=district) + place_geo_link
+```
+
+Геокаталог:
+- `data/geo/catalog/regions.json` — 89 субъектов РФ (SSOT).
+- `geo:features:import` заполняет `geo_feature` (районы/субъекты OSM) и создаёт catalog-places для parse-матча.
+- `GET /api/map/districts-geojson` — новый endpoint для GeoJSON районов.
+
+Подробности архитектуры: [adr-005-geo-feature-layer.md](./adr-005-geo-feature-layer.md).
 
 ---
 
@@ -223,6 +241,8 @@ npm run cold:up -- -Geo
 | `npm run dev` | Без Docker: shared + API + web + worker (`dev-stack --full`) |
 | `npm run dev:app` | Без Docker и без worker (только UI + API) |
 | `npm run migration:run` | Миграции TypeORM |
+| `npm run system:reset -- --confirm` | vendor + full wipe БД + `vendor:run` + `geo:run` |
+| `npm run ingest:wipe -- --dry-run` | План сноса raw+parsed (см. phase-commands.md) |
 | `npm run worker:parse:report -- --input tests` | Оффлайн-тест парсера без Telegram |
 | `npm run worker:ingest:backfill -- --all-bindings --batch-size=100` | Backfill всех каналов (CLI chunk) |
 | `npm run build` | Production build всех пакетов |

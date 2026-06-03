@@ -21,12 +21,23 @@
 - Ключевые поля: `fias_id`, `kladr_id`, `iso`, `name`, `name_with_type`, `federal_district`, `front_region`, `border_region`, `source_meta`, `last_source_revision`.
 - Геометрия хранится не в БД-полигоне, а как ссылка `geometry_artifact_key` -> `geo_dataset_file.artifact_key`.
 
+### `geo_feature` (структурная геометрия OSM, **новое после ADR-005**)
+
+- Назначение: контуры субъектов, районов, городских округов, ФО из OSM.
+- Ключевые поля: `layer` (subject|district|city_district|federal_district), `region_id`, `name`, `name_stem`, `geometry` (jsonb), `bbox`, `centroid_lat/lon`.
+- Создаётся `geo:features:import`, используется картой и parse-матчем.
+- **Не путать с `places`:** `geo_feature` — чистая геометрия; `places` — операционная сущность с trust.
+
+### `place_geo_link` (субъект ↔ гео-контур, **новое после ADR-005**)
+
+- Связывает `place(kind=region)` с `geo_feature(layer=subject)`.
+- Поля: `place_id`, `geo_feature_id`, `role` (boundary), `priority` (0=основные, 10=front-regions).
+
 ### `places` (географические места внутри региона)
 
 - Назначение: города/районы/локалитеты (`kind`).
-- Ключевые поля: `region_id`, `kind`, `name`, `name_with_type`, `name_normalized`, `fias_id`, `kladr_id`, `oktmo`, `parent_place_id`, `source_meta`, `last_source_revision`.
+- Ключевые поля: `region_id`, `kind`, `name`, `name_with_type`, `name_normalized`, `name_stem` (**новое**), `geo_feature_id` (**новое**), `fias_id`, `kladr_id`, `oktmo`, `parent_place_id`, `source_meta`, `last_source_revision`.
 - Поля trust/provenance: `trust_state`, `is_trusted`, `trust_score`, `trust_updated_at`, `evidence_providers`.
-- Геометрия также хранится ссылкой через `geometry_artifact_key` -> `geo_dataset_file.artifact_key`.
 - Важно: `place` в проекте = "место" (город, район, населенный пункт и т.п.).
 
 ### `place_evidence` (история подтверждений place)
@@ -51,15 +62,17 @@
 
 ## 1) Инвентарь источников
 
-1. `hflabs-region`
-   - Форматы: `region.csv`, `region.csv-metadata.json`
-   - Роль: канонический справочник регионов с FIAS/KLADR/ISO.
+> **Актуально (после ADR-005):** hflabs и rnekrasov удалены. Источник один — OSM.
+
+1. `data/geo/catalog/regions.json` (**SSOT идентичности**)
+   - 89 субъектов РФ: `iso`, `name`, `nameWithType`, `fiasId`, `kladrId`, `frontRegion`, `borderRegion`.
+   - Засевается командой `geo:regions:seed` → `regions` + `place(kind=region)`.
 2. `Russia_geojson_OSM`
-   - Форматы: GeoJSON (95 файлов)
-   - Роль: геометрия + названия регионов/районов/городов.
-3. `rnekrasov-geojson`
-   - Форматы: GeoJSON + JSON (8 файлов)
-   - Роль: широкое покрытие `admin_level`, rich OSM-теги, альтернативный источник субъектов.
+   - Форматы: GeoJSON
+   - Роль: структурная геометрия субъектов, районов, городов, ФО → `geo_feature`.
+   - Засевается командой `geo:features:import` → `geo_feature` + catalog places + `place_geo_link`.
+
+> Устаревшие (удалены): `hflabs-region`, `rnekrasov-geojson`.
 
 ---
 

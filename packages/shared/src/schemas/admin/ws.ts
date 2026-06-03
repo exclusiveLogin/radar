@@ -11,11 +11,14 @@ import { z } from "zod";
 import { workerStatusResponseSchema } from "../worker-status";
 import { backfillJobListItemSchema } from "./backfill";
 import { parseAttemptItemSchema } from "./parse-attempt";
+import { phaseRunsOverviewSchema } from "../enrichment/phase-admin";
+import { phaseRunSchema } from "../enrichment/phase-run";
 
 export const adminWsChannelSchema = z.enum([
   "worker-status",
   "parse-log",
   "backfill-progress",
+  "phases-update",
 ]);
 
 /** Сообщение клиента: подписка/отписка на набор каналов админки. */
@@ -24,11 +27,19 @@ export const adminWsClientMessageSchema = z.object({
   channels: z.array(adminWsChannelSchema).min(1),
 });
 
+/** Payload phases-update: текущий overview + последние runs. */
+export const phasesUpdatePayloadSchema = z.object({
+  overview: phaseRunsOverviewSchema,
+  runs: z.array(phaseRunSchema),
+});
+export type PhasesUpdatePayload = z.infer<typeof phasesUpdatePayloadSchema>;
+
 /** Сообщения сервера админ-WS (discriminated union по `type`). */
 export const adminWsServerMessageSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("worker-status"), payload: workerStatusResponseSchema }),
   z.object({ type: z.literal("parse-log"), payload: parseAttemptItemSchema }),
   z.object({ type: z.literal("backfill-progress"), payload: backfillJobListItemSchema }),
+  z.object({ type: z.literal("phases-update"), payload: phasesUpdatePayloadSchema }),
 ]);
 
 export type AdminWsChannel = z.infer<typeof adminWsChannelSchema>;

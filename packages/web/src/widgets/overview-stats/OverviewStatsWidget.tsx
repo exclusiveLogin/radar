@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import type { StateLevel } from "@radar/shared";
 import { Donut, Panel, StatTile } from "../../shared/ds";
 import { LEVEL_COLORS, LEVEL_LABELS } from "../../shared/config/mapConfig.service";
-import { useObservable } from "../../shared/hooks/useObservable";
+import { useBehaviorSubject } from "../../shared/hooks/useBehaviorSubject";
 import {
   countPlacesOnMapByLevel,
   countRegionsByLevel,
@@ -19,8 +19,8 @@ import type { WidgetProps } from "../widgetProps";
 const PLACE_LEVELS: StateLevel[] = ["red", "orange", "yellow", "green"];
 
 export function OverviewStatsWidget(_props: WidgetProps) {
-  const regions = useObservable(regionsByCode$, new Map());
-  const places = useObservable(placesById$, new Map());
+  const regions = useBehaviorSubject(regionsByCode$);
+  const places = useBehaviorSubject(placesById$);
 
   const regionCounts = useMemo(() => countRegionsByLevel(regions), [regions]);
   const regionSegments = useMemo(

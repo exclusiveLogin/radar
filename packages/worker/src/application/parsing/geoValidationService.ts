@@ -5,6 +5,7 @@
  */
 import {
   canonicalRegionCode,
+  placeStem,
   type EventLocation,
   type IPlaceAliasRepository,
   type IPlaceRepository,
@@ -289,11 +290,17 @@ export class GeoValidationService {
 
     const provider = context.providerHint ?? sourceToProvider(location.source);
     const trust = toTrustState(provider, context.confidence);
+    // Определяем якоря в тексте — нужны для выбора city_district при коллизии
+    const catalog = KnownLocalityCatalog.loadFromDictionaries().list();
+    const anchors = findLocalityAnchorsInText(rawQuery, catalog);
+    const hasCityAnchor = anchors.some((a) => a.kind === "city");
+
     const matched = await this.matchPlace(
       location.placeName,
       region,
       location,
       location.placeFias,
+      hasCityAnchor ? "city_district" : undefined,
     );
 
     if (matched) {
@@ -301,11 +308,15 @@ export class GeoValidationService {
       if (!placeRegion) {
         return { decision: "rejected", location: null };
       }
-      await this.aliases.upsertAlias({
-        placeId: matched.id,
-        alias: location.placeName,
-        source: "auto",
-      });
+      // Алиас нужен только если стем имени не покрывает запрос (снижает alias-рост)
+      const incomingStem = placeStem(location.placeName);
+      if (!matched.nameStem || incomingStem !== matched.nameStem) {
+        await this.aliases.upsertAlias({
+          placeId: matched.id,
+          alias: location.placeName,
+          source: "auto",
+        });
+      }
       if (context.allowPlaceUpdates) {
         await this.applyProviderContribution(
           this.buildMatchedContribution({
@@ -342,6 +353,7 @@ export class GeoValidationService {
         regionId: region.id,
         kind: "locality",
         name: location.placeName,
+        nameStem: placeStem(location.placeName),
         fiasId: location.placeFias,
         centroidLat: location.lat,
         centroidLon: location.lon,
@@ -367,11 +379,19 @@ export class GeoValidationService {
     };
   }
 
+  /**
+   * Матч НП:
+   *  1. FIAS (если есть) → прямой хит
+   *  2. alias lookup → только тот же region_id
+   *  3. name_stem lookup с опциональным preferKind (city_district при городском якоре)
+   *  4. nameNormalized fallback (для legacy places без stem)
+   */
   private async matchPlace(
     placeName: string,
     region: RegionRecord,
     location: EventLocation,
     placeFias?: string,
+    preferKind?: PlaceRecord["kind"],
   ): Promise<PlaceRecord | null> {
     const regionId = region.id;
     const regionsById = new Map(
@@ -407,14 +427,16 @@ export class GeoValidationService {
           continue;
         }
       }
-      /**
-       * Не матчим alias из чужого региона по одному имени:
-       * это и давало "Красноармейский район" -> Приморский край
-       * при явном контексте "Краснодарский край".
-       */
+      // Не матчим alias из чужого региона — давало "Красноармейский район" → Приморский край
       continue;
     }
 
+    // stem-lookup: catalog place создаётся при geo:features:import с name_stem
+    const stem = placeStem(placeName);
+    const byStem = await this.places.findByStemInRegion(stem, regionId, preferKind);
+    if (byStem) return byStem;
+
+    // legacy fallback: places созданные до рефактора без name_stem
     return this.places.findByNameInRegion(placeName, regionId);
   }
 }

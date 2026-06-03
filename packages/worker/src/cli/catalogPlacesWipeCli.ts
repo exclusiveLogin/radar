@@ -5,7 +5,7 @@ import { loadRootEnv } from "../infrastructure/config/loadRootEnv.js";
 import { WorkerStorageMode } from "../infrastructure/persistence/storageMode.js";
 import { hasAnyFlag, parseLongFlagsMap } from "./workerCliArgs.js";
 
-/** Полный wipe places + операционка; дальше geo:db:apply и rebuild. */
+/** Wipe places без raw/regions; для полного сброса — system:reset. */
 async function main(): Promise<void> {
   loadRootEnv(MONOREPO_ROOT);
   const flags = parseLongFlagsMap(process.argv);
@@ -14,12 +14,11 @@ async function main(): Promise<void> {
   if (hasAnyFlag(flags, ["help", "h"])) {
     console.log(`Usage: npm run parse-engine:catalog:wipe [--dry-run]
 
-  Удаляет ВСЕ places, aliases, place_enrichment_jobs, event_evidence, parse/map read-model.
-  regions и raw_messages не трогает.
+  Удаляет places, aliases, geo_feature, parse/map read-model.
+  НЕ трогает: raw_messages, regions.
 
-  Дальше:
-    npm run geo:db:apply
-    npm run parse-engine:rebuild:drain`);
+  Полный wipe + раскатка:
+    npm run system:reset -- --confirm`);
     process.exit(0);
   }
 

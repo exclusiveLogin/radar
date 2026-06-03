@@ -80,6 +80,18 @@ export const mapApi = {
   /** Полигоны субъектов РФ (OSM artifacts) с regionCode/stateLevel. */
   regionsGeoJson: (): Promise<GeoJsonFeatureCollection> =>
     getJson("/api/map/regions-geojson", geoJsonFeatureCollectionSchema),
+  /**
+   * Полигоны только активных районов (place_status raise).
+   * Лёгкий ответ — вызывается при каждом обновлении снапшота places.
+   */
+  activeDistrictsGeoJson: (): Promise<GeoJsonFeatureCollection> =>
+    getJson("/api/map/districts-active-geojson", geoJsonFeatureCollectionSchema),
+  /** Полигоны всех районов из geo_feature (district/city_district), опционально по regionId. */
+  districtsGeoJson: (params?: { regionId?: string }): Promise<GeoJsonFeatureCollection> =>
+    getJson(
+      `/api/map/districts-geojson${params?.regionId ? `?regionId=${encodeURIComponent(params.regionId)}` : ""}`,
+      geoJsonFeatureCollectionSchema,
+    ),
   /** Список ingest-провайдеров (статус каналов). */
   providers: (): Promise<IngestProvider[]> =>
     getJson("/api/admin/ingest/providers", ingestProvidersSchema),

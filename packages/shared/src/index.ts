@@ -50,6 +50,7 @@ export {
   adminWsChannelSchema,
   adminWsClientMessageSchema,
   adminWsServerMessageSchema,
+  phasesUpdatePayloadSchema,
   regionDraftSchema,
   severitySchema,
   syncAllCommandSchema,
@@ -155,6 +156,7 @@ export {
   canonicalRegionCode,
   parseKladrSubjectPrefix,
 } from "./domain/regionLookupCode";
+export { placeStem } from "./domain/geo/placeStem";
 export {
   buildCatalogPlaceGeocodeQuery,
   buildRegionScopedGeocodeQuery,
@@ -237,6 +239,7 @@ export type {
   AdminWsChannel,
   AdminWsClientMessage,
   AdminWsServerMessage,
+  PhasesUpdatePayload,
   RegionDraft,
   Severity,
   SyncAllCommand,

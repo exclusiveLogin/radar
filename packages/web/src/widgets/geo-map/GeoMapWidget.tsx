@@ -10,9 +10,14 @@ import type { MapPlaceSnapshot, MapRegionSnapshot, StateLevel } from "@radar/sha
 import { Panel } from "../../shared/ds";
 import { mapApi } from "../../shared/api/mapApi";
 import {
+  DISTRICT_MAP_FILL_OPACITY,
+  DISTRICT_MAP_MIN_ZOOM,
+  DISTRICT_MAP_STROKE_WIDTH,
   LEVEL_COLORS,
   LEVEL_LABELS,
   MAP_INITIAL_VIEW,
+  PLACE_CIRCLE_RADIUS_DEFAULT,
+  PLACE_CIRCLE_RADIUS_DISTRICT,
   REGION_MAP_FILL_OPACITY,
   REGION_MAP_INSET_FACTOR,
   REGION_MAP_SELECTED_FILL_OPACITY,
@@ -33,6 +38,10 @@ const REGIONS_OUTLINE_SOURCE = "regions-outline-inset";
 const REGIONS_FILL = "regions-fill";
 const REGIONS_OUTLINE = "regions-outline";
 const REGIONS_SELECTION = "regions-selection";
+/** Слой активных районов (district/city_district) из geo_feature — рисуется над регионами. */
+const DISTRICTS_SOURCE = "districts-active";
+const DISTRICTS_FILL = "districts-active-fill";
+const DISTRICTS_OUTLINE = "districts-active-outline";
 const PLACES_SOURCE = "places";
 const PLACES_LAYER = "places-circles";
 
@@ -136,7 +145,9 @@ function paintRegionInsetOutlines(
   };
 }
 
-/** Точки places: не показываем в регионах без оперативного уровня (grey). */
+const DISTRICT_KINDS = new Set(["district", "city_district"]);
+
+/** Точки places: маркер-кружок; радиус меньше для district (у них есть polygon-слой). */
 function placesToFeatures(
   places: Map<string, MapPlaceSnapshot>,
   regions: Map<string, MapRegionSnapshot>,
@@ -157,9 +168,46 @@ function placesToFeatures(
         statusCode: place.statusCode,
         stateLabel: LEVEL_LABELS[place.stateLevel],
         color: LEVEL_COLORS[place.stateLevel],
-        radius: 9,
+        // Для district дублируется полигоном — маленький кружок-якорь.
+        radius: DISTRICT_KINDS.has(place.kind ?? "") ? PLACE_CIRCLE_RADIUS_DISTRICT : PLACE_CIRCLE_RADIUS_DEFAULT,
       },
     }));
+}
+
+/**
+ * Активные полигоны районов: из базовой геометрии geo_feature оставляем только те,
+ * которые присутствуют в снапшоте places (есть статус). Цвет берётся из place.stateLevel.
+ */
+function paintActiveDistricts(
+  base: GeoJsonCollection,
+  places: Map<string, MapPlaceSnapshot>,
+  regions: Map<string, MapRegionSnapshot>,
+): GeoJsonCollection {
+  // Индекс geoFeatureId → place для быстрого поиска.
+  const byGeoFeatureId = new Map<string, MapPlaceSnapshot>();
+  for (const place of places.values()) {
+    if (place.geoFeatureId && isPlaceVisibleOnMap(place, regions)) {
+      byGeoFeatureId.set(place.geoFeatureId, place);
+    }
+  }
+
+  const features: PolygonFeature[] = [];
+  for (const feature of base.features) {
+    const featureId = String(feature.id ?? feature.properties.geoFeatureId ?? "");
+    const place = byGeoFeatureId.get(featureId);
+    if (!place) continue;
+
+    features.push({
+      ...feature,
+      properties: {
+        ...feature.properties,
+        color: LEVEL_COLORS[place.stateLevel],
+        placeId: place.placeId,
+        placeName: place.placeName,
+      },
+    });
+  }
+  return { type: "FeatureCollection", features };
 }
 
 /** Выполняет fn, когда стиль MapLibre готов (иначе setData теряется). */
@@ -306,11 +354,13 @@ function flyToRegion(
 }
 
 /**
- * Гео-карта: заливка + внутренний контур региона (цвет stateLevel) + точки places.
+ * Гео-карта: регион (заливка, тусклее) → район (polygon, насыщеннее) → place-маркер (точка).
+ * Слои отсортированы по точности геопривязки: субъект внизу, конкретный НП сверху.
  */
 export function GeoMapWidget(_props: WidgetProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const baseRegionsRef = useRef<GeoJsonCollection | null>(null);
+  const baseDistrictsRef = useRef<GeoJsonCollection | null>(null);
   const didFitRef = useRef(false);
   const lastPlaceFeaturesRef = useRef(0);
   const [regionOutlines, setRegionOutlines] = useState(0);
@@ -387,6 +437,31 @@ export function GeoMapWidget(_props: WidgetProps) {
       });
     };
 
+    /**
+     * Загружает активные районы с сервера и сразу рендерит.
+     * Вызывается при каждом обновлении places — ответ маленький (единицы объектов).
+     * Цвет берётся из place.stateLevel через `paintActiveDistricts`.
+     */
+    const loadAndApplyDistricts = (): void => {
+      if (!map) return;
+      void mapApi.activeDistrictsGeoJson().then((layer) => {
+        if (disposed || !map) return;
+        baseDistrictsRef.current = layer as GeoJsonCollection;
+        whenStyleReady(map, () => {
+          if (!map || !baseDistrictsRef.current) return;
+          const painted = paintActiveDistricts(
+            baseDistrictsRef.current,
+            placesById$.value,
+            regionsByCode$.value,
+          );
+          const source = map.getSource(DISTRICTS_SOURCE) as GeoJSONSource | undefined;
+          source?.setData(painted as never);
+        });
+      }).catch((err: unknown) => {
+        console.error("[GeoMapWidget] districts-active-geojson", err);
+      });
+    };
+
     const applyPlaces = (): void => {
       if (!map) return;
       whenStyleReady(map, () => {
@@ -401,6 +476,8 @@ export function GeoMapWidget(_props: WidgetProps) {
           | GeoJSONSource
           | undefined;
         source?.setData(collection as never);
+
+        loadAndApplyDistricts();
 
         if (baseRegionsRef.current) {
           const painted = paintRegionOutlines(
@@ -433,6 +510,7 @@ export function GeoMapWidget(_props: WidgetProps) {
           console.error("[GeoMapWidget] regions-geojson", error);
         });
     };
+
 
     const scheduleMapRefresh = (): void => {
       clearTimeout(geoReloadTimer);
@@ -517,6 +595,34 @@ export function GeoMapWidget(_props: WidgetProps) {
           },
         });
 
+        // --- Слой районов: между регионами и маркерами (minzoom: не загромождать overview) ---
+        map.addSource(DISTRICTS_SOURCE, {
+          type: "geojson",
+          data: { type: "FeatureCollection", features: [] },
+        });
+        map.addLayer({
+          id: DISTRICTS_FILL,
+          type: "fill",
+          source: DISTRICTS_SOURCE,
+          minzoom: DISTRICT_MAP_MIN_ZOOM,
+          paint: {
+            "fill-color": ["coalesce", ["get", "color"], LEVEL_COLORS.yellow],
+            "fill-opacity": DISTRICT_MAP_FILL_OPACITY,
+          },
+        });
+        map.addLayer({
+          id: DISTRICTS_OUTLINE,
+          type: "line",
+          source: DISTRICTS_SOURCE,
+          minzoom: DISTRICT_MAP_MIN_ZOOM - 1,
+          paint: {
+            "line-color": ["coalesce", ["get", "color"], LEVEL_COLORS.yellow],
+            "line-width": DISTRICT_MAP_STROKE_WIDTH,
+            "line-opacity": 0.85,
+          },
+        });
+
+        // --- Маркеры places: поверх всего ---
         map.addSource(PLACES_SOURCE, {
           type: "geojson",
           data: placesCollection(new Map(), new Map()),
@@ -528,7 +634,7 @@ export function GeoMapWidget(_props: WidgetProps) {
           filter: ["==", ["get", "kind"], "place"],
           paint: {
             "circle-color": ["coalesce", ["get", "color"], LEVEL_COLORS.yellow],
-            "circle-radius": ["coalesce", ["get", "radius"], 9],
+            "circle-radius": ["coalesce", ["get", "radius"], PLACE_CIRCLE_RADIUS_DEFAULT],
             "circle-stroke-color": "#ffffff",
             "circle-stroke-width": 2,
             "circle-opacity": 1,
@@ -631,10 +737,14 @@ export function GeoMapWidget(_props: WidgetProps) {
         map.on("mouseleave", REGIONS_FILL, onRegionHoverEnd);
 
         loadRegionGeometry();
+        loadAndApplyDistricts();
         applyPlaces();
 
         unsubRegions = regionsByCode$.subscribe(() => scheduleMapRefresh());
-        unsubPlaces = placesById$.subscribe(() => applyPlaces());
+        unsubPlaces = placesById$.subscribe(() => {
+          applyPlaces();
+          loadAndApplyDistricts();
+        });
         unsubSelected = selectedRegion$.subscribe((code) => {
           clearTimeout(geoReloadTimer);
           const prev = highlightedCode;

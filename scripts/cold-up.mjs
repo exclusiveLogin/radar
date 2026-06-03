@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Холодный старт: Docker (Postgres + pgAdmin), npm install, сборка @radar/shared, миграции.
+// Холодный старт: Docker (Postgres + Adminer + pgAdmin), npm install, сборка @radar/shared, миграции.
 // npm run cold:up  |  npm run cold:up -- -Geo -Dev -Llm -LlmUi  |  двойной дефис: -- --geo --dev --llm --llm-ui
 import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
@@ -124,17 +124,18 @@ async function main() {
 
   if (geo) {
     console.log(
-      '\n\x1b[33m[geo] vendor → sync → seed → db:apply (может занять время)\x1b[0m',
+      '\n\x1b[33m[geo] regions:seed → vendor → sync → seed → features:import (может занять время)\x1b[0m',
     );
+    run('npm', ['run', 'geo:regions:seed']);
     run('npm', ['run', 'geo:vendor']);
     run('npm', ['run', 'geo:sync']);
     run('npm', ['run', 'geo:seed']);
-    run('npm', ['run', 'geo:db:apply']);
+    run('npm', ['run', 'geo:features:import']);
   }
 
   console.log('\n\x1b[36m=== Готово ===\x1b[0m');
   console.log(
-    'Postgres: localhost:5432  |  pgAdmin: http://127.0.0.1:5050',
+    'Postgres: localhost:5432  |  Adminer: http://127.0.0.1:8080  |  pgAdmin: http://127.0.0.1:5050',
   );
 
   if (dev) {

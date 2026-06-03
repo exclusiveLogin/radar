@@ -15,9 +15,23 @@ import {
 
 type Emit = (message: WsServerMessage) => void;
 
+/** Разрешает centroid: сначала собственный place, затем fallback из geo_feature. */
+function resolveCoords(
+  placeLat: string | null,
+  placeLon: string | null,
+  gfLat: string | null,
+  gfLon: string | null,
+): { lat: number; lon: number } | undefined {
+  const lat = placeLat ? Number(placeLat) : gfLat ? Number(gfLat) : undefined;
+  const lon = placeLon ? Number(placeLon) : gfLon ? Number(gfLon) : undefined;
+  if (lat === undefined || lon === undefined) return undefined;
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return undefined;
+  return { lat, lon };
+}
+
 /**
  * Realtime по местам: опрашивает place_status_read_model и эмитит place-state.
- * Координаты: только собственный центроид места (без coords — точка не эмитится).
+ * Координаты: place.centroid_* → fallback geo_feature.centroid_* (для catalog-districts).
  */
 @Injectable()
 export class PlaceStatePoller {
@@ -58,10 +72,13 @@ export class PlaceStatePoller {
              p.region_id,
              r.iso AS region_code,
              p.centroid_lat,
-             p.centroid_lon
+             p.centroid_lon,
+             gf.centroid_lat AS gf_centroid_lat,
+             gf.centroid_lon AS gf_centroid_lon
       FROM place_status_read_model psm
       JOIN places p ON p.id = psm.place_id
       JOIN regions r ON r.id = p.region_id
+      LEFT JOIN geo_feature gf ON gf.id = p.geo_feature_id
       WHERE psm.action = 'raise'
         AND p.kind <> 'region'
         AND p.is_active = true
@@ -74,13 +91,14 @@ export class PlaceStatePoller {
       region_code: string | null;
       centroid_lat: string | null;
       centroid_lon: string | null;
+      gf_centroid_lat: string | null;
+      gf_centroid_lon: string | null;
     }>;
 
     let sent = 0;
     for (const row of rows) {
       const stateLevel = this.levelByStatus.get(row.status_code) ?? "grey";
-      const lat = row.centroid_lat ? Number(row.centroid_lat) : undefined;
-      const lon = row.centroid_lon ? Number(row.centroid_lon) : undefined;
+      const coords = resolveCoords(row.centroid_lat, row.centroid_lon, row.gf_centroid_lat, row.gf_centroid_lon);
       const payload: PlaceStateEvent = {
         placeId: row.place_id,
         placeName: row.place_name,
@@ -89,8 +107,8 @@ export class PlaceStatePoller {
         statusCode: row.status_code,
         stateLevel,
         action: "deactivate",
-        lat,
-        lon,
+        lat: coords?.lat,
+        lon: coords?.lon,
         changedAt: new Date().toISOString(),
       };
       emit({ type: "place-state", payload });
@@ -127,9 +145,12 @@ export class PlaceStatePoller {
       .addSelect("r.iso", "region_code")
       .addSelect("p.centroid_lat", "centroid_lat")
       .addSelect("p.centroid_lon", "centroid_lon")
+      .addSelect("gf.centroid_lat", "gf_centroid_lat")
+      .addSelect("gf.centroid_lon", "gf_centroid_lon")
       .from("place_status_read_model", "psm")
       .innerJoin(PlaceEntity, "p", "p.id = psm.place_id AND p.kind <> 'region'")
       .innerJoin("regions", "r", "r.id = p.region_id")
+      .leftJoin("geo_feature", "gf", "gf.id = p.geo_feature_id")
       .where(afterCursor.clause, afterCursor.params)
       .orderBy("psm.updated_at", "ASC")
       .addOrderBy("psm.place_id", "ASC")
@@ -146,13 +167,14 @@ export class PlaceStatePoller {
       winner_occurred_at: Date;
       centroid_lat: string | null;
       centroid_lon: string | null;
+      gf_centroid_lat: string | null;
+      gf_centroid_lon: string | null;
     }>;
     if (rows.length === 0) return;
 
     for (const row of rows) {
       const stateLevel = this.levelByStatus.get(row.status_code) ?? row.state_level ?? "grey";
-      const lat = row.centroid_lat ? Number(row.centroid_lat) : undefined;
-      const lon = row.centroid_lon ? Number(row.centroid_lon) : undefined;
+      const coords = resolveCoords(row.centroid_lat, row.centroid_lon, row.gf_centroid_lat, row.gf_centroid_lon);
 
       const payload: PlaceStateEvent = {
         placeId: row.place_id,
@@ -162,8 +184,8 @@ export class PlaceStatePoller {
         statusCode: row.status_code,
         stateLevel,
         action: row.action === "raise" ? "activate" : "deactivate",
-        lat,
-        lon,
+        lat: coords?.lat,
+        lon: coords?.lon,
         changedAt: new Date(row.winner_occurred_at).toISOString(),
       };
 

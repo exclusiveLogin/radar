@@ -4,7 +4,7 @@ import { Accordion, Badge, Panel } from "../../shared/ds";
 import type { AccordionItem } from "../../shared/ds";
 import { SourceMessageBlock } from "../../shared/components/SourceMessageBlock";
 import { formatDateTime, formatTimeShort } from "../../shared/format/dateTime";
-import { useObservable } from "../../shared/hooks/useObservable";
+import { useBehaviorSubject } from "../../shared/hooks/useBehaviorSubject";
 import { placesById$, regionsByCode$ } from "../../shared/state/mapStore";
 import { selectRegion, selectedRegion$ } from "../../shared/state/selectionStore";
 import type { WidgetProps } from "../widgetProps";
@@ -33,9 +33,9 @@ function placeStatusAt(row: MapPlaceSnapshot): string {
 
 /** Текущие активные угрозы: region_state_active ≠ grey и place_status_active. */
 export function ActiveThreatsWidget({ defaultCollapsed = false }: WidgetProps) {
-  const regions = useObservable(regionsByCode$, new Map<string, MapRegionSnapshot>());
-  const places = useObservable(placesById$, new Map<string, MapPlaceSnapshot>());
-  const selected = useObservable(selectedRegion$, null);
+  const regions = useBehaviorSubject(regionsByCode$);
+  const places = useBehaviorSubject(placesById$);
+  const selected = useBehaviorSubject(selectedRegion$);
 
   const { regionRows, placeRows } = useMemo(() => {
     const regionRows = [...regions.values()]

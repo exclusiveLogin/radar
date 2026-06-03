@@ -30,16 +30,17 @@ export function resolveRegionCentroid(input: {
 }
 
 /**
- * WGS84-координаты маркера place: ТОЛЬКО собственный центроид места.
- * Инвариант карты: region = контур, place = точка с реальной геопозицией.
- * Без своих coords место не рисуется точкой (его уровень отражает контур региона) —
- * иначе fallback на центр региона даёт фантомные точки (двойники регионов, мусорные топонимы).
+ * WGS84-координаты маркера place: сначала собственный centroid, затем centroid из geo_feature.
+ * Fallback на geo_feature позволяет отображать catalog-places (districts), у которых
+ * place.centroid_lat/lon не заполнены, но geo_feature содержит вычисленный центроид полигона.
+ * Fallback на регион намеренно не делается — давал фантомные дубли регионов.
  */
 export function resolvePlaceMapCentroid(input: {
   place: CentroidInput;
+  geoFeatureCentroid?: { lat: number; lon: number };
 }): { lat: number; lon: number } | undefined {
   const lat = toNumber(input.place.centroidLat);
   const lon = toNumber(input.place.centroidLon);
-  if (lat === undefined || lon === undefined) return undefined;
-  return { lat, lon };
+  if (lat !== undefined && lon !== undefined) return { lat, lon };
+  return input.geoFeatureCentroid;
 }

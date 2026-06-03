@@ -7,5 +7,6 @@ import { PhasesAdminService } from "./phases-admin.service";
   imports: [forwardRef(() => MapModule)],
   controllers: [PhasesAdminController],
   providers: [PhasesAdminService],
+  exports: [PhasesAdminService],
 })
 export class PhasesAdminModule {}

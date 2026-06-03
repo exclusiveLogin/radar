@@ -1,4 +1,5 @@
-﻿import * as path from "node:path";
+import * as fs from "node:fs";
+import * as path from "node:path";
 import {
   filterRegionsByTextContext,
   findLocalityAnchorsInText,
@@ -8,6 +9,7 @@ import {
 import { CityCatalog, type CityCatalogEntry } from "./cityCatalog.js";
 import { extractFallbackCities } from "./cityFallbackExtractors.js";
 import { KnownLocalityCatalog } from "./knownLocalityCatalog.js";
+import { repoDataPath } from "../../shims/monorepo-root.js";
 import {
   RegionCatalog,
   resolveArtifactsRoot,
@@ -89,13 +91,23 @@ export class GeoCatalog {
     private readonly cities: CityCatalog,
     private readonly knownLocalities: KnownLocalityCatalog,
   ) {}
-static loadFromArtifacts(artifactsRoot = resolveArtifactsRoot()): GeoCatalog {
-    const regionCsvPath = path.join(
-      artifactsRoot,
-      "reference",
-      "hflabs-region",
-      "region.csv",
+  /** Для wipe/reset CLI когда data/geo/artifacts ещё нет. */
+  static empty(): GeoCatalog {
+    return new GeoCatalog(
+      RegionCatalog.empty(),
+      CityCatalog.empty(),
+      KnownLocalityCatalog.empty(),
     );
+  }
+
+  static loadFromArtifacts(artifactsRoot = resolveArtifactsRoot()): GeoCatalog {
+    const catalogPath = repoDataPath("geo", "catalog", "regions.json");
+    if (!fs.existsSync(catalogPath)) {
+      throw new Error(
+        `Regions catalog not found: ${catalogPath}. Run npm run geo:regions:seed after filling regions.json.`,
+      );
+    }
+
     const citiesPath = path.join(
       artifactsRoot,
       "boundaries",
@@ -103,10 +115,13 @@ static loadFromArtifacts(artifactsRoot = resolveArtifactsRoot()): GeoCatalog {
       "GeoJson's",
       "Cities",
     );
+    const cities = fs.existsSync(citiesPath)
+      ? CityCatalog.loadFromDirectory(citiesPath)
+      : CityCatalog.empty();
 
     return new GeoCatalog(
-      RegionCatalog.loadFromCsv(regionCsvPath),
-      CityCatalog.loadFromDirectory(citiesPath),
+      RegionCatalog.loadFromCatalogJson(catalogPath),
+      cities,
       KnownLocalityCatalog.loadFromDictionaries(),
     );
   }

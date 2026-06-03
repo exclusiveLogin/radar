@@ -8,10 +8,12 @@
 import { Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, OneToMany, PrimaryGeneratedColumn, UpdateDateColumn } from "typeorm";
 import { PlaceAliasEntity } from "./place-alias.entity";
 import { RegionEntity } from "./region.entity";
+import type { GeoFeatureEntity } from "./geo-feature.entity";
 
 export type PlaceKind =
   | "region"
   | "district"
+  | "city_district"
   | "city"
   | "locality"
   | "settlement"
@@ -55,6 +57,17 @@ export class PlaceEntity {
 
   @Column({ name: "name_normalized", type: "text", default: "" })
   nameNormalized!: string;
+
+  /** Нормализованный стем имени для быстрого матча без alias-роста. */
+  @Column({ name: "name_stem", type: "text", default: "" })
+  nameStem!: string;
+
+  /** FK на геометрию из geo_feature; заполняется при import или parse-match. */
+  @Column({ name: "geo_feature_id", type: "uuid", nullable: true })
+  geoFeatureId!: string | null;
+
+  // type-only — не используем декоратор чтобы избежать circular dep с GeoFeatureEntity
+  geoFeature?: GeoFeatureEntity | null;
 
   @Column({ name: "fias_id", type: "text", nullable: true, unique: true })
   fiasId!: string | null;

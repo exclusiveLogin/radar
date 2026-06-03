@@ -177,7 +177,7 @@
   background: var(--bg-glass);
   backdrop-filter: blur(8px);
   border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
+  border-radius: 0;
   color: var(--text-muted);
 }
 
@@ -202,7 +202,7 @@
   white-space: pre-line;
   color: var(--text);
   background: var(--bg-elev);
-  border-radius: 6px;
+  border-radius: 2px;
   box-shadow: var(--shadow-panel);
 }
 
@@ -240,7 +240,7 @@
   color: var(--text);
   background: var(--bg-elev);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: 2px;
   box-shadow: var(--shadow-panel);
 }
 

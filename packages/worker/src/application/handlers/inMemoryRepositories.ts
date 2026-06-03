@@ -328,6 +328,25 @@ export class InMemoryPlaceRepository implements IPlaceRepository {
     }
     return null;
   }
+  async findByStemInRegion(
+    stem: string,
+    regionId: string,
+    preferKind?: PlaceRecord["kind"],
+  ): Promise<PlaceRecord | null> {
+    const matches: PlaceRecord[] = [];
+    for (const row of this.rows.values()) {
+      if (row.regionId === regionId && (row.nameStem ?? row.name.toLowerCase()) === stem) {
+        matches.push(row);
+      }
+    }
+    if (matches.length === 0) return null;
+    if (matches.length === 1) return matches[0];
+    if (preferKind) {
+      const preferred = matches.find((r) => r.kind === preferKind);
+      if (preferred) return preferred;
+    }
+    return matches[0];
+  }
   async listActive(): Promise<PlaceRecord[]> {
     return [...this.rows.values()];
   }

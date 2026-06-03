@@ -5,6 +5,9 @@ import type {
   ChannelAdminItem,
   ChannelStats,
   ParseAttemptItem,
+  PhasesUpdatePayload,
+  PhaseRun,
+  PhaseRunsOverview,
   StatsOverview,
 } from "@radar/shared";
 import { adminApi } from "../api/adminApi";
@@ -23,6 +26,10 @@ export const backfillJobs$ = new BehaviorSubject<BackfillJobListItem[]>([]);
 export const parseLog$ = new BehaviorSubject<ParseAttemptItem[]>([]);
 /** Статистика выбранного канала (контекст из channelSelectionStore). */
 export const selectedChannelStats$ = new BehaviorSubject<ChannelStats | null>(null);
+/** Overview фаз (realtime через WS phases-update). */
+export const phasesOverview$ = new BehaviorSubject<PhaseRunsOverview | null>(null);
+/** Последние запуски фаз (realtime через WS phases-update). */
+export const phaseRuns$ = new BehaviorSubject<PhaseRun[]>([]);
 
 const CHANNELS_POLL_MS = 30_000;
 const STATS_POLL_MS = 30_000;
@@ -57,6 +64,8 @@ export function startAdminStore(): void {
       prependParseLog(message.payload);
     } else if (message.type === "backfill-progress") {
       upsertBackfillJob(message.payload);
+    } else if (message.type === "phases-update") {
+      applyPhasesUpdate(message.payload);
     }
   });
 }
@@ -130,4 +139,9 @@ function prependParseLog(item: ParseAttemptItem): void {
 function upsertBackfillJob(job: BackfillJobListItem): void {
   const rest = backfillJobs$.value.filter((row) => row.id !== job.id);
   backfillJobs$.next([job, ...rest]);
+}
+
+function applyPhasesUpdate(payload: PhasesUpdatePayload): void {
+  phasesOverview$.next(payload.overview);
+  phaseRuns$.next(payload.runs);
 }

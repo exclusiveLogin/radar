@@ -5,3 +5,8 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 
 /** `src/shims` → `src` → `packages/worker` → `packages` → корень монорепы */
 export const MONOREPO_ROOT = path.resolve(here, "../../../..");
+
+/** Путь к `data/` в корне репозитория. */
+export function repoDataPath(...segments: string[]): string {
+  return path.join(MONOREPO_ROOT, "data", ...segments);
+}

@@ -1,54 +1,15 @@
 {
   "version": 1,
-  "generatedAt": "2026-05-30T16:07:09.224Z",
+  "generatedAt": "2026-06-03T16:07:13.923Z",
   "sources": [
-    {
-      "id": "hflabs-region",
-      "revision": "0c9550cc4a18c553b54229257980a417d99bb43b",
-      "cloneUrl": "https://github.com/hflabs/region.git",
-      "vendorDir": "hflabs-region"
-    },
     {
       "id": "Russia_geojson_OSM",
       "revision": "5af46d6dab9a502713611846892e4185f157dab7",
       "cloneUrl": "https://github.com/timurkanaz/Russia_geojson_OSM.git",
       "vendorDir": "Russia_geojson_OSM"
-    },
-    {
-      "id": "rnekrasov-geojson",
-      "revision": "7591d6609fe5cfdb4a0245b3a7cea9aae36bf737",
-      "cloneUrl": "https://github.com/rnekrasov-msk/geojson.git",
-      "vendorDir": "rnekrasov-geojson"
     }
   ],
   "files": [
-    {
-      "artifactKey": "reference/hflabs-region/README.md",
-      "relPath": "reference/hflabs-region/README.md",
-      "sourceId": "hflabs-region",
-      "sourceRevision": "0c9550cc4a18c553b54229257980a417d99bb43b",
-      "cloneUrl": "https://github.com/hflabs/region.git",
-      "sha256": "6f06824566b6493a9edf0c819f5c9f72cea16dd976d9f8bcf3b4efa79b00a620",
-      "byteSize": 1119
-    },
-    {
-      "artifactKey": "reference/hflabs-region/region.csv",
-      "relPath": "reference/hflabs-region/region.csv",
-      "sourceId": "hflabs-region",
-      "sourceRevision": "0c9550cc4a18c553b54229257980a417d99bb43b",
-      "cloneUrl": "https://github.com/hflabs/region.git",
-      "sha256": "b56fa30308d4f63c4655321ad130bee5279ce8f73b8a61dc9478fa41cd71c3b1",
-      "byteSize": 17694
-    },
-    {
-      "artifactKey": "reference/hflabs-region/region.csv-metadata.json",
-      "relPath": "reference/hflabs-region/region.csv-metadata.json",
-      "sourceId": "hflabs-region",
-      "sourceRevision": "0c9550cc4a18c553b54229257980a417d99bb43b",
-      "cloneUrl": "https://github.com/hflabs/region.git",
-      "sha256": "f71887846f612e44405f8585ff9e8f4db624cdaae129a3467a684dd1acecb1bd",
-      "byteSize": 2571
-    },
     {
       "artifactKey": "boundaries/Russia_geojson_OSM/GeoJson's/Cities/Казань_Kazan.geojson",
       "relPath": "boundaries/Russia_geojson_OSM/GeoJson's/Cities/Казань_Kazan.geojson",
@@ -912,87 +873,6 @@
       "cloneUrl": "https://github.com/timurkanaz/Russia_geojson_OSM.git",
       "sha256": "93b091a978798b9065c501922a793f34ee4bb8e6a8c0d59f8529962a74fa8a6a",
       "byteSize": 192
-    },
-    {
-      "artifactKey": "boundaries/rnekrasov-geojson/admin_level_0.geojson",
-      "relPath": "boundaries/rnekrasov-geojson/admin_level_0.geojson",
-      "sourceId": "rnekrasov-geojson",
-      "sourceRevision": "7591d6609fe5cfdb4a0245b3a7cea9aae36bf737",
-      "cloneUrl": "https://github.com/rnekrasov-msk/geojson.git",
-      "sha256": "298a55889244e93f6626c1b32d2b37580c6ed8fa1bdb9ca797de0311e94b11a9",
-      "byteSize": 233
-    },
-    {
-      "artifactKey": "boundaries/rnekrasov-geojson/admin_level_1.geojson",
-      "relPath": "boundaries/rnekrasov-geojson/admin_level_1.geojson",
-      "sourceId": "rnekrasov-geojson",
-      "sourceRevision": "7591d6609fe5cfdb4a0245b3a7cea9aae36bf737",
-      "cloneUrl": "https://github.com/rnekrasov-msk/geojson.git",
-      "sha256": "298a55889244e93f6626c1b32d2b37580c6ed8fa1bdb9ca797de0311e94b11a9",
-      "byteSize": 233
-    },
-    {
-      "artifactKey": "boundaries/rnekrasov-geojson/admin_level_10.geojson",
-      "relPath": "boundaries/rnekrasov-geojson/admin_level_10.geojson",
-      "sourceId": "rnekrasov-geojson",
-      "sourceRevision": "7591d6609fe5cfdb4a0245b3a7cea9aae36bf737",
-      "cloneUrl": "https://github.com/rnekrasov-msk/geojson.git",
-      "sha256": "890690d93b1294d3ee860b9e168ba5aa3ef60c229d4840fac05bb772d69984ca",
-      "byteSize": 20940351
-    },
-    {
-      "artifactKey": "boundaries/rnekrasov-geojson/admin_level_2.geojson",
-      "relPath": "boundaries/rnekrasov-geojson/admin_level_2.geojson",
-      "sourceId": "rnekrasov-geojson",
-      "sourceRevision": "7591d6609fe5cfdb4a0245b3a7cea9aae36bf737",
-      "cloneUrl": "https://github.com/rnekrasov-msk/geojson.git",
-      "sha256": "c91a663095d421af0262485590b24cd9c281a30270a06bf27a95dcf5438900b9",
-      "byteSize": 2576223
-    },
-    {
-      "artifactKey": "boundaries/rnekrasov-geojson/admin_level_3.geojson",
-      "relPath": "boundaries/rnekrasov-geojson/admin_level_3.geojson",
-      "sourceId": "rnekrasov-geojson",
-      "sourceRevision": "7591d6609fe5cfdb4a0245b3a7cea9aae36bf737",
-      "cloneUrl": "https://github.com/rnekrasov-msk/geojson.git",
-      "sha256": "7d31c22d90683d1cde923f30d4473a18591898b66cbd1a765310134eabda9bd2",
-      "byteSize": 8278563
-    },
-    {
-      "artifactKey": "boundaries/rnekrasov-geojson/admin_level_9.geojson",
-      "relPath": "boundaries/rnekrasov-geojson/admin_level_9.geojson",
-      "sourceId": "rnekrasov-geojson",
-      "sourceRevision": "7591d6609fe5cfdb4a0245b3a7cea9aae36bf737",
-      "cloneUrl": "https://github.com/rnekrasov-msk/geojson.git",
-      "sha256": "bd2d45777e7ca51dc46f3c1ffef54fab130c4097a38e2381bc4186eef75c3763",
-      "byteSize": 4741578
-    },
-    {
-      "artifactKey": "boundaries/rnekrasov-geojson/README.md",
-      "relPath": "boundaries/rnekrasov-geojson/README.md",
-      "sourceId": "rnekrasov-geojson",
-      "sourceRevision": "7591d6609fe5cfdb4a0245b3a7cea9aae36bf737",
-      "cloneUrl": "https://github.com/rnekrasov-msk/geojson.git",
-      "sha256": "63f6316ee66a30bbb6d7874dbc00399c60ad92b32764bd37fc337c727471de89",
-      "byteSize": 149
-    },
-    {
-      "artifactKey": "boundaries/rnekrasov-geojson/regions.geojson",
-      "relPath": "boundaries/rnekrasov-geojson/regions.geojson",
-      "sourceId": "rnekrasov-geojson",
-      "sourceRevision": "7591d6609fe5cfdb4a0245b3a7cea9aae36bf737",
-      "cloneUrl": "https://github.com/rnekrasov-msk/geojson.git",
-      "sha256": "ec50463528f019776510faf766b241d28d6e0b3d60211ba12a951d9dbdf3020d",
-      "byteSize": 1146478
-    },
-    {
-      "artifactKey": "boundaries/rnekrasov-geojson/russia_subjects_github.json",
-      "relPath": "boundaries/rnekrasov-geojson/russia_subjects_github.json",
-      "sourceId": "rnekrasov-geojson",
-      "sourceRevision": "7591d6609fe5cfdb4a0245b3a7cea9aae36bf737",
-      "cloneUrl": "https://github.com/rnekrasov-msk/geojson.git",
-      "sha256": "e40b18556541fa502b987377f328e93d45ae62adf63a42be19d161e2e9030fb6",
-      "byteSize": 25010301
     }
   ]
 }

@@ -22,6 +22,7 @@ export const placeDraftSchema = z.object({
   kind: z.enum([
     "region",
     "district",
+    "city_district",
     "city",
     "locality",
     "settlement",

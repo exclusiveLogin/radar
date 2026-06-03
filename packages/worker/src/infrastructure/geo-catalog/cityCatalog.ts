@@ -63,7 +63,12 @@ export class CityCatalog {
   private constructor(entries: CityCatalogEntry[]) {
     this.entries = entries;
   }
-static loadFromDirectory(dirPath: string): CityCatalog {
+
+  static empty(): CityCatalog {
+    return new CityCatalog([]);
+  }
+
+  static loadFromDirectory(dirPath: string): CityCatalog {
     const entries: CityCatalogEntry[] = [];
     const files = fs
       .readdirSync(dirPath, { withFileTypes: true })

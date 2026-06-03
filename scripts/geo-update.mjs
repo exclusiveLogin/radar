@@ -1,44 +1,36 @@
 #!/usr/bin/env node
+/**
+ * Обновление гео-данных (OSM уже склонирован).
+ *
+ *  1. geo:regions:seed   — идемпотентно; подхватывает правки в catalog/regions.json
+ *  2. geo:vendor:pull    — git pull OSM репозитория
+ *  3. geo:sync           — пересинхронизировать артефакты + manifest.json
+ *  4. geo:seed           — обновить реестр geo_dataset_file
+ *  5. geo:features:import — idempotent upsert geo_feature + catalog places
+ */
 import { run } from "./utils.mjs";
 
-const TOTAL_STEPS = 7;
-let stepNo = 0;
-
-function step(title) {
-  stepNo += 1;
-  console.log(`\n\x1b[36m[geo:update ${stepNo}/${TOTAL_STEPS}] ${title}\x1b[0m`);
-}
+const STEPS = [
+  ["seed regions catalog",    ["geo:regions:seed"]],
+  ["vendor pull (OSM)",       ["geo:vendor:pull"]],
+  ["sync artifacts",          ["geo:sync"]],
+  ["seed geo_dataset_file",   ["geo:seed"]],
+  ["import geo features",     ["geo:features:import"]],
+];
 
 function runNpm(args) {
   if (process.platform === "win32") {
-    run("cmd", ["/c", "npm", ...args]);
+    run("cmd", ["/c", "npm", "run", ...args]);
     return;
   }
-  run("npm", args);
+  run("npm", ["run", ...args]);
 }
 
 async function main() {
-  step("vendor pull");
-  runNpm(["run", "geo:vendor:pull"]);
-
-  step("sync artifacts");
-  runNpm(["run", "geo:sync"]);
-
-  step("verify artifacts");
-  runNpm(["run", "geo:verify"]);
-
-  step("seed geo_dataset_file");
-  runNpm(["run", "geo:seed"]);
-
-  step("plan db sync");
-  runNpm(["run", "geo:db:plan"]);
-
-  step("apply db sync");
-  runNpm(["run", "geo:db:apply"]);
-
-  step("dedup duplicate places (repoint, идемпотентно)");
-  runNpm(["run", "geo:db:dedup"]);
-
+  for (const [i, [title, args]] of STEPS.entries()) {
+    console.log(`\n\x1b[36m[geo:update ${i + 1}/${STEPS.length}] ${title}\x1b[0m`);
+    runNpm(args);
+  }
   console.log("\n\x1b[32mgeo:update completed\x1b[0m");
 }
 

@@ -2,29 +2,25 @@ import type { DataSource } from "typeorm";
 import dataSource from "../../data-source";
 import { GeoSyncApplyService } from "../../application/geo-sync/geo-sync-apply.service";
 import { GeoSyncPlanService } from "../../application/geo-sync/geo-sync-plan.service";
-import {
-  CompositeGeoProvider,
-  DictionariesOverrideProvider,
-  HflabsRegionProvider,
-  RnekrasovGeoJsonProvider,
-  RussiaGeoJsonOsmProvider,
-} from "../../infrastructure/geo-providers";
+import { CompositeGeoProvider, RussiaGeoJsonOsmProvider } from "../../infrastructure/geo-providers";
 import { TypeOrmDomainEventRepository } from "../../infrastructure/persistence/typeorm-domain-event.repository";
 import { TypeOrmPlaceAliasRepository } from "../../infrastructure/persistence/typeorm-place-alias.repository";
 import { TypeOrmPlaceRepository } from "../../infrastructure/persistence/typeorm-place.repository";
 import { TypeOrmRegionRepository } from "../../infrastructure/persistence/typeorm-region.repository";
 import { TypeOrmSyncAuditRepository } from "../../infrastructure/persistence/typeorm-sync-audit.repository";
 
-type CliMode = "plan" | "apply";function parseMode(): CliMode {
+type CliMode = "plan" | "apply";
+
+function parseMode(): CliMode {
   const command = (process.argv[2] ?? "plan").toLowerCase();
   if (command === "apply") return "apply";
   return "plan";
-}async function withDataSource<T>(
+}
+
+async function withDataSource<T>(
   ds: DataSource,
   fn: () => Promise<T>,
 ): Promise<T> {
-  // CLI-контур работает напрямую с TypeORM DataSource
-  // и не зависит от HTTP/Nest runtime.
   if (!ds.isInitialized) {
     await ds.initialize();
   }
@@ -35,16 +31,15 @@ type CliMode = "plan" | "apply";function parseMode(): CliMode {
       await ds.destroy();
     }
   }
-}async function run(): Promise<void> {
+}
+
+async function run(): Promise<void> {
   const mode = parseMode();
   await withDataSource(dataSource, async () => {
-    // Композитный provider объединяет несколько источников artifacts
-    // в единый snapshot для дальнейшего plan/apply.
+    // Единственный источник геометрии — Russia_geojson_OSM.
+    // Идентичность регионов — из catalog/regions.json через geo:regions:seed.
     const provider = new CompositeGeoProvider([
-      new DictionariesOverrideProvider(),
-      new HflabsRegionProvider(),
       new RussiaGeoJsonOsmProvider(),
-      new RnekrasovGeoJsonProvider(),
     ]);
     const regions = new TypeOrmRegionRepository(dataSource);
     const places = new TypeOrmPlaceRepository(dataSource);
@@ -53,7 +48,6 @@ type CliMode = "plan" | "apply";function parseMode(): CliMode {
     const events = new TypeOrmDomainEventRepository(dataSource);
 
     if (mode === "apply") {
-      // apply: пытается применить snapshot в БД и пишет audit.
       const service = new GeoSyncApplyService(
         provider,
         regions,
@@ -67,7 +61,6 @@ type CliMode = "plan" | "apply";function parseMode(): CliMode {
       return;
     }
 
-    // plan: dry-run diff без фактической записи изменений.
     const service = new GeoSyncPlanService(provider, regions, places, aliases);
     const result = await service.plan();
     console.log(JSON.stringify({ mode, result }, null, 2));

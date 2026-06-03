@@ -159,6 +159,7 @@ export {
   adminWsChannelSchema,
   adminWsClientMessageSchema,
   adminWsServerMessageSchema,
+  phasesUpdatePayloadSchema,
 } from "./admin";
 
 // --- type-only exports ---
@@ -307,5 +308,6 @@ export type {
   AdminWsChannel,
   AdminWsClientMessage,
   AdminWsServerMessage,
+  PhasesUpdatePayload,
 } from "./admin";
 

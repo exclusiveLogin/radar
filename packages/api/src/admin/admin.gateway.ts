@@ -16,16 +16,19 @@ import type { DataSource } from "typeorm";
 import { WebSocket } from "ws";
 import type { RawData, Server } from "ws";
 import { WorkerStatusService } from "../worker/worker-status.service";
+import { PhasesAdminService } from "../phases-admin/phases-admin.service";
 
 const ALL_CHANNELS: AdminWsChannel[] = [
   "worker-status",
   "parse-log",
   "backfill-progress",
+  "phases-update",
 ];
 
 const WORKER_STATUS_POLL_MS = 5000;
 const PARSE_LOG_POLL_MS = 2000;
 const BACKFILL_POLL_MS = 5000;
+const PHASES_POLL_MS = 3000;
 
 type ParseAttemptRow = {
   id: string;
@@ -73,6 +76,7 @@ export class AdminGateway
   constructor(
     @InjectDataSource() private readonly dataSource: DataSource,
     private readonly workerStatus: WorkerStatusService,
+    private readonly phasesAdmin: PhasesAdminService,
   ) {}
 
   onModuleInit(): void {
@@ -81,6 +85,7 @@ export class AdminGateway
       setInterval(() => void this.pollWorkerStatus(), WORKER_STATUS_POLL_MS),
       setInterval(() => void this.pollParseLog(), PARSE_LOG_POLL_MS),
       setInterval(() => void this.pollBackfill(), BACKFILL_POLL_MS),
+      setInterval(() => void this.pollPhasesUpdate(), PHASES_POLL_MS),
     );
   }
 
@@ -202,6 +207,18 @@ export class AdminGateway
     const cp = raw as { offsetId?: unknown; postedAt?: unknown };
     if (typeof cp.offsetId !== "string" || typeof cp.postedAt !== "string") return null;
     return { offsetId: cp.offsetId, postedAt: cp.postedAt };
+  }
+
+  private async pollPhasesUpdate(): Promise<void> {
+    try {
+      const [overview, runs] = await Promise.all([
+        this.phasesAdmin.runsOverview(),
+        this.phasesAdmin.listRuns({ limit: 20 }),
+      ]);
+      this.broadcast({ type: "phases-update", payload: { overview, runs } });
+    } catch {
+      // Пропускаем тик — сервис недоступен.
+    }
   }
 
   private broadcast(message: AdminWsServerMessage): void {

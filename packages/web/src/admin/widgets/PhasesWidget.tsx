@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
-import type { PhaseDefinition, PhaseRun, PhaseRunsOverview } from "@radar/shared";
+import { useObservable } from "../../shared/hooks/useObservable";
+import type { PhaseDefinition } from "@radar/shared";
 import { Button, Panel } from "../../shared/ds";
 import { adminApi } from "../../shared/api/adminApi";
+import { phasesOverview$, phaseRuns$ } from "../../shared/state/adminStore";
 import { formatDateTime } from "../format";
 import { PhaseRunProgressBar } from "./PhaseRunProgressBar";
-
-const POLL_MS = 10_000;
 
 const STATUS_COLOR: Record<string, string> = {
   completed: "var(--status-ok)",
@@ -81,33 +81,32 @@ function PhaseRow({
 /** Parse-engine: ingest (raw) и geo (places) — отдельные секции и тогглы. */
 export function PhasesWidget() {
   const [phases, setPhases] = useState<PhaseDefinition[]>([]);
-  const [runs, setRuns] = useState<PhaseRun[]>([]);
-  const [overview, setOverview] = useState<PhaseRunsOverview | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [stopAllBusy, setStopAllBusy] = useState(false);
   const [stopAllNotice, setStopAllNotice] = useState<string | null>(null);
 
-  const refresh = useCallback(async () => {
+  // Realtime через WS phases-update (3s push от сервера).
+  const overview = useObservable(phasesOverview$, null);
+  const runs = useObservable(phaseRuns$, []);
+
+  // Фазы (definitions) — только REST, не меняются часто.
+  const refreshPhases = useCallback(async () => {
     try {
-      const [phaseList, recentRuns, ov] = await Promise.all([
-        adminApi.phasesList(),
-        adminApi.phasesRuns({ limit: 20 }),
-        adminApi.phasesRunsOverview(),
-      ]);
-      setPhases(phaseList);
-      setRuns(recentRuns);
-      setOverview(ov);
+      setPhases(await adminApi.phasesList());
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Не удалось загрузить фазы");
     }
   }, []);
 
+  // Принудительное обновление после мутаций.
+  const refresh = useCallback(async () => {
+    await refreshPhases();
+  }, [refreshPhases]);
+
   useEffect(() => {
-    void refresh();
-    const t = setInterval(() => void refresh(), POLL_MS);
-    return () => clearInterval(t);
-  }, [refresh]);
+    void refreshPhases();
+  }, [refreshPhases]);
 
   const toggle = async (phase: PhaseDefinition): Promise<void> => {
     await adminApi.phasesPatch(phase.id, { enabled: !phase.enabled });

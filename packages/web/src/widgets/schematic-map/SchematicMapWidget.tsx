@@ -5,7 +5,6 @@ import { Panel } from "../../shared/ds";
 import { LEVEL_COLORS, LEVEL_LABELS } from "../../shared/config/mapConfig.service";
 import { formatDateTime } from "../../shared/format/dateTime";
 import { useBehaviorSubject } from "../../shared/hooks/useBehaviorSubject";
-import { useObservable } from "../../shared/hooks/useObservable";
 import { isRegionVisibleOnMap } from "../../shared/state/derivations";
 import { regionsByCode$ } from "../../shared/state/mapStore";
 import { selectRegion, selectedRegion$ } from "../../shared/state/selectionStore";
@@ -25,7 +24,8 @@ const LEVEL_Z: Record<StateLevel, number> = {
   grey: 0,
   green: 1,
   yellow: 2,
-  red: 3,
+  orange: 3,
+  red: 4,
 };
 
 function hexPoints(cx: number, cy: number, r: number): string {
@@ -66,7 +66,7 @@ type HoverTip = {
 
 /** Схема: уплотнённый honeycomb, подсказка в portal (не режется glass-панелью). */
 export function SchematicMapWidget(_props: WidgetProps) {
-  const regions = useObservable(regionsByCode$, new Map<string, MapRegionSnapshot>());
+  const regions = useBehaviorSubject(regionsByCode$);
   const selected = useBehaviorSubject(selectedRegion$);
   const [hoverTip, setHoverTip] = useState<HoverTip | null>(null);
 
@@ -171,7 +171,6 @@ export function SchematicMapWidget(_props: WidgetProps) {
                     }
                     strokeWidth={isSelected ? 2.5 : 1}
                     strokeLinejoin="round"
-                    title={tip}
                     onMouseEnter={(event) => {
                       setHoverTip({
                         region,

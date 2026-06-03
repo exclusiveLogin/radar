@@ -53,12 +53,13 @@ function createStepFactories(params: {
 export function createParsePipeline(
   config: ParsePipelineWorkerConfig,
   placeCache?: IPlaceCacheRepository,
+  geoCatalog?: GeoCatalog,
 ): { pipeline: ParsePipelineService; resolution: LocationResolutionService } {
-  const geoCatalog = GeoCatalog.loadFromArtifacts();
+  const catalog = geoCatalog ?? GeoCatalog.loadFromArtifacts();
   const classifier = new RuleBasedEventClassifier();
   const cache = placeCache ?? new InMemoryPlaceCacheRepository();
   const stepFactories = createStepFactories({
-    geoCatalog,
+    geoCatalog: catalog,
     flags: config.enricherFlags,
     llmRuntimeConfig: config.llmRuntimeConfig,
     placeCache: cache,

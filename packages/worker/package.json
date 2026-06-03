@@ -44,6 +44,8 @@
     "parse-engine:catalog:heal": "tsx src/cli/placeCatalogHealCli.ts",
     "parse-engine:catalog:heal:audit": "tsx src/cli/placeCatalogHealAuditCli.ts",
     "parse-engine:catalog:wipe": "tsx src/cli/catalogPlacesWipeCli.ts",
+    "parse-engine:system:wipe": "tsx src/cli/systemFullResetCli.ts",
+    "phase:lifecycle": "tsx src/cli/phaseLifecycleCli.ts",
     "parse-engine:phase:run": "tsx src/cli/phaseRunCli.ts",
     "parse-engine:phase:stop": "tsx src/cli/phaseRunsStopAllCli.ts",
     "parse-engine:manifest:import": "tsx src/cli/phaseManifestCli.ts import",

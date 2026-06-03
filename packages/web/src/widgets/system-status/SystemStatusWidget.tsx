@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { Panel, StatusDot } from "../../shared/ds";
-import { useObservable } from "../../shared/hooks/useObservable";
+import { useBehaviorSubject } from "../../shared/hooks/useBehaviorSubject";
 import { connectionStatus$ } from "../../shared/realtime/ws";
 import {
   countActiveRegions,
@@ -18,16 +18,12 @@ import type { WidgetProps } from "../widgetProps";
 
 /** WS-соединение, DB ready, счётчики активных регионов/мест. */
 export function SystemStatusWidget({ defaultCollapsed = false }: WidgetProps) {
-  const wsStatus = useObservable(connectionStatus$, "connecting");
-  const health = useObservable(systemHealth$, {
-    apiOk: false,
-    dbReady: false,
-    lastCheckAt: null,
-  });
-  const workerStatus = useObservable(workerStatus$, null);
-  const lastSnapshot = useObservable(lastSnapshotAt$, null);
-  const regions = useObservable(regionsByCode$, new Map());
-  const places = useObservable(placesById$, new Map());
+  const wsStatus = useBehaviorSubject(connectionStatus$);
+  const health = useBehaviorSubject(systemHealth$);
+  const workerStatus = useBehaviorSubject(workerStatus$);
+  const lastSnapshot = useBehaviorSubject(lastSnapshotAt$);
+  const regions = useBehaviorSubject(regionsByCode$);
+  const places = useBehaviorSubject(placesById$);
 
   const activeRegions = useMemo(() => countActiveRegions(regions), [regions]);
   const activePlaces = useMemo(

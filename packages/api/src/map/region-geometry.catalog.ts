@@ -58,6 +58,7 @@ export function registerRegionIsoAliases(
   input: {
     name: string;
     nameWithType?: string;
+    shortName?: string;
     subjectType?: string;
     iso: string;
   },
@@ -68,11 +69,30 @@ export function registerRegionIsoAliases(
   };
 
   put(input.name);
+  if (input.shortName) put(input.shortName);
+
   if (input.nameWithType) {
     put(input.nameWithType);
+    const oblast = input.nameWithType.match(/^(.+?)\s+область(.*)$/i);
+    if (oblast?.[1]) {
+      const tail = oblast[2] ?? "";
+      put(`${oblast[1]} обл.${tail}`.replace(/\.\s+-/, ". -"));
+      put(`${oblast[1]} обл${tail}`);
+    }
+    if (input.nameWithType.includes("город федерального значения")) {
+      const city = input.nameWithType
+        .replace(/город федерального значения\s+/i, "")
+        .trim();
+      if (city) put(`г. ${city}`);
+    }
     if (input.nameWithType.endsWith(" обл")) {
       put(`${input.nameWithType}.`);
     }
+  }
+
+  if (input.nameWithType?.startsWith("Республика ")) {
+    const tail = input.name.trim();
+    if (tail) put(`Республика ${tail} (${tail})`);
   }
 
   if (input.subjectType === "Респ") {
@@ -119,6 +139,7 @@ export class RegionGeometryCatalog {
       iso: string | null;
       name: string;
       nameWithType?: string | null;
+      shortName?: string | null;
     }>,
   ): void {
     this.isoByNorm.clear();
@@ -183,6 +204,7 @@ export class RegionGeometryCatalog {
       iso: string | null;
       name: string;
       nameWithType?: string | null;
+      shortName?: string | null;
     }>,
   ): void {
     for (const region of regions) {
@@ -190,18 +212,43 @@ export class RegionGeometryCatalog {
       registerRegionIsoAliases(this.isoByNorm, {
         name: region.name,
         nameWithType: region.nameWithType ?? undefined,
+        shortName: region.shortName ?? undefined,
         iso: region.iso,
       });
     }
   }
 
   private fillNormIndexFromReferenceCsv(): void {
+    // Предпочитаем catalog/regions.json (SSOT после рефактора)
+    const catalogPath = repoDataPath("geo", "catalog", "regions.json");
+    if (fs.existsSync(catalogPath)) {
+      try {
+        const entries = JSON.parse(
+          fs.readFileSync(catalogPath, "utf8").replace(/^\uFEFF/, ""),
+        ) as Array<{
+          iso?: string;
+          name?: string;
+          nameWithType?: string;
+          shortName?: string;
+        }>;
+        for (const entry of entries) {
+          if (!entry.iso || !entry.name) continue;
+          registerRegionIsoAliases(this.isoByNorm, {
+            name: entry.name,
+            nameWithType: entry.nameWithType,
+            shortName: entry.shortName,
+            iso: entry.iso,
+          });
+        }
+        return;
+      } catch {
+        // Fallback to CSV below
+      }
+    }
+
+    // Fallback: исторический hflabs CSV (может отсутствовать после vendor-чистки)
     const csvPath = repoDataPath(
-      "geo",
-      "artifacts",
-      "reference",
-      "hflabs-region",
-      "region.csv",
+      "geo", "artifacts", "reference", "hflabs-region", "region.csv",
     );
     if (!fs.existsSync(csvPath)) return;
 
@@ -215,12 +262,7 @@ export class RegionGeometryCatalog {
       const nameWithType = cols[2];
       const iso = cols[10];
       if (!name || !iso?.startsWith("RU-")) continue;
-      registerRegionIsoAliases(this.isoByNorm, {
-        name,
-        nameWithType,
-        subjectType,
-        iso,
-      });
+      registerRegionIsoAliases(this.isoByNorm, { name, nameWithType, subjectType, iso });
     }
   }
 
