@@ -55,6 +55,7 @@ export class RegionStatePoller {
       .select("rm.region_id", "region_id")
       .addSelect("rm.region_code", "region_code")
       .addSelect("rm.state_level", "state_level")
+      .addSelect("rm.stale", "stale")
       .addSelect("rm.status_code", "reason")
       .addSelect("rm.updated_at", "updated_at")
       .addSelect("rm.winner_occurred_at", "changed_at")
@@ -67,6 +68,7 @@ export class RegionStatePoller {
       region_id: string;
       region_code: string;
       state_level: StateLevel;
+      stale: boolean;
       reason: string;
       updated_at: Date;
       changed_at: Date;
@@ -84,12 +86,18 @@ export class RegionStatePoller {
       const eventAtIso = new Date(row.changed_at).toISOString();
       const tile = layoutTiles[row.region_code];
 
+      // Stale-регион: эмитируем grey со старым statusEventAt чтобы фронтенд
+      // убрал его с карты (isRegionVisibleOnMap вернёт false для старого grey).
+      // Курсор всё равно продвигается — нет риска застрять на stale-строке.
+      const staleLevel: StateLevel = "grey";
+      const effectiveLevel: StateLevel = row.stale ? staleLevel : row.state_level as StateLevel;
+
       emit({
         type: "region-state",
         payload: {
           regionId: row.region_id,
           regionCode: row.region_code,
-          stateLevel: row.state_level as StateLevel,
+          stateLevel: effectiveLevel,
           previousLevel: "grey",
           activity: 0,
           reason: row.reason ?? undefined,
@@ -100,19 +108,23 @@ export class RegionStatePoller {
           layout: tile,
         },
       });
-      emit({
-        type: "warning",
-        payload: {
-          id: `${row.region_id}:${new Date(row.updated_at).toISOString()}`,
-          regionId: row.region_id,
-          regionCode: row.region_code,
-          regionName: region?.name,
-          title: WARNING_TITLES[row.state_level] ?? row.state_level,
-          text: row.reason ?? undefined,
-          stateLevel: row.state_level as StateLevel,
-          eventAt: new Date(row.changed_at).toISOString(),
-        },
-      });
+
+      // Не засоряем ленту предупреждений stale-событиями
+      if (!row.stale) {
+        emit({
+          type: "warning",
+          payload: {
+            id: `${row.region_id}:${new Date(row.updated_at).toISOString()}`,
+            regionId: row.region_id,
+            regionCode: row.region_code,
+            regionName: region?.name,
+            title: WARNING_TITLES[row.state_level] ?? row.state_level,
+            text: row.reason ?? undefined,
+            stateLevel: row.state_level as StateLevel,
+            eventAt: new Date(row.changed_at).toISOString(),
+          },
+        });
+      }
     }
     const last = rows[rows.length - 1]!;
     this.cursor = advanceHistoryPollCursor(this.cursor, {

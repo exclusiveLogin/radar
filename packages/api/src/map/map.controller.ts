@@ -1,5 +1,5 @@
 import { Controller, Get, NotFoundException, Param, Post, Query } from "@nestjs/common";
-import { ApiQuery } from "@nestjs/swagger";
+import { ApiOperation, ApiParam, ApiQuery, ApiResponse, ApiTags } from "@nestjs/swagger";
 import {
   mapSnapshotSchema,
   messageFeedResponseSchema,
@@ -26,6 +26,7 @@ function parseLimit(value: string | undefined, fallback: number): number {
  * Read-side карты операционной обстановки. Все ответы валидируются zod-DTO
  * (контракт фронта), геометрия отделена от лёгкого снапшота.
  */
+@ApiTags("map")
 @Controller()
 export class MapController {
   constructor(
@@ -35,6 +36,8 @@ export class MapController {
 
   /** После operational reset в worker — разослать актуальный snapshot открытым клиентам. */
   @Post("map/push-snapshot")
+  @ApiOperation({ summary: "Принудительно разослать map snapshot всем подключённым клиентам по WS" })
+  @ApiResponse({ status: 201, description: "pushed=true если хотя бы один клиент подключён" })
   async pushSnapshot(): Promise<{ ok: true; pushed: boolean }> {
     const pushed = await this.mapRealtime.pushSnapshotToClients();
     return { ok: true, pushed };

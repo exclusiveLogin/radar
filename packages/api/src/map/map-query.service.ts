@@ -721,10 +721,11 @@ export class MapQueryService {
              rm.updated_at,
              rm.winner_occurred_at AS status_event_at
       FROM region_status_read_model rm
-      WHERE NOT (
-        rm.state_level IN ('green', 'grey')
-        AND rm.winner_occurred_at < $1::timestamptz
-      )
+      WHERE rm.stale = false
+        AND NOT (
+          rm.state_level IN ('green', 'grey')
+          AND rm.winner_occurred_at < $1::timestamptz
+        )
       `,
       [new Date(Date.now() - REGION_DRAW_SUPPRESS_AGE_MS).toISOString()],
     )) as Array<{
