@@ -171,7 +171,7 @@ export function SchematicMapWidget(_props: WidgetProps) {
               return (
                 <g
                   key={region.regionCode}
-                  onClick={() => selectRegion(region.regionCode)}
+                  onClick={() => selectRegion(region.regionCode === selected ? null : region.regionCode)}
                   style={{ cursor: "pointer" }}
                 >
                   <polygon

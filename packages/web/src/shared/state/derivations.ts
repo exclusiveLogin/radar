@@ -15,7 +15,10 @@ const LEVEL_SEVERITY: Record<StateLevel, number> = {
 
 /**
  * Эффективный уровень места с учётом регионального контекста.
- * Место наследует уровень региона если региональный выше собственного.
+ *
+ * Каскадирование отбоя и сброс дочерних places — ответственность бэкенда
+ * (LastWinnerReadModelProjection + MapStateExpirySweep). Фронтенд только эскалирует
+ * цвет вверх: если регион опаснее места — показываем уровень региона.
  */
 export function effectivePlaceLevel(
   placeLevel: StateLevel,

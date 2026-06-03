@@ -762,6 +762,16 @@ export class MapQueryService {
              psm.winner_occurred_at
       FROM place_status_read_model psm
       WHERE psm.action = 'raise'
+        -- Инвариант: регион-уровень событие гасит дочерние places.
+        -- Если регион получил БОЛЕЕ СВЕЖИЙ статус — place считается сброшенным.
+        -- Строго > чтобы НП из того же сообщения (одинаковый timestamp) не подавлялись.
+        AND NOT EXISTS (
+          SELECT 1
+          FROM region_status_read_model rsm
+          WHERE rsm.region_id = psm.region_id
+            AND rsm.stale = false
+            AND rsm.winner_occurred_at > psm.winner_occurred_at
+        )
       `,
     )) as Array<{
       place_id: string;

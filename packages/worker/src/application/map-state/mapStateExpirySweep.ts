@@ -39,20 +39,48 @@ export class MapStateExpirySweep {
       `,
       [cutoffIso, atIso],
     )) as Array<{ region_id: string }>;
-    const placeRows = (await this.deps.dataSource.query(
+
+    const expiredRegionIds = regionRows.map((r) => r.region_id);
+
+    // Дочерние places гасим вместе с регионом — сайд-эффект TTL региона.
+    let placesExpired = 0;
+    if (expiredRegionIds.length > 0) {
+      const placeRows = (await this.deps.dataSource.query(
+        `
+        UPDATE place_status_read_model
+        SET stale = true, stale_at = $2::timestamptz, status_code = 'stale', updated_at = now()
+        WHERE stale = false
+          AND action = 'raise'
+          AND region_id = ANY($1::uuid[])
+        RETURNING place_id
+        `,
+        [expiredRegionIds, atIso],
+      )) as Array<{ place_id: string }>;
+      placesExpired = placeRows.length;
+    }
+
+    // Места без активного региона тоже истекают независимо (по собственному TTL).
+    const orphanRows = (await this.deps.dataSource.query(
       `
       UPDATE place_status_read_model
       SET stale = true, stale_at = $2::timestamptz, status_code = 'stale', updated_at = now()
       WHERE stale = false
         AND winner_occurred_at < $1::timestamptz
         AND action = 'raise'
+        AND (
+          region_id IS NULL
+          OR region_id NOT IN (
+            SELECT region_id FROM region_status_read_model WHERE action = 'raise' AND stale = false
+          )
+        )
       RETURNING place_id
       `,
       [cutoffIso, atIso],
     )) as Array<{ place_id: string }>;
+
     return {
       regionsExpired: regionRows.length,
-      placesExpired: placeRows.length,
+      placesExpired: placesExpired + orphanRows.length,
     };
   }
 }

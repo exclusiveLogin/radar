@@ -64,7 +64,10 @@ export function startMapStore(): void {
   void mapApi.warnings().then((items) => stateChanges$.next(items)).catch(reportError);
 }
 
-/** Убирает точки в grey-регионах и без совпадения regionCode (SSOT с гео-слоем). */
+/**
+ * Убирает точки в grey-регионах, без regionCode и те, что подавлены более свежим регион-событием.
+ * Инвариант: если region.statusEventAt > place.statusEventAt → place был перекрыт регионом.
+ */
 function prunePlacesForRegions(
   places: Map<string, MapPlaceSnapshot>,
   regions: Map<string, MapRegionSnapshot>,
@@ -73,9 +76,22 @@ function prunePlacesForRegions(
   for (const place of places.values()) {
     const region = regions.get(place.regionCode);
     if (!region || !isRegionVisibleOnMap(region) || place.stateLevel === "grey") continue;
+    if (isPlaceSuppressedByRegion(place.statusEventAt, region.statusEventAt)) continue;
     next.set(place.placeId, place);
   }
   return next;
+}
+
+/**
+ * Проверяет, подавлен ли place более свежим регион-событием.
+ * Строго >: равный timestamp = одно сообщение → place не подавляется.
+ */
+function isPlaceSuppressedByRegion(
+  placeEventAt: string | undefined,
+  regionEventAt: string | undefined,
+): boolean {
+  if (!regionEventAt || !placeEventAt) return false;
+  return regionEventAt > placeEventAt;
 }
 
 function seedSnapshot(
@@ -163,6 +179,13 @@ function applyPlaceState(event: PlaceStateEvent): void {
 
   const region = regionsByCode$.value.get(event.regionCode);
   if (!region || !isRegionVisibleOnMap(region)) {
+    next.delete(event.placeId);
+    placesById$.next(next);
+    return;
+  }
+
+  // Регион получил более свежий статус → place подавлен, игнорируем backfill
+  if (isPlaceSuppressedByRegion(event.changedAt, region.statusEventAt)) {
     next.delete(event.placeId);
     placesById$.next(next);
     return;
