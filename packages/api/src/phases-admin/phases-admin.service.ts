@@ -335,6 +335,14 @@ export class PhasesAdminService {
     return { ok: true, reset };
   }
 
+  /**
+   * Разослать актуальный snapshot карты всем WS-клиентам.
+   * Вызывается из AdminGateway при обнаружении завершённой phase run.
+   */
+  async pushMapSnapshot(): Promise<void> {
+    await this.mapRealtime.pushSnapshotToClients();
+  }
+
   async replay(body: unknown): Promise<{
     invalidated: number;
     phaseIds: string[];

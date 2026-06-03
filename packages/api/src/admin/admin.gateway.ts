@@ -72,6 +72,8 @@ export class AdminGateway
   private readonly subscriptions = new Map<WebSocket, Set<AdminWsChannel>>();
   private readonly timers: ReturnType<typeof setInterval>[] = [];
   private parseLogCursor = new Date();
+  /** ID run-ов, которые были в статусе running на предыдущем тике — для детекции завершения. */
+  private prevRunningIds = new Set<string>();
 
   constructor(
     @InjectDataSource() private readonly dataSource: DataSource,
@@ -215,6 +217,19 @@ export class AdminGateway
         this.phasesAdmin.runsOverview(),
         this.phasesAdmin.listRuns({ limit: 20 }),
       ]);
+
+      // Детекция завершения фаз: если run был running и стал completed/failed → push snapshot.
+      const currentRunningIds = new Set(
+        runs.filter((r) => r.status === "running").map((r) => r.id),
+      );
+      const justFinished = [...this.prevRunningIds].some(
+        (id) => !currentRunningIds.has(id),
+      );
+      if (justFinished) {
+        void this.phasesAdmin.pushMapSnapshot();
+      }
+      this.prevRunningIds = currentRunningIds;
+
       this.broadcast({ type: "phases-update", payload: { overview, runs } });
     } catch {
       // Пропускаем тик — сервис недоступен.

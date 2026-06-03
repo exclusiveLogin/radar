@@ -152,6 +152,8 @@ function applyPlaceState(event: PlaceStateEvent): void {
     regionCode: event.regionCode,
     statusCode: event.statusCode,
     stateLevel: event.stateLevel,
+    kind: event.kind,
+    geoFeatureId: event.geoFeatureId,
     lat: event.lat,
     lon: event.lon,
     updatedAt: event.changedAt,

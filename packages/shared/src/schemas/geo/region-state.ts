@@ -80,6 +80,10 @@ export const placeStateEventSchema = z.object({
   statusCode: z.string().min(1),
   stateLevel: stateLevelSchema,
   action: z.enum(["activate", "deactivate"]),
+  /** Тип места (district/city_district/city/locality) — для визуального ранжирования. */
+  kind: z.string().optional(),
+  /** FK geo_feature — если есть, фронт может связать место с полигоном района. */
+  geoFeatureId: z.string().uuid().optional(),
   lat: z.number().finite().optional(),
   lon: z.number().finite().optional(),
   changedAt: z.string().datetime(),

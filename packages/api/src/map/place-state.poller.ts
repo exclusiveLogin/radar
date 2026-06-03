@@ -70,6 +70,8 @@ export class PlaceStatePoller {
              psm.status_code,
              p.name AS place_name,
              p.region_id,
+             p.kind,
+             p.geo_feature_id,
              r.iso AS region_code,
              p.centroid_lat,
              p.centroid_lon,
@@ -89,6 +91,8 @@ export class PlaceStatePoller {
       place_name: string;
       region_id: string;
       region_code: string | null;
+      kind: string | null;
+      geo_feature_id: string | null;
       centroid_lat: string | null;
       centroid_lon: string | null;
       gf_centroid_lat: string | null;
@@ -107,6 +111,8 @@ export class PlaceStatePoller {
         statusCode: row.status_code,
         stateLevel,
         action: "deactivate",
+        kind: row.kind ?? undefined,
+        geoFeatureId: row.geo_feature_id ?? undefined,
         lat: coords?.lat,
         lon: coords?.lon,
         changedAt: new Date().toISOString(),
@@ -145,6 +151,8 @@ export class PlaceStatePoller {
       .addSelect("r.iso", "region_code")
       .addSelect("p.centroid_lat", "centroid_lat")
       .addSelect("p.centroid_lon", "centroid_lon")
+      .addSelect("p.kind", "kind")
+      .addSelect("p.geo_feature_id", "geo_feature_id")
       .addSelect("gf.centroid_lat", "gf_centroid_lat")
       .addSelect("gf.centroid_lon", "gf_centroid_lon")
       .from("place_status_read_model", "psm")
@@ -167,6 +175,8 @@ export class PlaceStatePoller {
       winner_occurred_at: Date;
       centroid_lat: string | null;
       centroid_lon: string | null;
+      kind: string | null;
+      geo_feature_id: string | null;
       gf_centroid_lat: string | null;
       gf_centroid_lon: string | null;
     }>;
@@ -184,6 +194,8 @@ export class PlaceStatePoller {
         statusCode: row.status_code,
         stateLevel,
         action: row.action === "raise" ? "activate" : "deactivate",
+        kind: row.kind ?? undefined,
+        geoFeatureId: row.geo_feature_id ?? undefined,
         lat: coords?.lat,
         lon: coords?.lon,
         changedAt: new Date(row.winner_occurred_at).toISOString(),
