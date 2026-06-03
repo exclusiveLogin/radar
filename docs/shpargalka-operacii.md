@@ -214,7 +214,7 @@ npm run dev
 
 ## REST API — шпаргалка (base: http://127.0.0.1:3000)
 
-> Swagger UI: http://127.0.0.1:3000/api-docs
+> Swagger UI: http://127.0.0.1:3000/api/docs
 
 ### Карта (read-side)
 
