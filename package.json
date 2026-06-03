@@ -66,6 +66,8 @@
     "parse-engine:geo:drain": "npm run parse-engine:geo:drain -w @radar/worker --",
     "parse-engine:geo:check": "npm run parse-engine:geo:check -w @radar/worker",
     "parse-engine:geo:recover": "npm run parse-engine:geo:recover -w @radar/worker",
+    "parse-engine:catalog:heal": "npm run parse-engine:catalog:heal -w @radar/worker --",
+    "parse-engine:catalog:heal:audit": "npm run parse-engine:catalog:heal:audit -w @radar/worker",
     "parse-engine:phase:run": "npm run parse-engine:phase:run -w @radar/worker --",
     "parse-engine:phase:stop": "npm run parse-engine:phase:stop -w @radar/worker",
     "parse-engine:manifest:import": "npm run parse-engine:manifest:import -w @radar/worker",

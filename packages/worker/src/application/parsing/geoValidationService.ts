@@ -46,6 +46,8 @@ export type GeoValidationContext = {
   allowPlaceUpdates?: boolean;
   /** Несколько НП в одном сообщении — запрет «регион по умолчанию из хвоста текста». */
   multiPlaceContext?: boolean;
+  /** Catalog heal: не создавать новый place — только match или reject. */
+  catalogHeal?: boolean;
 };
 
 const TRUSTED_PROVIDERS = new Set<PlaceProvider>([
@@ -327,6 +329,10 @@ export class GeoValidationService {
           entityKind: "place",
         },
       };
+    }
+
+    if (context.catalogHeal) {
+      return { decision: "rejected", location: null };
     }
 
     const placeId = randomUUID();

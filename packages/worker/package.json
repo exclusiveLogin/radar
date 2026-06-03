@@ -41,6 +41,8 @@
     "parse-engine:geo:drain": "tsx src/cli/placeEnrichmentDrainCli.ts",
     "parse-engine:geo:check": "tsx src/cli/geoDadataCheckCli.ts",
     "parse-engine:geo:recover": "tsx src/cli/geoRecoverCli.ts",
+    "parse-engine:catalog:heal": "tsx src/cli/placeCatalogHealCli.ts",
+    "parse-engine:catalog:heal:audit": "tsx src/cli/placeCatalogHealAuditCli.ts",
     "parse-engine:phase:run": "tsx src/cli/phaseRunCli.ts",
     "parse-engine:phase:stop": "tsx src/cli/phaseRunsStopAllCli.ts",
     "parse-engine:manifest:import": "tsx src/cli/phaseManifestCli.ts import",
