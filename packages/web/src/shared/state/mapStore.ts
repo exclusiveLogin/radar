@@ -111,23 +111,42 @@ function applyMessage(message: WsServerMessage): void {
   }
 }
 
-/** Обновляет уровень/activity региона, сохраняя метаданные (name/layout/centroid). */
+/**
+ * Обновляет уровень/activity региона, сохраняя метаданные (name/layout/centroid).
+ * Если регион новый (нет layout из предыдущего snapshot), планируем дозагрузку snapshot.
+ */
 function applyRegionState(event: RegionStateEvent): void {
   const next = new Map(regionsByCode$.value);
   const existing = next.get(event.regionCode);
+  const layout = event.layout ?? existing?.layout;
   next.set(event.regionCode, {
     regionId: event.regionId,
     regionCode: event.regionCode,
     name: existing?.name ?? event.regionCode,
     stateLevel: event.stateLevel,
     activity: event.activity,
-    layout: existing?.layout,
+    layout,
     centroidLat: event.centroidLat ?? existing?.centroidLat,
     centroidLon: event.centroidLon ?? existing?.centroidLon,
     statusEventAt: event.statusEventAt ?? existing?.statusEventAt,
   });
   regionsByCode$.next(next);
   placesById$.next(prunePlacesForRegions(placesById$.value, next));
+
+  // Новый регион без layout → нужен полный snapshot чтобы получить тайл-координаты
+  if (!layout) {
+    scheduleSnapshotRefetch();
+  }
+}
+
+/** Дебаунс-таймер для дозагрузки snapshot при появлении регионов без layout. */
+let refetchTimer: ReturnType<typeof setTimeout> | null = null;
+function scheduleSnapshotRefetch(): void {
+  if (refetchTimer) return;
+  refetchTimer = setTimeout(() => {
+    refetchTimer = null;
+    void refetchMapSnapshot();
+  }, 800);
 }
 
 /** Добавляет/обновляет/снимает место на гео-карте по WS place-state. */

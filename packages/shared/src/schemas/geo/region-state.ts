@@ -6,6 +6,12 @@ import { stateLevelSchema } from "./state-level";
  * лёгкий map-snapshot (без полигонов), смежность и фид предупреждений.
  */
 
+/** Координата региона в тайл-гриде схемы (layout.json). */
+export const layoutTileSchema = z.object({
+  col: z.number().int().min(0),
+  row: z.number().int().min(0),
+});
+
 /** Срез текущего состояния региона (строка проекции region_state_active). */
 export const regionStateRecordSchema = z.object({
   regionId: z.string().uuid(),
@@ -32,12 +38,8 @@ export const regionStateEventSchema = z.object({
   /** Для гео-карты при live-обновлении (если в БД нет centroid). */
   centroidLat: z.number().finite().optional(),
   centroidLon: z.number().finite().optional(),
-});
-
-/** Координата региона в тайл-гриде схемы (layout.json). */
-export const layoutTileSchema = z.object({
-  col: z.number().int().min(0),
-  row: z.number().int().min(0),
+  /** Тайл-координаты схемы (layout.json) — чтобы схема не ждала полного snapshot. */
+  layout: layoutTileSchema.optional(),
 });
 
 /** Регион в лёгком снапшоте карты (без тяжёлой геометрии). */

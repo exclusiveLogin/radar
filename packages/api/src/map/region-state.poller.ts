@@ -5,6 +5,7 @@ import type { DataSource } from "typeorm";
 import { In } from "typeorm";
 import { RegionEntity } from "../geo/entities";
 import { resolveRegionCentroid } from "./map-centroid.resolver";
+import { loadLayout } from "./layout.loader";
 import {
   advanceHistoryPollCursor,
   createHistoryPollCursor,
@@ -73,6 +74,7 @@ export class RegionStatePoller {
     if (rows.length === 0) return;
 
     const regionById = await this.loadRegions(rows.map((row) => row.region_id));
+    const layoutTiles = loadLayout().tiles;
 
     for (const row of rows) {
       const region = regionById.get(row.region_id);
@@ -80,6 +82,7 @@ export class RegionStatePoller {
         ? resolveRegionCentroid({ region })
         : undefined;
       const eventAtIso = new Date(row.changed_at).toISOString();
+      const tile = layoutTiles[row.region_code];
 
       emit({
         type: "region-state",
@@ -94,6 +97,7 @@ export class RegionStatePoller {
           statusEventAt: eventAtIso,
           centroidLat: centroid?.lat,
           centroidLon: centroid?.lon,
+          layout: tile,
         },
       });
       emit({
