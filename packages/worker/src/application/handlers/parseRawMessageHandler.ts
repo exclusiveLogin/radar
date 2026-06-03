@@ -138,6 +138,14 @@ export class ParseRawMessageHandler {
     primaryProvider: EnricherProvider | undefined,
     llmSignals: Map<string, { confidence?: number; reason?: string }>,
   ) {
+    const placeLikeCount = locations.filter(
+      (loc) =>
+        loc.placeName
+        && loc.entityKind !== "region"
+        && loc.precision !== "region",
+    ).length;
+    const multiPlaceContext = placeLikeCount > 1;
+
     const validatedLocations = [];
     for (const location of locations) {
       const signal =
@@ -148,6 +156,7 @@ export class ParseRawMessageHandler {
         providerHint: toProviderHint(primaryProvider),
         confidence: signal?.confidence,
         reason: signal?.reason,
+        multiPlaceContext,
       });
       if (validated.location) {
         validatedLocations.push(validated.location);

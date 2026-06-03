@@ -322,11 +322,10 @@ export class PhasesAdminService {
   async forceStopRun(id: string): Promise<{ ok: true; reset: number }> {
     const run = await this.getRun(id);
     const phase = await this.getPhase(run.phaseId);
-    const reset =
-      phase.scope === "ingestParse"
-        ? await this.coverage.resetProcessingForPhase(run.phaseId)
-        : 0;
-    if (phase.scope === "geoParse") {
+    let reset = 0;
+    if (phase.scope === "ingestParse") {
+      reset = await this.coverage.resetProcessingForPhase(run.phaseId);
+    } else if (phase.scope === "geoParse") {
       const provider = resolveGeoEnrichmentProvider(phase);
       if (provider) {
         reset = await this.placeJobs.resetProcessingForProvider(provider);

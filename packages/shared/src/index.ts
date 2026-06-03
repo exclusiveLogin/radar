@@ -328,6 +328,7 @@ export type {
   IGeoSourceProvider,
   ILocationEnricher,
   LocationCandidate,
+  LocationEnrichInput,
   IEventClassifier,
   ClassifiedPost,
   ISourceUniquenessContributor,

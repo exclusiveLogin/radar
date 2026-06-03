@@ -184,8 +184,18 @@ export async function runParseSnap(
       }
 
       let hasAccepted = false;
+      const placeLikeCount = resolved.locations.filter(
+        (loc) =>
+          loc.placeName
+          && loc.entityKind !== "region"
+          && loc.precision !== "region",
+      ).length;
+      const multiPlaceContext = placeLikeCount > 1;
+
       for (const location of resolved.locations) {
-        const decision = await validation.validate(row.block, location);
+        const decision = await validation.validate(row.block, location, {
+          multiPlaceContext,
+        });
         if (decision.decision === "matched_existing") {
           known += 1;
           hasAccepted = true;

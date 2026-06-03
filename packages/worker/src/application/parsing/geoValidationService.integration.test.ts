@@ -193,3 +193,69 @@ test("geo validation: region alias resolves via place(kind=region)", async () =>
   assert.notEqual(result.decision, "rejected");
   assert.equal(result.location?.regionId, regionId);
 });
+
+test("geo validation: channel brand 24/7 without catalog region — rejected", async () => {
+  const regions = new InMemoryRegionRepository();
+  const places = new InMemoryPlaceRepository();
+  const aliases = new InMemoryPlaceAliasRepository();
+  const service = new GeoValidationService(regions, places, aliases);
+
+  const nizhId = "52f52f52-f52f-452f-952f-52f52f52f52f";
+  await regions.upsertMany([
+    {
+      id: nizhId,
+      code: "52",
+      name: "Нижегородская область",
+      frontRegion: false,
+      borderRegion: false,
+    },
+  ]);
+
+  const result = await service.validate(
+    "новость …, Нижегородская обл",
+    {
+      regionId: nizhId,
+      regionCode: "52",
+      placeName: "Иркутск 24/7",
+      precision: "city",
+      source: "db",
+    },
+    { multiPlaceContext: false },
+  );
+
+  assert.equal(result.decision, "rejected");
+  assert.equal(result.location, null);
+});
+
+test("geo validation: garbage place name — rejected even with regionCode", async () => {
+  const regions = new InMemoryRegionRepository();
+  const places = new InMemoryPlaceRepository();
+  const aliases = new InMemoryPlaceAliasRepository();
+  const service = new GeoValidationService(regions, places, aliases);
+
+  const nizhId = "52f52f52-f52f-452f-952f-52f52f52f52f";
+  await regions.upsertMany([
+    {
+      id: nizhId,
+      code: "52",
+      name: "Нижегородская область",
+      frontRegion: false,
+      borderRegion: false,
+    },
+  ]);
+
+  const result = await service.validate(
+    "Впервые регионы РФ подверглись массовым РАКЕТНЫМ атакам, Нижегородская обл",
+    {
+      regionId: nizhId,
+      regionCode: "52",
+      placeName:
+        "Впервые регионы РФ подверглись массовым РАКЕТНЫМ атакам от ВСУ",
+      precision: "city",
+      source: "db",
+    },
+    { multiPlaceContext: false },
+  );
+
+  assert.equal(result.decision, "rejected");
+});

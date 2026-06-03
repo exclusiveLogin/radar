@@ -18,11 +18,17 @@ import { randomUUID } from "node:crypto";
 import {
   isCoordConsistentWithRegion,
   isTrustedGeocodeSource,
-  resolveRegionCodeForCoords,
 } from "../../domain/geo/coordRegionReconcile.js";
 import {
-  lookupLocalityRegionForPlace,
+  filterRegionsByTextContext,
+  findLocalityAnchorsInText,
+  regionHasExplicitMentionInText,
+  resolvePlaceRegionCodeInContext,
+  type RegionCandidate,
 } from "../../domain/geo/geographicTextContext.js";
+import {
+  isGarbageIngestPlaceName,
+} from "../../domain/parsing/channelCityListPromo.js";
 import { KnownLocalityCatalog } from "../../infrastructure/geo-catalog/knownLocalityCatalog.js";
 
 export type GeoValidationResult = {
@@ -38,6 +44,8 @@ export type GeoValidationContext = {
   reason?: string;
   /** Разрешает изменять существующий place из ingest-потока (по умолчанию выключено). */
   allowPlaceUpdates?: boolean;
+  /** Несколько НП в одном сообщении — запрет «регион по умолчанию из хвоста текста». */
+  multiPlaceContext?: boolean;
 };
 
 const TRUSTED_PROVIDERS = new Set<PlaceProvider>([
@@ -167,44 +175,79 @@ export class GeoValidationService {
     return null;
   }
 
-  /** Субъект РФ: alias → словарь regions → coords reconcile → каталог НП. */
-  private async resolveEffectiveRegion(
+  /** Кандидаты субъектов, упомянутых в тексте (SSOT с finalizer). */
+  private async collectRegionsInText(
+    rawText: string,
+    anchors: ReturnType<typeof findLocalityAnchorsInText>,
+  ): Promise<RegionCandidate[]> {
+    const allRegions = await this.regions.listActive();
+    const candidates: RegionCandidate[] = allRegions.map((region) => ({
+      code: canonicalRegionCode(region),
+      name: region.name,
+      fiasId: region.fiasId ?? undefined,
+      aliases: [],
+    }));
+    return filterRegionsByTextContext(candidates, rawText, anchors);
+  }
+
+  /** Локация уровня субъекта: только явно распознанный region, без create place. */
+  private async resolveRegionEntity(
     location: EventLocation,
+    rawText: string,
   ): Promise<RegionRecord | null> {
-    const fromRegionCodeAlias = await this.resolveRegionByAlias(location.regionCode);
-    if (fromRegionCodeAlias) return fromRegionCodeAlias;
+    if (location.regionCode) {
+      const fromAlias = await this.resolveRegionByAlias(location.regionCode);
+      if (fromAlias) return fromAlias;
+      const fromCode = await this.regions.findByCode(location.regionCode);
+      if (fromCode) return fromCode;
+    }
+
+    if (location.placeName) {
+      const fromNameAlias = await this.resolveRegionByAlias(location.placeName);
+      if (fromNameAlias) return fromNameAlias;
+    }
 
     const catalog = KnownLocalityCatalog.loadFromDictionaries().list();
-    if (location.placeName) {
-      const fromCatalog = lookupLocalityRegionForPlace(
-        location.placeName,
-        catalog,
-      );
-      if (fromCatalog) {
-        const region = await this.regions.findByCode(fromCatalog);
-        if (region) {
-          return region;
-        }
-      }
-    }
-
-    const textRegion =
-      (await this.resolveRegionByAlias(location.placeName)) ??
-      (await this.regions.findByCode(location.regionCode));
-    const allRegions = await this.regions.listActive();
-    const reconciledCode = resolveRegionCodeForCoords(
-      location,
-      textRegion,
-      allRegions,
+    const anchors = findLocalityAnchorsInText(rawText, catalog);
+    const regionsInText = await this.collectRegionsInText(rawText, anchors);
+    const explicit = regionsInText.find((region) =>
+      regionHasExplicitMentionInText(rawText, region),
     );
-    if (reconciledCode) {
-      const reconciled = await this.regions.findByCode(reconciledCode);
-      if (reconciled) {
-        return reconciled;
-      }
+    if (!explicit) {
+      return null;
     }
+    return this.regions.findByCode(explicit.code);
+  }
 
-    return textRegion;
+  /**
+   * Регион для НП: тот же SSOT, что finalizer (places.json → якорь → явный субъект).
+   * Без regionCode — reject, «хвост сообщения» не используется.
+   */
+  private async resolvePlaceEntityRegion(
+    location: EventLocation,
+    rawText: string,
+    multiPlaceContext: boolean,
+  ): Promise<RegionRecord | null> {
+    const catalog = KnownLocalityCatalog.loadFromDictionaries().list();
+    const anchors = findLocalityAnchorsInText(rawText, catalog);
+    const regionsCollected = await this.collectRegionsInText(rawText, anchors);
+    const regionCode = resolvePlaceRegionCodeInContext({
+      placeName: location.placeName!,
+      placeRegionCode: location.regionCode,
+      rawText,
+      anchorsInText: anchors,
+      localityCatalog: catalog,
+      regionsCollected,
+      multiPlaceContext,
+    });
+    if (!regionCode) {
+      return null;
+    }
+    return this.regions.findByCode(regionCode);
+  }
+
+  private isRegionLevelLocation(location: EventLocation): boolean {
+    return location.entityKind === "region" || location.precision === "region";
   }
 
   async validate(
@@ -212,16 +255,34 @@ export class GeoValidationService {
     location: EventLocation,
     context: GeoValidationContext = {},
   ): Promise<GeoValidationResult> {
-    const region = await this.resolveEffectiveRegion(location);
-    if (!region) {
+    const multiPlaceContext = context.multiPlaceContext ?? false;
+
+    if (this.isRegionLevelLocation(location)) {
+      const region = await this.resolveRegionEntity(location, rawQuery);
+      if (!region) {
+        return { decision: "rejected", location: null };
+      }
+      return {
+        decision: "matched_existing",
+        location: {
+          ...withResolvedRegion(location, region),
+          entityKind: "region",
+          placeId: undefined,
+        },
+      };
+    }
+
+    if (!location.placeName || isGarbageIngestPlaceName(location.placeName)) {
       return { decision: "rejected", location: null };
     }
 
-    if (!location.placeName) {
-      return {
-        decision: "rejected",
-        location: withResolvedRegion(location, region),
-      };
+    const region = await this.resolvePlaceEntityRegion(
+      location,
+      rawQuery,
+      multiPlaceContext,
+    );
+    if (!region) {
+      return { decision: "rejected", location: null };
     }
 
     const provider = context.providerHint ?? sourceToProvider(location.source);
@@ -234,6 +295,10 @@ export class GeoValidationService {
     );
 
     if (matched) {
+      const placeRegion = await this.regions.findById(matched.regionId);
+      if (!placeRegion) {
+        return { decision: "rejected", location: null };
+      }
       await this.aliases.upsertAlias({
         placeId: matched.id,
         alias: location.placeName,
@@ -255,10 +320,11 @@ export class GeoValidationService {
       return {
         decision: "matched_existing",
         location: {
-          ...withResolvedRegion(location, region),
+          ...withResolvedRegion(location, placeRegion),
           placeId: matched.id,
           placeName: matched.name,
           placeFias: matched.fiasId,
+          entityKind: "place",
         },
       };
     }
@@ -287,7 +353,11 @@ export class GeoValidationService {
     });
     return {
       decision: "created_new",
-      location: { ...withResolvedRegion(location, region), placeId },
+      location: {
+        ...withResolvedRegion(location, region),
+        placeId,
+        entityKind: "place",
+      },
     };
   }
 
