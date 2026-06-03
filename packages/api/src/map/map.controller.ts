@@ -44,12 +44,21 @@ export class MapController {
   }
 
   @Get("map/snapshot")
-  @ApiQuery({ name: "since", required: false })
+  @ApiOperation({
+    summary: "Полный снапшот карты",
+    description:
+      "Возвращает актуальные статусы регионов, places, предупреждения и layout-тайлы схемы. " +
+      "Параметр `since` (ISO8601) ограничивает выборку только записями после указанного времени.",
+  })
+  @ApiQuery({ name: "since", required: false, description: "ISO8601 cursor — вернуть только изменения после этого времени" })
+  @ApiResponse({ status: 200, description: "MapSnapshot (regions + places + warnings + layout)" })
   async snapshot(@Query("since") since?: string) {
     return mapSnapshotSchema.parse(await this.map.getSnapshot(since));
   }
 
   @Get("geo/regions")
+  @ApiOperation({ summary: "Справочник регионов для гео-виджета (метаданные без геометрии)" })
+  @ApiResponse({ status: 200, description: "{ regions: GeoRegionRef[] } — regionId, code, name, centroid, bbox" })
   async geoRegions() {
     return geoRegionsResponseSchema.parse({
       regions: await this.map.getGeoRegions(),
@@ -58,6 +67,11 @@ export class MapController {
 
   /** GeoJSON контуров субъектов РФ (включая stateLevel grey). */
   @Get("map/regions-geojson")
+  @ApiOperation({
+    summary: "GeoJSON слой контуров субъектов РФ",
+    description: "FeatureCollection полигонов регионов со свойствами regionCode, stateLevel, name. Включает grey-регионы без активного статуса.",
+  })
+  @ApiResponse({ status: 200, description: "GeoJSON FeatureCollection (полигоны регионов)" })
   async regionsGeoJson() {
     return await this.map.getRegionsGeoJsonLayer();
   }
@@ -67,6 +81,11 @@ export class MapController {
    * Лёгкий ответ (~единицы объектов) — безопасно вызывать при каждом обновлении places.
    */
   @Get("map/districts-active-geojson")
+  @ApiOperation({
+    summary: "GeoJSON активных районов (только с raise-статусом)",
+    description: "Лёгкий слой — только районы с action=raise. Безопасно перезапрашивать при каждом place-state WS-событии.",
+  })
+  @ApiResponse({ status: 200, description: "GeoJSON FeatureCollection (активные полигоны районов)" })
   async activeDistrictsGeoJson() {
     return await this.map.getActiveDistrictsGeoJsonLayer();
   }
@@ -76,12 +95,21 @@ export class MapController {
    * Опционально: ?regionId=<uuid> для фильтрации по субъекту.
    */
   @Get("map/districts-geojson")
-  @ApiQuery({ name: "regionId", required: false })
+  @ApiOperation({
+    summary: "GeoJSON всех районов (тяжёлый слой)",
+    description: "Все geo_feature с layer=district/city_district. Для ленивой подгрузки контуров при клике на регион. Фильтр по regionId (uuid).",
+  })
+  @ApiQuery({ name: "regionId", required: false, description: "UUID региона — вернуть районы только этого субъекта" })
+  @ApiResponse({ status: 200, description: "GeoJSON FeatureCollection (полигоны районов)" })
   async districtsGeoJson(@Query("regionId") regionId?: string) {
     return await this.map.getDistrictsGeoJsonLayer(regionId);
   }
 
   @Get("regions/:id/geometry")
+  @ApiOperation({ summary: "Геометрия региона (ленивая подгрузка)", description: "Возвращает bbox и geometryArtifactKey для подгрузки GeoJSON контура." })
+  @ApiParam({ name: "id", description: "regionId (UUID)" })
+  @ApiResponse({ status: 200, description: "GeoRegionRef с geometryArtifactKey" })
+  @ApiResponse({ status: 404, description: "Регион не найден" })
   async regionGeometry(@Param("id") id: string) {
     const geometry = await this.map.getRegionGeometry(id);
     if (!geometry) throw new NotFoundException("region not found");
@@ -89,13 +117,17 @@ export class MapController {
   }
 
   @Get("status-dictionary")
+  @ApiOperation({ summary: "Словарь статусов (stateLevel → label, color)", description: "Справочник уровней опасности для легенды карты. Стабильный эндпоинт — можно кешировать." })
+  @ApiResponse({ status: 200, description: "StatusDictionary { levels: { code, label, color }[] }" })
   async statusDictionary() {
     return statusDictionarySchema.parse(await this.map.getStatusDictionary());
   }
 
   @Get("places")
-  @ApiQuery({ name: "regionId", required: false })
-  @ApiQuery({ name: "limit", required: false })
+  @ApiOperation({ summary: "Справочник мест", description: "Список places с координатами центроида. Фильтр по regionId (uuid). По умолчанию limit=1000." })
+  @ApiQuery({ name: "regionId", required: false, description: "UUID региона" })
+  @ApiQuery({ name: "limit", required: false, description: "Макс. кол-во записей (default 1000)" })
+  @ApiResponse({ status: 200, description: "{ places: PlaceRef[] }" })
   async places(
     @Query("regionId") regionId?: string,
     @Query("limit") limit?: string,
@@ -106,8 +138,11 @@ export class MapController {
   }
 
   @Get("regions/:id/warnings")
-  @ApiQuery({ name: "since", required: false })
-  @ApiQuery({ name: "limit", required: false })
+  @ApiOperation({ summary: "Предупреждения по региону", description: "Лента предупреждений конкретного субъекта. Cursor-пагинация через `since` (ISO8601). Default limit=100." })
+  @ApiParam({ name: "id", description: "regionId (UUID)" })
+  @ApiQuery({ name: "since", required: false, description: "ISO8601 cursor" })
+  @ApiQuery({ name: "limit", required: false, description: "Макс. кол-во записей (default 100)" })
+  @ApiResponse({ status: 200, description: "Warning[]" })
   async regionWarnings(
     @Param("id") id: string,
     @Query("since") since?: string,
@@ -122,20 +157,28 @@ export class MapController {
   }
 
   @Get("map/regions/by-code/:code/source-message")
+  @ApiOperation({ summary: "Исходное сообщение, породившее статус региона", description: "Возвращает текст raw-сообщения и канал для отображения в боковой панели." })
+  @ApiParam({ name: "code", description: "ISO 3166-2:RU код региона, напр. RU-MOW" })
+  @ApiResponse({ status: 200, description: "{ message: SourceMessage | null }" })
   async regionSourceMessage(@Param("code") code: string) {
     const message = await this.map.getRegionSourceMessage(code);
     return sourceMessageResponseSchema.parse({ message });
   }
 
   @Get("map/places/:placeId/source-message")
+  @ApiOperation({ summary: "Исходное сообщение, породившее статус места" })
+  @ApiParam({ name: "placeId", description: "placeId (UUID)" })
+  @ApiResponse({ status: 200, description: "{ message: SourceMessage | null }" })
   async placeSourceMessage(@Param("placeId") placeId: string) {
     const message = await this.map.getPlaceSourceMessage(placeId);
     return sourceMessageResponseSchema.parse({ message });
   }
 
   @Get("warnings")
-  @ApiQuery({ name: "since", required: false })
-  @ApiQuery({ name: "limit", required: false })
+  @ApiOperation({ summary: "Глобальная лента предупреждений (все регионы)", description: "Cursor-пагинация через `since` (ISO8601). Default limit=100." })
+  @ApiQuery({ name: "since", required: false, description: "ISO8601 cursor" })
+  @ApiQuery({ name: "limit", required: false, description: "Макс. кол-во записей (default 100)" })
+  @ApiResponse({ status: 200, description: "Warning[]" })
   async warnings(
     @Query("since") since?: string,
     @Query("limit") limit?: string,
@@ -149,7 +192,9 @@ export class MapController {
 
   /** Лента сырых сообщений (все каналы) для дашборда. */
   @Get("map/messages/recent")
-  @ApiQuery({ name: "limit", required: false })
+  @ApiOperation({ summary: "Лента последних raw-сообщений", description: "Все каналы, обратная хронология. Default limit=80." })
+  @ApiQuery({ name: "limit", required: false, description: "Макс. кол-во записей (default 80)" })
+  @ApiResponse({ status: 200, description: "{ items: MessageFeedItem[] }" })
   async recentMessages(@Query("limit") limit?: string) {
     return messageFeedResponseSchema.parse({
       items: await this.map.getRecentMessages(parseLimit(limit, 80)),
@@ -158,7 +203,9 @@ export class MapController {
 
   /** Лента изменений: parsed_event + регионы из event_locations (1 событие = 1 карточка). */
   @Get("map/events/recent")
-  @ApiQuery({ name: "limit", required: false })
+  @ApiOperation({ summary: "Лента последних событий изменения статуса", description: "1 запись = 1 parsed_event с привязанными регионами/НП. Default limit=80." })
+  @ApiQuery({ name: "limit", required: false, description: "Макс. кол-во записей (default 80)" })
+  @ApiResponse({ status: 200, description: "{ items: StateChangeEvent[] }" })
   async recentStateChangeEvents(@Query("limit") limit?: string) {
     return stateChangeEventsResponseSchema.parse({
       items: await this.map.getRecentStateChangeEvents(parseLimit(limit, 80)),
