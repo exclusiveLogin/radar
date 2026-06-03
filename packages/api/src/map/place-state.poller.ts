@@ -63,6 +63,8 @@ export class PlaceStatePoller {
       JOIN places p ON p.id = psm.place_id
       JOIN regions r ON r.id = p.region_id
       WHERE psm.action = 'raise'
+        AND p.kind <> 'region'
+        AND p.is_active = true
       `,
     )) as Array<{
       place_id: string;
@@ -126,7 +128,7 @@ export class PlaceStatePoller {
       .addSelect("p.centroid_lat", "centroid_lat")
       .addSelect("p.centroid_lon", "centroid_lon")
       .from("place_status_read_model", "psm")
-      .innerJoin(PlaceEntity, "p", "p.id = psm.place_id")
+      .innerJoin(PlaceEntity, "p", "p.id = psm.place_id AND p.kind <> 'region'")
       .innerJoin("regions", "r", "r.id = p.region_id")
       .where(afterCursor.clause, afterCursor.params)
       .orderBy("psm.updated_at", "ASC")

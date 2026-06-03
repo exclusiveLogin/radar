@@ -258,6 +258,8 @@ export class MapQueryService {
     for (const row of rows) {
       const place = row.place;
       if (!place?.region) continue;
+      // Субъект РФ (kind=region) — только контур региона, не точка на карте.
+      if (place.kind === "region") continue;
 
       const regionCode = place.region.iso ?? place.region.name;
       const coords = resolvePlaceMapCentroid({ place });

@@ -1,0 +1,59 @@
+import { MONOREPO_ROOT } from "@repo/root";
+import { wipePlacesCatalog } from "../application/archive/wipePlacesCatalog.js";
+import { createWorkerCompositionRoot } from "../application/createWorkerCompositionRoot.js";
+import { loadRootEnv } from "../infrastructure/config/loadRootEnv.js";
+import { WorkerStorageMode } from "../infrastructure/persistence/storageMode.js";
+import { hasAnyFlag, parseLongFlagsMap } from "./workerCliArgs.js";
+
+/** Полный wipe places + операционка; дальше geo:db:apply и rebuild. */
+async function main(): Promise<void> {
+  loadRootEnv(MONOREPO_ROOT);
+  const flags = parseLongFlagsMap(process.argv);
+  const dryRun = hasAnyFlag(flags, ["dry-run", "dryRun"]);
+
+  if (hasAnyFlag(flags, ["help", "h"])) {
+    console.log(`Usage: npm run parse-engine:catalog:wipe [--dry-run]
+
+  Удаляет ВСЕ places, aliases, place_enrichment_jobs, event_evidence, parse/map read-model.
+  regions и raw_messages не трогает.
+
+  Дальше:
+    npm run geo:db:apply
+    npm run parse-engine:rebuild:drain`);
+    process.exit(0);
+  }
+
+  if (dryRun) {
+    console.log("[dry-run] wipe places не выполнялся.");
+    process.exit(0);
+  }
+
+  const runtime = await createWorkerCompositionRoot({
+    storageMode: WorkerStorageMode.Db,
+    startIngestParseDaemon: false,
+  });
+  if (!runtime.dataSource || !runtime.workerRepos) {
+    console.error("catalog:wipe: нужен RADAR_STORAGE_MODE=db");
+    process.exit(1);
+  }
+
+  const result = await wipePlacesCatalog({
+    dataSource: runtime.dataSource,
+    repos: runtime.workerRepos,
+  });
+
+  console.log("catalog:wipe done:");
+  console.log(`  places deleted: ${result.placesDeleted}`);
+  console.log(`  aliases deleted: ${result.aliasesDeleted}`);
+  console.log(`  geo jobs deleted: ${result.enrichmentJobsDeleted}`);
+  console.log(`  event_evidence deleted: ${result.eventEvidenceDeleted}`);
+  console.log(`  regions.canonical_place_id cleared: ${result.regionsCanonicalCleared}`);
+  console.log("\nДальше: npm run geo:db:apply && npm run parse-engine:rebuild:drain");
+
+  await runtime.shutdown?.();
+}
+
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});

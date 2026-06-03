@@ -15,7 +15,7 @@ import { randomUUID } from "node:crypto";
 import { normalizeName, placeDraftKey } from "./diff-engine";
 import { regionStemKey } from "../../infrastructure/geo-providers/region-canonicalization";
 import { GeoSyncPlanService } from "./geo-sync-plan.service";
-import { syncRegionCanonicalPlaces } from "./region-place-mirror.js";
+import { syncRegionCanonicalPlaces } from "./region-place-mirror";
 
 export class GeoSyncApplyService {
   private readonly planner: GeoSyncPlanService;

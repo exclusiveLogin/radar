@@ -86,7 +86,7 @@ export class LastWinnerReadModelProjection {
         occurredAt,
       });
 
-      if (location.placeId) {
+      if (location.placeId && entityKind !== "region") {
         await this.upsertPlaceWinner({
           placeId: location.placeId,
           regionId: location.regionId,
