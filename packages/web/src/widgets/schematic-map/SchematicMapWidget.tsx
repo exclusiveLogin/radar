@@ -1,10 +1,9 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import type { MapRegionSnapshot, StateLevel } from "@radar/shared";
 import { Panel } from "../../shared/ds";
 import { LEVEL_COLORS, LEVEL_LABELS } from "../../shared/config/mapConfig.service";
 import { formatDateTime } from "../../shared/format/dateTime";
-import { useBehaviorSubject } from "../../shared/hooks/useBehaviorSubject";
 import { isRegionVisibleOnMap } from "../../shared/state/derivations";
 import { regionsByCode$ } from "../../shared/state/mapStore";
 import { selectRegion, selectedRegion$ } from "../../shared/state/selectionStore";
@@ -66,9 +65,22 @@ type HoverTip = {
 
 /** Схема: уплотнённый honeycomb, подсказка в portal (не режется glass-панелью). */
 export function SchematicMapWidget(_props: WidgetProps) {
-  const regions = useBehaviorSubject(regionsByCode$);
-  const selected = useBehaviorSubject(selectedRegion$);
+  // Прямая подписка — инициализируется текущим значением, обновляется при каждой эмиссии.
+  const [regions, setRegions] = useState(() => regionsByCode$.getValue());
+  const [selected, setSelected] = useState(() => selectedRegion$.getValue());
   const [hoverTip, setHoverTip] = useState<HoverTip | null>(null);
+
+  useEffect(() => {
+    setRegions(regionsByCode$.getValue());
+    const sub = regionsByCode$.subscribe(setRegions);
+    return () => sub.unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    setSelected(selectedRegion$.getValue());
+    const sub = selectedRegion$.subscribe(setSelected);
+    return () => sub.unsubscribe();
+  }, []);
 
   const layoutRegions = useMemo(
     () => [...regions.values()].filter((region) => region.layout),
