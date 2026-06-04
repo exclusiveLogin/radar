@@ -56,6 +56,10 @@ export class DadataEnricher implements ILocationEnricher {
           body: JSON.stringify({
             query: input.rawText,
             count: 1,
+            // Ограничиваем поиск конкретным субъектом РФ — без этого dadata
+            // возвращает глобальный топ по популярности и может вернуть
+            // одноимённый район из другого региона.
+            ...(input.regionCode ? { locations: [{ region_iso_code: input.regionCode }] } : {}),
           }),
           signal: controller.signal,
         },
