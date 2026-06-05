@@ -1,4 +1,4 @@
-import type { EventType } from "@radar/shared";
+import type { EventSubject, EventType } from "@radar/shared";
 import { isChannelCityListPromo } from "./channelCityListPromo.js";
 
 /** Рекламный/коммерческий контекст: «внимание» не оперативный сигнал. */
@@ -46,7 +46,8 @@ const rules: Array<{ regex: RegExp; type: EventType }> = [
   { regex: /работа\w*\s+пво/i, type: "pvo_work" },
 
   // Ракетная/реактивная опасность (после «отбоя», чтобы отбой не попал сюда).
-  { regex: /(ракетн|реактивн)\w*\s+опасност/i, type: "rocket_threat" },
+  // Примечание: \w не матчит кириллицу в JS, поэтому используем явный диапазон.
+  { regex: /(ракетн|реактивн)[а-яёА-ЯЁ]*\s+опасност/i, type: "rocket_threat" },
 
   // Массовое предупреждение: тревога / волна / приготовиться.
   { regex: /приготов\w+.*волн\w+.*бпла/is, type: "mass_warning" },
@@ -77,4 +78,17 @@ export function extractEventType(input: string): EventType | null {
     if (rule.regex.test(input)) return rule.type;
   }
   return null;
+}
+
+/**
+ * Субъект угрозы по ключевым словам текста.
+ * Приоритет: МВШ > ракета > авиация > БПЛА > other.
+ * Вызывается независимо от eventType — правила не пересекаются по смыслу.
+ */
+export function extractEventSubject(input: string): EventSubject {
+  if (/мвш|массиров[а-яёА-ЯЁ]*\s+(ракет|удар)/i.test(input)) return "mws";
+  if (/ракетн|реактивн/i.test(input)) return "rocket";
+  if (/авіац|авиац/i.test(input)) return "aviation";
+  if (/бпла|дрон|беспилот/i.test(input)) return "drone";
+  return "other";
 }

@@ -26,6 +26,7 @@ type MessageParsedPayload = {
   rawMessageId?: string;
   eventType: string;
   eventCategory?: GeoEventCategory;
+  eventSubject?: string;
   active?: boolean;
   postedAt?: string;
   channelKey?: string;
@@ -51,6 +52,16 @@ export class LastWinnerReadModelProjection {
     if (event.type !== "MessageParsed") return;
     const payload = event.payload as MessageParsedPayload;
     const locations = payload.locations ?? [];
+
+    // Отбой без геолокаций: чистим все регионы, в которые канал писал за последние 24ч.
+    if (payload.eventType === "cleared" && locations.length === 0 && payload.channelKey) {
+      await this.ensureDictionary();
+      const resolvedStatusCode = this.resolveDeactivateStatusCode();
+      const fallbackOccurredAt = payload.postedAt ?? event.occurredAt;
+      await this.clearChannelRegions(payload.channelKey, resolvedStatusCode, fallbackOccurredAt);
+      return;
+    }
+
     if (locations.length === 0) return;
 
     await this.ensureDictionary();
@@ -134,6 +145,50 @@ export class LastWinnerReadModelProjection {
       }
     }
   };
+
+  /**
+   * Снимает тревогу со всех регионов, куда канал писал raise за последние 24 часа.
+   * Используется для «глобального» отбоя без указания конкретных регионов.
+   */
+  private async clearChannelRegions(
+    channelKey: string,
+    statusCode: string,
+    occurredAt: string,
+  ): Promise<void> {
+    const targets = (await this.deps.dataSource.query(
+      `
+      SELECT DISTINCT el.region_id, r.iso AS region_code
+      FROM event_locations el
+      JOIN regions r ON r.id = el.region_id
+      JOIN parsed_events pe ON pe.id = el.parsed_event_id
+      JOIN raw_messages rm ON rm.id = pe.raw_message_id
+      JOIN channels c ON c.id = rm.channel_id AND c.key = $1
+      WHERE el.action = 'raise'
+        AND el.occurred_at > NOW() - INTERVAL '24 hours'
+      `,
+      [channelKey],
+    )) as Array<{ region_id: string; region_code: string | null }>;
+
+    for (const target of targets) {
+      await this.upsertRegionWinner({
+        regionId: target.region_id,
+        regionCode: target.region_code ?? target.region_id,
+        statusCode,
+        stateLevel: this.levelOf(statusCode),
+        action: "clear",
+        authorChannelKey: channelKey,
+        occurredAt,
+      });
+      await this.clearAuthorPlacesInRegion({
+        parsedEventId: null,
+        regionId: target.region_id,
+        statusCode,
+        stateLevel: this.levelOf(statusCode),
+        authorChannelKey: channelKey,
+        occurredAt,
+      });
+    }
+  }
 
   private async resolveClearTargets(input: {
     payload: MessageParsedPayload;
@@ -268,6 +323,17 @@ export class LastWinnerReadModelProjection {
           stale_at = NULL,
           updated_at = now()
       WHERE region_status_read_model.winner_occurred_at <= EXCLUDED.winner_occurred_at
+        AND (
+          EXCLUDED.action = 'clear'
+          OR ARRAY_POSITION(
+               ARRAY['grey','green','yellow','orange','red']::text[],
+               EXCLUDED.state_level::text
+             ) >=
+             ARRAY_POSITION(
+               ARRAY['grey','green','yellow','orange','red']::text[],
+               region_status_read_model.state_level::text
+             )
+        )
       `,
       [
         input.regionId,
@@ -308,6 +374,17 @@ export class LastWinnerReadModelProjection {
           stale_at = NULL,
           updated_at = now()
       WHERE place_status_read_model.winner_occurred_at <= EXCLUDED.winner_occurred_at
+        AND (
+          EXCLUDED.action = 'clear'
+          OR ARRAY_POSITION(
+               ARRAY['grey','green','yellow','orange','red']::text[],
+               EXCLUDED.state_level::text
+             ) >=
+             ARRAY_POSITION(
+               ARRAY['grey','green','yellow','orange','red']::text[],
+               place_status_read_model.state_level::text
+             )
+        )
       `,
       [
         input.placeId,
@@ -322,7 +399,8 @@ export class LastWinnerReadModelProjection {
   }
 
   private async clearAuthorPlacesInRegion(input: {
-    parsedEventId: string;
+    /** UUID parsed_event для записи в event_locations. Если не передан — INSERT пропускается. */
+    parsedEventId: string | null;
     regionId: string;
     statusCode: string;
     stateLevel: string;
@@ -341,30 +419,32 @@ export class LastWinnerReadModelProjection {
     )) as Array<{ place_id: string }>;
 
     for (const row of activePlaces) {
-      await this.deps.dataSource.query(
-        `
-        INSERT INTO event_locations(
-          parsed_event_id, region_id, place_id, precision, lat, lon, source,
-          entity_kind, confidence, author_channel_key, action, status_code, occurred_at
-        )
-        SELECT
-          $1, $2, $3, 'locality', NULL, NULL, 'db',
-          'place', NULL, $4, 'clear', $5, $6::timestamptz
-        WHERE NOT EXISTS (
-          SELECT 1
-          FROM event_locations
-          WHERE parsed_event_id = $1 AND place_id = $3 AND action = 'clear'
-        )
-        `,
-        [
-          input.parsedEventId,
-          input.regionId,
-          row.place_id,
-          input.authorChannelKey,
-          input.statusCode,
-          input.occurredAt,
-        ],
-      );
+      if (input.parsedEventId) {
+        await this.deps.dataSource.query(
+          `
+          INSERT INTO event_locations(
+            parsed_event_id, region_id, place_id, precision, lat, lon, source,
+            entity_kind, confidence, author_channel_key, action, status_code, occurred_at
+          )
+          SELECT
+            $1, $2, $3, 'locality', NULL, NULL, 'db',
+            'place', NULL, $4, 'clear', $5, $6::timestamptz
+          WHERE NOT EXISTS (
+            SELECT 1
+            FROM event_locations
+            WHERE parsed_event_id = $1 AND place_id = $3 AND action = 'clear'
+          )
+          `,
+          [
+            input.parsedEventId,
+            input.regionId,
+            row.place_id,
+            input.authorChannelKey,
+            input.statusCode,
+            input.occurredAt,
+          ],
+        );
+      }
       await this.upsertPlaceWinner({
         placeId: row.place_id,
         regionId: input.regionId,

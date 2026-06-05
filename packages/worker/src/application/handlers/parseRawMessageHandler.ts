@@ -232,6 +232,7 @@ export class ParseRawMessageHandler {
     );
 
     const eventCategory = pipelineResult.artifact?.llm?.eventCategory;
+    const eventSubject = pipelineResult.artifact?.llm?.eventSubject ?? pipelineResult.parsedEvent.eventSubject;
     const activation = resolveParsedEventActivation(pipelineResult.artifact);
     const parsed = {
       ...pipelineResult.parsedEvent,
@@ -321,6 +322,7 @@ export class ParseRawMessageHandler {
         parserVersion: PARSER_VERSION,
         eventType: parsed.eventType,
         eventCategory,
+        eventSubject,
         active: activation.isActive,
         inactiveReason: activation.inactiveReason,
         severity: parsed.severity,

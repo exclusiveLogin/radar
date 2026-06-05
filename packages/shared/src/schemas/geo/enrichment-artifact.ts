@@ -4,6 +4,7 @@
  * read any already-populated namespace.
  */
 import { z } from "zod";
+import { eventSubjectSchema } from "../ingest/event-type";
 
 // ─── per-step namespace schemas ────────────────────────────────────────────
 
@@ -59,6 +60,8 @@ export const geoEnrichmentLlmSchema = z.object({
   reason: z.string(),
   /** Семантическая группа события (опциональный сигнал LLM). */
   eventCategory: geoEventCategorySchema.optional(),
+  /** Субъект угрозы по версии LLM (опциональный сигнал). */
+  eventSubject: eventSubjectSchema.optional(),
 });
 
 export const geoEnrichmentDadataSchema = z.object({

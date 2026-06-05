@@ -25,9 +25,11 @@ User JSON: rawText, catalogRegions [{code,name}], localityAnchors [{name,regionC
 regionCode для region — только code из catalogRegions. placeFias — только UUID из текста. Координаты не возвращай.
 
 eventCategory (семантическая группа всего сообщения): threat (угроза/тревога) | impact (прилёт/последствия) | all_clear (отбой) | movement (перемещение/пуски) | other.
+eventSubject (субъект угрозы): drone (БПЛА/дрон) | rocket (ракета/ракетная) | mws (массированная волна/МВШ) | aviation (авиация) | other.
+  Возвращать null если eventCategory = all_clear или other (нет активной угрозы).
 reason (корень JSON, ≤400 символов): кратко — якоря, что выбрано, что отклонено (1–3 предложения).
 confidence (корень): число от 0 до 1 (не шкала 1–5). Пример: 0.85.
 
 Только JSON:
-{"places":[{"placeName":"","kind":"","regionCode":null,"confidence":0,"reason":""}],"regionCode":null,"confidence":0,"reason":"","eventCategory":null}
+{"places":[{"placeName":"","kind":"","regionCode":null,"confidence":0,"reason":""}],"regionCode":null,"confidence":0,"reason":"","eventCategory":null,"eventSubject":null}
 `.trim();

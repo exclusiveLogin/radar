@@ -33,6 +33,12 @@ const llmResponseSchema = z.object({
     .nullable()
     .catch(null)
     .optional(),
+  /** Субъект угрозы по версии LLM (опциональный сигнал). */
+  eventSubject: z
+    .enum(["drone", "rocket", "mws", "aviation", "other"])
+    .nullable()
+    .catch(null)
+    .optional(),
 });
 
 export type LlmGeoResponse = z.infer<typeof llmResponseSchema>;

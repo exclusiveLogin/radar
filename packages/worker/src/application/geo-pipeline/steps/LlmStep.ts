@@ -121,6 +121,7 @@ export class LlmStep implements GeoPipelineStep {
       confidence: result.confidence,
       reason: result.reason,
       eventCategory: result.eventCategory ?? undefined,
+      eventSubject: result.eventSubject ?? undefined,
     };
   }
 }

@@ -1,7 +1,7 @@
 import type { ClassifiedPost, EventType } from "@radar/shared";
 import { extractCounts } from "./extractCounts.js";
 import { extractDirection } from "./extractDirection.js";
-import { extractEventType } from "./extractEventType.js";
+import { extractEventSubject, extractEventType } from "./extractEventType.js";
 import { extractMacroZone } from "./extractMacroZone.js";
 import { extractRepeatFlag } from "./extractRepeatFlag.js";
 import { PARSER_VERSION } from "./version.js";
@@ -33,6 +33,7 @@ export function parsePost(rawPost: string): ClassifiedPost {
     event: {
       rawMessageId: UNKNOWN_RAW_MESSAGE_ID,
       eventType,
+      eventSubject: extractEventSubject(rawPost),
       severity: inferSeverity(rawPost, eventType),
       repeat: extractRepeatFlag(rawPost),
       count: extractCounts(rawPost),

@@ -9,7 +9,7 @@
  */
 import { z } from "zod";
 import { eventLocationSchema } from "./event-location";
-import { eventTypeSchema } from "./event-type";
+import { eventSubjectSchema, eventTypeSchema } from "./event-type";
 import { macroZoneSchema } from "./macro-zone";
 import { severitySchema } from "./severity";
 
@@ -29,6 +29,8 @@ export const parsedEventSchema = z.object({
   /** false — не показывать на карте/ленте (LLM отверг после merge). */
   isActive: z.boolean().optional(),
   inactiveReason: z.string().min(1).optional(),
+  /** Субъект угрозы: drone | rocket | mws | aviation | other. */
+  eventSubject: eventSubjectSchema.optional(),
 });
 
 export type ParsedEvent = z.infer<typeof parsedEventSchema>;

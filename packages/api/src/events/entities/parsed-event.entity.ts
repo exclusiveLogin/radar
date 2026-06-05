@@ -59,4 +59,8 @@ export class ParsedEventEntity {
 
   @Column({ name: "inactive_reason", type: "text", nullable: true })
   inactiveReason!: string | null;
+
+  /** Субъект угрозы: drone | rocket | mws | aviation | other. */
+  @Column({ name: "event_subject", type: "text", nullable: true })
+  eventSubject!: string | null;
 }

@@ -7,8 +7,8 @@ import { z } from "zod";
  * - grey   — нет данных / спокойно по умолчанию;
  * - green  — явный отбой (липкий до новой угрозы);
  * - yellow — внимание / БПЛА / превентивно у соседа red;
- * - orange — yellow + фиксация в нашу сторону;
- * - red    — фиксация / работа ПВО в самом регионе.
+ * - orange — LLM-категория threat без точного subject (fallback);
+ * - red    — опасность / ракетная опасность / ПВО в самом регионе.
  */
 export const stateLevelSchema = z.enum(["grey", "green", "yellow", "orange", "red"]);
 
