@@ -235,6 +235,17 @@ export class MapController {
     return this.map.getRegionAdjacency();
   }
 
+  @Get("map/regions/top-activity")
+  @ApiOperation({
+    summary: "Топ регионов по активности",
+    description: "Top-N регионов по количеству danger-событий за последние 7 дней.",
+  })
+  @ApiQuery({ name: "limit", required: false, example: "10" })
+  async getTopActivityRegions(@Query("limit") limit?: string) {
+    const items = await this.map.getTopActivityRegions(parseLimit(limit, 10));
+    return { items };
+  }
+
   @Get("map/regions/by-code/:code/events")
   @ApiOperation({
     summary: "История событий региона",

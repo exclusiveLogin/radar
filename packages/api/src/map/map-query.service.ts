@@ -854,6 +854,37 @@ export class MapQueryService {
   }
 
   /**
+   * Топ-N регионов по количеству danger (red) событий за последние 7 дней.
+   * Используется в TopActivityWidget для рейтинга активности.
+   */
+  async getTopActivityRegions(limit = 10): Promise<TopActivityRow[]> {
+    const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    const rows = (await this.dataSource.query(
+      `SELECT r.iso        AS region_code,
+              r.name,
+              COUNT(DISTINCT pe.id) AS event_count
+       FROM parsed_events pe
+       JOIN event_locations el ON el.parsed_event_id = pe.id
+       JOIN regions r           ON r.id = el.region_id AND r.is_active = true
+       JOIN raw_messages rm     ON rm.id = pe.raw_message_id
+       JOIN status_dictionary sd ON sd.code = pe.event_type AND sd.is_active = true
+       WHERE pe.is_active = true
+         AND sd.state_level = 'red'
+         AND rm.posted_at >= $2::timestamptz
+       GROUP BY r.iso, r.name
+       ORDER BY event_count DESC
+       LIMIT $1`,
+      [limit, since],
+    )) as Array<{ region_code: string; name: string; event_count: string }>;
+
+    return rows.map((row) => ({
+      regionCode: row.region_code,
+      name: row.name,
+      eventCount: Number(row.event_count),
+    }));
+  }
+
+  /**
    * История событий для конкретного региона: last N parsed_events, влияющих на карту.
    * Используется в RegionDetailWidget для отображения хронологии.
    */
@@ -937,4 +968,10 @@ export type PvoReportRow = {
   channelTitle: string;
   rawText: string;
   stats: unknown;
+};
+
+export type TopActivityRow = {
+  regionCode: string;
+  name: string;
+  eventCount: number;
 };

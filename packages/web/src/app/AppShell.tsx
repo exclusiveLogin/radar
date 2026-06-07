@@ -5,6 +5,7 @@ import { startMessagesStore } from "../shared/state/messagesStore";
 import { startStateChangesFeedStore } from "../shared/state/stateChangesFeedStore";
 import { startProvidersStore } from "../shared/state/providersStore";
 import { startPvoReportsStore } from "../shared/state/pvoReportsStore";
+import { startTopActivityStore } from "../shared/state/topActivityStore";
 import { RegionDetailWidget } from "../widgets/region-detail/RegionDetailWidget";
 import { WIDGETS, type WidgetZone } from "./widgetRegistry";
 
@@ -30,6 +31,7 @@ export function AppShell() {
     startMessagesStore();
     startStateChangesFeedStore();
     startPvoReportsStore();
+    startTopActivityStore();
   }, []);
 
   const toggle = (id: string): void =>

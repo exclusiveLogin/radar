@@ -1,3 +1,4 @@
+import type { ThemeMode } from "../state/themeStore";
 import type { StateLevel } from "@radar/shared";
 
 /**
@@ -32,11 +33,46 @@ const CARTO_DARK_TILES = [
 
 /**
  * OpenFreeMap Dark — векторные тайлы OSM, публичный инстанс без API-ключа.
- * Не использует tile.openstreetmap.org (часто недоступен из РФ).
  * @see https://openfreemap.org/quick_start/
  */
 export const MAP_BASEMAP_STYLE_URL_DEFAULT =
   "https://tiles.openfreemap.org/styles/dark";
+
+/** OpenFreeMap Bright — светлая тема (positron-like). */
+export const MAP_BASEMAP_STYLE_URL_LIGHT =
+  "https://tiles.openfreemap.org/styles/bright";
+
+const CARTO_LIGHT_TILES = [
+  "https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png",
+  "https://b.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png",
+  "https://c.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png",
+  "https://d.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png",
+] as const;
+
+/** Растровая подложка Carto Light (запасной режим `carto`, светлая тема). */
+export const MAP_STYLE_CARTO_LIGHT = {
+  version: 8 as const,
+  name: "radar-carto-light",
+  sources: {
+    "carto-light": {
+      type: "raster" as const,
+      tiles: [...CARTO_LIGHT_TILES],
+      tileSize: 512,
+      attribution:
+        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
+      maxzoom: 20,
+    },
+  },
+  layers: [
+    {
+      id: "carto-light-raster",
+      type: "raster" as const,
+      source: "carto-light",
+      minzoom: 0,
+      maxzoom: 22,
+    },
+  ],
+};
 
 /**
  * Растровая подложка Carto Dark (запасной режим `carto`).
@@ -99,12 +135,26 @@ export function resolveMapBasemapStyleUrl(): string {
 
 /**
  * Стиль MapLibre для GeoMapWidget: URL векторной подложки или встроенный JSON.
+ * @deprecated Используй resolveMapBasemapStyleForTheme(theme)
  */
 export function resolveMapBasemapStyle(): string | typeof MAP_STYLE_CARTO_DARK | typeof MAP_STYLE_MINIMAL {
   const mode = readBasemapMode();
   if (mode === "carto") return MAP_STYLE_CARTO_DARK;
   if (mode === "minimal") return MAP_STYLE_MINIMAL;
   return resolveMapBasemapStyleUrl();
+}
+
+/**
+ * Стиль MapLibre с учётом текущей темы приложения.
+ * Для minimal — тема не влияет (нет внешних тайлов).
+ */
+export function resolveMapBasemapStyleForTheme(
+  theme: ThemeMode,
+): string | typeof MAP_STYLE_CARTO_DARK | typeof MAP_STYLE_CARTO_LIGHT | typeof MAP_STYLE_MINIMAL {
+  const mode = readBasemapMode();
+  if (mode === "minimal") return MAP_STYLE_MINIMAL;
+  if (mode === "carto") return theme === "light" ? MAP_STYLE_CARTO_LIGHT : MAP_STYLE_CARTO_DARK;
+  return theme === "light" ? MAP_BASEMAP_STYLE_URL_LIGHT : MAP_BASEMAP_STYLE_URL_DEFAULT;
 }
 
 /** @deprecated Используйте resolveMapBasemapStyle(); оставлено для совместимости импортов. */

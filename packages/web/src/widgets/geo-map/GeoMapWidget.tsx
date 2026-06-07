@@ -25,13 +25,14 @@ import {
   REGION_MAP_SELECTED_STROKE_WIDTH,
   REGION_MAP_SELECTION_HALO,
   REGION_MAP_STROKE_WIDTH,
-  resolveMapBasemapStyle,
+  resolveMapBasemapStyleForTheme,
 } from "../../shared/config/mapConfig.service";
 import { formatDateTime } from "../../shared/format/dateTime";
 import { effectivePlaceLevel, isPlaceVisibleOnMap, isRegionVisibleOnMap } from "../../shared/state/derivations";
 import { derivedRegionCodes$, placesById$, regionsByCode$ } from "../../shared/state/mapStore";
 import { selectRegion, selectedRegion$ } from "../../shared/state/selectionStore";
 import { stateChangesFeed$ } from "../../shared/state/stateChangesFeedStore";
+import { theme$ } from "../../shared/state/themeStore";
 import type { WidgetProps } from "../widgetProps";
 import { insetRegionGeometry } from "./regionInsetOutline";
 
@@ -235,6 +236,57 @@ function whenStyleReady(
   map.once("load", fn);
 }
 
+/**
+ * Ждёт полной загрузки нового стиля после map.setStyle().
+ * Используем постоянный listener на "styledata" — вызывает fn() после isStyleLoaded().
+ */
+function afterStyleChange(map: MapLibreMap, fn: () => void): void {
+  const onStyleData = (): void => {
+    if (!map.isStyleLoaded()) return;
+    map.off("styledata", onStyleData);
+    fn();
+  };
+  map.on("styledata", onStyleData);
+}
+
+const USER_SOURCE_IDS = [
+  "regions",
+  "regions-outline-inset",
+  "districts-active",
+  "places",
+] as const;
+
+const USER_LAYER_IDS = new Set([
+  "regions-fill",
+  "regions-outline",
+  "regions-selection",
+  "districts-active-fill",
+  "districts-active-outline",
+  "places-circles",
+]);
+
+/**
+ * Используется как `transformStyle` при map.setStyle() для смены темы.
+ * Сохраняет наши GeoJSON-источники и слои поверх новой подложки —
+ * данные регионов и мест остаются на карте, меняются только тайлы.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function preserveUserLayers(prevStyle: any, nextStyle: any): any {
+  const savedSources: Record<string, unknown> = {};
+  for (const id of USER_SOURCE_IDS) {
+    if (prevStyle?.sources?.[id]) savedSources[id] = prevStyle.sources[id];
+  }
+  const savedLayers = ((prevStyle?.layers ?? []) as Array<{ id: string }>).filter(
+    (l) => USER_LAYER_IDS.has(l.id),
+  );
+  return {
+    ...nextStyle,
+    sources: { ...nextStyle.sources, ...savedSources },
+    // Пользовательские слои — поверх базового стиля (в конец массива).
+    layers: [...nextStyle.layers, ...savedLayers],
+  };
+}
+
 function placesCollection(
   places: Map<string, MapPlaceSnapshot>,
   regions: Map<string, MapRegionSnapshot>,
@@ -386,6 +438,7 @@ export function GeoMapWidget(_props: WidgetProps) {
     let unsubRegions: Subscription | undefined;
     let unsubPlaces: Subscription | undefined;
     let unsubSelected: Subscription | undefined;
+    let unsubTheme: Subscription | undefined;
     /**
      * Инициализируем null, чтобы первый emit BehaviorSubject всегда обрабатывался
      * (иначе code === prev → early return → flyToRegion не вызывается).
@@ -397,6 +450,9 @@ export function GeoMapWidget(_props: WidgetProps) {
     let fadeTicker: ReturnType<typeof setInterval> | undefined;
     let placePopup: Popup | null = null;
     let regionPopup: Popup | null = null;
+    // Хранит ссылку на maplibre после динамического import — нужна для Popup в обработчиках
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let maplibreRef: any = null;
 
     const tryFitOverview = (duration: number): void => {
       if (!map || !baseRegionsRef.current || highlightedCode) return;
@@ -544,30 +600,29 @@ export function GeoMapWidget(_props: WidgetProps) {
       }, 300);
     };
 
-    void (async () => {
-      const maplibre = (await import("maplibre-gl")).default;
-      await import("maplibre-gl/dist/maplibre-gl.css");
-      if (disposed || !containerRef.current) return;
+    /**
+     * Добавляет источники, слои и обработчики событий на карту.
+     * Вызывается при начальной загрузке и при каждой смене стиля (map.setStyle).
+     * После setStyle все источники и слои удаляются — их нужно переинициализировать.
+     */
+    const setupLayersAndHandlers = (): void => {
+      if (!map || !maplibreRef) return;
+      const ml = maplibreRef;
 
-      map = new maplibre.Map({
-        container: containerRef.current,
-        style: resolveMapBasemapStyle() as never,
-        center: MAP_INITIAL_VIEW.center,
-        zoom: MAP_INITIAL_VIEW.zoom,
-        attributionControl: { compact: true },
-      });
-
-      map.on("load", () => {
-        if (!map) return;
-
+      // --- Регионы ---
+      if (!map.getSource(REGIONS_SOURCE)) {
         map.addSource(REGIONS_SOURCE, {
           ...REGION_GEOJSON_SOURCE,
           data: { type: "FeatureCollection", features: [] },
         });
+      }
+      if (!map.getSource(REGIONS_OUTLINE_SOURCE)) {
         map.addSource(REGIONS_OUTLINE_SOURCE, {
           ...REGION_GEOJSON_SOURCE,
           data: { type: "FeatureCollection", features: [] },
         });
+      }
+      if (!map.getLayer(REGIONS_FILL)) {
         map.addLayer({
           id: REGIONS_FILL,
           type: "fill",
@@ -583,6 +638,8 @@ export function GeoMapWidget(_props: WidgetProps) {
             ],
           },
         });
+      }
+      if (!map.getLayer(REGIONS_OUTLINE)) {
         map.addLayer({
           id: REGIONS_OUTLINE,
           type: "line",
@@ -599,6 +656,8 @@ export function GeoMapWidget(_props: WidgetProps) {
             "line-opacity": ["coalesce", ["get", "lineOpacity"], 0.95],
           },
         });
+      }
+      if (!map.getLayer(REGIONS_SELECTION)) {
         map.addLayer({
           id: REGIONS_SELECTION,
           type: "line",
@@ -614,12 +673,16 @@ export function GeoMapWidget(_props: WidgetProps) {
             "line-opacity": 0.9,
           },
         });
+      }
 
-        // --- Слой районов: между регионами и маркерами (minzoom: не загромождать overview) ---
+      // --- Районы ---
+      if (!map.getSource(DISTRICTS_SOURCE)) {
         map.addSource(DISTRICTS_SOURCE, {
           type: "geojson",
           data: { type: "FeatureCollection", features: [] },
         });
+      }
+      if (!map.getLayer(DISTRICTS_FILL)) {
         map.addLayer({
           id: DISTRICTS_FILL,
           type: "fill",
@@ -630,6 +693,8 @@ export function GeoMapWidget(_props: WidgetProps) {
             "fill-opacity": DISTRICT_MAP_FILL_OPACITY,
           },
         });
+      }
+      if (!map.getLayer(DISTRICTS_OUTLINE)) {
         map.addLayer({
           id: DISTRICTS_OUTLINE,
           type: "line",
@@ -641,12 +706,16 @@ export function GeoMapWidget(_props: WidgetProps) {
             "line-opacity": 0.85,
           },
         });
+      }
 
-        // --- Маркеры places: поверх всего ---
+      // --- Places ---
+      if (!map.getSource(PLACES_SOURCE)) {
         map.addSource(PLACES_SOURCE, {
           type: "geojson",
           data: placesCollection(new Map(), new Map()),
         });
+      }
+      if (!map.getLayer(PLACES_LAYER)) {
         map.addLayer({
           id: PLACES_LAYER,
           type: "circle",
@@ -660,117 +729,132 @@ export function GeoMapWidget(_props: WidgetProps) {
             "circle-opacity": 1,
           },
         });
-        if (map.getLayer(PLACES_LAYER)) {
-          map.moveLayer(PLACES_LAYER);
+        map.moveLayer(PLACES_LAYER);
+      }
+
+      // --- Обработчики событий (переустанавливаем после смены стиля) ---
+      const onPick = (event: MapLayerMouseEvent): void => {
+        const props = event.features?.[0]?.properties;
+        const code = props?.regionCode;
+        if (typeof code === "string") {
+          selectRegion(code === highlightedCode ? null : code);
         }
+      };
 
-        const onPick = (event: MapLayerMouseEvent): void => {
-          const props = event.features?.[0]?.properties;
-          const code = props?.regionCode;
-          if (typeof code === "string") {
-            // Повторный клик по тому же региону сбрасывает выбор (toggle)
-            selectRegion(code === highlightedCode ? null : code);
-          }
-        };
+      const onPlaceHover = (event: MapLayerMouseEvent): void => {
+        if (!map) return;
+        regionPopup?.remove();
+        regionPopup = null;
+        map.getCanvas().style.cursor = "pointer";
+        const props = event.features?.[0]?.properties;
+        const name = props?.placeName;
+        if (typeof name !== "string" || !name) return;
+        const regionCode = props?.regionCode;
+        const stateLabel = props?.stateLabel;
+        const statusCode = props?.statusCode;
+        const lines = [
+          name,
+          typeof regionCode === "string" ? regionCode : null,
+          typeof stateLabel === "string" ? stateLabel : null,
+          typeof statusCode === "string" ? statusCode : null,
+        ].filter(Boolean);
+        placePopup?.remove();
+        placePopup = new ml.Popup({
+          closeButton: false,
+          closeOnClick: false,
+          className: "geo-map-place-popup",
+          offset: 12,
+        })
+          .setLngLat(event.lngLat)
+          .setText(lines.join("\n"))
+          .addTo(map);
+      };
 
-        const onPlaceHover = (event: MapLayerMouseEvent): void => {
-          if (!map) return;
+      const onPlaceHoverEnd = (): void => {
+        if (!map) return;
+        map.getCanvas().style.cursor = "";
+        placePopup?.remove();
+        placePopup = null;
+      };
+
+      /**
+       * Строит текст тултипа для региона с eventType, derived-меткой и rawText.
+       */
+      const buildRegionPopupLines = (code: string): string[] => {
+        const region = regionsByCode$.value.get(code);
+        const isDerived = derivedRegionCodes$.value.has(code);
+        const recentEvent = stateChangesFeed$.value.find((e) => e.regionCodes.includes(code));
+        const levelLabel = region ? LEVEL_LABELS[region.stateLevel] : null;
+        return [
+          `${code} — ${region?.name ?? code}`,
+          isDerived && levelLabel
+            ? `${levelLabel} (производный)`
+            : levelLabel
+              ? `${levelLabel} · ×${region?.activity ?? 0}`
+              : null,
+          recentEvent?.eventType ? `тип: ${recentEvent.eventType}` : null,
+          region?.statusEventAt ? `статус с ${formatDateTime(region.statusEventAt)}` : null,
+          recentEvent?.rawText ? recentEvent.rawText.slice(0, 80) : null,
+        ].filter((l): l is string => !!l);
+      };
+
+      const onRegionHover = (event: MapLayerMouseEvent): void => {
+        if (!map) return;
+        if (hasPlaceAtPointer(map, event.point)) {
           regionPopup?.remove();
           regionPopup = null;
-          map.getCanvas().style.cursor = "pointer";
-          const props = event.features?.[0]?.properties;
-          const name = props?.placeName;
-          if (typeof name !== "string" || !name) return;
+          return;
+        }
+        map.getCanvas().style.cursor = "pointer";
+        const code = event.features?.[0]?.properties?.regionCode;
+        if (typeof code !== "string" || !code) return;
+        regionPopup?.remove();
+        regionPopup = new ml.Popup({
+          closeButton: false,
+          closeOnClick: false,
+          className: "geo-map-region-popup",
+          offset: 12,
+        })
+          .setLngLat(event.lngLat)
+          .setText(buildRegionPopupLines(code).join("\n"))
+          .addTo(map);
+      };
 
-          const regionCode = props?.regionCode;
-          const stateLabel = props?.stateLabel;
-          const statusCode = props?.statusCode;
-          const lines = [
-            name,
-            typeof regionCode === "string" ? regionCode : null,
-            typeof stateLabel === "string" ? stateLabel : null,
-            typeof statusCode === "string" ? statusCode : null,
-          ].filter(Boolean);
+      const onRegionHoverEnd = (): void => {
+        if (!map) return;
+        map.getCanvas().style.cursor = "";
+        regionPopup?.remove();
+        regionPopup = null;
+      };
 
-          placePopup?.remove();
-          placePopup = new maplibre.Popup({
-            closeButton: false,
-            closeOnClick: false,
-            className: "geo-map-place-popup",
-            offset: 12,
-          })
-            .setLngLat(event.lngLat)
-            .setText(lines.join("\n"))
-            .addTo(map);
-        };
+      map.on("click", REGIONS_FILL, onPick);
+      map.on("click", REGIONS_OUTLINE, onPick);
+      map.on("click", PLACES_LAYER, onPick);
+      map.on("mouseenter", PLACES_LAYER, onPlaceHover);
+      map.on("mousemove", PLACES_LAYER, onPlaceHover);
+      map.on("mouseleave", PLACES_LAYER, onPlaceHoverEnd);
+      map.on("mousemove", REGIONS_FILL, onRegionHover);
+      map.on("mouseleave", REGIONS_FILL, onRegionHoverEnd);
+    };
 
-        const onPlaceHoverEnd = (): void => {
-          if (!map) return;
-          map.getCanvas().style.cursor = "";
-          placePopup?.remove();
-          placePopup = null;
-        };
+    void (async () => {
+      const maplibre = (await import("maplibre-gl")).default;
+      await import("maplibre-gl/dist/maplibre-gl.css");
+      if (disposed || !containerRef.current) return;
+      maplibreRef = maplibre;
 
-        /**
-         * Строит текст тултипа для региона с eventType, derived-меткой и rawText.
-         * Читаем storeы напрямую (не ref) — внутри closure useEffect значения актуальны.
-         */
-        const buildRegionPopupLines = (code: string): string[] => {
-          const region = regionsByCode$.value.get(code);
-          const isDerived = derivedRegionCodes$.value.has(code);
-          const recentEvent = stateChangesFeed$.value.find((e) => e.regionCodes.includes(code));
-          const levelLabel = region ? LEVEL_LABELS[region.stateLevel] : null;
-          return [
-            `${code} — ${region?.name ?? code}`,
-            isDerived && levelLabel
-              ? `${levelLabel} (производный)`
-              : levelLabel
-                ? `${levelLabel} · ×${region?.activity ?? 0}`
-                : null,
-            recentEvent?.eventType ? `тип: ${recentEvent.eventType}` : null,
-            region?.statusEventAt ? `статус с ${formatDateTime(region.statusEventAt)}` : null,
-            recentEvent?.rawText ? recentEvent.rawText.slice(0, 80) : null,
-          ].filter((l): l is string => !!l);
-        };
+      map = new maplibre.Map({
+        container: containerRef.current,
+        style: resolveMapBasemapStyleForTheme(theme$.value) as never,
+        center: MAP_INITIAL_VIEW.center,
+        zoom: MAP_INITIAL_VIEW.zoom,
+        attributionControl: { compact: true },
+      });
 
-        const onRegionHover = (event: MapLayerMouseEvent): void => {
-          if (!map) return;
-          if (hasPlaceAtPointer(map, event.point)) {
-            regionPopup?.remove();
-            regionPopup = null;
-            return;
-          }
-          map.getCanvas().style.cursor = "pointer";
-          const code = event.features?.[0]?.properties?.regionCode;
-          if (typeof code !== "string" || !code) return;
+      map.on("load", () => {
+        if (!map) return;
 
-          regionPopup?.remove();
-          regionPopup = new maplibre.Popup({
-            closeButton: false,
-            closeOnClick: false,
-            className: "geo-map-region-popup",
-            offset: 12,
-          })
-            .setLngLat(event.lngLat)
-            .setText(buildRegionPopupLines(code).join("\n"))
-            .addTo(map);
-        };
-
-        const onRegionHoverEnd = (): void => {
-          if (!map) return;
-          map.getCanvas().style.cursor = "";
-          regionPopup?.remove();
-          regionPopup = null;
-        };
-
-        map.on("click", REGIONS_FILL, onPick);
-        map.on("click", REGIONS_OUTLINE, onPick);
-        map.on("click", PLACES_LAYER, onPick);
-        map.on("mouseenter", PLACES_LAYER, onPlaceHover);
-        map.on("mousemove", PLACES_LAYER, onPlaceHover);
-        map.on("mouseleave", PLACES_LAYER, onPlaceHoverEnd);
-        map.on("mousemove", REGIONS_FILL, onRegionHover);
-        map.on("mouseleave", REGIONS_FILL, onRegionHoverEnd);
+        setupLayersAndHandlers();
 
         loadRegionGeometry();
         loadAndApplyDistricts();
@@ -781,6 +865,27 @@ export function GeoMapWidget(_props: WidgetProps) {
           applyPlaces();
           loadAndApplyDistricts();
         });
+
+        // appliedTheme хранит тему, уже применённую к карте —
+        // реагируем только на реальное изменение, не на начальный emit BehaviorSubject.
+        let appliedTheme = theme$.value;
+        unsubTheme = theme$.subscribe((theme) => {
+          if (!map || disposed || theme === appliedTheme) return;
+          appliedTheme = theme;
+          placePopup?.remove();
+          regionPopup?.remove();
+          // transformStyle сохраняет наши GeoJSON-источники и слои в новом стиле —
+          // данные регионов и мест остаются, меняются только тайлы подложки.
+          map.setStyle(resolveMapBasemapStyleForTheme(theme) as never, {
+            transformStyle: preserveUserLayers,
+          } as never);
+          // После загрузки нового стиля восстанавливаем выделение региона.
+          afterStyleChange(map, () => {
+            if (disposed || !map) return;
+            if (highlightedCode) setRegionFeatureSelected(map, highlightedCode, true);
+          });
+        });
+
         unsubSelected = selectedRegion$.subscribe((code) => {
           clearTimeout(geoReloadTimer);
           const prev = highlightedCode;
@@ -829,6 +934,7 @@ export function GeoMapWidget(_props: WidgetProps) {
       unsubRegions?.unsubscribe();
       unsubPlaces?.unsubscribe();
       unsubSelected?.unsubscribe();
+      unsubTheme?.unsubscribe();
       map?.remove();
     };
   }, []);

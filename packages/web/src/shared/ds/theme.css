@@ -521,16 +521,11 @@ body {
 .ds-trend-list__item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 0;
+  gap: 6px;
+  padding: 5px 0;
   border-bottom: 1px solid var(--border);
   cursor: pointer;
   font-size: 12px;
-  min-width: 0;
-}
-
-.ds-trend-list__name {
-  flex: 1;
   min-width: 0;
 }
 
@@ -541,13 +536,62 @@ body {
 .ds-trend-list__rank {
   font-weight: 700;
   color: var(--accent);
-  min-width: 18px;
+  width: 16px;
+  text-align: right;
+  flex-shrink: 0;
 }
 
+/* Кружок-индикатор текущего статуса */
+.ds-trend-list__dot {
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  opacity: 0.9;
+}
+
+.ds-trend-list__code {
+  flex-shrink: 0;
+  color: var(--text-muted);
+  font-family: var(--font-mono, monospace);
+  font-size: 11px;
+  width: 32px;
+}
+
+/* flex:1 + overflow:hidden — имя занимает свободное место и не выталкивает соседей */
+.ds-trend-list__name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* Фиксированная ширина счётчика — трек полоски всегда в одной колонке */
 .ds-trend-list__activity {
-  margin-left: auto;
   font-variant-numeric: tabular-nums;
   color: var(--text-muted);
+  flex-shrink: 0;
+  width: 32px;
+  text-align: right;
+}
+
+/* Трек фиксированной ширины; полоска растёт слева — сравнение длин наглядно */
+.ds-trend-list__bar-track {
+  flex-shrink: 0;
+  width: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+.ds-trend-list__bar {
+  display: inline-block;
+  height: 3px;
+  background: var(--accent);
+  opacity: 0.4;
+  border-radius: 2px;
 }
 
 /* ── Лента сообщений ── */

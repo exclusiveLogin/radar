@@ -19,6 +19,8 @@ import type {
 } from "@radar/shared";
 import { z } from "zod";
 
+export type TopActivityRow = { regionCode: string; name: string; eventCount: number };
+
 const warningsSchema = z.array(warningSchema);
 const sourceMessageResponse = sourceMessageResponseSchema;
 
@@ -126,6 +128,12 @@ export const mapApi = {
   /** Смежность регионов — для read-side вычисления уровня соседей (загружается однократно). */
   regionAdjacency: (): Promise<Record<string, string[]>> =>
     getJson("/api/map/region-adjacency", z.record(z.string(), z.array(z.string()))),
+  /** Топ регионов по danger-событиям за 7 дней (для TopActivityWidget). */
+  topActivity: (limit = 10): Promise<{ items: TopActivityRow[] }> =>
+    getJson(
+      `/api/map/regions/top-activity?limit=${limit}`,
+      z.object({ items: z.array(z.object({ regionCode: z.string(), name: z.string(), eventCount: z.number() })) }),
+    ),
   /** История событий конкретного региона для RegionDetailWidget. */
   regionEvents: (code: string, limit = 50): Promise<StateChangeEventsResponse> =>
     getJson(
