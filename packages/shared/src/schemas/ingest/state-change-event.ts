@@ -14,6 +14,8 @@ export const stateChangeEventItemSchema = z.object({
   stateLevel: stateLevelSchema,
   regionCodes: z.array(z.string()).min(1),
   regionNames: z.array(z.string()).default([]),
+  /** Повторное сообщение («Повторно», «Ещё раз»). */
+  repeat: z.boolean().optional(),
 });
 
 export const stateChangeEventsResponseSchema = z.object({

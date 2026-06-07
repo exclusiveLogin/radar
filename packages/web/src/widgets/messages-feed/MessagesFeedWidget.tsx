@@ -85,6 +85,11 @@ export function MessagesFeedWidget({ defaultCollapsed = false }: WidgetProps) {
                       <span className="ds-message-feed__pending">raw</span>
                     </Tip>
                   )}
+                  {row.repeat && (
+                    <Tip label="Повторное сообщение">
+                      <span className="ds-message-feed__repeat">↻</span>
+                    </Tip>
+                  )}
                 </div>
                 <Tip label={messageTip(row)} className="ds-tip--hint">
                   <p className="ds-message-feed__text">{flattenText(row.rawText)}</p>

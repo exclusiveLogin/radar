@@ -10,6 +10,7 @@ import { LevelTrendWidget } from "../widgets/trend/LevelTrendWidget";
 import { ProvidersWidget } from "../widgets/providers/ProvidersWidget";
 import { SystemStatusWidget } from "../widgets/system-status/SystemStatusWidget";
 import { MessagesFeedWidget } from "../widgets/messages-feed/MessagesFeedWidget";
+import { PvoReportsWidget } from "../widgets/pvo-reports/PvoReportsWidget";
 
 export type WidgetZone = "background" | "left" | "right" | "overlay";
 
@@ -66,6 +67,14 @@ export const WIDGETS: WidgetDescriptor[] = [
     id: "messages-feed",
     title: "Сообщения",
     component: MessagesFeedWidget,
+    defaultVisible: true,
+    zone: "right",
+    defaultCollapsed: true,
+  },
+  {
+    id: "pvo-reports",
+    title: "Сводки ПВО",
+    component: PvoReportsWidget,
     defaultVisible: true,
     zone: "right",
     defaultCollapsed: true,

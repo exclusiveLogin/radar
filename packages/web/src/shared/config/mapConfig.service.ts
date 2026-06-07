@@ -15,8 +15,8 @@ export const LEVEL_COLORS: Record<StateLevel, string> = {
 export const LEVEL_LABELS: Record<StateLevel, string> = {
   grey: "Нет данных",
   green: "Отбой",
-  yellow: "Внимание",
-  orange: "Повышенная опасность",
+  yellow: "Внимание (сосед)",
+  orange: "Внимание",
   red: "Опасность",
 };
 

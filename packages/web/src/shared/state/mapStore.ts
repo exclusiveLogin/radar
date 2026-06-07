@@ -9,7 +9,7 @@ import type {
 } from "@radar/shared";
 import { mapApi } from "../api/mapApi";
 import { connectMapWs } from "../realtime/ws";
-import { isRegionVisibleOnMap } from "./derivations";
+import { deriveNeighborLevels, isRegionVisibleOnMap } from "./derivations";
 
 /** Состояние регионов по regionCode (ISO) — источник для всех карт-виджетов. */
 export const regionsByCode$ = new BehaviorSubject<Map<string, MapRegionSnapshot>>(
@@ -27,8 +27,18 @@ export const stateChanges$ = new BehaviorSubject<Warning[]>([]);
 /** Время последнего полученного снапшота (ISO). */
 export const lastSnapshotAt$ = new BehaviorSubject<string | null>(null);
 
+/**
+ * Коды регионов, ставших yellow исключительно по производному правилу соседства
+ * (реальный уровень — grey, но сосед red → визуально yellow).
+ * Используется тултипами и деталь-панелью.
+ */
+export const derivedRegionCodes$ = new BehaviorSubject<Set<string>>(new Set());
+
 /** @deprecated используй stateChanges$ */
 export const warnings$ = stateChanges$;
+
+/** Смежность регионов — загружается однократно, используется для производного yellow. */
+let adjacency: Record<string, string[]> = {};
 
 let started = false;
 
@@ -49,6 +59,18 @@ export function refetchMapSnapshot(): Promise<void> {
 export function startMapStore(): void {
   if (started) return;
   started = true;
+
+  // Загружаем смежность однократно — нужна для производного yellow у соседей red-регионов
+  void mapApi.regionAdjacency()
+    .then((adj) => {
+      adjacency = adj;
+      // Пересчитать соседей если снапшот уже пришёл
+      if (regionsByCode$.value.size > 0) {
+        const derived = deriveNeighborLevels(regionsByCode$.value, adjacency);
+        if (derived !== regionsByCode$.value) regionsByCode$.next(derived);
+      }
+    })
+    .catch(reportError);
 
   void mapApi
     .snapshot()
@@ -94,12 +116,29 @@ function isPlaceSuppressedByRegion(
   return regionEventAt > placeEventAt;
 }
 
+/** Извлекает коды регионов, уровень которых изменился в результате производного правила. */
+function extractDerivedCodes(
+  before: Map<string, MapRegionSnapshot>,
+  after: Map<string, MapRegionSnapshot>,
+): Set<string> {
+  const derived = new Set<string>();
+  for (const [code, afterRegion] of after) {
+    const beforeRegion = before.get(code);
+    if (beforeRegion?.stateLevel === "grey" && afterRegion.stateLevel === "yellow") {
+      derived.add(code);
+    }
+  }
+  return derived;
+}
+
 function seedSnapshot(
   regions: MapRegionSnapshot[],
   places: MapPlaceSnapshot[],
 ): void {
-  const nextRegions = new Map<string, MapRegionSnapshot>();
-  for (const region of regions) nextRegions.set(region.regionCode, region);
+  const rawRegions = new Map<string, MapRegionSnapshot>();
+  for (const region of regions) rawRegions.set(region.regionCode, region);
+  const nextRegions = deriveNeighborLevels(rawRegions, adjacency);
+  derivedRegionCodes$.next(extractDerivedCodes(rawRegions, nextRegions));
   regionsByCode$.next(nextRegions);
 
   const rawPlaces = new Map<string, MapPlaceSnapshot>();
@@ -132,10 +171,10 @@ function applyMessage(message: WsServerMessage): void {
  * Если регион новый (нет layout из предыдущего snapshot), планируем дозагрузку snapshot.
  */
 function applyRegionState(event: RegionStateEvent): void {
-  const next = new Map(regionsByCode$.value);
-  const existing = next.get(event.regionCode);
+  const raw = new Map(regionsByCode$.value);
+  const existing = raw.get(event.regionCode);
   const layout = event.layout ?? existing?.layout;
-  next.set(event.regionCode, {
+  raw.set(event.regionCode, {
     regionId: event.regionId,
     regionCode: event.regionCode,
     name: existing?.name ?? event.regionCode,
@@ -146,6 +185,8 @@ function applyRegionState(event: RegionStateEvent): void {
     centroidLon: event.centroidLon ?? existing?.centroidLon,
     statusEventAt: event.statusEventAt ?? existing?.statusEventAt,
   });
+  const next = deriveNeighborLevels(raw, adjacency);
+  derivedRegionCodes$.next(extractDerivedCodes(raw, next));
   regionsByCode$.next(next);
   placesById$.next(prunePlacesForRegions(placesById$.value, next));
 

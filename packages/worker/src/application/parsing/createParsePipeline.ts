@@ -56,7 +56,7 @@ export function createParsePipeline(
   geoCatalog?: GeoCatalog,
 ): { pipeline: ParsePipelineService; resolution: LocationResolutionService } {
   const catalog = geoCatalog ?? GeoCatalog.loadFromArtifacts();
-  const classifier = new RuleBasedEventClassifier();
+  const classifier = new RuleBasedEventClassifier(catalog.getRegionCatalog());
   const cache = placeCache ?? new InMemoryPlaceCacheRepository();
   const stepFactories = createStepFactories({
     geoCatalog: catalog,

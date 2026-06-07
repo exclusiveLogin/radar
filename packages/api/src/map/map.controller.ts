@@ -211,4 +211,42 @@ export class MapController {
       items: await this.map.getRecentStateChangeEvents(parseLimit(limit, 80)),
     });
   }
+
+  @Get("map/pvo-reports")
+  @ApiOperation({
+    summary: "Сводки ПВО",
+    description: "Сводные отчёты о работе ПВО за периоды. Не влияют на карту — только информационная лента.",
+  })
+  @ApiQuery({ name: "limit", required: false, description: "Макс. кол-во записей (default 50)" })
+  @ApiQuery({ name: "since", required: false, description: "ISO timestamp: вернуть только записи после указанной даты" })
+  @ApiResponse({ status: 200, description: "{ items: PvoReportRow[] }" })
+  async pvoReports(@Query("limit") limit?: string, @Query("since") since?: string) {
+    const items = await this.map.getPvoReports(parseLimit(limit, 50), since);
+    return { items };
+  }
+
+  @Get("map/region-adjacency")
+  @ApiOperation({
+    summary: "Смежность регионов",
+    description: "ISO → список соседних ISO. Используется фронтендом для read-side вычисления уровня соседей.",
+  })
+  @ApiResponse({ status: 200 })
+  getRegionAdjacency() {
+    return this.map.getRegionAdjacency();
+  }
+
+  @Get("map/regions/by-code/:code/events")
+  @ApiOperation({
+    summary: "История событий региона",
+    description: "Хронология parsed_events для заданного ISO-кода субъекта.",
+  })
+  @ApiParam({ name: "code", example: "RU-BRY" })
+  @ApiQuery({ name: "limit", required: false, example: "50" })
+  async getRegionEvents(
+    @Param("code") code: string,
+    @Query("limit") limit?: string,
+  ) {
+    const items = await this.map.getRegionEvents(code, parseLimit(limit, 50));
+    return { items };
+  }
 }

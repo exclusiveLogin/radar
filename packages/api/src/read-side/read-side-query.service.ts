@@ -173,15 +173,17 @@ export class ReadSideQueryService {
        GROUP BY provider, status`,
     );
 
+    // Считаем напрямую из places.evidence_providers — не зависит от состояния jobs
     const geoEvidenceRows = await this.dataSource.query<
       Array<{ provider: string; count: string }>
     >(
-      `SELECT j.provider, COUNT(DISTINCT j.place_id)::int AS count
-       FROM place_enrichment_jobs j
-       JOIN places p ON p.id = j.place_id
-       WHERE j.status = 'done'
-         AND COALESCE(p.evidence_providers, '[]'::jsonb) @> to_jsonb(ARRAY[j.provider]::text[])
-       GROUP BY j.provider`,
+      `SELECT prov.provider, COUNT(*)::int AS count
+       FROM places p
+       CROSS JOIN (VALUES ('dadata'), ('nominatim'), ('llm')) AS prov(provider)
+       WHERE p.is_active = true
+         AND p.kind <> 'region'
+         AND COALESCE(p.evidence_providers, '[]'::jsonb) @> to_jsonb(ARRAY[prov.provider]::text[])
+       GROUP BY prov.provider`,
     );
 
     const geoCatalogRemainingRows = await this.dataSource.query<

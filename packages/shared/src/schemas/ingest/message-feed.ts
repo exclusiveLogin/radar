@@ -17,6 +17,8 @@ export const messageFeedItemSchema = z.object({
   /** Уровень карты из status_dictionary (null — нет parse или неизвестный код). */
   stateLevel: stateLevelSchema.nullable().optional(),
   regionCodes: z.array(z.string()).default([]),
+  /** Повторное сообщение («Повторно», «Ещё раз»). */
+  repeat: z.boolean().optional(),
 });
 
 export const messageFeedResponseSchema = z.object({

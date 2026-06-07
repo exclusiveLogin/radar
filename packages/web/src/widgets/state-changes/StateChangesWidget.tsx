@@ -59,6 +59,9 @@ export function StateChangesWidget({ defaultCollapsed = false }: WidgetProps) {
       head: (
         <>
           <Badge level={row.stateLevel} />
+          {row.repeat && (
+            <span className="ds-message-feed__repeat" title="Повторное сообщение">↻</span>
+          )}
           <RegionCodeChips codes={regionCodes} inline />
           <span className="ds-muted ds-accordion__head-time">
             {formatTimeShort(row.postedAt)}

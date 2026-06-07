@@ -6,7 +6,7 @@ export {
 export { geoStructureSchema } from "./geo-structure";
 export { ingestEnvelopeSchema } from "./ingest-envelope";
 export { parseConfigSchema, parseCursorSchema } from "./parse-config";
-export { eventTypeSchema, eventSubjectSchema } from "./event-type";
+export { eventTypeSchema, eventSubjectSchema, pvoStatsSchema } from "./event-type";
 export { severitySchema } from "./severity";
 export { locationPrecisionSchema } from "./location-precision";
 export { macroZoneSchema } from "./macro-zone";
@@ -67,7 +67,7 @@ export type { ChannelManifest, ChannelManifestEntry } from "./channel-manifest";
 export type { GeoStructure } from "./geo-structure";
 export type { IngestEnvelope } from "./ingest-envelope";
 export type { ParseConfig, ParseCursor } from "./parse-config";
-export type { EventType, EventSubject } from "./event-type";
+export type { EventType, EventSubject, PvoStats } from "./event-type";
 export type { Severity } from "./severity";
 export type { LocationPrecision } from "./location-precision";
 export type { MacroZone } from "./macro-zone";

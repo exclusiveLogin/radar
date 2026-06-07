@@ -179,4 +179,8 @@ listCities(): CityCatalogEntry[] {
 listRegions(): RegionCatalogEntry[] {
     return this.regions.list();
   }
+  /** Прямой доступ к каталогу регионов (для extractPvoStats и аналогичных экстракторов). */
+  getRegionCatalog(): RegionCatalog {
+    return this.regions;
+  }
 }

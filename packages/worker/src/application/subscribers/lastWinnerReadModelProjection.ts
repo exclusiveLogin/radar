@@ -82,7 +82,11 @@ export class LastWinnerReadModelProjection {
     for (const location of locations) {
       const statusCode = location.statusCode ?? resolvedStatusCode;
       const stateLevel = this.levelOf(statusCode);
-      const action = location.action ?? (stateLevel === "green" ? "clear" : fallbackAction);
+      // Семантика события приоритетнее geo-action из event_locations:
+      // если событие является отбоем (fallbackAction='clear'), принудительно 'clear'
+      const action = (fallbackAction === "clear" || stateLevel === "green")
+        ? "clear"
+        : (location.action ?? "raise");
       const authorChannelKey = location.authorChannelKey ?? payload.channelKey ?? null;
       const occurredAt = location.occurredAt ?? fallbackOccurredAt;
       const entityKind = location.entityKind ?? (location.placeId ? "place" : "region");

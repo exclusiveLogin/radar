@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import type { MapRegionSnapshot, StateLevel } from "@radar/shared";
+import type { MapRegionSnapshot, StateChangeEventItem, StateLevel } from "@radar/shared";
 import { Panel } from "../../shared/ds";
 import { LEVEL_COLORS, LEVEL_LABELS } from "../../shared/config/mapConfig.service";
 import { formatDateTime } from "../../shared/format/dateTime";
 import { isRegionVisibleOnMap } from "../../shared/state/derivations";
-import { regionsByCode$ } from "../../shared/state/mapStore";
+import { derivedRegionCodes$, regionsByCode$ } from "../../shared/state/mapStore";
 import { selectRegion, selectedRegion$ } from "../../shared/state/selectionStore";
+import { stateChangesFeed$ } from "../../shared/state/stateChangesFeedStore";
+import { regionFadeFactor } from "../../shared/utils/regionFade";
 import type { WidgetProps } from "../widgetProps";
 import {
   buildCompactLayoutGrid,
@@ -44,14 +46,18 @@ function hexCenter(col: number, row: number): { cx: number; cy: number } {
   };
 }
 
-function regionHoverTip(region: MapRegionSnapshot): string {
+function regionHoverTip(
+  region: MapRegionSnapshot,
+  recentEvent: StateChangeEventItem | undefined,
+  isDerived: boolean,
+): string {
   return [
     `${region.regionCode} — ${region.name}`,
-    LEVEL_LABELS[region.stateLevel],
+    isDerived ? `${LEVEL_LABELS[region.stateLevel]} (производный)` : LEVEL_LABELS[region.stateLevel],
+    recentEvent?.eventType ? `тип: ${recentEvent.eventType}` : null,
     region.activity > 0 ? `×${region.activity}` : null,
-    region.statusEventAt
-      ? `статус с ${formatDateTime(region.statusEventAt)}`
-      : null,
+    region.statusEventAt ? `статус с ${formatDateTime(region.statusEventAt)}` : null,
+    recentEvent?.rawText ? recentEvent.rawText.slice(0, 80) : null,
   ]
     .filter(Boolean)
     .join("\n");
@@ -69,6 +75,15 @@ export function SchematicMapWidget(_props: WidgetProps) {
   const [regions, setRegions] = useState(() => regionsByCode$.getValue());
   const [selected, setSelected] = useState(() => selectedRegion$.getValue());
   const [hoverTip, setHoverTip] = useState<HoverTip | null>(null);
+  const [derivedCodes, setDerivedCodes] = useState(() => derivedRegionCodes$.getValue());
+  const [feedItems, setFeedItems] = useState(() => stateChangesFeed$.getValue());
+  // Тик каждые 60с для пересчёта затухания яркости заливки.
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(id);
+  }, []);
 
   useEffect(() => {
     setRegions(regionsByCode$.getValue());
@@ -81,6 +96,29 @@ export function SchematicMapWidget(_props: WidgetProps) {
     const sub = selectedRegion$.subscribe(setSelected);
     return () => sub.unsubscribe();
   }, []);
+
+  useEffect(() => {
+    setDerivedCodes(derivedRegionCodes$.getValue());
+    const sub = derivedRegionCodes$.subscribe(setDerivedCodes);
+    return () => sub.unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    setFeedItems(stateChangesFeed$.getValue());
+    const sub = stateChangesFeed$.subscribe(setFeedItems);
+    return () => sub.unsubscribe();
+  }, []);
+
+  /** Ищем самое свежее событие ленты для данного региона. */
+  const recentEventByCode = useMemo(() => {
+    const map = new Map<string, StateChangeEventItem>();
+    for (const item of feedItems) {
+      for (const code of item.regionCodes) {
+        if (!map.has(code)) map.set(code, item);
+      }
+    }
+    return map;
+  }, [feedItems]);
 
   const layoutRegions = useMemo(
     () => [...regions.values()].filter((region) => region.layout),
@@ -136,7 +174,11 @@ export function SchematicMapWidget(_props: WidgetProps) {
         style={{ left: hoverTip.x + 12, top: hoverTip.y + 12 }}
         role="tooltip"
       >
-        {regionHoverTip(hoverTip.region)
+        {regionHoverTip(
+          hoverTip.region,
+          recentEventByCode.get(hoverTip.region.regionCode),
+          derivedCodes.has(hoverTip.region.regionCode),
+        )
           .split("\n")
           .map((line) => (
             <div key={line}>{line}</div>
@@ -166,7 +208,7 @@ export function SchematicMapWidget(_props: WidgetProps) {
               const { cx, cy } = hexCenter(tile.col, tile.row);
               const isSelected = region.regionCode === selected;
               const isGrey = region.stateLevel === "grey";
-              const tip = regionHoverTip(region);
+              const fade = isGrey ? 1 : regionFadeFactor(region.statusEventAt, now);
 
               return (
                 <g
@@ -177,10 +219,11 @@ export function SchematicMapWidget(_props: WidgetProps) {
                   <polygon
                     points={hexPoints(cx, cy, HEX_R - 1.5)}
                     fill={isGrey ? "#252830" : LEVEL_COLORS[region.stateLevel]}
-                    fillOpacity={isGrey ? 0.85 : 1}
+                    fillOpacity={isGrey ? 0.85 : fade}
                     stroke={
                       isSelected ? "#fff" : isGrey ? "#3d4452" : "#0d0f14"
                     }
+                    strokeOpacity={isGrey ? 1 : fade}
                     strokeWidth={isSelected ? 2.5 : 1}
                     strokeLinejoin="round"
                     onMouseEnter={(event) => {

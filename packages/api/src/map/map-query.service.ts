@@ -18,6 +18,7 @@ import {
 import { GeoFeatureEntity, PlaceEntity, RegionEntity } from "../geo/entities";
 import { resolvePlaceMapCentroid, resolveRegionCentroid } from "./map-centroid.resolver";
 import { loadLayout } from "./layout.loader";
+import { loadRegionAdjacency } from "./adjacency.loader";
 import { maxStateLevel } from "@radar/shared";
 import type { SourceMessage } from "@radar/shared";
 import type { GeoRegionRef, PlaceRef } from "./map.dto";
@@ -586,6 +587,7 @@ export class MapQueryService {
               rm.raw_text,
               pe.event_type,
               pe.extras->>'eventCategory' AS event_category,
+              pe.repeat,
               sd.state_level,
               array_agg(DISTINCT r.iso ORDER BY r.iso)
                 FILTER (WHERE r.iso IS NOT NULL) AS region_codes,
@@ -602,7 +604,7 @@ export class MapQueryService {
          AND sd.state_level IS NOT NULL
          AND sd.state_level <> 'grey'
        GROUP BY pe.id, rm.id, c.key, c.title, rm.posted_at, rm.raw_text,
-                pe.event_type, pe.extras, sd.state_level
+                pe.event_type, pe.extras, pe.repeat, sd.state_level
        ORDER BY rm.posted_at DESC
        LIMIT $1`,
       [limit],
@@ -615,6 +617,7 @@ export class MapQueryService {
       raw_text: string;
       event_type: string;
       event_category: string | null;
+      repeat: boolean | null;
       state_level: StateLevel;
       region_codes: string[];
       region_names: string[];
@@ -629,6 +632,7 @@ export class MapQueryService {
       rawText: row.raw_text,
       eventType: row.event_type,
       eventCategory: row.event_category ?? undefined,
+      repeat: row.repeat ?? undefined,
       stateLevel: row.state_level,
       regionCodes: row.region_codes ?? [],
       regionNames: row.region_names ?? [],
@@ -647,6 +651,7 @@ export class MapQueryService {
               pe.event_type,
               pe.extras,
               pe.extras->>'eventCategory' AS event_category,
+              pe.repeat,
               sd.state_level,
               COALESCE(
                 array_agg(DISTINCT r.iso) FILTER (WHERE r.iso IS NOT NULL),
@@ -659,7 +664,7 @@ export class MapQueryService {
        LEFT JOIN event_locations el ON el.parsed_event_id = pe.id
        LEFT JOIN regions r ON r.id = el.region_id
        GROUP BY rm.id, c.key, c.title, rm.posted_at, rm.raw_text, rm.ingest_mode,
-                pe.event_type, pe.extras, pe.extras->>'eventCategory', sd.state_level
+                pe.event_type, pe.extras, pe.extras->>'eventCategory', pe.repeat, sd.state_level
        ORDER BY rm.posted_at DESC
        LIMIT $1`,
       [limit],
@@ -672,6 +677,7 @@ export class MapQueryService {
       ingest_mode: MessageFeedItem["ingestMode"];
       event_type: string | null;
       event_category: string | null;
+      repeat: boolean | null;
       state_level: StateLevel | null;
       region_codes: string[];
     }>;
@@ -685,6 +691,7 @@ export class MapQueryService {
       ingestMode: row.ingest_mode,
       eventType: row.event_type ?? undefined,
       eventCategory: row.event_category ?? undefined,
+      repeat: row.repeat ?? undefined,
       stateLevel: row.state_level ?? undefined,
       regionCodes: row.region_codes ?? [],
     }));
@@ -716,16 +723,16 @@ export class MapQueryService {
       `
       SELECT rm.region_id,
              rm.region_code,
-             rm.state_level,
+             CASE WHEN rm.stale THEN 'grey' ELSE rm.state_level END AS state_level,
              0::int AS activity,
              rm.updated_at,
              rm.winner_occurred_at AS status_event_at
       FROM region_status_read_model rm
-      WHERE rm.stale = false
-        AND NOT (
-          rm.state_level IN ('green', 'grey')
-          AND rm.winner_occurred_at < $1::timestamptz
-        )
+      WHERE NOT (
+        NOT rm.stale
+        AND rm.state_level IN ('green', 'grey')
+        AND rm.winner_occurred_at < $1::timestamptz
+      )
       `,
       [new Date(Date.now() - REGION_DRAW_SUPPRESS_AGE_MS).toISOString()],
     )) as Array<{
@@ -805,4 +812,129 @@ export class MapQueryService {
 
     return fromRead;
   }
+
+  /**
+   * Последние сводки ПВО (pvo_report) — только информационные события без влияния на карту.
+   * Возвращает отчёты с распарсенными данными из extras.pvo.
+   */
+  async getPvoReports(limit = 50, since?: string): Promise<PvoReportRow[]> {
+    const sinceClause = since ? `AND rm.posted_at > $2` : "";
+    const params: unknown[] = [limit];
+    if (since) params.push(since);
+
+    const rows = await this.dataSource.query<RawPvoReportRow[]>(
+      `SELECT pe.id,
+              pe.extras->'pvo'        AS stats,
+              rm.raw_text,
+              rm.posted_at,
+              ch.key                  AS channel_key,
+              ch.title                AS channel_title
+         FROM parsed_events pe
+         JOIN raw_messages rm ON rm.id = pe.raw_message_id
+         JOIN channels ch ON ch.id = rm.channel_id
+        WHERE pe.event_type = 'pvo_report'
+          ${sinceClause}
+        ORDER BY rm.posted_at DESC
+        LIMIT $1`,
+      params,
+    );
+
+    return rows.map((row) => ({
+      id:           row.id,
+      postedAt:     row.posted_at,
+      channelKey:   row.channel_key,
+      channelTitle: row.channel_title,
+      rawText:      row.raw_text,
+      stats:        row.stats ?? null,
+    }));
+  }
+  /** Смежность регионов (ISO → соседние ISO) из adjacency.json — для read-side вычисления уровня соседей. */
+  getRegionAdjacency(): Record<string, string[]> {
+    return loadRegionAdjacency();
+  }
+
+  /**
+   * История событий для конкретного региона: last N parsed_events, влияющих на карту.
+   * Используется в RegionDetailWidget для отображения хронологии.
+   */
+  async getRegionEvents(regionCode: string, limit = 50): Promise<StateChangeEventItem[]> {
+    const rows = (await this.dataSource.query(
+      `SELECT pe.id AS parsed_event_id,
+              rm.id AS raw_message_id,
+              c.key AS channel_key,
+              c.title AS channel_title,
+              rm.posted_at,
+              rm.raw_text,
+              pe.event_type,
+              pe.extras->>'eventCategory' AS event_category,
+              pe.repeat,
+              sd.state_level,
+              array_agg(DISTINCT r.iso ORDER BY r.iso)
+                FILTER (WHERE r.iso IS NOT NULL) AS region_codes,
+              array_agg(DISTINCT r.name ORDER BY r.name)
+                FILTER (WHERE r.name IS NOT NULL) AS region_names
+       FROM parsed_events pe
+       INNER JOIN raw_messages rm ON rm.id = pe.raw_message_id
+       INNER JOIN channels c ON c.id = rm.channel_id
+       INNER JOIN event_locations el ON el.parsed_event_id = pe.id
+       INNER JOIN regions r ON r.id = el.region_id AND r.iso = $2
+       INNER JOIN status_dictionary sd
+         ON sd.code = pe.event_type AND sd.is_active = true
+       WHERE pe.is_active = true
+         AND sd.state_level IS NOT NULL
+         AND sd.state_level <> 'grey'
+       GROUP BY pe.id, rm.id, c.key, c.title, rm.posted_at, rm.raw_text,
+                pe.event_type, pe.extras, pe.repeat, sd.state_level
+       ORDER BY rm.posted_at DESC
+       LIMIT $1`,
+      [limit, regionCode],
+    )) as Array<{
+      parsed_event_id: string;
+      raw_message_id: string;
+      channel_key: string;
+      channel_title: string | null;
+      posted_at: Date;
+      raw_text: string;
+      event_type: string;
+      event_category: string | null;
+      repeat: boolean | null;
+      state_level: StateLevel;
+      region_codes: string[];
+      region_names: string[];
+    }>;
+
+    return rows.map((row) => ({
+      parsedEventId: row.parsed_event_id,
+      rawMessageId: row.raw_message_id,
+      channelKey: row.channel_key,
+      channelTitle: row.channel_title ?? undefined,
+      postedAt: row.posted_at.toISOString(),
+      rawText: row.raw_text,
+      eventType: row.event_type,
+      eventCategory: row.event_category ?? undefined,
+      repeat: row.repeat ?? undefined,
+      stateLevel: row.state_level,
+      regionCodes: row.region_codes ?? [],
+      regionNames: row.region_names ?? [],
+    }));
+  }
+
 }
+
+type RawPvoReportRow = {
+  id: string;
+  stats: unknown;
+  raw_text: string;
+  posted_at: string;
+  channel_key: string;
+  channel_title: string;
+};
+
+export type PvoReportRow = {
+  id: string;
+  postedAt: string;
+  channelKey: string;
+  channelTitle: string;
+  rawText: string;
+  stats: unknown;
+};

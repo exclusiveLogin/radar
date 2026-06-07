@@ -259,11 +259,14 @@ export class ParseRawMessageHandler {
 
     const persisted = await this.parsedEvents.upsert(parsed);
     const priorLocations = await this.eventLocations.listForParsedEvent(persisted.id);
+    // cleared-событие всегда снимает регион, даже если isActive=true (сам отбой — активная запись).
+    const isClearingEvent = !activation.isActive || parsed.eventType === "cleared";
     const factLocations: EventLocation[] = validatedLocations.map((location) => ({
       ...location,
       entityKind: location.entityKind ?? (location.placeId ? "place" : "region"),
       authorChannelKey: raw.channelKey,
-      action: location.action ?? (activation.isActive ? "raise" : "clear"),
+      // Гео-pipeline не ставит action — хендлер владеет семантикой события
+      action: isClearingEvent ? "clear" : "raise",
       statusCode: location.statusCode ?? parsed.eventType,
       occurredAt: parsed.postedAt,
     }));
@@ -336,7 +339,7 @@ export class ParseRawMessageHandler {
           entityKind: location.entityKind ?? (location.placeId ? "place" : "region"),
           confidence: location.confidence,
           authorChannelKey: raw.channelKey,
-          action: location.action ?? (activation.isActive ? "raise" : "clear"),
+          action: isClearingEvent ? "clear" : "raise",
           statusCode: location.statusCode ?? parsed.eventType,
           occurredAt: parsed.postedAt,
         })),

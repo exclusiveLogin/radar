@@ -117,6 +117,21 @@ export const mapApi = {
       `/api/map/places/${encodeURIComponent(placeId)}/source-message`,
       sourceMessageResponse,
     ),
+  /** Сводки ПВО — информационная лента без влияния на карту. */
+  pvoReports: (limit = 50, since?: string): Promise<PvoReportsResponse> => {
+    const qs = new URLSearchParams({ limit: String(limit) });
+    if (since) qs.set("since", since);
+    return getJson(`/api/map/pvo-reports?${qs}`, pvoReportsResponseSchema);
+  },
+  /** Смежность регионов — для read-side вычисления уровня соседей (загружается однократно). */
+  regionAdjacency: (): Promise<Record<string, string[]>> =>
+    getJson("/api/map/region-adjacency", z.record(z.string(), z.array(z.string()))),
+  /** История событий конкретного региона для RegionDetailWidget. */
+  regionEvents: (code: string, limit = 50): Promise<StateChangeEventsResponse> =>
+    getJson(
+      `/api/map/regions/by-code/${encodeURIComponent(code)}/events?limit=${limit}`,
+      stateChangeEventsResponseSchema,
+    ),
 };
 
 const geoJsonFeatureCollectionSchema = z.object({
@@ -128,3 +143,41 @@ type GeoJsonFeatureCollection = {
   type: "FeatureCollection";
   features: unknown[];
 };
+
+const pvoRegionSchema = z.object({
+  code: z.string(),
+  name: z.string(),
+});
+
+const pvoByRegionSchema = pvoRegionSchema.extend({
+  drones:   z.number().optional(),
+  rockets:  z.number().optional(),
+  balloons: z.number().optional(),
+});
+
+const pvoStatsSchema = z.object({
+  period:   z.string().optional(),
+  totals:   z.object({
+    drones:   z.number().optional(),
+    rockets:  z.number().optional(),
+    balloons: z.number().optional(),
+  }),
+  regions:  z.array(pvoRegionSchema),
+  byRegion: z.array(pvoByRegionSchema).optional(),
+});
+
+const pvoReportItemSchema = z.object({
+  id:           z.string(),
+  postedAt:     z.string(),
+  channelKey:   z.string(),
+  channelTitle: z.string(),
+  rawText:      z.string(),
+  stats:        pvoStatsSchema.nullable(),
+});
+
+const pvoReportsResponseSchema = z.object({
+  items: z.array(pvoReportItemSchema),
+});
+
+export type PvoReportItem = z.infer<typeof pvoReportItemSchema>;
+export type PvoReportsResponse = z.infer<typeof pvoReportsResponseSchema>;

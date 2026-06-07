@@ -9,6 +9,7 @@ import type { Subscription } from "rxjs";
 import type { MapPlaceSnapshot, MapRegionSnapshot, StateLevel } from "@radar/shared";
 import { Panel } from "../../shared/ds";
 import { mapApi } from "../../shared/api/mapApi";
+import { regionFadeFactor } from "../../shared/utils/regionFade";
 import {
   DISTRICT_MAP_FILL_OPACITY,
   DISTRICT_MAP_MIN_ZOOM,
@@ -28,8 +29,9 @@ import {
 } from "../../shared/config/mapConfig.service";
 import { formatDateTime } from "../../shared/format/dateTime";
 import { effectivePlaceLevel, isPlaceVisibleOnMap, isRegionVisibleOnMap } from "../../shared/state/derivations";
-import { placesById$, regionsByCode$ } from "../../shared/state/mapStore";
+import { derivedRegionCodes$, placesById$, regionsByCode$ } from "../../shared/state/mapStore";
 import { selectRegion, selectedRegion$ } from "../../shared/state/selectionStore";
+import { stateChangesFeed$ } from "../../shared/state/stateChangesFeedStore";
 import type { WidgetProps } from "../widgetProps";
 import { insetRegionGeometry } from "./regionInsetOutline";
 
@@ -78,11 +80,13 @@ type GeoJsonCollection = {
 
 /**
  * Контуры регионов: все уровни, включая grey; цвет по stateLevel из снапшота.
+ * fillOpacity — затухание пропорционально времени с момента последнего события (3ч окно).
  * Базовая геометрия загружается один раз; при WS меняются только properties.
  */
 function paintRegionOutlines(
   base: GeoJsonCollection,
   regions: Map<string, MapRegionSnapshot>,
+  now: number,
 ): GeoJsonCollection {
   const features: PolygonFeature[] = [];
   for (const feature of base.features) {
@@ -91,6 +95,7 @@ function paintRegionOutlines(
     if (!region || !isRegionVisibleOnMap(region)) continue;
 
     const stateLevel = region.stateLevel as StateLevel;
+    const fade = regionFadeFactor(region.statusEventAt, now);
     features.push({
       ...feature,
       properties: {
@@ -99,6 +104,8 @@ function paintRegionOutlines(
         stateLevel,
         color: LEVEL_COLORS[stateLevel],
         kind: "region",
+        fillOpacity: REGION_MAP_FILL_OPACITY * fade,
+        lineOpacity: 0.95 * fade,
       },
     });
   }
@@ -296,7 +303,7 @@ function fitOperationalOverview(
   base: GeoJsonCollection,
   duration: number,
 ): void {
-  const painted = paintRegionOutlines(base, regionsByCode$.value);
+  const painted = paintRegionOutlines(base, regionsByCode$.value, Date.now());
   const placeFeatures = placesToFeatures(
     placesById$.value,
     regionsByCode$.value,
@@ -387,6 +394,7 @@ export function GeoMapWidget(_props: WidgetProps) {
     /** Сброс фильтра до загрузки контуров — догоняем fit после regions-geojson. */
     let requestOverviewFit = !selectedRegion$.value;
     let geoReloadTimer: ReturnType<typeof setTimeout> | undefined;
+    let fadeTicker: ReturnType<typeof setInterval> | undefined;
     let placePopup: Popup | null = null;
     let regionPopup: Popup | null = null;
 
@@ -423,6 +431,7 @@ export function GeoMapWidget(_props: WidgetProps) {
         const painted = paintRegionOutlines(
           baseRegionsRef.current,
           regionsByCode$.value,
+          Date.now(),
         );
         setRegionOutlines(painted.features.length);
         const fillSource = map.getSource(REGIONS_SOURCE) as
@@ -493,6 +502,7 @@ export function GeoMapWidget(_props: WidgetProps) {
           const painted = paintRegionOutlines(
             baseRegionsRef.current,
             regionsByCode$.value,
+            Date.now(),
           );
           if (highlightedCode) {
             setRegionFeatureSelected(map, highlightedCode, true);
@@ -569,7 +579,7 @@ export function GeoMapWidget(_props: WidgetProps) {
               "case",
               FEATURE_SELECTED,
               REGION_MAP_SELECTED_FILL_OPACITY,
-              REGION_MAP_FILL_OPACITY,
+              ["coalesce", ["get", "fillOpacity"], REGION_MAP_FILL_OPACITY],
             ],
           },
         });
@@ -586,7 +596,7 @@ export function GeoMapWidget(_props: WidgetProps) {
               REGION_MAP_SELECTED_STROKE_WIDTH,
               REGION_MAP_STROKE_WIDTH,
             ],
-            "line-opacity": 0.95,
+            "line-opacity": ["coalesce", ["get", "lineOpacity"], 0.95],
           },
         });
         map.addLayer({
@@ -701,6 +711,28 @@ export function GeoMapWidget(_props: WidgetProps) {
           placePopup = null;
         };
 
+        /**
+         * Строит текст тултипа для региона с eventType, derived-меткой и rawText.
+         * Читаем storeы напрямую (не ref) — внутри closure useEffect значения актуальны.
+         */
+        const buildRegionPopupLines = (code: string): string[] => {
+          const region = regionsByCode$.value.get(code);
+          const isDerived = derivedRegionCodes$.value.has(code);
+          const recentEvent = stateChangesFeed$.value.find((e) => e.regionCodes.includes(code));
+          const levelLabel = region ? LEVEL_LABELS[region.stateLevel] : null;
+          return [
+            `${code} — ${region?.name ?? code}`,
+            isDerived && levelLabel
+              ? `${levelLabel} (производный)`
+              : levelLabel
+                ? `${levelLabel} · ×${region?.activity ?? 0}`
+                : null,
+            recentEvent?.eventType ? `тип: ${recentEvent.eventType}` : null,
+            region?.statusEventAt ? `статус с ${formatDateTime(region.statusEventAt)}` : null,
+            recentEvent?.rawText ? recentEvent.rawText.slice(0, 80) : null,
+          ].filter((l): l is string => !!l);
+        };
+
         const onRegionHover = (event: MapLayerMouseEvent): void => {
           if (!map) return;
           if (hasPlaceAtPointer(map, event.point)) {
@@ -712,15 +744,6 @@ export function GeoMapWidget(_props: WidgetProps) {
           const code = event.features?.[0]?.properties?.regionCode;
           if (typeof code !== "string" || !code) return;
 
-          const region = regionsByCode$.value.get(code);
-          const lines = [
-            `${code} — ${region?.name ?? code}`,
-            region ? `${LEVEL_LABELS[region.stateLevel]} · ×${region.activity}` : null,
-            region?.statusEventAt
-              ? `статус с ${formatDateTime(region.statusEventAt)}`
-              : null,
-          ].filter(Boolean);
-
           regionPopup?.remove();
           regionPopup = new maplibre.Popup({
             closeButton: false,
@@ -729,7 +752,7 @@ export function GeoMapWidget(_props: WidgetProps) {
             offset: 12,
           })
             .setLngLat(event.lngLat)
-            .setText(lines.join("\n"))
+            .setText(buildRegionPopupLines(code).join("\n"))
             .addTo(map);
         };
 
@@ -787,12 +810,18 @@ export function GeoMapWidget(_props: WidgetProps) {
         if (placesById$.value.size > 0) {
           map.once("idle", () => applyPlaces());
         }
+
+        // Тик 60с для пересчёта затухания яркости заливок (now → fillOpacity в GeoJSON).
+        fadeTicker = setInterval(() => {
+          if (!disposed) applyRegions();
+        }, 60_000);
       });
     })();
 
     return () => {
       disposed = true;
       clearTimeout(geoReloadTimer);
+      clearInterval(fadeTicker);
       placePopup?.remove();
       placePopup = null;
       regionPopup?.remove();

@@ -70,8 +70,8 @@ export function MessagesStatsWidget() {
             className="ds-muted"
             style={{ fontSize: 10, margin: "14px 0 6px", lineHeight: 1.35 }}
           >
-            Geo (place_enrichment_jobs): полоска — доля каталога с{" "}
-            <strong>evidence★</strong> (провайдер в <code>places</code>).{" "}
+            Geo (place_enrichment_jobs):             полоска — доля каталога с{" "}
+            <strong>enriched★</strong> (провайдер в <code>places.evidence_providers</code>).{" "}
             <strong>осталось</strong> — places без evidence; при <strong>pend/proc</strong> worker
             ещё крутит очередь.
           </p>
@@ -102,10 +102,10 @@ export function MessagesStatsWidget() {
                       </span>
                     )}
                   </span>
-                  <span className="admin-phase-enrich-card__main">
-                    evidence★ {catalogDone}{" "}
-                    <span className="ds-muted">({catalogPct})</span>
-                  </span>
+                <span className="admin-phase-enrich-card__main">
+                  enriched★ {catalogDone}{" "}
+                  <span className="ds-muted">({catalogPct})</span>
+                </span>
                   <div
                     className="ds-progress ds-progress--thin"
                     title={`каталог ${catalogPct} · осталось ${counts.catalogRemaining}`}

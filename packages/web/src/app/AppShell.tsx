@@ -4,6 +4,8 @@ import { startMapStore } from "../shared/state/mapStore";
 import { startMessagesStore } from "../shared/state/messagesStore";
 import { startStateChangesFeedStore } from "../shared/state/stateChangesFeedStore";
 import { startProvidersStore } from "../shared/state/providersStore";
+import { startPvoReportsStore } from "../shared/state/pvoReportsStore";
+import { RegionDetailWidget } from "../widgets/region-detail/RegionDetailWidget";
 import { WIDGETS, type WidgetZone } from "./widgetRegistry";
 
 /** Начальная видимость виджетов из реестра. */
@@ -27,6 +29,7 @@ export function AppShell() {
     startProvidersStore();
     startMessagesStore();
     startStateChangesFeedStore();
+    startPvoReportsStore();
   }, []);
 
   const toggle = (id: string): void =>
@@ -82,6 +85,9 @@ export function AppShell() {
       )}
 
       <main className="shell__stage">
+        {/* Оверлей деталей региона — рендерится всегда, показывается при selectedRegion$ !== null */}
+        <RegionDetailWidget />
+
         <div className="shell__map-layer">
           {background.map(({ id, component: Widget }) => (
             <Widget key={id} />
