@@ -81,6 +81,21 @@ test("явный Приморский край не подавляется", () 
   assert.equal(shouldSuppressFederalSubjectMatch(PRI_EXPLICIT, pri, anchors), false);
 });
 
+test("неявный «Приморский» без якоря — подавляется", () => {
+  // «Приморский район — тревога» без известного города: одного прилагательного мало
+  const noAnchorMsg = "Приморский район — тревога БПЛА";
+  const pri = {
+    code: "RU-PRI",
+    name: "Приморский край",
+    aliases: ["приморский", "приморский край"],
+  };
+  const anchors = findLocalityAnchorsInText(noAnchorMsg, ANCHORS);
+  assert.equal(anchors.length, 0);
+  assert.equal(shouldSuppressFederalSubjectMatch(noAnchorMsg, pri, anchors), true);
+  const out = filterRegionsByTextContext([pri], noAnchorMsg, anchors);
+  assert.ok(!out.some((r) => r.code === "RU-PRI"));
+});
+
 test("составной топоним: общий корень с субъектом, но не сам субъект", () => {
   assert.equal(
     isCompoundToponymClashingWithSubjectAdjective(

@@ -134,22 +134,31 @@ export function regionMatchesLocalityAnchors(
 }
 
 /**
- * Отбрасывать ли привязку к субъекту: ложное срабатывание по прилагательному при якоре/явном другом субъекте.
+ * Отбрасывать ли привязку к субъекту: ложное срабатывание по прилагательному
+ * без явного типа («край»/«обл»/…) и без подтверждающего locality-якоря.
+ *
+ * Принцип: субъект распознаётся только если в тексте есть
+ * (а) явное упоминание с типом («Приморский край», «Краснодарская область») ИЛИ
+ * (б) locality-якорь из того же субъекта.
+ * Одиночный прилагательный («Приморский» без «край») — не достаточно.
  */
 export function shouldSuppressFederalSubjectMatch(
   rawText: string,
   region: RegionCandidate,
   anchors: LocalityAnchor[],
 ): boolean {
+  // Явное упоминание типа → не подавляем
   if (regionHasExplicitMentionInText(rawText, region)) {
     return false;
   }
 
-  if (anchors.length > 0 && !regionMatchesLocalityAnchors(region.code, anchors)) {
+  // Неявный alias: подтверждение требуется от locality-якоря того же субъекта.
+  // Нет якоря совсем → подавляем (одно прилагательное не достаточно).
+  if (anchors.length === 0) {
     return true;
   }
 
-  return false;
+  return !regionMatchesLocalityAnchors(region.code, anchors);
 }
 
 /** Предпочтительный regionCode: единый регион всех якорей в тексте. */

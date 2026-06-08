@@ -74,14 +74,15 @@ export class LlmStep implements GeoPipelineStep {
     for (const place of result.places) {
       const isRegion = place.kind === "region";
 
+      // LLM-решение приоритетнее catalog lookup; regionCodeHint не подставляем кодом — только через промпт.
+      const llmValidatedRegionCode = place.regionCode ?? result.regionCode ?? undefined;
+
       const placeRegionCode = isRegion
         ? resolvePlaceRegionCodeInContext({
             placeName: place.placeName,
             placeRegionCode:
-              lookupRegionCode(place.placeName)
-              ?? place.regionCode
-              ?? result.regionCode
-              ?? regionCode,
+              llmValidatedRegionCode
+              ?? lookupRegionCode(place.placeName),
             rawText: ctx.rawText,
             anchorsInText: anchors,
             localityCatalog,
@@ -92,7 +93,7 @@ export class LlmStep implements GeoPipelineStep {
         : lookupLocalityRegionForPlace(place.placeName, localityCatalog)
           ?? resolvePlaceRegionCodeInContext({
             placeName: place.placeName,
-            placeRegionCode: place.regionCode ?? result.regionCode ?? regionCode,
+            placeRegionCode: llmValidatedRegionCode,
             rawText: ctx.rawText,
             anchorsInText: anchors,
             localityCatalog,
