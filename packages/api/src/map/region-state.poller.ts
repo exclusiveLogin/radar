@@ -56,6 +56,7 @@ export class RegionStatePoller {
       .addSelect("rm.region_code", "region_code")
       .addSelect("rm.state_level", "state_level")
       .addSelect("rm.stale", "stale")
+      .addSelect("rm.action", "action")
       .addSelect("rm.status_code", "reason")
       .addSelect("rm.updated_at", "updated_at")
       .addSelect("rm.winner_occurred_at", "changed_at")
@@ -69,6 +70,7 @@ export class RegionStatePoller {
       region_code: string;
       state_level: StateLevel;
       stale: boolean;
+      action: "raise" | "clear";
       reason: string;
       updated_at: Date;
       changed_at: Date;
@@ -103,6 +105,7 @@ export class RegionStatePoller {
           reason: row.reason ?? undefined,
           changedAt: new Date(row.changed_at).toISOString(),
           statusEventAt: eventAtIso,
+          statusAction: row.action,
           centroidLat: centroid?.lat,
           centroidLon: centroid?.lon,
           layout: tile,

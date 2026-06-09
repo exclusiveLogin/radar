@@ -1,6 +1,7 @@
 // --- runtime exports (schemas, functions, classes) ---
 export {
   geoEnrichmentArtifactSchema,
+  geoEnrichmentStateSchema,
   geoEnrichmentCatalogSchema,
   geoEnrichmentDadataSchema,
   geoEnrichmentFinalizerSchema,
@@ -51,6 +52,7 @@ export type {
 } from "./region-state";
 export type {
   GeoEnrichmentArtifact,
+  GeoEnrichmentState,
   GeoEnrichmentCatalog,
   GeoEnrichmentDadata,
   GeoEnrichmentFinalizer,

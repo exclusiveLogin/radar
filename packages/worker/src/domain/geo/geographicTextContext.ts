@@ -28,6 +28,17 @@ export type RegionCandidate = {
   aliases?: string[];
 };
 
+/** Типы субъекта РФ для сопоставления короткого DB-name с полной формой в тексте. */
+const SUBJECT_TYPE_TOKENS = new Set([
+  "область",
+  "обл",
+  "край",
+  "республика",
+  "респ",
+  "ао",
+  "округ",
+]);
+
 function normalize(value: string): string {
   return value
     .toLowerCase()
@@ -88,7 +99,21 @@ export function regionHasExplicitMentionInText(
     }
   }
 
-  return containsWholeToken(haystack, region.name) && isExplicitFederalSubjectAlias(region.name);
+  if (containsWholeToken(haystack, region.name) && isExplicitFederalSubjectAlias(region.name)) {
+    return true;
+  }
+
+  // DB: name «Калужская», текст: «Калужская область» — явный субъект
+  const shortName = normalize(region.name);
+  if (shortName && !isExplicitFederalSubjectAlias(region.name)) {
+    for (const typeToken of SUBJECT_TYPE_TOKENS) {
+      if (containsWholeToken(haystack, `${shortName} ${typeToken}`)) {
+        return true;
+      }
+    }
+  }
+
+  return false;
 }
 
 /**
@@ -456,22 +481,22 @@ export function resolvePlaceRegionCodeInContext(options: {
 
   const { placeRegionCode } = options;
   if (placeRegionCode) {
-    const region = options.regionsCollected.find(
-      (item) => item.code === placeRegionCode,
-    ) ?? {
-      code: placeRegionCode,
-      name: placeRegionCode,
-      aliases: [],
-    };
-    if (
-      shouldSuppressFederalSubjectMatch(
-        options.rawText,
-        region,
-        options.anchorsInText,
-      )
-    ) {
-      return null;
+    const matched = options.regionsCollected.find((item) =>
+      regionCodesEquivalent(item.code, placeRegionCode),
+    );
+    if (matched) {
+      if (
+        shouldSuppressFederalSubjectMatch(
+          options.rawText,
+          matched,
+          options.anchorsInText,
+        )
+      ) {
+        return null;
+      }
+      return placeRegionCode;
     }
+    // Код из finalizer/enricher: suppress относится к выводу по прилагательному, не к pipeline binding
     return placeRegionCode;
   }
 

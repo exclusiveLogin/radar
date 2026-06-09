@@ -42,6 +42,9 @@ const rules: Array<{ regex: RegExp; type: EventType }> = [
   // Фиксация (порядок слов свободный: «фиксация … БПЛА» / «БПЛА … фиксация»).
   { regex: /фиксаци(?:я|и).*(?:бпла|мвш)/is, type: "fixation" },
   { regex: /(?:бпла|мвш).*фиксаци(?:я|и)/is, type: "fixation" },
+  { regex: /прол[её]т.*(?:бпла|дрон|беспилот)/is, type: "fixation" },
+  { regex: /(?:бпла|дрон).*над\s+городом/is, type: "attention" },
+  { regex: /дрон\s+в\s+небе/is, type: "attention" },
   { regex: /множественн\w*\s+фиксаци/i, type: "fixation" },
   { regex: /от\s*\d+\s*бпла/i, type: "fixation" },
 

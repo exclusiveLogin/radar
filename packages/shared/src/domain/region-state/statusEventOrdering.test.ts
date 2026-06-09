@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   isMapEventOlderThanTtl,
+  isPlaceSuppressedByRegionClear,
   isStaleStatusEvent,
 } from "./statusEventOrdering.js";
 
@@ -31,6 +32,39 @@ test("isStaleStatusEvent: старее текущего — stale", () => {
   assert.equal(
     isStaleStatusEvent("2026-06-01T10:00:00.000Z", "2026-06-01T12:00:00.000Z"),
     true,
+  );
+});
+
+test("isPlaceSuppressedByRegionClear: raise региона не гасит place", () => {
+  assert.equal(
+    isPlaceSuppressedByRegionClear({
+      placeStatusEventAt: "2026-06-01T05:00:00.000Z",
+      regionStatusEventAt: "2026-06-01T12:00:00.000Z",
+      regionAction: "raise",
+    }),
+    false,
+  );
+});
+
+test("isPlaceSuppressedByRegionClear: clear региона новее place — suppress", () => {
+  assert.equal(
+    isPlaceSuppressedByRegionClear({
+      placeStatusEventAt: "2026-06-01T05:00:00.000Z",
+      regionStatusEventAt: "2026-06-01T12:00:00.000Z",
+      regionAction: "clear",
+    }),
+    true,
+  );
+});
+
+test("isPlaceSuppressedByRegionClear: одинаковый timestamp — не suppress", () => {
+  assert.equal(
+    isPlaceSuppressedByRegionClear({
+      placeStatusEventAt: "2026-06-01T12:00:00.000Z",
+      regionStatusEventAt: "2026-06-01T12:00:00.000Z",
+      regionAction: "clear",
+    }),
+    false,
   );
 });
 

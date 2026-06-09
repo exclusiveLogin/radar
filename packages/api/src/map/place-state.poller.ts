@@ -159,13 +159,11 @@ export class PlaceStatePoller {
       .innerJoin(PlaceEntity, "p", "p.id = psm.place_id AND p.kind <> 'region'")
       .innerJoin("regions", "r", "r.id = p.region_id")
       .leftJoin("geo_feature", "gf", "gf.id = p.geo_feature_id")
-      // Не эмитим места подавленные более свежим регион-событием.
-      // Фронтенд также проверяет это через isPlaceSuppressedByRegion,
-      // но лучше не гнать лишний трафик по WS.
+      // Не эмитим места под более свежим региональным clear (raise не подавляет).
       .leftJoin(
         "region_status_read_model",
         "rsm",
-        "rsm.region_id = psm.region_id AND rsm.stale = false AND rsm.winner_occurred_at > psm.winner_occurred_at",
+        "rsm.region_id = psm.region_id AND rsm.stale = false AND rsm.action = 'clear' AND rsm.winner_occurred_at > psm.winner_occurred_at",
       )
       .where(afterCursor.clause, afterCursor.params)
       .andWhere("rsm.region_id IS NULL")

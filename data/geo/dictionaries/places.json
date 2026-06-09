@@ -106,5 +106,33 @@
     "kind": "settlement",
     "name": "Матвеев Курган",
     "aliases": ["Матвеев Курган"]
+  },
+  {
+    "regionCode": "RU-BRY",
+    "kind": "city",
+    "name": "Клинцы",
+    "nameWithType": "г. Клинцы",
+    "aliases": ["Клинцы"]
+  },
+  {
+    "regionCode": "RU-LUG",
+    "kind": "city",
+    "name": "Алчевск",
+    "nameWithType": "г. Алчевск",
+    "aliases": ["Алчевск", "Алчечк"]
+  },
+  {
+    "regionCode": "RU-DON",
+    "kind": "city",
+    "name": "Новоазовск",
+    "nameWithType": "г. Новоазовск",
+    "aliases": ["Новоазовск", "Новоазовска"]
+  },
+  {
+    "regionCode": "RU-CR",
+    "kind": "city",
+    "name": "Бахчисарай",
+    "nameWithType": "г. Бахчисарай",
+    "aliases": ["Бахчисарай"]
   }
 ]

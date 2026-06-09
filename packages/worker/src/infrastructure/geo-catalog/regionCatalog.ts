@@ -90,6 +90,12 @@ type RegionMatch = {
   aliasLength: number;
 };
 
+/** Доп. текстовые алиасы субъектов (ЛНР/ДНР и т.п.). */
+const EXTRA_REGION_TEXT_ALIASES: Record<string, string[]> = {
+  "RU-LUG": ["лнр", "луганская народная республика"],
+  "RU-DON": ["днр", "донецкая народная республика"],
+};
+
 export class RegionCatalog {
   private readonly entries: RegionCatalogEntry[];
 
@@ -131,6 +137,17 @@ export class RegionCatalog {
           federalDistrict: row.federalDistrict,
           aliases: [...aliases],
         };
+      })
+      .map((entry) => {
+        const extra = EXTRA_REGION_TEXT_ALIASES[entry.code] ?? [];
+        if (extra.length === 0) {
+          return entry;
+        }
+        const merged = new Set(entry.aliases);
+        for (const alias of extra) {
+          merged.add(normalize(alias));
+        }
+        return { ...entry, aliases: [...merged] };
       });
 
     return new RegionCatalog(entries);

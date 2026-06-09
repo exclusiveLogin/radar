@@ -10,6 +10,7 @@ export {
   eventTypeSchema,
   pvoStatsSchema,
   geoEnrichmentArtifactSchema,
+  geoEnrichmentStateSchema,
   geoEnrichmentCatalogSchema,
   geoEnrichmentDadataSchema,
   geoEnrichmentFinalizerSchema,
@@ -149,9 +150,11 @@ export type { ProvenanceAccumulator } from "./domain/mergeContribution";
 export {
   isStaleStatusEvent,
   isMapEventOlderThanTtl,
+  isPlaceSuppressedByRegionClear,
   PLACE_STATUS_EVENT_AT_META_KEY,
   readPlaceStatusEventAt,
 } from "./domain/region-state/statusEventOrdering";
+export type { MapStatusAction } from "./domain/region-state/statusEventOrdering";
 export { ingestMessageHash } from "./domain/ingestMessageHash";
 export type { RawMessageHashInput } from "./domain/ingestMessageHash";
 export {
@@ -200,6 +203,7 @@ export type {
   EventType,
   PvoStats,
   GeoEnrichmentArtifact,
+  GeoEnrichmentState,
   GeoEnrichmentCatalog,
   GeoEnrichmentDadata,
   GeoEnrichmentFinalizer,
@@ -366,6 +370,7 @@ export type {
   IRawMessageTelegramExtensionRepository,
   IChannelRepository,
   IParsedEventRepository,
+  ParsedEventRecord,
   IPlaceAliasRepository,
   IPlaceCacheRepository,
   IPlaceRepository,

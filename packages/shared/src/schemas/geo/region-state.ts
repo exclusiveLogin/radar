@@ -35,6 +35,8 @@ export const regionStateEventSchema = z.object({
   changedAt: z.string().datetime(),
   /** Момент сообщения-источника статуса (для подписи на карте). */
   statusEventAt: z.string().datetime().optional(),
+  /** raise/clear последнего winner — для подавления дочерних places только при clear. */
+  statusAction: z.enum(["raise", "clear"]).optional(),
   /** Для гео-карты при live-обновлении (если в БД нет centroid). */
   centroidLat: z.number().finite().optional(),
   centroidLon: z.number().finite().optional(),
@@ -53,6 +55,8 @@ export const mapRegionSnapshotSchema = z.object({
   centroidLat: z.number().finite().optional(),
   centroidLon: z.number().finite().optional(),
   statusEventAt: z.string().datetime().optional(),
+  /** raise/clear последнего winner региона (read-model). */
+  statusAction: z.enum(["raise", "clear"]).optional(),
 });
 
 /** Населённый пункт на гео-карте: активный статус ≠ grey и есть координаты. */

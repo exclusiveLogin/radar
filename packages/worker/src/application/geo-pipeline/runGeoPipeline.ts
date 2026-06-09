@@ -1,11 +1,25 @@
-import type { EventLocation, GeoEnrichmentArtifact, GeoPipelineReport } from "@radar/shared";
-import type { GeoPipelineContext, GeoPipelineStep } from "./GeoPipelineContext.js";
+import type {
+  EventLocation,
+  GeoEnrichmentArtifact,
+  GeoPipelineReport,
+} from "@radar/shared";
+import type {
+  GeoPipelineContext,
+  GeoPipelinePhaseMode,
+  GeoPipelineStep,
+} from "./GeoPipelineContext.js";
 import { MergeStep } from "./steps/MergeStep.js";
 
 export type GeoPipelineResult = {
   locations: EventLocation[];
   artifact: GeoEnrichmentArtifact;
   geoPipeline: GeoPipelineReport;
+};
+
+export type RunGeoPipelineOptions = {
+  initialArtifact?: GeoEnrichmentArtifact;
+  priorValidatedLocations?: EventLocation[];
+  phaseMode?: GeoPipelinePhaseMode;
 };
 
 /**
@@ -16,15 +30,22 @@ export type GeoPipelineResult = {
 export async function runGeoPipeline(
   rawText: string,
   steps: GeoPipelineStep[],
+  options: RunGeoPipelineOptions = {},
 ): Promise<GeoPipelineResult> {
   const locations: EventLocation[] = [];
-  const artifact: GeoEnrichmentArtifact = {};
+  const artifact: GeoEnrichmentArtifact = structuredClone(options.initialArtifact ?? {});
   const stepLog: GeoPipelineReport["steps"] = [];
 
   const mergeStep = new MergeStep(locations);
   const allSteps = [...steps, mergeStep];
 
-  const ctx: GeoPipelineContext = { rawText, artifact, stepLog };
+  const ctx: GeoPipelineContext = {
+    rawText,
+    artifact,
+    stepLog,
+    priorValidatedLocations: options.priorValidatedLocations,
+    phaseMode: options.phaseMode,
+  };
 
   for (const step of allSteps) {
     const startedAt = performance.now();

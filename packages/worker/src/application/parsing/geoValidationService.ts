@@ -5,6 +5,7 @@
  */
 import {
   canonicalRegionCode,
+  normalizeRegionCodeAlias,
   placeStem,
   type EventLocation,
   type IPlaceAliasRepository,
@@ -199,9 +200,10 @@ export class GeoValidationService {
     rawText: string,
   ): Promise<RegionRecord | null> {
     if (location.regionCode) {
-      const fromAlias = await this.resolveRegionByAlias(location.regionCode);
+      const normalizedCode = normalizeRegionCodeAlias(location.regionCode);
+      const fromAlias = await this.resolveRegionByAlias(normalizedCode);
       if (fromAlias) return fromAlias;
-      const fromCode = await this.regions.findByCode(location.regionCode);
+      const fromCode = await this.regions.findByCode(normalizedCode);
       if (fromCode) return fromCode;
     }
 
@@ -231,6 +233,18 @@ export class GeoValidationService {
     rawText: string,
     multiPlaceContext: boolean,
   ): Promise<RegionRecord | null> {
+    // regionCode уже привязан finalizer/enricher — не глушить через suppress на stub «RU-XXX»
+    if (location.regionCode) {
+      const normalizedCode = normalizeRegionCodeAlias(location.regionCode);
+      const bound =
+        (await this.regions.findByCode(normalizedCode))
+        ?? (await this.resolveRegionByAlias(normalizedCode))
+        ?? (await this.resolveRegionByAlias(location.regionCode));
+      if (bound) {
+        return bound;
+      }
+    }
+
     const catalog = KnownLocalityCatalog.loadFromDictionaries().list();
     const anchors = findLocalityAnchorsInText(rawText, catalog);
     const regionsCollected = await this.collectRegionsInText(rawText, anchors);

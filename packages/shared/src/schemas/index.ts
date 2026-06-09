@@ -81,6 +81,7 @@ export {
 export {
   aliasDraftSchema,
   geoEnrichmentArtifactSchema,
+  geoEnrichmentStateSchema,
   geoEnrichmentCatalogSchema,
   geoEnrichmentDadataSchema,
   geoEnrichmentFinalizerSchema,
@@ -238,6 +239,7 @@ export type {
 export type {
   AliasDraft,
   GeoEnrichmentArtifact,
+  GeoEnrichmentState,
   GeoEnrichmentCatalog,
   GeoEnrichmentDadata,
   GeoEnrichmentFinalizer,
@@ -314,4 +316,8 @@ export type {
   AdminWsServerMessage,
   PhasesUpdatePayload,
 } from "./admin";
+
+/** Браузер-безопасные хелперы карты (Vite: @radar/shared → этот barrel, не src/index). */
+export { isPlaceSuppressedByRegionClear } from "../domain/region-state/statusEventOrdering.js";
+export type { MapStatusAction } from "../domain/region-state/statusEventOrdering.js";
 

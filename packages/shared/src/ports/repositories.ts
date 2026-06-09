@@ -224,8 +224,11 @@ export interface IRawMessageRepository {
   } }>;
 }
 
+export type ParsedEventRecord = ParsedEvent & { id: string };
+
 export interface IParsedEventRepository {
   upsert(parsed: ParsedEvent): Promise<{ id: string }>;
+  findByRawMessageId(rawMessageId: string): Promise<ParsedEventRecord | null>;
 }
 
 export interface IEventLocationRepository {

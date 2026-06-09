@@ -4,6 +4,7 @@
  * read any already-populated namespace.
  */
 import { z } from "zod";
+import { eventLocationSchema } from "../ingest/event-location";
 import { eventSubjectSchema } from "../ingest/event-type";
 
 // ─── per-step namespace schemas ────────────────────────────────────────────
@@ -119,6 +120,13 @@ export const geoEnrichmentArtifactSchema = z.object({
   finalizer: geoEnrichmentFinalizerSchema.optional(),
 });
 
+/** Snapshot geo-состояния между фазами (persist в parsed_events.extras.geoArtifact). */
+export const geoEnrichmentStateSchema = geoEnrichmentArtifactSchema.extend({
+  validatedLocations: z.array(eventLocationSchema).optional(),
+  phaseId: z.string().optional(),
+  updatedAt: z.string().optional(),
+});
+
 // ─── pipeline trace ────────────────────────────────────────────────────────
 
 export const geoPipelineStepLogSchema = z.object({
@@ -136,6 +144,7 @@ export const geoPipelineReportSchema = z.object({
 
 export type GeoNode = z.infer<typeof geoNodeSchema>;
 export type GeoEnrichmentArtifact = z.infer<typeof geoEnrichmentArtifactSchema>;
+export type GeoEnrichmentState = z.infer<typeof geoEnrichmentStateSchema>;
 export type GeoEnrichmentCatalog = z.infer<typeof geoEnrichmentCatalogSchema>;
 export type GeoEnrichmentLlm = z.infer<typeof geoEnrichmentLlmSchema>;
 export type GeoEnrichmentDadata = z.infer<typeof geoEnrichmentDadataSchema>;

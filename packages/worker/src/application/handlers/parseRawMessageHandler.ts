@@ -2,6 +2,7 @@ import type {
   DomainEvent,
   EventLocation,
   EventEvidenceRecord,
+  GeoEnrichmentArtifact,
   IEventEvidenceRepository,
   IEventLocationRepository,
   IEventPublisher,
@@ -13,6 +14,16 @@ import type { GeoValidationService } from "../parsing/geoValidationService.js";
 import type { GeoValidationContext } from "../parsing/geoValidationService.js";
 import type { ParsePipelineService } from "../parsing/parsePipelineService.js";
 import type { ParseWorkerPool } from "../parsing/parseWorkerPool.js";
+import type { GeoPipelinePhaseMode } from "../geo-pipeline/GeoPipelineContext.js";
+import {
+  buildGeoEnrichmentState,
+  loadGeoEnrichmentState,
+  withGeoEnrichmentExtras,
+} from "../geo-pipeline/geoEnrichmentState.js";
+import {
+  isLlmExplicitDeactivate,
+  mergeEventLocations,
+} from "../../domain/geo/mergeEventLocations.js";
 import { resolveParsedEventActivation } from "../../domain/parsing/resolveParsedEventActivation.js";
 import { PARSER_VERSION } from "../../domain/parsing/version.js";
 import { buildDomainEvent } from "./domainEventFactory.js";
@@ -20,6 +31,12 @@ import { randomUUID } from "node:crypto";
 import { isPlaceCentricGeoEnabled } from "../../infrastructure/config/placeCentricFeatureFlag.js";
 
 type EnricherProvider = "dadata" | "nominatim" | "llm";
+
+/** Контекст фазы ingestParse для baseline/enrich merge. */
+export type ParsePhaseContext = {
+  phaseId?: string;
+  phaseMode?: GeoPipelinePhaseMode;
+};
 
 /** Нормализация имени для сопоставления локации с LLM-нодой. */
 function normalizeNodeName(value: string): string {
@@ -100,6 +117,26 @@ function buildEnricherTelemetry(
   return events;
 }
 
+/** Обогащает локации action/status для persist и read-model. */
+function toFactLocations(
+  locations: EventLocation[],
+  input: {
+    eventType: string;
+    postedAt: string;
+    channelKey: string;
+    isClearingEvent: boolean;
+  },
+): EventLocation[] {
+  return locations.map((location) => ({
+    ...location,
+    entityKind: location.entityKind ?? (location.placeId ? "place" : "region"),
+    authorChannelKey: input.channelKey,
+    action: input.isClearingEvent ? "clear" : "raise",
+    statusCode: location.statusCode ?? input.eventType,
+    occurredAt: input.postedAt,
+  }));
+}
+
 /**
  * Use case: сырой текст → classify/geo pipeline → parsed_event.
  * Инвариант: `rawMessageId` — uuid строки в БД (не content hash).
@@ -118,18 +155,37 @@ export class ParseRawMessageHandler {
     private readonly events: IEventPublisher,
     /** Опционально: classify/geo в worker_threads (не блокирует event loop). */
     private readonly parseWorkerPool?: ParseWorkerPool,
+    private readonly phaseContext: ParsePhaseContext = { phaseMode: "baseline" },
   ) {}
+
+  private get phaseMode(): GeoPipelinePhaseMode {
+    return this.phaseContext.phaseMode ?? "baseline";
+  }
 
   private async runPipeline(input: {
     rawText: string;
     postedAt: string;
     channelKey: string;
     rawMessageId: string;
+    initialArtifact?: GeoEnrichmentArtifact;
+    priorValidatedLocations?: EventLocation[];
   }) {
+    const geoContext = {
+      initialArtifact: input.initialArtifact,
+      priorValidatedLocations: input.priorValidatedLocations,
+      phaseMode: this.phaseMode,
+    };
+    const payload = {
+      rawText: input.rawText,
+      postedAt: input.postedAt,
+      channelKey: input.channelKey,
+      rawMessageId: input.rawMessageId,
+      geoContext,
+    };
     if (this.parseWorkerPool) {
-      return this.parseWorkerPool.execute(input);
+      return this.parseWorkerPool.execute(payload);
     }
-    return this.pipeline.execute(input);
+    return this.pipeline.execute(payload);
   }
 
   private async validateLocations(
@@ -170,6 +226,16 @@ export class ParseRawMessageHandler {
       throw new Error("ParseRawMessageHandler: raw.id (uuid) обязателен");
     }
     const rawMessageId = raw.id;
+
+    const priorState =
+      this.phaseMode === "enrich"
+        ? await loadGeoEnrichmentState({
+            rawMessageId,
+            parsedEvents: this.parsedEvents,
+            eventLocations: this.eventLocations,
+          })
+        : null;
+
     let pipelineResult;
     try {
       pipelineResult = await this.runPipeline({
@@ -177,9 +243,10 @@ export class ParseRawMessageHandler {
         postedAt: raw.postedAt,
         channelKey: raw.channelKey,
         rawMessageId,
+        initialArtifact: priorState?.artifact,
+        priorValidatedLocations: priorState?.priorLocations,
       });
     } catch (err) {
-      // Реальная ошибка парсера: фиксируем технический след (parse_attempts) и пробрасываем дальше.
       const message = err instanceof Error ? err.message : String(err);
       await this.events.publish([
         buildDomainEvent({
@@ -200,7 +267,6 @@ export class ParseRawMessageHandler {
     }
 
     if (!pipelineResult.parsedEvent) {
-      // Не ошибка, а «не событие» (noise/meta): помечаем как skipped.
       const failed = buildDomainEvent({
         type: "MessageParseFailed",
         aggregateType: "raw_message",
@@ -232,8 +298,11 @@ export class ParseRawMessageHandler {
     );
 
     const eventCategory = pipelineResult.artifact?.llm?.eventCategory;
-    const eventSubject = pipelineResult.artifact?.llm?.eventSubject ?? pipelineResult.parsedEvent.eventSubject;
+    const eventSubject =
+      pipelineResult.artifact?.llm?.eventSubject ?? pipelineResult.parsedEvent.eventSubject;
     const activation = resolveParsedEventActivation(pipelineResult.artifact);
+    const priorLocations = priorState?.priorLocations ?? [];
+
     const parsed = {
       ...pipelineResult.parsedEvent,
       rawMessageId,
@@ -247,6 +316,12 @@ export class ParseRawMessageHandler {
       },
     };
 
+    const geoState = buildGeoEnrichmentState({
+      artifact: pipelineResult.artifact ?? {},
+      validatedLocations: [],
+      phaseId: this.phaseContext.phaseId,
+    });
+
     const telemetryEvents = buildEnricherTelemetry(
       rawMessageId,
       enrich,
@@ -257,19 +332,34 @@ export class ParseRawMessageHandler {
       await this.events.publish(telemetryEvents);
     }
 
-    const persisted = await this.parsedEvents.upsert(parsed);
-    const priorLocations = await this.eventLocations.listForParsedEvent(persisted.id);
-    // cleared-событие всегда снимает регион, даже если isActive=true (сам отбой — активная запись).
     const isClearingEvent = !activation.isActive || parsed.eventType === "cleared";
-    const factLocations: EventLocation[] = validatedLocations.map((location) => ({
-      ...location,
-      entityKind: location.entityKind ?? (location.placeId ? "place" : "region"),
-      authorChannelKey: raw.channelKey,
-      // Гео-pipeline не ставит action — хендлер владеет семантикой события
-      action: isClearingEvent ? "clear" : "raise",
-      statusCode: location.statusCode ?? parsed.eventType,
-      occurredAt: parsed.postedAt,
-    }));
+    const factInput = {
+      eventType: parsed.eventType,
+      postedAt: parsed.postedAt,
+      channelKey: raw.channelKey,
+      isClearingEvent,
+    };
+
+    let factLocations = toFactLocations(validatedLocations, factInput);
+
+    if (this.phaseMode === "enrich") {
+      const priorFacts = toFactLocations(priorLocations, factInput);
+      if (isLlmExplicitDeactivate(pipelineResult.artifact)) {
+        factLocations = toFactLocations(validatedLocations, factInput);
+      } else if (validatedLocations.length === 0) {
+        factLocations = priorFacts;
+      } else {
+        factLocations = mergeEventLocations(
+          priorFacts,
+          toFactLocations(validatedLocations, factInput),
+        );
+      }
+    }
+
+    geoState.validatedLocations = factLocations;
+    parsed.extras = withGeoEnrichmentExtras(parsed.extras, geoState);
+
+    const persisted = await this.parsedEvents.upsert(parsed);
 
     let projectionLocations: EventLocation[] = factLocations;
     if (activation.isActive) {

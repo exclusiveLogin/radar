@@ -34,6 +34,8 @@ const SUMMARY_PATTERNS = [
 
 const EVENT_HINTS = [
   /бпла/i,
+  /дрон/i,
+  /прол[её]т/i,
   /пво/i,
   /отбой/i,
   /фиксац/i,

@@ -1,12 +1,48 @@
 import type { GeoNode } from "@radar/shared";
+import { normalizeRegionCodeAlias } from "@radar/shared";
 import {
   isBlockedRegionCatalogLookup,
   lookupLocalityRegionForPlace,
   resolvePlaceRegionCodeInContext,
 } from "../../../domain/geo/geographicTextContext.js";
+import { loadRegionAdjacency } from "../../../infrastructure/geo-catalog/adjacencyLoader.js";
 import type { GeoCatalog } from "../../../infrastructure/geo-catalog/index.js";
 import type { LlmEnricher } from "../../../infrastructure/enrichers/llmEnricher.js";
 import type { GeoPipelineContext, GeoPipelineStep } from "../GeoPipelineContext.js";
+
+function resolvePriorRegions(ctx: GeoPipelineContext) {
+  const fromCatalog = ctx.artifact.catalog?.regions ?? [];
+  if (fromCatalog.length > 0) {
+    return fromCatalog;
+  }
+  return ctx.artifact.finalizer?.regions ?? [];
+}
+
+function resolvePriorPlaces(ctx: GeoPipelineContext) {
+  const fromCatalog = ctx.artifact.catalog?.places ?? [];
+  if (fromCatalog.length > 0) {
+    return fromCatalog;
+  }
+  return (ctx.artifact.finalizer?.places ?? []).map((place) => ({
+    name: place.name,
+    kind: place.kind,
+    regionCode: undefined as string | undefined,
+    lat: place.lat,
+    lon: place.lon,
+  }));
+}
+
+/** Prior region codes + соседи из adjacency.json для промпта LLM. */
+function buildKnownRegionCodes(priorRegionCodes: string[]): string[] {
+  const adjacency = loadRegionAdjacency();
+  const codes = new Set(priorRegionCodes);
+  for (const code of priorRegionCodes) {
+    for (const neighbor of adjacency[code] ?? []) {
+      codes.add(neighbor);
+    }
+  }
+  return [...codes];
+}
 
 export class LlmStep implements GeoPipelineStep {
   readonly id = "llm";
@@ -17,15 +53,26 @@ export class LlmStep implements GeoPipelineStep {
   ) {}
 
   async run(ctx: GeoPipelineContext): Promise<void> {
-    const catalogRegions = ctx.artifact.catalog?.regions ?? [];
+    const priorRegions = resolvePriorRegions(ctx);
+    const priorPlaces = resolvePriorPlaces(ctx);
     const anchors = this.geoCatalog.findLocalityAnchors(ctx.rawText);
     const localityCatalog = this.geoCatalog.listLocalityCatalog();
-    const regionCode = catalogRegions[0]?.code;
+    const regionCode = priorRegions[0]?.code;
+    const priorRegionCodes = priorRegions.map((region) => region.code);
+
     const result = await this.enricher.enrich({
       rawText: ctx.rawText,
       regionCode,
-      catalogRegions: catalogRegions.length > 0 ? catalogRegions : undefined,
+      catalogRegions: priorRegions.length > 0 ? priorRegions : undefined,
       localityAnchors: anchors.length > 0 ? anchors : undefined,
+      priorRegions: priorRegions.length > 0 ? priorRegions : undefined,
+      priorPlaces: priorPlaces.length > 0 ? priorPlaces : undefined,
+      priorValidatedLocations:
+        ctx.priorValidatedLocations && ctx.priorValidatedLocations.length > 0
+          ? ctx.priorValidatedLocations
+          : undefined,
+      knownRegionCodes:
+        priorRegionCodes.length > 0 ? buildKnownRegionCodes(priorRegionCodes) : undefined,
     });
 
     if (!result) {
@@ -44,13 +91,13 @@ export class LlmStep implements GeoPipelineStep {
     const firstWord = (s: string) => normName(s).split(/\s+/)[0] ?? "";
 
     const lookupRegionCode = (placeName: string): string | undefined => {
-      const exact = catalogRegions.find(
+      const exact = priorRegions.find(
         (r) => normName(r.name) === normName(placeName),
       );
       if (exact) {
         return exact.code;
       }
-      return catalogRegions.find(
+      return priorRegions.find(
         (r) =>
           firstWord(r.name) === firstWord(placeName)
           && !isBlockedRegionCatalogLookup(
@@ -66,7 +113,7 @@ export class LlmStep implements GeoPipelineStep {
       result.places.filter((place) => place.kind !== "region").length > 1
       || anchors.length > 1;
 
-    const regionsCollected = catalogRegions.map((region) => ({
+    const regionsCollected = priorRegions.map((region) => ({
       code: region.code,
       name: region.name,
     }));
@@ -74,8 +121,10 @@ export class LlmStep implements GeoPipelineStep {
     for (const place of result.places) {
       const isRegion = place.kind === "region";
 
-      // LLM-решение приоритетнее catalog lookup; regionCodeHint не подставляем кодом — только через промпт.
-      const llmValidatedRegionCode = place.regionCode ?? result.regionCode ?? undefined;
+      const rawRegionCode = place.regionCode ?? result.regionCode ?? undefined;
+      const llmValidatedRegionCode = rawRegionCode
+        ? normalizeRegionCodeAlias(rawRegionCode)
+        : undefined;
 
       const placeRegionCode = isRegion
         ? resolvePlaceRegionCodeInContext({
@@ -109,7 +158,7 @@ export class LlmStep implements GeoPipelineStep {
       nodes.push({
         name: place.placeName,
         kind: isRegion ? "region" : place.kind,
-        regionCode: placeRegionCode,
+        regionCode: normalizeRegionCodeAlias(placeRegionCode),
         fiasId: place.placeFias ?? undefined,
         confidence: place.confidence ?? result.confidence,
         reason: place.reason ?? undefined,

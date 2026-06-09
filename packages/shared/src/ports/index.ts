@@ -44,6 +44,7 @@ export type {
   IRawMessageTelegramExtensionRepository,
   IChannelRepository,
   IParsedEventRepository,
+  ParsedEventRecord,
   IPlaceAliasRepository,
   IPlaceCacheRepository,
   IPlaceRepository,

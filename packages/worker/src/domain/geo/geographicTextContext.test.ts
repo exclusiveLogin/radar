@@ -10,6 +10,7 @@ import {
   isExplicitFederalSubjectAlias,
   regionHasExplicitMentionInText,
   resolveEnricherGeocode,
+  resolvePlaceRegionCodeInContext,
   shouldSuppressFederalSubjectMatch,
 } from "./geographicTextContext.js";
 
@@ -194,6 +195,27 @@ test("якорь Ростов-на-Дону подавляет ложную Яр
 
 const NIKOLAEVSKY_ULY_MSG =
   "Николаевский район\nУльяновская область\nФиксация БПЛА";
+
+const KHVASTOVICHY_MSG =
+  "Хвастовичский район\nКалужская область\nФиксация БПЛА";
+
+test("regionHasExplicitMentionInText: короткое DB-name + тип в тексте", () => {
+  const klu = { code: "RU-KLU", name: "Калужская", aliases: [] as string[] };
+  assert.equal(regionHasExplicitMentionInText(KHVASTOVICHY_MSG, klu), true);
+});
+
+test("resolvePlaceRegionCodeInContext: pipeline regionCode при пустом regionsCollected", () => {
+  const code = resolvePlaceRegionCodeInContext({
+    placeName: "Хвастовичский район",
+    placeRegionCode: "RU-KLU",
+    rawText: KHVASTOVICHY_MSG,
+    anchorsInText: [],
+    localityCatalog: ANCHORS,
+    regionsCollected: [],
+    multiPlaceContext: false,
+  });
+  assert.equal(code, "RU-KLU");
+});
 
 test("resolveEnricherGeocode: омонимичный район + явная область", () => {
   const out = resolveEnricherGeocode(

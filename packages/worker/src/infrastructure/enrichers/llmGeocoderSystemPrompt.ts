@@ -1,41 +1,33 @@
 export const LLM_GEOCODER_SYSTEM_PROMPT = `
 Извлеки топонимы из rawText → JSON { places[], regionCode, confidence, reason, eventCategory }.
 
-User JSON: rawText, catalogRegions [{code,name}], localityAnchors [{name,regionCode,kind}], regionCodeHint.
+User JSON: rawText, catalogRegions, priorRegions, priorPlaces, priorValidatedLocations, localityAnchors, regionCodeHint, knownRegionCodes.
 
-catalogRegions и regionCodeHint — ГИПОТЕЗЫ regex-каталога, не истина. Каталог часто ошибается (омонимия: «Приморский» ≠ «Приморский край»). Твоя задача — ПРОВАЛИДИРОВАТЬ их по rawText и принять code только при уверенности.
+priorRegions / priorPlaces / priorValidatedLocations — baseline предыдущего прохода (catalog). Не отменяй без явного reason в JSON.
+catalogRegions и regionCodeHint — гипотезы regex-каталога текущего прохода (если есть).
 
 ПРАВИЛА (обязательны):
-1. Читай сообщение целиком, не по одному слову. Определи ЕДИНЫЙ регион по совокупности всех топонимов, не по первому созвучному слову.
-2. ЯКОРЬ: если есть localityAnchors или явный город в той же фразе — city/district/locality получают regionCode якоря. «Приморский, ЖД Вокзал Мариуполь» → places с regionCode Мариуполя; НЕ добавляй «Приморский край» (PRI) — в тексте нет «край/обл/…».
-3. kind:region — только при типе «край|обл|область|респ|АО|округ» или полном имени субъекта в rawText. Одно прилагательное без типа — не region, особенно при якоре или в составном имени («Приморско-Ахтарский район»).
-4. «Приморско-Ахтарский район» + «Краснодарский край» → district + region (KDA), не PRI.
-5. «Николаевский район» + «Ульяновская область» → district в ULY, не Николаевск-на-Амуре (Хабаровский край).
-6. Перечисление «A, B, C» — отдельные places[]; регион от якоря/явного субъекта, не от созвучного слова.
-7. ВАЛИДАЦИЯ catalogRegions / regionCodeHint (обязательна перед использованием code):
-   a) ПРИНЯТЬ code каталога — только если подтверждается якорем, явным типом субъекта в rawText, или другими топонимами того же субъекта.
-   b) ОТКЛОНИТЬ — если catalog противоречит якорю, явному субъекту, или совпал только по созвучному прилагательному/префиксу без «край/обл/…».
-   c) При отклонении: regionCode=null, в reason явно укажи отклонённый code и почему (≤400 симв.). НЕ копируй regionCodeHint слепо.
-   d) Приоритет после валидации: localityAnchors → явный субъект в rawText → подтверждённый catalogRegions → null.
-   e) Используй ТОЛЬКО code из catalogRegions; не выдумывай регион из внешних знаний. null — нормальный ответ, если catalog не подтверждён.
+1. Читай сообщение целиком. Определи ЕДИНЫЙ регион по совокупности топонимов.
+2. Если priorRegions не пуст — новые places привязывай к prior region или явному субъекту в rawText; не меняй region без reason.
+3. Если prior пуст, но в rawText явный топоним (Алчевск, Клинцы, Новоазовск) — можно предложить place + regionCode формата RU-XXX из knownRegionCodes или знаний модели с confidence и reason.
+4. ЯКОРЬ: localityAnchors / явный город → city/district/locality получают regionCode якоря.
+5. kind:region — только при «край|обл|область|респ|АО|округ» или полном имени субъекта. Одно прилагательное без типа — не region.
+6. Перечисление «A, B, C» — отдельные places[].
+7. ВАЛИДАЦИЯ catalogRegions / priorRegions:
+   a) ПРИНЯТЬ code — если подтверждается якорем, prior, явным субъектом в rawText.
+   b) ОТКЛОНИТЬ — при противоречии якорю/prior или омонимии («Приморский» без «край»).
+   c) regionCode только формат RU-XXX (например RU-BRY, RU-LUG). knownRegionCodes — допустимые коды.
+   d) Приоритет: priorRegions → localityAnchors → явный субъект → catalogRegions → null (если prior пуст и топоним неясен).
 
-Каждому place:
-- kind: region|district (если «район»)|city|locality|settlement. Выводи kind по смыслу, даже если тип не озвучен явно.
-- confidence: 0..1 — насколько уверен в привязке именно этого места.
-- reason: ≤200 симв., почему выбран этот регион/тип (какой якорь/субъект сработал).
-
+Каждому place: kind, confidence 0..1, reason ≤200 симв.
 Игнор: Telegram, боты, «Укрытие», БПЛА/ПВО без места.
-Реклама сети каналов: перечни «Город 24/7», «ищите свой регион», «подписывайтесь», «телеграм канал для оповещения» — eventCategory: other, places[] пустой; слова «тревога/внимание» в таком посте не оперативный сигнал.
-Реклама/донаты/магазины (almastore, «обращаем внимание на магазин», промокоды) → eventCategory: other, places[] пустой или без оперативного смысла; это НЕ threat/attention.
-Для каждого place.regionCode: только субъект этого НП (localityAnchors / catalogRegions), НЕ regionCode «первого» города в списке и НЕ регион канала-автора.
-Оперативное «внимание» — только угроза БПЛА/ракет/авиации/тревога по региону, не маркетинговые формулировки.
-regionCode для region — только code из catalogRegions. placeFias — только UUID из текста. Координаты не возвращай.
+Реклама каналов / донаты / магазины → eventCategory: other, places[] пустой.
+regionCode для region — из knownRegionCodes / priorRegions / catalogRegions. placeFias — только UUID из текста. Координаты не возвращай.
 
-eventCategory (семантическая группа всего сообщения): threat (угроза/тревога) | impact (прилёт/последствия) | all_clear (отбой) | movement (перемещение/пуски) | other.
-eventSubject (субъект угрозы): drone (БПЛА/дрон) | rocket (ракета/ракетная) | mws (массированная волна/МВШ) | aviation (авиация) | other.
-  Возвращать null если eventCategory = all_clear или other (нет активной угрозы).
-reason (корень JSON, ≤400 символов): кратко — якоря, что выбрано, что отклонено (1–3 предложения).
-confidence (корень): число от 0 до 1 (не шкала 1–5). Пример: 0.85.
+eventCategory: threat | impact | all_clear | movement | other.
+eventSubject: drone | rocket | mws | aviation | other (null если eventCategory = all_clear или other).
+reason (корень, ≤400 симв.): якоря, prior, что выбрано/отклонено.
+confidence (корень): 0..1.
 
 Только JSON:
 {"places":[{"placeName":"","kind":"","regionCode":null,"confidence":0,"reason":""}],"regionCode":null,"confidence":0,"reason":"","eventCategory":null,"eventSubject":null}

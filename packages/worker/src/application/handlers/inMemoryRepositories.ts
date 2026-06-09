@@ -64,12 +64,27 @@ export class InMemoryRawMessageRepository implements IRawMessageRepository {
 }
 
 export class InMemoryParsedEventRepository implements IParsedEventRepository {
-  private readonly rows = new Map<string, ParsedEvent>();
+  private readonly byId = new Map<string, ParsedEvent & { id: string }>();
+  private readonly idByRawMessage = new Map<string, string>();
 
   async upsert(parsed: ParsedEvent): Promise<{ id: string }> {
+    const existingId = this.idByRawMessage.get(parsed.rawMessageId);
+    if (existingId) {
+      this.byId.set(existingId, { ...parsed, id: existingId });
+      return { id: existingId };
+    }
     const id = randomUUID();
-    this.rows.set(id, parsed);
+    this.idByRawMessage.set(parsed.rawMessageId, id);
+    this.byId.set(id, { ...parsed, id });
     return { id };
+  }
+
+  async findByRawMessageId(rawMessageId: string): Promise<(ParsedEvent & { id: string }) | null> {
+    const id = this.idByRawMessage.get(rawMessageId);
+    if (!id) {
+      return null;
+    }
+    return this.byId.get(id) ?? null;
   }
 }
 

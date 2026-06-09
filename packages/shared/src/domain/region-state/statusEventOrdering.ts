@@ -30,3 +30,20 @@ export function readPlaceStatusEventAt(
   const value = meta?.[PLACE_STATUS_EVENT_AT_META_KEY];
   return typeof value === "string" ? value : undefined;
 }
+
+/** Последнее действие read-model региона/места. */
+export type MapStatusAction = "raise" | "clear";
+
+/**
+ * Place скрывают с карты только при более свежем региональном clear (не raise).
+ * Строго >: в одном сообщении region+place с одним postedAt place не гасится.
+ */
+export function isPlaceSuppressedByRegionClear(input: {
+  placeStatusEventAt?: string;
+  regionStatusEventAt?: string;
+  regionAction?: MapStatusAction;
+}): boolean {
+  if (input.regionAction !== "clear") return false;
+  if (!input.regionStatusEventAt || !input.placeStatusEventAt) return false;
+  return input.regionStatusEventAt > input.placeStatusEventAt;
+}

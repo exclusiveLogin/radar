@@ -7,11 +7,18 @@
   ParsedEvent,
 } from "@radar/shared";
 import { createHash } from "node:crypto";
+import type { GeoPipelinePhaseMode } from "../geo-pipeline/GeoPipelineContext.js";
 import type { LocationResolutionService } from "./locationResolutionService.js";
 import {
   buildEventReport,
   buildNonEventReport,
 } from "./parseReportBuilders.js";
+
+export type ParsePipelineGeoContext = {
+  initialArtifact?: GeoEnrichmentArtifact;
+  priorValidatedLocations?: EventLocation[];
+  phaseMode?: GeoPipelinePhaseMode;
+};
 
 export type ParsePipelineResult = {
   report: ParseReport;
@@ -29,6 +36,7 @@ export type ParsePipelineInput = {
   rawMessageId?: string;
   file?: string;
   index?: number;
+  geoContext?: ParsePipelineGeoContext;
 };
 
 export class ParsePipelineService {
@@ -57,7 +65,7 @@ export class ParsePipelineService {
       postedAt: input.postedAt ?? classified.event.postedAt,
     };
 
-    const resolved = await this.resolution.resolve(input.rawText);
+    const resolved = await this.resolution.resolve(input.rawText, input.geoContext ?? {});
     return {
       report: buildEventReport({
         input: inputMeta,

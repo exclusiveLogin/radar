@@ -70,6 +70,19 @@ async enrich(input: {
       regionCode: string;
       kind: "city" | "locality" | "settlement";
     }>;
+    priorRegions?: Array<{ code: string; name: string }>;
+    priorPlaces?: Array<{
+      name: string;
+      kind: "district" | "city" | "locality" | "settlement";
+      regionCode?: string;
+    }>;
+    priorValidatedLocations?: Array<{
+      regionCode?: string;
+      placeName?: string;
+      entityKind?: string;
+      precision?: string;
+    }>;
+    knownRegionCodes?: string[];
   }): Promise<(LlmGeoResponse & { model: string; latencyMs: number }) | null> {
     if (!this.config.enabled) return null;
 
@@ -82,6 +95,18 @@ async enrich(input: {
       localityAnchors:
         input.localityAnchors && input.localityAnchors.length > 0
           ? input.localityAnchors
+          : null,
+      priorRegions:
+        input.priorRegions && input.priorRegions.length > 0 ? input.priorRegions : null,
+      priorPlaces:
+        input.priorPlaces && input.priorPlaces.length > 0 ? input.priorPlaces : null,
+      priorValidatedLocations:
+        input.priorValidatedLocations && input.priorValidatedLocations.length > 0
+          ? input.priorValidatedLocations
+          : null,
+      knownRegionCodes:
+        input.knownRegionCodes && input.knownRegionCodes.length > 0
+          ? input.knownRegionCodes
           : null,
     });
 

@@ -106,10 +106,14 @@ function resolveCompleteness(
   return completenessByPrecision[precision];
 }
 
-/** Collects region candidates from catalog and LLM namespaces. */
+/** Collects region candidates from catalog, prior finalizer и LLM namespaces. */
 function collectRegions(artifact: GeoEnrichmentArtifact): RegionCandidate[] {
   const regionMap = new Map<string, RegionCandidate>();
-  for (const region of artifact.catalog?.regions ?? []) {
+  const catalogRegions = artifact.catalog?.regions ?? [];
+  const seedRegions =
+    catalogRegions.length > 0 ? catalogRegions : (artifact.finalizer?.regions ?? []);
+
+  for (const region of seedRegions) {
     regionMap.set(normalize(region.code), region);
   }
 
@@ -190,8 +194,19 @@ function mergePlace(
 /** Collects and merges place candidates from all enrichment namespaces. */
 function collectPlaces(artifact: GeoEnrichmentArtifact): PlaceCandidate[] {
   const placeMap = new Map<string, PlaceCandidate>();
-  // Порядок merge: coords от dadata перекрывают llm; nominatim — последний fallback.
-  for (const place of artifact.catalog?.places ?? []) {
+  const catalogPlaces = artifact.catalog?.places ?? [];
+  const seedPlaces =
+    catalogPlaces.length > 0
+      ? catalogPlaces
+      : (artifact.finalizer?.places ?? []).map((place) => ({
+          name: place.name,
+          kind: place.kind,
+          fiasId: place.fiasId,
+          lat: place.lat,
+          lon: place.lon,
+        }));
+
+  for (const place of seedPlaces) {
     mergePlace(placeMap, place, "catalog");
   }
   for (const node of artifact.llm?.nodes ?? []) {

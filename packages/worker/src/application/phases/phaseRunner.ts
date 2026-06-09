@@ -18,7 +18,7 @@ import type {
 import { resolveGeoEnrichmentProvider } from "@radar/shared";
 import type { PlaceEnrichmentRunner } from "../geo-parse/placeEnrichmentRunner.js";
 import { loadLlmRuntimeConfig } from "../../infrastructure/enrichers/llmRuntimeConfig.js";
-import { ParseRawMessageHandler } from "../handlers/parseRawMessageHandler.js";
+import { ParseRawMessageHandler, type ParsePhaseContext } from "../handlers/parseRawMessageHandler.js";
 import { createParsePipeline } from "../parsing/createParsePipeline.js";
 import type { GeoValidationService } from "../parsing/geoValidationService.js";
 import { pipelineConfigFromEnrichers } from "./phasePipelineConfig.js";
@@ -58,7 +58,10 @@ export class PhaseRunner {
       { enricherFlags: flags, pipelineOrder: order, llmRuntimeConfig },
       this.deps.placeCache,
     );
-    // Фазовый пайплайн (llm/catalog/…) — только inline; ingest pool = catalog-only.
+    const phaseContext: ParsePhaseContext = {
+      phaseId: phase.id,
+      phaseMode: phase.enrichers.includes("catalog") ? "baseline" : "enrich",
+    };
     return new ParseRawMessageHandler(
       pipeline,
       this.deps.parsedEvents,
@@ -67,6 +70,8 @@ export class PhaseRunner {
       this.deps.places,
       this.deps.validation,
       this.deps.events,
+      undefined,
+      phaseContext,
     );
   }
 

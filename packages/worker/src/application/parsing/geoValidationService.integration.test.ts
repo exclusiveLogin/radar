@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { placeStem } from "@radar/shared";
 import { GeoValidationService } from "./geoValidationService.js";
 import {
   InMemoryPlaceAliasRepository,
@@ -258,4 +259,55 @@ test("geo validation: garbage place name — rejected even with regionCode", asy
   );
 
   assert.equal(result.decision, "rejected");
+});
+
+test("geo validation: district с pipeline regionCode и коротким DB-name субъекта", async () => {
+  const regions = new InMemoryRegionRepository();
+  const places = new InMemoryPlaceRepository();
+  const aliases = new InMemoryPlaceAliasRepository();
+  const service = new GeoValidationService(regions, places, aliases);
+
+  const kluId = "1859fdf6-93ac-4bee-afda-51c5b90a4db9";
+  const districtId = "6d52943c-44ec-49aa-b067-d1b634143184";
+  await regions.upsertMany([
+    {
+      id: kluId,
+      code: "RU-KLU",
+      name: "Калужская",
+      frontRegion: false,
+      borderRegion: false,
+    },
+  ]);
+  await places.upsertMany([
+    {
+      id: districtId,
+      regionId: kluId,
+      kind: "district",
+      name: "Хвастовичский район",
+      nameStem: placeStem("Хвастовичский район"),
+      trustState: "verified",
+      isTrusted: true,
+      trustScore: 1,
+      evidenceProviders: ["catalog"],
+    },
+  ]);
+
+  const rawText = "Хвастовичский район\nКалужская область\nФиксация БПЛА";
+  const result = await service.validate(
+    rawText,
+    {
+      regionId: kluId,
+      regionCode: "RU-KLU",
+      placeName: "Хвастовичский район",
+      precision: "district",
+      entityKind: "place",
+      source: "db",
+    },
+    { multiPlaceContext: false },
+  );
+
+  assert.equal(result.decision, "matched_existing");
+  assert.equal(result.location?.placeId, districtId);
+  assert.equal(result.location?.entityKind, "place");
+  assert.equal(result.location?.regionCode, "RU-KLU");
 });

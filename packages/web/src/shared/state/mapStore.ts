@@ -1,11 +1,12 @@
 import { BehaviorSubject } from "rxjs";
-import type {
-  MapPlaceSnapshot,
-  MapRegionSnapshot,
-  PlaceStateEvent,
-  RegionStateEvent,
-  Warning,
-  WsServerMessage,
+import {
+  isPlaceSuppressedByRegionClear,
+  type MapPlaceSnapshot,
+  type MapRegionSnapshot,
+  type PlaceStateEvent,
+  type RegionStateEvent,
+  type Warning,
+  type WsServerMessage,
 } from "@radar/shared";
 import { mapApi } from "../api/mapApi";
 import { connectMapWs } from "../realtime/ws";
@@ -86,10 +87,7 @@ export function startMapStore(): void {
   void mapApi.warnings().then((items) => stateChanges$.next(items)).catch(reportError);
 }
 
-/**
- * Убирает точки в grey-регионах, без regionCode и те, что подавлены более свежим регион-событием.
- * Инвариант: если region.statusEventAt > place.statusEventAt → place был перекрыт регионом.
- */
+/** Убирает точки в grey-регионах и под более свежим региональным clear (raise не гасит). */
 function prunePlacesForRegions(
   places: Map<string, MapPlaceSnapshot>,
   regions: Map<string, MapRegionSnapshot>,
@@ -98,22 +96,18 @@ function prunePlacesForRegions(
   for (const place of places.values()) {
     const region = regions.get(place.regionCode);
     if (!region || !isRegionVisibleOnMap(region) || place.stateLevel === "grey") continue;
-    if (isPlaceSuppressedByRegion(place.statusEventAt, region.statusEventAt)) continue;
+    if (
+      isPlaceSuppressedByRegionClear({
+        placeStatusEventAt: place.statusEventAt,
+        regionStatusEventAt: region.statusEventAt,
+        regionAction: region.statusAction,
+      })
+    ) {
+      continue;
+    }
     next.set(place.placeId, place);
   }
   return next;
-}
-
-/**
- * Проверяет, подавлен ли place более свежим регион-событием.
- * Строго >: равный timestamp = одно сообщение → place не подавляется.
- */
-function isPlaceSuppressedByRegion(
-  placeEventAt: string | undefined,
-  regionEventAt: string | undefined,
-): boolean {
-  if (!regionEventAt || !placeEventAt) return false;
-  return regionEventAt > placeEventAt;
 }
 
 /** Извлекает коды регионов, уровень которых изменился в результате производного правила. */
@@ -184,6 +178,7 @@ function applyRegionState(event: RegionStateEvent): void {
     centroidLat: event.centroidLat ?? existing?.centroidLat,
     centroidLon: event.centroidLon ?? existing?.centroidLon,
     statusEventAt: event.statusEventAt ?? existing?.statusEventAt,
+    statusAction: event.statusAction ?? existing?.statusAction,
   });
   const next = deriveNeighborLevels(raw, adjacency);
   derivedRegionCodes$.next(extractDerivedCodes(raw, next));
@@ -225,8 +220,14 @@ function applyPlaceState(event: PlaceStateEvent): void {
     return;
   }
 
-  // Регион получил более свежий статус → place подавлен, игнорируем backfill
-  if (isPlaceSuppressedByRegion(event.changedAt, region.statusEventAt)) {
+  // Региональный clear новее place → не показываем точку
+  if (
+    isPlaceSuppressedByRegionClear({
+      placeStatusEventAt: event.changedAt,
+      regionStatusEventAt: region.statusEventAt,
+      regionAction: region.statusAction,
+    })
+  ) {
     next.delete(event.placeId);
     placesById$.next(next);
     return;

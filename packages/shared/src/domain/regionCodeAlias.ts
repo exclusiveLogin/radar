@@ -12,5 +12,12 @@ export function normalizeRegionCodeAlias(code: string): string {
   if (!raw) {
     return raw;
   }
-  return REGION_ALIAS_TO_CANONICAL[raw] ?? raw;
+  if (REGION_ALIAS_TO_CANONICAL[raw]) {
+    return REGION_ALIAS_TO_CANONICAL[raw];
+  }
+  // Короткий ISO от LLM: BRY → RU-BRY
+  if (/^[A-Z]{3}$/.test(raw)) {
+    return `RU-${raw}`;
+  }
+  return raw;
 }

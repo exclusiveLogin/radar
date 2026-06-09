@@ -241,6 +241,7 @@ export class MapQueryService {
         centroidLat: centroid?.lat,
         centroidLon: centroid?.lon,
         statusEventAt: state.statusEventAt?.toISOString(),
+        statusAction: state.statusAction,
       });
     }
 
@@ -717,6 +718,7 @@ export class MapQueryService {
       activity: number;
       updatedAt: Date;
       statusEventAt: Date | null;
+      statusAction: "raise" | "clear";
     }>
   > {
     const rows = (await this.dataSource.query(
@@ -726,7 +728,8 @@ export class MapQueryService {
              CASE WHEN rm.stale THEN 'grey' ELSE rm.state_level END AS state_level,
              0::int AS activity,
              rm.updated_at,
-             rm.winner_occurred_at AS status_event_at
+             rm.winner_occurred_at AS status_event_at,
+             rm.action AS status_action
       FROM region_status_read_model rm
       WHERE NOT (
         NOT rm.stale
@@ -742,6 +745,7 @@ export class MapQueryService {
       activity: number;
       updated_at: Date;
       status_event_at: Date | null;
+      status_action: "raise" | "clear";
     }>;
 
     return rows.map((row) => ({
@@ -751,6 +755,7 @@ export class MapQueryService {
       activity: Number(row.activity ?? 0),
       updatedAt: new Date(row.updated_at),
       statusEventAt: row.status_event_at ? new Date(row.status_event_at) : null,
+      statusAction: row.status_action,
     }));
   }
 
@@ -770,14 +775,15 @@ export class MapQueryService {
              psm.winner_occurred_at
       FROM place_status_read_model psm
       WHERE psm.action = 'raise'
-        -- Инвариант: регион-уровень событие гасит дочерние places.
-        -- Если регион получил БОЛЕЕ СВЕЖИЙ статус — place считается сброшенным.
+        AND psm.stale = false
+        -- Региональный raise не гасит детальные places; только более свежий clear.
         -- Строго > чтобы НП из того же сообщения (одинаковый timestamp) не подавлялись.
         AND NOT EXISTS (
           SELECT 1
           FROM region_status_read_model rsm
           WHERE rsm.region_id = psm.region_id
             AND rsm.stale = false
+            AND rsm.action = 'clear'
             AND rsm.winner_occurred_at > psm.winner_occurred_at
         )
       `,
