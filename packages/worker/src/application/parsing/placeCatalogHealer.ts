@@ -6,8 +6,10 @@ import {
   type RegionRecord,
 } from "@radar/shared";
 import type { DataSource } from "typeorm";
+import { isGarbageIngestPlaceName } from "../../domain/parsing/channelCityListPromo.js";
 import {
   isPlaceCatalogHealCandidate,
+  isVendorCatalogPlace,
   type PlaceCatalogHealScope,
 } from "../../domain/parsing/placeCatalogHealRule.js";
 import {
@@ -106,6 +108,42 @@ export async function deprecateCatalogPlace(
     `DELETE FROM place_enrichment_jobs WHERE place_id = $1`,
     [placeId],
   );
+  await dataSource.query(
+    `DELETE FROM place_status_read_model WHERE place_id = $1`,
+    [placeId],
+  );
+}
+
+export type PurgeGarbagePlacesSummary = {
+  scanned: number;
+  purged: number;
+  rows: Array<{ placeId: string; placeName: string }>;
+};
+
+/** Деактивирует active places с мусорным именем (футер канала, не топоним). */
+export async function purgeGarbageCatalogPlaces(input: {
+  dataSource: DataSource;
+  places: PlaceRecord[];
+  dryRun: boolean;
+}): Promise<PurgeGarbagePlacesSummary> {
+  const summary: PurgeGarbagePlacesSummary = {
+    scanned: input.places.length,
+    purged: 0,
+    rows: [],
+  };
+
+  for (const place of input.places) {
+    if (place.kind === "region" || isVendorCatalogPlace(place)) continue;
+    if (!isGarbageIngestPlaceName(place.name)) continue;
+
+    summary.purged += 1;
+    summary.rows.push({ placeId: place.id, placeName: place.name });
+    if (!input.dryRun) {
+      await deprecateCatalogPlace(input.dataSource, place.id);
+    }
+  }
+
+  return summary;
 }
 
 /**

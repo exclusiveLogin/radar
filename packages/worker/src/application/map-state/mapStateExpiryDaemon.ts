@@ -26,9 +26,13 @@ export class MapStateExpiryDaemon {
   private async tick(): Promise<void> {
     try {
       const result = await this.sweep.run();
-      if (result.regionsExpired > 0 || result.placesExpired > 0) {
+      if (
+        result.regionsExpired > 0
+        || result.placesExpired > 0
+        || result.placesClearedByRegion > 0
+      ) {
         console.log(
-          `MapStateExpiry: regions=${result.regionsExpired} places=${result.placesExpired}`,
+          `MapStateExpiry: regions=${result.regionsExpired} places=${result.placesExpired} regionClearPlaces=${result.placesClearedByRegion}`,
         );
       }
     } catch (error) {

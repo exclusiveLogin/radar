@@ -1,4 +1,5 @@
 import type { AliasDraft, PlaceDraft, RegionDraft } from "@radar/shared";
+import { resolvePlaceDraftKey as resolvePlaceDraftKeyFromUtils } from "../../infrastructure/geo-providers/geo-provider-utils";
 import { normalizeGeoText } from "../geo/normalizeText";
 
 export type DiffStats = {
@@ -32,7 +33,7 @@ export function regionDraftKey(row: RegionDraft): string {
 }
 
 export function placeDraftKey(row: PlaceDraft): string {
-  return row.fiasId ?? `${row.regionCode}:${row.kind}:${normalizeGeoText(row.name)}`;
+  return resolvePlaceDraftKeyFromUtils(row);
 }
 
 export function aliasDraftKey(row: AliasDraft): string {

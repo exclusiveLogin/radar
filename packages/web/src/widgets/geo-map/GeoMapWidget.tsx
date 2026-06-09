@@ -233,7 +233,13 @@ function whenStyleReady(
     fn();
     return;
   }
-  map.once("load", fn);
+  // styledata вместо load: после setStyle load не всегда срабатывает; off — без утечки слушателей.
+  const onStyleData = (): void => {
+    if (!map.isStyleLoaded()) return;
+    map.off("styledata", onStyleData);
+    fn();
+  };
+  map.on("styledata", onStyleData);
 }
 
 /**
@@ -447,6 +453,9 @@ export function GeoMapWidget(_props: WidgetProps) {
     /** Сброс фильтра до загрузки контуров — догоняем fit после regions-geojson. */
     let requestOverviewFit = !selectedRegion$.value;
     let geoReloadTimer: ReturnType<typeof setTimeout> | undefined;
+    let placesLayerTimer: ReturnType<typeof setTimeout> | undefined;
+    let districtsReloadTimer: ReturnType<typeof setTimeout> | undefined;
+    let districtsFetchGen = 0;
     let fadeTicker: ReturnType<typeof setInterval> | undefined;
     let placePopup: Popup | null = null;
     let regionPopup: Popup | null = null;
@@ -517,27 +526,41 @@ export function GeoMapWidget(_props: WidgetProps) {
      * Вызывается при каждом обновлении places — ответ маленький (единицы объектов).
      * Цвет берётся из place.stateLevel через `paintActiveDistricts`.
      */
+    const applyDistrictsLayer = (layer: GeoJsonCollection): void => {
+      if (!map) return;
+      whenStyleReady(map, () => {
+        if (!map) return;
+        const painted = paintActiveDistricts(
+          layer,
+          placesById$.value,
+          regionsByCode$.value,
+        );
+        const source = map.getSource(DISTRICTS_SOURCE) as GeoJSONSource | undefined;
+        source?.setData(painted as never);
+      });
+    };
+
+    /** HTTP districts-active — только по debounce; отменяем устаревшие ответы. */
     const loadAndApplyDistricts = (): void => {
       if (!map) return;
+      const fetchGen = ++districtsFetchGen;
       void mapApi.activeDistrictsGeoJson().then((layer) => {
-        if (disposed || !map) return;
+        if (disposed || !map || fetchGen !== districtsFetchGen) return;
         baseDistrictsRef.current = layer as GeoJsonCollection;
-        whenStyleReady(map, () => {
-          if (!map || !baseDistrictsRef.current) return;
-          const painted = paintActiveDistricts(
-            baseDistrictsRef.current,
-            placesById$.value,
-            regionsByCode$.value,
-          );
-          const source = map.getSource(DISTRICTS_SOURCE) as GeoJSONSource | undefined;
-          source?.setData(painted as never);
-        });
+        applyDistrictsLayer(baseDistrictsRef.current);
       }).catch((err: unknown) => {
+        if (disposed || fetchGen !== districtsFetchGen) return;
         console.error("[GeoMapWidget] districts-active-geojson", err);
       });
     };
 
-    const applyPlaces = (): void => {
+    const scheduleDistrictsReload = (): void => {
+      clearTimeout(districtsReloadTimer);
+      districtsReloadTimer = setTimeout(loadAndApplyDistricts, 500);
+    };
+
+    /** Только слой place-маркеров — без repaint регионов и без HTTP. */
+    const applyPlacesLayerOnly = (): void => {
       if (!map) return;
       whenStyleReady(map, () => {
         if (!map) return;
@@ -547,26 +570,39 @@ export function GeoMapWidget(_props: WidgetProps) {
         );
         setPlaceCount(collection.features.length);
         lastPlaceFeaturesRef.current = collection.features.length;
-        const source = map.getSource(PLACES_SOURCE) as
-          | GeoJSONSource
-          | undefined;
+        const source = map.getSource(PLACES_SOURCE) as GeoJSONSource | undefined;
         source?.setData(collection as never);
+      });
+    };
 
-        loadAndApplyDistricts();
+    const schedulePlacesLayerRefresh = (): void => {
+      clearTimeout(placesLayerTimer);
+      placesLayerTimer = setTimeout(() => {
+        applyPlacesLayerOnly();
+        scheduleDistrictsReload();
+      }, 120);
+    };
 
-        if (baseRegionsRef.current) {
-          const painted = paintRegionOutlines(
-            baseRegionsRef.current,
-            regionsByCode$.value,
-            Date.now(),
-          );
-          if (highlightedCode) {
-            setRegionFeatureSelected(map, highlightedCode, true);
-          }
-          fitIfNeeded(painted.features, collection.features);
-          if (requestOverviewFit) {
-            tryFitOverview(0);
-          }
+    const applyPlaces = (): void => {
+      applyPlacesLayerOnly();
+      if (!baseRegionsRef.current) return;
+      whenStyleReady(map, () => {
+        if (!map || !baseRegionsRef.current) return;
+        const collection = placesCollection(
+          placesById$.value,
+          regionsByCode$.value,
+        );
+        const painted = paintRegionOutlines(
+          baseRegionsRef.current,
+          regionsByCode$.value,
+          Date.now(),
+        );
+        if (highlightedCode) {
+          setRegionFeatureSelected(map, highlightedCode, true);
+        }
+        fitIfNeeded(painted.features, collection.features);
+        if (requestOverviewFit) {
+          tryFitOverview(0);
         }
       });
     };
@@ -594,6 +630,7 @@ export function GeoMapWidget(_props: WidgetProps) {
         if (baseRegionsRef.current) {
           applyRegions();
           applyPlaces();
+          scheduleDistrictsReload();
           return;
         }
         loadRegionGeometry();
@@ -861,10 +898,7 @@ export function GeoMapWidget(_props: WidgetProps) {
         applyPlaces();
 
         unsubRegions = regionsByCode$.subscribe(() => scheduleMapRefresh());
-        unsubPlaces = placesById$.subscribe(() => {
-          applyPlaces();
-          loadAndApplyDistricts();
-        });
+        unsubPlaces = placesById$.subscribe(() => schedulePlacesLayerRefresh());
 
         // appliedTheme хранит тему, уже применённую к карте —
         // реагируем только на реальное изменение, не на начальный emit BehaviorSubject.
@@ -925,7 +959,10 @@ export function GeoMapWidget(_props: WidgetProps) {
 
     return () => {
       disposed = true;
+      districtsFetchGen += 1;
       clearTimeout(geoReloadTimer);
+      clearTimeout(placesLayerTimer);
+      clearTimeout(districtsReloadTimer);
       clearInterval(fadeTicker);
       placePopup?.remove();
       placePopup = null;

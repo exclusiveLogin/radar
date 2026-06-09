@@ -64,6 +64,23 @@ export function normalizeName(value: string): string {
     .replace(/\s+/g, " ");
 }
 
+/** Стабильный ключ place draft: FIAS → ОКТМО → region+kind+name. */
+export function resolvePlaceDraftKey(row: {
+  fiasId?: string;
+  oktmo?: string;
+  regionCode: string;
+  kind: string;
+  name: string;
+}): string {
+  if (row.fiasId) {
+    return row.fiasId;
+  }
+  if (row.oktmo) {
+    return `${row.regionCode}:oktmo:${row.oktmo}`;
+  }
+  return `${row.regionCode}:${row.kind}:${normalizeName(row.name)}`;
+}
+
 type GeoJsonGeometry = { type?: string; coordinates?: unknown };
 
 /** Центроид по bbox GeoJSON-геометрии (достаточно для точки на карте). */

@@ -28,14 +28,21 @@ function resolveOrphanRunMs(): number {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_ORPHAN_RUN_MS;
 }
 
+function resolvePhaseTickMs(phase: PhaseDefinitionRecord): number {
+  return Math.max(phase.policy.intervalMs, phase.policy.minIntervalMs, 1000);
+}
+
 /**
  * Scheduled geoParse: drain place_enrichment_jobs через phase_run (как IngestParseDaemon).
- * Без phase_run админка «Запуски» и progress bar не видят scheduled geo.
+ * DaData и Nominatim — строго последовательно (один drain за раз, порядок фаз по order).
  */
 export class PlaceEnrichmentDaemonService {
-  private timers = new Map<string, ReturnType<typeof setInterval>>();
   private refreshTimer: ReturnType<typeof setInterval> | null = null;
-  private running = new Set<string>();
+  private drainTimer: ReturnType<typeof setInterval> | null = null;
+  private drainTickMs: number | null = null;
+  /** Глобальный mutex: не запускать drain двух geo-фаз параллельно. */
+  private geoDrainBusy = false;
+  private lastPhaseDrainAt = new Map<string, number>();
   private stopped = false;
 
   constructor(
@@ -51,7 +58,7 @@ export class PlaceEnrichmentDaemonService {
     this.refreshTimer = setInterval(() => void this.refreshSchedules(), resolvePollMs());
   }
 
-  /** После рестарта worker: reclaim processing и сразу resume active geo run. */
+  /** После рестарта worker: reclaim processing и resume active geo run. */
   private async bootstrap(): Promise<void> {
     const scheduled = sortPhasesByOrder(await this.phases.listEnabled("scheduled", "geoParse"));
     for (const phase of scheduled) {
@@ -65,8 +72,8 @@ export class PlaceEnrichmentDaemonService {
       console.warn(
         `GeoParseDaemon[${phase.id}]: startup resume run=${active.id.slice(0, 8)} processing→pending=${reset}`,
       );
-      void this.tickPhase(phase);
     }
+    await this.tickAllPhases();
   }
 
   stop(): void {
@@ -75,36 +82,70 @@ export class PlaceEnrichmentDaemonService {
       clearInterval(this.refreshTimer);
       this.refreshTimer = null;
     }
-    for (const timer of this.timers.values()) clearInterval(timer);
-    this.timers.clear();
-    this.running.clear();
+    if (this.drainTimer) {
+      clearInterval(this.drainTimer);
+      this.drainTimer = null;
+    }
+    this.drainTickMs = null;
+    this.geoDrainBusy = false;
+    this.lastPhaseDrainAt.clear();
   }
 
   private async refreshSchedules(): Promise<void> {
     if (this.stopped) return;
     const scheduled = sortPhasesByOrder(await this.phases.listEnabled("scheduled", "geoParse"));
-    const ids = new Set(scheduled.map((phase) => phase.id));
+    const tickMs =
+      scheduled.length > 0
+        ? Math.min(...scheduled.map((phase) => resolvePhaseTickMs(phase)))
+        : null;
 
-    for (const [id, timer] of this.timers) {
-      if (!ids.has(id)) {
-        clearInterval(timer);
-        this.timers.delete(id);
-      }
+    if (tickMs === this.drainTickMs) return;
+
+    if (this.drainTimer) {
+      clearInterval(this.drainTimer);
+      this.drainTimer = null;
     }
+    this.drainTickMs = tickMs;
 
-    for (const phase of scheduled) {
-      if (this.timers.has(phase.id)) continue;
-      const intervalMs = Math.max(phase.policy.intervalMs, phase.policy.minIntervalMs, 1000);
-      const timer = setInterval(() => void this.tickPhase(phase), intervalMs);
-      this.timers.set(phase.id, timer);
-      // Первый drain сразу после старта worker, не ждать intervalMs (120s).
-      void this.tickPhase(phase);
+    if (!tickMs) return;
+
+    this.drainTimer = setInterval(() => void this.tickAllPhases(), tickMs);
+    void this.tickAllPhases();
+  }
+
+  /** Один проход: фазы по order, без параллельного drain. Nominatim — только после пустой очереди DaData. */
+  private async tickAllPhases(): Promise<void> {
+    if (this.stopped || this.geoDrainBusy) return;
+    this.geoDrainBusy = true;
+    try {
+      const scheduled = sortPhasesByOrder(await this.phases.listEnabled("scheduled", "geoParse"));
+      for (const phase of scheduled) {
+        if (this.stopped) break;
+
+        const provider = resolveGeoEnrichmentProvider(phase);
+        if (provider === "nominatim" && (await this.isDadataQueueBusy())) {
+          continue;
+        }
+
+        const intervalMs = resolvePhaseTickMs(phase);
+        const lastDrain = this.lastPhaseDrainAt.get(phase.id) ?? 0;
+        if (Date.now() - lastDrain < intervalMs) continue;
+
+        await this.tickPhase(phase);
+        this.lastPhaseDrainAt.set(phase.id, Date.now());
+      }
+    } finally {
+      this.geoDrainBusy = false;
     }
   }
 
+  private async isDadataQueueBusy(): Promise<boolean> {
+    const counts = await this.placeJobs.countByStatus("dadata");
+    return counts.pending + counts.processing > 0;
+  }
+
   private async tickPhase(phase: PhaseDefinitionRecord): Promise<void> {
-    if (this.stopped || this.running.has(phase.id)) return;
-    this.running.add(phase.id);
+    if (this.stopped) return;
     try {
       const stale = await this.phaseRuns.failStaleActiveRuns(phase.id, resolveStaleRunMs());
       if (stale > 0) {
@@ -159,8 +200,6 @@ export class PlaceEnrichmentDaemonService {
       });
     } catch (error) {
       console.error(`GeoParseDaemon[${phase.id}]`, error);
-    } finally {
-      this.running.delete(phase.id);
     }
   }
 }

@@ -43,6 +43,8 @@
     "parse-engine:geo:recover": "tsx src/cli/geoRecoverCli.ts",
     "parse-engine:catalog:heal": "tsx src/cli/placeCatalogHealCli.ts",
     "parse-engine:catalog:heal:audit": "tsx src/cli/placeCatalogHealAuditCli.ts",
+    "parse-engine:catalog:purge-garbage": "tsx src/cli/placeCatalogPurgeGarbageCli.ts",
+    "parse-engine:catalog:sweep": "tsx src/cli/placeCatalogSweepCli.ts",
     "parse-engine:catalog:wipe": "tsx src/cli/catalogPlacesWipeCli.ts",
     "parse-engine:system:wipe": "tsx src/cli/systemFullResetCli.ts",
     "phase:lifecycle": "tsx src/cli/phaseLifecycleCli.ts",

@@ -62,15 +62,35 @@ export class TypeOrmPlaceRepository implements IPlaceRepository {
     };
   }
 
-  /** Finds existing place row by FIAS or natural key in region. */
+  /** Finds existing place row by FIAS, ОКТМО или natural key in region. */
   private async findExistingPlace(
     place: PlaceRecord,
     normalizedName: string,
   ): Promise<PlaceEntity | null> {
+    if (place.oktmo) {
+      const byOktmo = await this.repo().findOne({
+        where: { regionId: place.regionId, oktmo: place.oktmo },
+      });
+      if (byOktmo) {
+        return byOktmo;
+      }
+    }
+
+    if (place.fiasId) {
+      const byFias = await this.repo().findOne({
+        where: { fiasId: place.fiasId },
+      });
+      if (byFias) {
+        return byFias;
+      }
+    }
+
     return this.repo().findOne({
-      where: place.fiasId
-        ? [{ fiasId: place.fiasId }, { regionId: place.regionId, kind: place.kind, nameNormalized: normalizedName }]
-        : [{ regionId: place.regionId, kind: place.kind, nameNormalized: normalizedName }],
+      where: {
+        regionId: place.regionId,
+        kind: place.kind,
+        nameNormalized: normalizedName,
+      },
     });
   }
 

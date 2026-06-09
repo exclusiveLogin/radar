@@ -349,6 +349,35 @@ export class LastWinnerReadModelProjection {
         input.occurredAt,
       ],
     );
+
+    if (input.action === "clear") {
+      await this.suppressPlacesByRegionalClear(input.regionId);
+    }
+  }
+
+  /** Отбой по субъекту гасит все place raise, у которых winner старее регионального clear. */
+  private async suppressPlacesByRegionalClear(regionId: string): Promise<void> {
+    await this.deps.dataSource.query(
+      `
+      UPDATE place_status_read_model psm
+      SET action = 'clear',
+          status_code = rsm.status_code,
+          state_level = rsm.state_level,
+          winner_occurred_at = rsm.winner_occurred_at,
+          stale = false,
+          stale_at = NULL,
+          updated_at = now()
+      FROM region_status_read_model rsm
+      WHERE psm.region_id = rsm.region_id
+        AND rsm.region_id = $1
+        AND rsm.stale = false
+        AND rsm.action = 'clear'
+        AND rsm.winner_occurred_at > psm.winner_occurred_at
+        AND psm.action = 'raise'
+        AND psm.stale = false
+      `,
+      [regionId],
+    );
   }
 
   private async upsertPlaceWinner(input: {

@@ -1,10 +1,16 @@
 import type { ILocationEnricher, LocationCandidate } from "@radar/shared";
+import { isDadataSuggestionRegionConsistent } from "./dadataSuggestionRegionMatch.js";
+import { waitExternalGeocoderSlot } from "./nominatimRateLimit.js";
 import { mapDadataSuggestion, type DadataSuggestion } from "./mapDadataSuggestion.js";
 
 /** 403: у токена нет доступа к suggest/address (тариф или другой продукт). */
 function isSuggestionsAccessDenied(status: number, body: string): boolean {
   return status === 403 && /SUGGESTIONS/i.test(body);
 }
+
+type SuggestResult =
+  | { ok: true; suggestions: DadataSuggestion[] }
+  | { ok: false; fatal: boolean };
 
 /**
  * Геокодинг через DaData suggest/address: FIAS + geo_lat/geo_lon.
@@ -13,7 +19,7 @@ function isSuggestionsAccessDenied(status: number, body: string): boolean {
 export class DadataEnricher implements ILocationEnricher {
   readonly name = "dadata";
 
-  /** После фatal 403 на SUGGESTIONS — не долбить API на каждый place. */
+  /** После fatal 403 на SUGGESTIONS — не долбить API на каждый place. */
   private suggestionsAccessDenied = false;
 
   constructor(
@@ -42,6 +48,63 @@ export class DadataEnricher implements ILocationEnricher {
       return null;
     }
 
+    await waitExternalGeocoderSlot(0);
+
+    let scoped = await this.fetchSuggestions(input.rawText, input.regionCode);
+    if (!scoped.ok) {
+      return null;
+    }
+
+    let best = scoped.suggestions[0];
+    let usedFallback = false;
+
+    if (!best && input.regionCode) {
+      await waitExternalGeocoderSlot(0);
+      const fallback = await this.fetchSuggestions(input.rawText);
+      if (!fallback.ok) {
+        return null;
+      }
+      best = fallback.suggestions[0];
+      usedFallback = Boolean(best);
+    }
+
+    if (!best) {
+      console.warn(`[dadata] пустой suggestions query=${JSON.stringify(input.rawText.slice(0, 80))}`);
+      return null;
+    }
+
+    if (usedFallback && !isDadataSuggestionRegionConsistent({
+      regionCodeHint: input.regionCode,
+      queryNorm,
+      suggestion: best,
+    })) {
+      console.warn(
+        `[dadata] fallback отклонён (регион) query=${JSON.stringify(input.rawText.slice(0, 80))} hint=${input.regionCode}`,
+      );
+      return null;
+    }
+
+    if (usedFallback) {
+      console.warn(
+        `[dadata] fallback без locations query=${JSON.stringify(input.rawText.slice(0, 80))} hint=${input.regionCode}`,
+      );
+    }
+
+    const mapped = mapDadataSuggestion(best, {
+      queryNorm,
+      regionCodeHint: input.regionCode,
+    });
+    if (!mapped) {
+      console.warn(`[dadata] mapDadataSuggestion=null query=${JSON.stringify(input.rawText.slice(0, 80))}`);
+    }
+    return mapped;
+  }
+
+  /** suggest/address; regionCode → locations.region_iso_code. */
+  private async fetchSuggestions(
+    query: string,
+    regionCode?: string,
+  ): Promise<SuggestResult> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
     try {
@@ -54,12 +117,9 @@ export class DadataEnricher implements ILocationEnricher {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            query: input.rawText,
+            query,
             count: 1,
-            // Ограничиваем поиск конкретным субъектом РФ — без этого dadata
-            // возвращает глобальный топ по популярности и может вернуть
-            // одноимённый район из другого региона.
-            ...(input.regionCode ? { locations: [{ region_iso_code: input.regionCode }] } : {}),
+            ...(regionCode ? { locations: [{ region_iso_code: regionCode }] } : {}),
           }),
           signal: controller.signal,
         },
@@ -73,31 +133,19 @@ export class DadataEnricher implements ILocationEnricher {
               + "Нужен ключ с доступом к «Подсказки» → suggest/address (dadata.ru/profile). "
               + "geo-dadata будет no-op до смены токена и перезапуска worker.",
           );
-          return null;
+          return { ok: false, fatal: true };
         }
         console.warn(
-          `[dadata] HTTP ${response.status} query=${JSON.stringify(input.rawText.slice(0, 80))} ${body.slice(0, 120)}`,
+          `[dadata] HTTP ${response.status} query=${JSON.stringify(query.slice(0, 80))} ${body.slice(0, 120)}`,
         );
-        return null;
+        return { ok: false, fatal: false };
       }
       const payload = (await response.json()) as { suggestions?: DadataSuggestion[] };
-      const best = payload.suggestions?.[0];
-      if (!best) {
-        console.warn(`[dadata] пустой suggestions query=${JSON.stringify(input.rawText.slice(0, 80))}`);
-        return null;
-      }
-      const mapped = mapDadataSuggestion(best, {
-        queryNorm,
-        regionCodeHint: input.regionCode,
-      });
-      if (!mapped) {
-        console.warn(`[dadata] mapDadataSuggestion=null query=${JSON.stringify(input.rawText.slice(0, 80))}`);
-      }
-      return mapped;
+      return { ok: true, suggestions: payload.suggestions ?? [] };
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      console.warn(`[dadata] ${message} query=${JSON.stringify(input.rawText.slice(0, 80))}`);
-      return null;
+      console.warn(`[dadata] ${message} query=${JSON.stringify(query.slice(0, 80))}`);
+      return { ok: false, fatal: false };
     } finally {
       clearTimeout(timer);
     }

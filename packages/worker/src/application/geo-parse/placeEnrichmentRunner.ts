@@ -4,6 +4,11 @@ import { loadDadataToken } from "../../infrastructure/enrichers/dadataConfig.js"
 import { LlmEnricher } from "../../infrastructure/enrichers/llmEnricher.js";
 import { loadLlmRuntimeConfig } from "../../infrastructure/enrichers/llmRuntimeConfig.js";
 import { NominatimEnricher } from "../../infrastructure/enrichers/nominatimEnricher.js";
+import {
+  isGarbageIngestPlaceName,
+  normalizePlaceLabelForGeocode,
+} from "../../domain/parsing/channelCityListPromo.js";
+import { enrichmentMissError } from "../../domain/parsing/placeEnrichmentStatus.js";
 import { syncPlaceGeoQueueForProvider } from "./placeGeoQueueSync.js";
 import {
   logGeoBatchSummary,
@@ -48,6 +53,24 @@ export class PlaceEnrichmentRunner {
 
   private isDadataSuggestionsBlocked(provider: PlaceEnrichmentProvider): boolean {
     return provider === "dadata" && this.getDadata().isSuggestionsBlocked();
+  }
+
+  /** Мусорный place: не дергаем внешний API, помечаем провайдера в evidence — без повторного catch-up. */
+  private async skipNonGeocodablePlace(
+    jobId: string,
+    placeId: string,
+    provider: PlaceEnrichmentProvider,
+  ): Promise<void> {
+    await this.places.mergeContribution({
+      placeId,
+      provider,
+      trustState: "rejected",
+      isTrusted: false,
+      trustScore: 0,
+      fields: {},
+      rawPayload: { skipReason: "non_geocodable_place_name" },
+    });
+    await this.jobs.markDone(jobId);
   }
 
   /** DaData 403 SUGGESTIONS — jobs обратно в pending, batch прерываем. */
@@ -170,11 +193,28 @@ export class PlaceEnrichmentRunner {
           failed += 1;
           continue;
         }
+        if (isGarbageIngestPlaceName(place.name)) {
+          await this.skipNonGeocodablePlace(job.id, place.id, provider);
+          logGeoPlaceOutcome({ provider, placeName: place.name, outcome: "skip" });
+          logGeoPlaceVerbose({
+            provider,
+            placeId: place.id,
+            placeName: place.name,
+            query: "",
+            outcome: "skip_region",
+            detail: "non_geocodable_place_name",
+          });
+          processed += 1;
+          continue;
+        }
         const regionCode = canonicalRegionCode(region);
         const parent = place.parentPlaceId ? placesById.get(place.parentPlaceId) : undefined;
+        const placeLabel = normalizePlaceLabelForGeocode(place.name);
         const query = buildCatalogPlaceGeocodeQuery({
-          placeName: place.name,
-          placeNameWithType: place.nameWithType,
+          placeName: placeLabel,
+          placeNameWithType: place.nameWithType
+            ? normalizePlaceLabelForGeocode(place.nameWithType)
+            : undefined,
           region,
           parentPlaceName: parent?.name,
           parentPlaceNameWithType: parent?.nameWithType,
@@ -207,7 +247,7 @@ export class PlaceEnrichmentRunner {
             query,
             outcome: "no_hit",
           });
-          await this.jobs.markFailed(job.id, `${provider}: no enrichment result`);
+          await this.jobs.markFailed(job.id, enrichmentMissError(provider));
           failed += 1;
           continue;
         }

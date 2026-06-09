@@ -151,6 +151,7 @@ export {
   isStaleStatusEvent,
   isMapEventOlderThanTtl,
   isPlaceSuppressedByRegionClear,
+  sqlPlaceNotSuppressedByRegionClear,
   PLACE_STATUS_EVENT_AT_META_KEY,
   readPlaceStatusEventAt,
 } from "./domain/region-state/statusEventOrdering";

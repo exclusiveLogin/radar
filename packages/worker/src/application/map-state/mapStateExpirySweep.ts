@@ -8,27 +8,38 @@ type SweepDeps = {
 export type MapStateExpiryResult = {
   regionsExpired: number;
   placesExpired: number;
+  placesClearedByRegion: number;
 };
 
 
-/** TTL sweep для нового read-model: помечает просроченные winner как stale. */
+/** TTL sweep для read-model: регион и place — независимые окна. */
 export class MapStateExpirySweep {
   constructor(private readonly deps: SweepDeps) {}
 
   async run(at: Date = new Date()): Promise<MapStateExpiryResult> {
     const cutoffIso = new Date(at.getTime() - this.deps.ttlMs).toISOString();
-    const { regionsExpired, placesExpired } = await this.markReadModelsStale(
-      cutoffIso,
-      at.toISOString(),
+    const atIso = at.toISOString();
+
+    const regionRows = await this.expireStaleRegions(cutoffIso, atIso);
+    const cascadedPlaces = await this.expirePlacesInRegions(
+      regionRows.map((row) => row.region_id),
+      atIso,
     );
-    return { regionsExpired, placesExpired };
+    const placesExpired = await this.expireStalePlacesByOwnTtl(cutoffIso, atIso);
+    const placesClearedByRegion = await this.applyRegionalClearToPlaces();
+
+    return {
+      regionsExpired: regionRows.length,
+      placesExpired: cascadedPlaces + placesExpired,
+      placesClearedByRegion,
+    };
   }
 
-  private async markReadModelsStale(
+  private async expireStaleRegions(
     cutoffIso: string,
     atIso: string,
-  ): Promise<{ regionsExpired: number; placesExpired: number }> {
-    const regionRows = (await this.deps.dataSource.query(
+  ): Promise<Array<{ region_id: string }>> {
+    return (await this.deps.dataSource.query(
       `
       UPDATE region_status_read_model
       SET stale = true, stale_at = $2::timestamptz, status_code = 'stale', updated_at = now()
@@ -39,48 +50,74 @@ export class MapStateExpirySweep {
       `,
       [cutoffIso, atIso],
     )) as Array<{ region_id: string }>;
+  }
 
-    const expiredRegionIds = regionRows.map((r) => r.region_id);
+  /** Каскад: протухший регион → все его place raise тоже stale. */
+  private async expirePlacesInRegions(
+    expiredRegionIds: string[],
+    atIso: string,
+  ): Promise<number> {
+    if (expiredRegionIds.length === 0) return 0;
 
-    // Дочерние places гасим вместе с регионом — сайд-эффект TTL региона.
-    let placesExpired = 0;
-    if (expiredRegionIds.length > 0) {
-      const placeRows = (await this.deps.dataSource.query(
-        `
-        UPDATE place_status_read_model
-        SET stale = true, stale_at = $2::timestamptz, status_code = 'stale', updated_at = now()
-        WHERE stale = false
-          AND action = 'raise'
-          AND region_id = ANY($1::uuid[])
-        RETURNING place_id
-        `,
-        [expiredRegionIds, atIso],
-      )) as Array<{ place_id: string }>;
-      placesExpired = placeRows.length;
-    }
+    const placeRows = (await this.deps.dataSource.query(
+      `
+      UPDATE place_status_read_model
+      SET stale = true, stale_at = $2::timestamptz, status_code = 'stale', updated_at = now()
+      WHERE stale = false
+        AND action = 'raise'
+        AND region_id = ANY($1::uuid[])
+      RETURNING place_id
+      `,
+      [expiredRegionIds, atIso],
+    )) as Array<{ place_id: string }>;
+    return placeRows.length;
+  }
 
-    // Места без активного региона тоже истекают независимо (по собственному TTL).
-    const orphanRows = (await this.deps.dataSource.query(
+  /**
+   * Place TTL от собственного winner_occurred_at — независимо от свежих сообщений по региону.
+   */
+  private async expireStalePlacesByOwnTtl(
+    cutoffIso: string,
+    atIso: string,
+  ): Promise<number> {
+    const placeRows = (await this.deps.dataSource.query(
       `
       UPDATE place_status_read_model
       SET stale = true, stale_at = $2::timestamptz, status_code = 'stale', updated_at = now()
       WHERE stale = false
         AND winner_occurred_at < $1::timestamptz
         AND action = 'raise'
-        AND (
-          region_id IS NULL
-          OR region_id NOT IN (
-            SELECT region_id FROM region_status_read_model WHERE action = 'raise' AND stale = false
-          )
-        )
       RETURNING place_id
       `,
       [cutoffIso, atIso],
     )) as Array<{ place_id: string }>;
+    return placeRows.length;
+  }
 
-    return {
-      regionsExpired: regionRows.length,
-      placesExpired: placesExpired + orphanRows.length,
-    };
+  /**
+   * Региональный clear новее place raise → place action=clear (write-side SSOT).
+   */
+  private async applyRegionalClearToPlaces(): Promise<number> {
+    const rows = (await this.deps.dataSource.query(
+      `
+      UPDATE place_status_read_model psm
+      SET action = 'clear',
+          status_code = rsm.status_code,
+          state_level = rsm.state_level,
+          winner_occurred_at = rsm.winner_occurred_at,
+          stale = false,
+          stale_at = NULL,
+          updated_at = now()
+      FROM region_status_read_model rsm
+      WHERE psm.region_id = rsm.region_id
+        AND rsm.stale = false
+        AND rsm.action = 'clear'
+        AND rsm.winner_occurred_at > psm.winner_occurred_at
+        AND psm.action = 'raise'
+        AND psm.stale = false
+      RETURNING psm.place_id
+      `,
+    )) as Array<{ place_id: string }>;
+    return rows.length;
   }
 }

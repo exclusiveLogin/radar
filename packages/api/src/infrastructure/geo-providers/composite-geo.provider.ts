@@ -1,5 +1,5 @@
 import type { AliasDraft, GeoProviderSnapshot, IGeoSourceProvider, PlaceDraft } from "@radar/shared";
-import { normalizeName } from "./geo-provider-utils";
+import { normalizeName, resolvePlaceDraftKey } from "./geo-provider-utils";
 import { canonicalizeRegions } from "./region-canonicalization";
 
 /** Deduplicates rows by stable string key while preserving first occurrence. */
@@ -53,7 +53,7 @@ export class CompositeGeoProvider implements IGeoSourceProvider {
     }
     const places = dedupeByKey<PlaceDraft>(
       snapshots.flatMap((s) => s.places),
-      (row) => row.fiasId ?? `${row.regionCode}:${row.kind}:${normalizeName(row.name)}`,
+      (row) => resolvePlaceDraftKey(row),
     );
     const aliases = dedupeByKey<AliasDraft>(
       snapshots.flatMap((s) => s.aliases),

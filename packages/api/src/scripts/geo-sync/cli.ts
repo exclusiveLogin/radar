@@ -2,7 +2,7 @@ import type { DataSource } from "typeorm";
 import dataSource from "../../data-source";
 import { GeoSyncApplyService } from "../../application/geo-sync/geo-sync-apply.service";
 import { GeoSyncPlanService } from "../../application/geo-sync/geo-sync-plan.service";
-import { CompositeGeoProvider, RussiaGeoJsonOsmProvider } from "../../infrastructure/geo-providers";
+import { CompositeGeoProvider, AllCitiesFiasCatalogProvider, RussiaGeoJsonOsmProvider } from "../../infrastructure/geo-providers";
 import { TypeOrmDomainEventRepository } from "../../infrastructure/persistence/typeorm-domain-event.repository";
 import { TypeOrmPlaceAliasRepository } from "../../infrastructure/persistence/typeorm-place-alias.repository";
 import { TypeOrmPlaceRepository } from "../../infrastructure/persistence/typeorm-place.repository";
@@ -36,10 +36,10 @@ async function withDataSource<T>(
 async function run(): Promise<void> {
   const mode = parseMode();
   await withDataSource(dataSource, async () => {
-    // Единственный источник геометрии — Russia_geojson_OSM.
-    // Идентичность регионов — из catalog/regions.json через geo:regions:seed.
+    // Геометрия — Russia_geojson_OSM; города/ПГТ/РП — FIAS xlsx; регионы — regions.json через geo:regions:seed.
     const provider = new CompositeGeoProvider([
       new RussiaGeoJsonOsmProvider(),
+      new AllCitiesFiasCatalogProvider(),
     ]);
     const regions = new TypeOrmRegionRepository(dataSource);
     const places = new TypeOrmPlaceRepository(dataSource);

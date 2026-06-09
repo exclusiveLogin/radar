@@ -1,6 +1,6 @@
 /**
- * Глобальный throttle для Nominatim: serial queue + min interval между HTTP.
- * Один процесс worker — один лимитер (manual drain и daemon делят очередь).
+ * Глобальная serial-очередь внешних геокодеров (DaData + Nominatim).
+ * Параллельные HTTP к разным провайдерам дают 429 у Nominatim — один gate на процесс.
  */
 let gate: Promise<void> = Promise.resolve();
 let lastRequestAtMs = 0;
@@ -17,8 +17,8 @@ export function extendNominatimCooldown(ms: number): void {
   cooldownUntilMs = Math.max(cooldownUntilMs, Date.now() + ms);
 }
 
-/** Дождаться слота перед следующим запросом к Nominatim. */
-export async function waitNominatimSlot(minIntervalMs: number): Promise<void> {
+/** Дождаться слота перед следующим HTTP к DaData или Nominatim. */
+export async function waitExternalGeocoderSlot(minIntervalMs: number): Promise<void> {
   if (minIntervalMs <= 0) return;
 
   const ticket = gate.then(async () => {
@@ -34,9 +34,15 @@ export async function waitNominatimSlot(minIntervalMs: number): Promise<void> {
   await ticket;
 }
 
+/** @deprecated используйте waitExternalGeocoderSlot */
+export const waitNominatimSlot = waitExternalGeocoderSlot;
+
 /** Только для тестов. */
-export function resetNominatimRateLimitForTests(): void {
+export function resetExternalGeocoderSerialForTests(): void {
   gate = Promise.resolve();
   lastRequestAtMs = 0;
   cooldownUntilMs = 0;
 }
+
+/** @deprecated используйте resetExternalGeocoderSerialForTests */
+export const resetNominatimRateLimitForTests = resetExternalGeocoderSerialForTests;

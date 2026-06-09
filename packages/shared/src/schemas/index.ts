@@ -318,6 +318,9 @@ export type {
 } from "./admin";
 
 /** Браузер-безопасные хелперы карты (Vite: @radar/shared → этот barrel, не src/index). */
-export { isPlaceSuppressedByRegionClear } from "../domain/region-state/statusEventOrdering.js";
+export {
+  isPlaceSuppressedByRegionClear,
+  sqlPlaceNotSuppressedByRegionClear,
+} from "../domain/region-state/statusEventOrdering.js";
 export type { MapStatusAction } from "../domain/region-state/statusEventOrdering.js";
 

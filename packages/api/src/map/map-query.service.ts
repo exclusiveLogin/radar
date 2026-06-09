@@ -19,7 +19,7 @@ import { GeoFeatureEntity, PlaceEntity, RegionEntity } from "../geo/entities";
 import { resolvePlaceMapCentroid, resolveRegionCentroid } from "./map-centroid.resolver";
 import { loadLayout } from "./layout.loader";
 import { loadRegionAdjacency } from "./adjacency.loader";
-import { maxStateLevel } from "@radar/shared";
+import { maxStateLevel, sqlPlaceNotSuppressedByRegionClear } from "@radar/shared";
 import type { SourceMessage } from "@radar/shared";
 import type { GeoRegionRef, PlaceRef } from "./map.dto";
 import {
@@ -70,11 +70,14 @@ export class MapQueryService {
               gf.geometry
        FROM geo_feature gf
        INNER JOIN places p ON p.geo_feature_id = gf.id AND p.is_active = true
-       INNER JOIN place_status_read_model psm ON psm.place_id = p.id AND psm.action = 'raise'
+       INNER JOIN place_status_read_model psm ON psm.place_id = p.id
+         AND psm.action = 'raise'
+         AND psm.stale = false
        LEFT JOIN regions r ON r.id = gf.region_id
        WHERE gf.layer = ANY($1)
          AND gf.is_active = true
-         AND gf.geometry IS NOT NULL`,
+         AND gf.geometry IS NOT NULL
+         ${sqlPlaceNotSuppressedByRegionClear("psm")}`,
       [["district", "city_district"]],
     )) as Array<{
       id: string;
@@ -776,16 +779,7 @@ export class MapQueryService {
       FROM place_status_read_model psm
       WHERE psm.action = 'raise'
         AND psm.stale = false
-        -- Региональный raise не гасит детальные places; только более свежий clear.
-        -- Строго > чтобы НП из того же сообщения (одинаковый timestamp) не подавлялись.
-        AND NOT EXISTS (
-          SELECT 1
-          FROM region_status_read_model rsm
-          WHERE rsm.region_id = psm.region_id
-            AND rsm.stale = false
-            AND rsm.action = 'clear'
-            AND rsm.winner_occurred_at > psm.winner_occurred_at
-        )
+        ${sqlPlaceNotSuppressedByRegionClear("psm")}
       `,
     )) as Array<{
       place_id: string;

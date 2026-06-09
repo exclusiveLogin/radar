@@ -87,6 +87,20 @@ export function startMapStore(): void {
   void mapApi.warnings().then((items) => stateChanges$.next(items)).catch(reportError);
 }
 
+/** Пропуск emit, если снапшот места не изменился (снижает шторм WS → MapLibre). */
+function isSamePlaceSnapshot(a: MapPlaceSnapshot, b: MapPlaceSnapshot): boolean {
+  return (
+    a.placeId === b.placeId
+    && a.regionCode === b.regionCode
+    && a.stateLevel === b.stateLevel
+    && a.statusCode === b.statusCode
+    && a.lat === b.lat
+    && a.lon === b.lon
+    && a.statusEventAt === b.statusEventAt
+    && a.updatedAt === b.updatedAt
+  );
+}
+
 /** Убирает точки в grey-регионах и под более свежим региональным clear (raise не гасит). */
 function prunePlacesForRegions(
   places: Map<string, MapPlaceSnapshot>,
@@ -168,7 +182,7 @@ function applyRegionState(event: RegionStateEvent): void {
   const raw = new Map(regionsByCode$.value);
   const existing = raw.get(event.regionCode);
   const layout = event.layout ?? existing?.layout;
-  raw.set(event.regionCode, {
+  const updated: MapRegionSnapshot = {
     regionId: event.regionId,
     regionCode: event.regionCode,
     name: existing?.name ?? event.regionCode,
@@ -179,11 +193,29 @@ function applyRegionState(event: RegionStateEvent): void {
     centroidLon: event.centroidLon ?? existing?.centroidLon,
     statusEventAt: event.statusEventAt ?? existing?.statusEventAt,
     statusAction: event.statusAction ?? existing?.statusAction,
-  });
+  };
+  if (
+    existing
+    && existing.stateLevel === updated.stateLevel
+    && existing.activity === updated.activity
+    && existing.statusEventAt === updated.statusEventAt
+    && existing.statusAction === updated.statusAction
+    && existing.centroidLat === updated.centroidLat
+    && existing.centroidLon === updated.centroidLon
+  ) {
+    return;
+  }
+  raw.set(event.regionCode, updated);
   const next = deriveNeighborLevels(raw, adjacency);
+  if (next === regionsByCode$.value) {
+    return;
+  }
   derivedRegionCodes$.next(extractDerivedCodes(raw, next));
   regionsByCode$.next(next);
-  placesById$.next(prunePlacesForRegions(placesById$.value, next));
+  const pruned = prunePlacesForRegions(placesById$.value, next);
+  if (pruned !== placesById$.value) {
+    placesById$.next(pruned);
+  }
 
   // Новый регион без layout → нужен полный snapshot чтобы получить тайл-координаты
   if (!layout) {
@@ -233,7 +265,7 @@ function applyPlaceState(event: PlaceStateEvent): void {
     return;
   }
 
-  next.set(event.placeId, {
+  const snapshot: MapPlaceSnapshot = {
     placeId: event.placeId,
     placeName: event.placeName,
     regionId: event.regionId,
@@ -246,7 +278,12 @@ function applyPlaceState(event: PlaceStateEvent): void {
     lon: event.lon,
     updatedAt: event.changedAt,
     statusEventAt: event.changedAt,
-  });
+  };
+  const prev = next.get(event.placeId);
+  if (prev && isSamePlaceSnapshot(prev, snapshot)) {
+    return;
+  }
+  next.set(event.placeId, snapshot);
   placesById$.next(next);
 }
 
