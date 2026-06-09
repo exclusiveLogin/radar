@@ -402,3 +402,13 @@ export type {
   Unsubscribe,
 } from "./ports";
 
+export {
+  createProgress,
+  createStageProgressReporter,
+  type CreateProgressOptions,
+  type ProgressCounters,
+  type ProgressHandle,
+  type StageProgressHandle,
+  type StageProgressReporter,
+} from "./cli/progress";
+

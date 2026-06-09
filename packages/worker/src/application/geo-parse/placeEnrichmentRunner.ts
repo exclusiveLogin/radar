@@ -311,13 +311,18 @@ export class PlaceEnrichmentRunner {
     return { claimed: claimed.length, processed, failed };
   }
 
-  async runDrain(provider: PlaceEnrichmentProvider, batchSize: number): Promise<{ processed: number; failed: number }> {
+  async runDrain(
+    provider: PlaceEnrichmentProvider,
+    batchSize: number,
+    options?: { onBatch?: (stats: { processed: number; failed: number; claimed: number }) => void },
+  ): Promise<{ processed: number; failed: number }> {
     let processed = 0;
     let failed = 0;
     for (;;) {
       const batch = await this.runBatch(provider, batchSize);
       processed += batch.processed;
       failed += batch.failed;
+      options?.onBatch?.({ processed, failed, claimed: batch.claimed });
       if (batch.claimed === 0) break;
     }
     return { processed, failed };

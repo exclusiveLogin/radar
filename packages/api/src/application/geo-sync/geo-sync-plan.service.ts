@@ -1,6 +1,7 @@
-import type { AliasDraft, IGeoSourceProvider, IPlaceAliasRepository, IPlaceRepository, IRegionRepository, PlaceDraft, RegionDraft } from "@radar/shared";
+import type { AliasDraft, GeoProviderSnapshot, IGeoSourceProvider, IPlaceAliasRepository, IPlaceRepository, IRegionRepository, PlaceDraft, RegionDraft } from "@radar/shared";
 import { normalizeGeoText } from "../geo/normalizeText";
 import { diffAliases, diffPlaces, diffRegions } from "./diff-engine";
+import type { GeoSyncPlanRunOptions } from "./geo-sync.reporter.port";
 
 export type GeoSyncPlan = {
   sourceId: string;
@@ -90,8 +91,9 @@ export class GeoSyncPlanService {
       this.aliases.listActive(),
     ]);
 
-    const places = this.toPlaceDrafts(currentPlacesRaw);
-    places.push(...this.toNormalizedPlaceDrafts(currentPlacesRaw));
+    const basePlaces = this.toPlaceDrafts(currentPlacesRaw);
+    // concat, не push(...rows): при ~128k places spread переполняет call stack.
+    const places = basePlaces.concat(this.toNormalizedPlaceDrafts(currentPlacesRaw));
 
     return {
       regions: this.toRegionDrafts(currentRegionsRaw),
@@ -101,8 +103,16 @@ export class GeoSyncPlanService {
   }
 
   /** Calculates dry-run sync diff between provider snapshot and current state. */
-  async plan(): Promise<GeoSyncPlan> {
-    const snapshot = await this.provider.loadSnapshot();
+  async plan(options?: GeoSyncPlanRunOptions): Promise<GeoSyncPlan> {
+    const skipLoad = Boolean(options?.skipSnapshot && options.snapshot);
+    const snapshot = skipLoad
+      ? options!.snapshot!
+      : await this.provider.loadSnapshot();
+
+    if (!skipLoad) {
+      options?.snapshotReporter?.snapshotLoaded();
+    }
+
     const current = await this.loadCurrentDrafts();
 
     const regionDiff = diffRegions(current.regions, snapshot.regions);

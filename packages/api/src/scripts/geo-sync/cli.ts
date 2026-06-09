@@ -8,6 +8,10 @@ import { TypeOrmPlaceAliasRepository } from "../../infrastructure/persistence/ty
 import { TypeOrmPlaceRepository } from "../../infrastructure/persistence/typeorm-place.repository";
 import { TypeOrmRegionRepository } from "../../infrastructure/persistence/typeorm-region.repository";
 import { TypeOrmSyncAuditRepository } from "../../infrastructure/persistence/typeorm-sync-audit.repository";
+import {
+  createGeoSyncPersistReporter,
+  createGeoSyncSnapshotReporter,
+} from "./geoSyncCliProgress";
 
 type CliMode = "plan" | "apply";
 
@@ -33,21 +37,26 @@ async function withDataSource<T>(
   }
 }
 
+function buildGeoProvider(): CompositeGeoProvider {
+  return new CompositeGeoProvider([
+    new RussiaGeoJsonOsmProvider(),
+    new AllCitiesFiasCatalogProvider(),
+  ]);
+}
+
 async function run(): Promise<void> {
   const mode = parseMode();
   await withDataSource(dataSource, async () => {
-    // Геометрия — Russia_geojson_OSM; города/ПГТ/РП — FIAS xlsx; регионы — regions.json через geo:regions:seed.
-    const provider = new CompositeGeoProvider([
-      new RussiaGeoJsonOsmProvider(),
-      new AllCitiesFiasCatalogProvider(),
-    ]);
+    const provider = buildGeoProvider();
     const regions = new TypeOrmRegionRepository(dataSource);
     const places = new TypeOrmPlaceRepository(dataSource);
     const aliases = new TypeOrmPlaceAliasRepository(dataSource);
     const audit = new TypeOrmSyncAuditRepository(dataSource);
     const events = new TypeOrmDomainEventRepository(dataSource);
+    const planner = new GeoSyncPlanService(provider, regions, places, aliases);
 
     if (mode === "apply") {
+      const snapshotUi = createGeoSyncSnapshotReporter("geo:snapshot");
       const service = new GeoSyncApplyService(
         provider,
         regions,
@@ -55,15 +64,27 @@ async function run(): Promise<void> {
         aliases,
         audit,
         events,
+        planner,
       );
-      const result = await service.apply();
-      console.log(JSON.stringify({ mode, result }, null, 2));
+      try {
+        const result = await service.apply({
+          persist: createGeoSyncPersistReporter(),
+          snapshot: snapshotUi.reporter,
+        });
+        console.log(JSON.stringify({ mode, result }, null, 2));
+      } finally {
+        snapshotUi.stop();
+      }
       return;
     }
 
-    const service = new GeoSyncPlanService(provider, regions, places, aliases);
-    const result = await service.plan();
-    console.log(JSON.stringify({ mode, result }, null, 2));
+    const snapshotUi = createGeoSyncSnapshotReporter("geo:plan");
+    try {
+      const result = await planner.plan({ snapshotReporter: snapshotUi.reporter });
+      console.log(JSON.stringify({ mode, result }, null, 2));
+    } finally {
+      snapshotUi.stop();
+    }
   });
 }
 

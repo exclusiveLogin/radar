@@ -4,6 +4,7 @@ import { createWorkerCompositionRoot } from "../application/createWorkerComposit
 import { loadRootEnv } from "../infrastructure/config/loadRootEnv.js";
 import { WorkerStorageMode } from "../infrastructure/persistence/storageMode.js";
 import { parseLongFlagsMap, readStringFlag } from "./workerCliArgs.js";
+import { createProgress } from "./progress.js";
 
 function resolveProvider(
   enrichers: string[],

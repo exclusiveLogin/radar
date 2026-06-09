@@ -14,12 +14,11 @@ import type {
 import { randomUUID } from "node:crypto";
 import { normalizeName, placeDraftKey } from "./diff-engine";
 import { regionStemKey } from "../../infrastructure/geo-providers/region-canonicalization";
-import { GeoSyncPlanService } from "./geo-sync-plan.service";
-import { syncRegionCanonicalPlaces } from "./region-place-mirror";
+import { runGeoSyncPersist } from "./geo-sync-persist.runner";
+import type { GeoSyncApplyRunOptions } from "./geo-sync.reporter.port";
+import type { GeoSyncPlan, GeoSyncPlanService } from "./geo-sync-plan.service";
 
 export class GeoSyncApplyService {
-  private readonly planner: GeoSyncPlanService;
-
   constructor(
     private readonly provider: IGeoSourceProvider,
     private readonly regions: IRegionRepository,
@@ -27,9 +26,8 @@ export class GeoSyncApplyService {
     private readonly aliases: IPlaceAliasRepository,
     private readonly audit: ISyncAuditRepository,
     private readonly events: IDomainEventRepository,
-  ) {
-    this.planner = new GeoSyncPlanService(provider, regions, places, aliases);
-  }
+    private readonly planner: GeoSyncPlanService,
+  ) {}
 
   /** Maps region draft into persistence record enriched with revision metadata. */
   private toRegionRecord(
@@ -65,8 +63,6 @@ export class GeoSyncApplyService {
       if (region.kladrId) keys.add(region.kladrId);
       if (region.iso) keys.add(region.iso);
       if (region.nameWithType) keys.add(normalizeName(region.nameWithType));
-      // Стем-ключи: позволяют geojson-привязкам («воронежская область») и местам
-      // найти канон-регион hflabs («Воронежская») без фантомов.
       keys.add(regionStemKey(region.name));
       if (region.nameWithType) keys.add(regionStemKey(region.nameWithType));
       for (const key of keys) {
@@ -226,59 +222,68 @@ export class GeoSyncApplyService {
     return aliasRows;
   }
 
+  private buildPlaceRows(
+    snapshot: Awaited<ReturnType<IGeoSourceProvider["loadSnapshot"]>>,
+    regionByExternalKey: Map<string, RegionRecord>,
+  ): PlaceRecord[] {
+    return snapshot.places
+      .map((draft) => {
+        const region = this.resolveRegion(regionByExternalKey, draft.regionCode);
+        if (!region) return undefined;
+        return this.toPlaceRecord({
+          draft,
+          sourceRevision: snapshot.sourceRevision,
+          regionId: region.id,
+        });
+      })
+      .filter((row): row is PlaceRecord => Boolean(row));
+  }
+
   /** Applies sync plan: persists regions/places/aliases and emits audit/events. */
-  async apply(): Promise<Awaited<ReturnType<GeoSyncPlanService["plan"]>>> {
+  async apply(options?: GeoSyncApplyRunOptions): Promise<GeoSyncPlan> {
     const snapshot = await this.provider.loadSnapshot();
+    options?.snapshot?.snapshotLoaded();
+
     const auditRow = await this.audit.start({
       target: "all",
       sourceId: snapshot.sourceId,
       sourceRevision: snapshot.sourceRevision,
     });
-    const plan = await this.planner.plan();
+    const plan = await this.planner.plan({ skipSnapshot: true, snapshot });
 
     try {
       const regionRows = snapshot.regions.map((draft) =>
         this.toRegionRecord(draft, snapshot.sourceRevision),
       );
-      await this.regions.upsertMany(regionRows);
-      const regionPlaceByRegionId = await syncRegionCanonicalPlaces(
-        this.regions,
-        this.places,
-        this.aliases,
-      );
       const regionByExternalKey = this.buildRegionIndex(await this.regions.listActive());
+      const placeRows = this.buildPlaceRows(snapshot, regionByExternalKey);
 
-      const placeRows = snapshot.places
-        .map((draft) => {
-          const region = this.resolveRegion(regionByExternalKey, draft.regionCode);
-          if (!region) return undefined;
-          return this.toPlaceRecord({
-            draft,
-            sourceRevision: snapshot.sourceRevision,
-            regionId: region.id,
+      await runGeoSyncPersist({
+        regions: this.regions,
+        places: this.places,
+        aliases: this.aliases,
+        regionRows,
+        placeRows,
+        reporter: options?.persist,
+        resolveAliasRows: async (regionPlaceByRegionId) => {
+          const { placeByFias, placeByNaturalKey } = this.buildPlaceIndex(
+            await this.places.listActive(),
+          );
+          const placeByExternalKey = this.linkPlacesByExternalKey({
+            drafts: snapshot.places,
+            regionByExternalKey,
+            placeByFias,
+            placeByNaturalKey,
           });
-        })
-        .filter((row): row is PlaceRecord => Boolean(row));
-      await this.places.upsertMany(placeRows);
-
-      const { placeByFias, placeByNaturalKey } = this.buildPlaceIndex(
-        await this.places.listActive(),
-      );
-      const placeByExternalKey = this.linkPlacesByExternalKey({
-        drafts: snapshot.places,
-        regionByExternalKey,
-        placeByFias,
-        placeByNaturalKey,
+          return this.buildAliasRows({
+            aliases: snapshot.aliases,
+            placeDrafts: snapshot.places,
+            regionByExternalKey,
+            regionPlaceByRegionId,
+            placeByExternalKey,
+          });
+        },
       });
-
-      const aliasRows = this.buildAliasRows({
-        aliases: snapshot.aliases,
-        placeDrafts: snapshot.places,
-        regionByExternalKey,
-        regionPlaceByRegionId,
-        placeByExternalKey,
-      });
-      await this.aliases.upsertMany(aliasRows);
 
       await this.audit.finish(auditRow.id, {
         status: "ok",
