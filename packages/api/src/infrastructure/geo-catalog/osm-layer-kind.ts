@@ -29,7 +29,7 @@ export function geometryLinkFallbackKinds(
   const primary = mapOsmLayerToExpectedKind(layer);
   if (!primary) return [];
   if (layer === "district") {
-    return [primary, "locality"];
+    return [primary, "city", "locality"];
   }
   return [primary];
 }

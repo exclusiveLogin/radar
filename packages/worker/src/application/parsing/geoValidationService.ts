@@ -5,6 +5,8 @@
  */
 import {
   canonicalRegionCode,
+  collectPlaceMatchStems,
+  normalizePlaceMatchLabel,
   normalizeRegionCodeAlias,
   placeStem,
   type EventLocation,
@@ -127,6 +129,66 @@ export class GeoValidationService {
     private readonly places: IPlaceRepository,
     private readonly aliases: IPlaceAliasRepository,
   ) {}
+
+  /** ID place в БД после upsert (upsertMany может слить в существующую строку). */
+  private async resolvePersistedPlaceId(
+    region: RegionRecord,
+    location: EventLocation,
+    preferredId: string,
+  ): Promise<string | null> {
+    if (await this.places.findById(preferredId)) {
+      return preferredId;
+    }
+
+    const rawName = location.placeName?.trim();
+    if (rawName) {
+      const byRawName = await this.places.findByNameInRegion(rawName, region.id);
+      if (byRawName) {
+        return byRawName.id;
+      }
+    }
+
+    const matchLabel = rawName ? normalizePlaceMatchLabel(rawName) : "";
+    if (matchLabel && matchLabel !== rawName) {
+      const byLabel = await this.places.findByNameInRegion(matchLabel, region.id);
+      if (byLabel) {
+        return byLabel.id;
+      }
+    }
+
+    if (rawName) {
+      for (const stem of collectPlaceMatchStems(rawName)) {
+        const byStem = await this.places.findByStemInRegion(stem, region.id);
+        if (byStem) {
+          return byStem.id;
+        }
+      }
+    }
+
+    return null;
+  }
+
+  /** Алиас «ГО X» не нужен, если stem-кандидаты уже покрывают catalog place. */
+  private shouldRegisterAlias(placeName: string, matched: PlaceRecord): boolean {
+    if (!matched.nameStem) {
+      return true;
+    }
+    return !collectPlaceMatchStems(placeName).includes(matched.nameStem);
+  }
+
+  private async registerPlaceAlias(
+    placeId: string,
+    alias: string,
+  ): Promise<void> {
+    if (!(await this.places.findById(placeId))) {
+      return;
+    }
+    await this.aliases.upsertAlias({
+      placeId,
+      alias,
+      source: "auto",
+    });
+  }
 
   private buildMatchedContribution(input: {
     placeId: string;
@@ -322,19 +384,23 @@ export class GeoValidationService {
       if (!placeRegion) {
         return { decision: "rejected", location: null };
       }
-      // Алиас нужен только если стем имени не покрывает запрос (снижает alias-рост)
-      const incomingStem = placeStem(location.placeName);
-      if (!matched.nameStem || incomingStem !== matched.nameStem) {
-        await this.aliases.upsertAlias({
-          placeId: matched.id,
-          alias: location.placeName,
-          source: "auto",
-        });
+
+      const persistedId = await this.resolvePersistedPlaceId(
+        placeRegion,
+        location,
+        matched.id,
+      );
+      if (!persistedId) {
+        return { decision: "rejected", location: null };
+      }
+
+      if (this.shouldRegisterAlias(location.placeName ?? "", matched)) {
+        await this.registerPlaceAlias(persistedId, location.placeName ?? "");
       }
       if (context.allowPlaceUpdates) {
         await this.applyProviderContribution(
           this.buildMatchedContribution({
-            placeId: matched.id,
+            placeId: persistedId,
             provider,
             context,
             trust,
@@ -348,7 +414,7 @@ export class GeoValidationService {
         decision: "matched_existing",
         location: {
           ...withResolvedRegion(location, placeRegion),
-          placeId: matched.id,
+          placeId: persistedId,
           placeName: matched.name,
           placeFias: matched.fiasId,
           entityKind: "place",
@@ -378,16 +444,18 @@ export class GeoValidationService {
         evidenceProviders: [provider],
       },
     ]);
-    await this.aliases.upsertAlias({
-      placeId,
-      alias: location.placeName,
-      source: "auto",
-    });
+
+    const persistedId = await this.resolvePersistedPlaceId(region, location, placeId);
+    if (!persistedId) {
+      return { decision: "rejected", location: null };
+    }
+
+    await this.registerPlaceAlias(persistedId, location.placeName);
     return {
       decision: "created_new",
       location: {
         ...withResolvedRegion(location, region),
-        placeId,
+        placeId: persistedId,
         entityKind: "place",
       },
     };
@@ -419,7 +487,9 @@ export class GeoValidationService {
       }
     }
 
-    const aliasMatches = await this.aliases.findByAlias(normalize(placeName));
+    const matchLabel = normalizePlaceMatchLabel(placeName);
+
+    const aliasMatches = await this.aliases.findByAlias(normalize(matchLabel));
     for (const row of aliasMatches) {
       const place = await this.places.findById(row.placeId);
       if (!place || place.kind === "region") {
@@ -445,12 +515,11 @@ export class GeoValidationService {
       continue;
     }
 
-    // stem-lookup: catalog place создаётся при geo:features:import с name_stem
-    const stem = placeStem(placeName);
-    const byStem = await this.places.findByStemInRegion(stem, regionId, preferKind);
-    if (byStem) return byStem;
+    for (const stem of collectPlaceMatchStems(placeName)) {
+      const byStem = await this.places.findByStemInRegion(stem, regionId, preferKind);
+      if (byStem) return byStem;
+    }
 
-    // legacy fallback: places созданные до рефактора без name_stem
-    return this.places.findByNameInRegion(placeName, regionId);
+    return this.places.findByNameInRegion(matchLabel, regionId);
   }
 }

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { placeStem } from "@radar/shared";
+import { placeStem, type PlaceRecord } from "@radar/shared";
 import { GeoValidationService } from "./geoValidationService.js";
 import {
   InMemoryPlaceAliasRepository,
@@ -310,4 +310,59 @@ test("geo validation: district с pipeline regionCode и коротким DB-nam
   assert.equal(result.location?.placeId, districtId);
   assert.equal(result.location?.entityKind, "place");
   assert.equal(result.location?.regionCode, "RU-KLU");
+});
+
+/** Имитирует TypeORM upsertMany: merge по region+kind+nameNormalized, id из existing. */
+class DedupingPlaceRepository extends InMemoryPlaceRepository {
+  async upsertMany(places: PlaceRecord[]): Promise<void> {
+    for (const place of places) {
+      const existing = (await this.listActive()).find(
+        (row) =>
+          row.regionId === place.regionId
+          && row.kind === place.kind
+          && row.name.toLowerCase().trim() === place.name.toLowerCase().trim(),
+      );
+      await super.upsertMany([
+        { ...place, id: existing?.id ?? place.id },
+      ]);
+    }
+  }
+}
+
+test("geo validation: created_new alias не ломает FK при dedup upsertMany", async () => {
+  const regions = new InMemoryRegionRepository();
+  const places = new DedupingPlaceRepository();
+  const aliases = new InMemoryPlaceAliasRepository();
+  const service = new GeoValidationService(regions, places, aliases);
+
+  const mosId = "29251dcf-00a1-4e34-98d4-5c47484a36d4";
+  await regions.upsertMany([
+    {
+      id: mosId,
+      code: "RU-MOS",
+      iso: "RU-MOS",
+      name: "Московская",
+      frontRegion: false,
+      borderRegion: false,
+    },
+  ]);
+
+  const location = {
+    regionId: mosId,
+    regionCode: "RU-MOS",
+    placeName: "ГО Тестовый-Stub-Reparse",
+    precision: "city" as const,
+    source: "llm" as const,
+  };
+
+  const first = await service.validate("ГО Тестовый-Stub-Reparse", location);
+  assert.equal(first.decision, "created_new");
+  const firstId = first.location?.placeId;
+  assert.ok(firstId);
+
+  const second = await service.validate("ГО Тестовый-Stub-Reparse", location);
+  assert.ok(
+    second.decision === "created_new" || second.decision === "matched_existing",
+  );
+  assert.equal(second.location?.placeId, firstId);
 });

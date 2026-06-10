@@ -3,6 +3,8 @@
  * Не оперативная тревога: не классифицируем как event и не геокодируем список.
  */
 
+import { normalizePlaceMatchLabel } from "@radar/shared";
+
 /** Суффикс бренда канала — убираем перед lookup в справочнике НП. */
 export function stripChannelPlaceSuffix(placeName: string): string {
   return placeName.replace(/\s+24\s*\/\s*7\s*$/i, "").trim();
@@ -112,8 +114,7 @@ function isTimestampLikePlaceLabel(label: string): boolean {
  */
 export function normalizePlaceLabelForGeocode(placeName: string): string {
   let label = stripChannelStatusPrefix(placeName).replace(/\r/g, "").split("\n")[0]!.trim();
-  label = label.replace(/^направлении\s+/i, "");
-  label = label.replace(/^(?:го|мр)\s+/i, "");
+  label = normalizePlaceMatchLabel(label);
   label = label.replace(/\s+и\s+(?:близлежащ(?:ие|ие)|ближайш(?:ие|ее)|ближайшее|пригород)(?:\s+\p{L}+)?$/iu, "");
   return label.trim();
 }

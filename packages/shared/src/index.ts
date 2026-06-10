@@ -162,7 +162,12 @@ export {
   canonicalRegionCode,
   parseKladrSubjectPrefix,
 } from "./domain/regionLookupCode";
-export { placeStem } from "./domain/geo/placeStem";
+export {
+  collectPlaceMatchStems,
+  normalizePlaceMatchLabel,
+  placeStem,
+  placeStemCore,
+} from "./domain/geo/placeStem";
 export {
   normalizePlaceIdentityName,
   placeIdentityMatches,

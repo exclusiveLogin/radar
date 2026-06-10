@@ -16,7 +16,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { randomUUID } from "node:crypto";
 import type { DataSource } from "typeorm";
-import { placeStem } from "@radar/shared";
+import { collectPlaceMatchStems, placeStem } from "@radar/shared";
 import type { PlaceRecord, RegionRecord } from "@radar/shared";
 import {
   geometryLinkFallbackKinds,
@@ -439,15 +439,16 @@ export class OsmRussiaGeoImporter {
       }
     }
 
-    const stem = placeStem(input.name);
-    for (const kind of geometryLinkFallbackKinds(input.layer)) {
-      const byStem = await this.places.findByStemInRegion(
-        stem,
-        input.regionId,
-        kind,
-      );
-      if (byStem) {
-        return byStem;
+    for (const stem of collectPlaceMatchStems(input.name)) {
+      for (const kind of geometryLinkFallbackKinds(input.layer)) {
+        const byStem = await this.places.findByStemInRegion(
+          stem,
+          input.regionId,
+          kind,
+        );
+        if (byStem) {
+          return byStem;
+        }
       }
     }
 
