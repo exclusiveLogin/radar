@@ -49,7 +49,37 @@ test("isFiasImportableRow: пропускает пустые и заголово
   );
 });
 
-test("mapFiasRowsToPlaceDrafts: импортирует все уровни, дедуп по oktmo", () => {
+test("mapFiasRowsToPlaceDrafts: oktmo МО не схлопывает город и НП внутри (Казань)", () => {
+  const rows: AllCitiesFiasRow[] = [
+    {
+      aoLevel: "6",
+      region: "Татарстан",
+      munDistrict: "Казань",
+      cityType: "д",
+      city: "Самосырово",
+      okato: "92401385000",
+      oktmo: "92701000",
+      postalCode: "",
+    },
+    {
+      aoLevel: "4",
+      region: "Татарстан",
+      munDistrict: "Казань",
+      cityType: "г",
+      city: "Казань",
+      okato: "92401000000",
+      oktmo: "92701000",
+      postalCode: "",
+    },
+  ];
+
+  const places = mapFiasRowsToPlaceDrafts(rows);
+  assert.equal(places.length, 2);
+  assert.ok(places.some((place) => place.name === "Казань" && place.kind === "city"));
+  assert.ok(places.some((place) => place.name === "Самосырово" && place.kind === "locality"));
+});
+
+test("mapFiasRowsToPlaceDrafts: импортирует все уровни, дедуп по oktmo+name", () => {
   const rows: AllCitiesFiasRow[] = [
     {
       aoLevel: "4",

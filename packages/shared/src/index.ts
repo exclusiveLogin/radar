@@ -164,6 +164,12 @@ export {
 } from "./domain/regionLookupCode";
 export { placeStem } from "./domain/geo/placeStem";
 export {
+  normalizePlaceIdentityName,
+  placeIdentityMatches,
+  resolvePlaceIdentityKey,
+} from "./domain/geo/placeIdentity";
+export type { PlaceIdentityInput } from "./domain/geo/placeIdentity";
+export {
   buildCatalogPlaceGeocodeQuery,
   buildRegionScopedGeocodeQuery,
   formatFederalSubjectLabel,
