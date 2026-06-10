@@ -1,17 +1,20 @@
 import type { DataSource } from "typeorm";
 import type { WorkerDbRepositories } from "../../../infrastructure/persistence/workerDbRepos.types.js";
 import { clearOperationalContent } from "../../archive/clearOperationalContent.js";
+import type { WipeStepOptions } from "../../archive/wipeStepReporter.js";
 import type { PhaseMutationResult } from "./phaseLifecycle.types.js";
 
 /**
  * ingest:wipe — raw и всё производное (parsed, evloc, parse_attempts, карта, ingest cursors).
  * places / geo-каталог не трогаем.
  */
-export async function wipeIngestPhase(input: {
-  dataSource: DataSource;
-  repos: WorkerDbRepositories;
-  dryRun: boolean;
-}): Promise<PhaseMutationResult> {
+export async function wipeIngestPhase(
+  input: {
+    dataSource: DataSource;
+    repos: WorkerDbRepositories;
+    dryRun: boolean;
+  } & WipeStepOptions,
+): Promise<PhaseMutationResult> {
   if (input.dryRun) {
     return {
       phase: "ingest",
@@ -26,6 +29,7 @@ export async function wipeIngestPhase(input: {
     dataSource: input.dataSource,
     repos: input.repos,
     reason: "ingest:wipe",
+    onStep: input.onStep,
   });
 
   return {

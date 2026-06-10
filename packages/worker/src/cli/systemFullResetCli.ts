@@ -1,13 +1,13 @@
 import { MONOREPO_ROOT } from "@repo/root";
-import { runSystemFullWipe } from "../application/archive/runSystemFullWipe.js";
-import { GeoCatalog } from "../infrastructure/geo-catalog/geoCatalog.js";
-import { createWorkerCompositionRoot } from "../application/createWorkerCompositionRoot.js";
+import { wipeFullDataStack } from "../application/phases/lifecycle/fullStackWipe.js";
+import { createWorkerDataSource } from "../infrastructure/persistence/createWorkerDataSource.js";
+import { createWorkerDbRepositories } from "../infrastructure/persistence/workerDbRepos.js";
 import { loadRootEnv } from "../infrastructure/config/loadRootEnv.js";
 import { notifyMapPushSnapshot } from "../infrastructure/notifyMapPushSnapshot.js";
-import { WorkerStorageMode } from "../infrastructure/persistence/storageMode.js";
 import { hasAnyFlag, parseLongFlagsMap } from "./workerCliArgs.js";
+import { createSystemWipeReporter } from "./systemWipeCliProgress.js";
 
-/** Подтверждение из argv или RADAR_CONFIRM_SYSTEM_WIPE (для system:reset без вложенного npm). */
+/** Подтверждение из argv или RADAR_CONFIRM_SYSTEM_WIPE. */
 function isWipeConfirmed(flags: ReturnType<typeof parseLongFlagsMap>): boolean {
   if (hasAnyFlag(flags, ["confirm", "yes", "y"])) {
     return true;
@@ -17,24 +17,32 @@ function isWipeConfirmed(flags: ReturnType<typeof parseLongFlagsMap>): boolean {
 }
 
 function printHelp(): void {
-  console.log(`Usage: npm run parse-engine:system:wipe -- --confirm [--dry-run]
+  console.log(`Usage: npm run parse-engine:system:wipe -w @radar/worker -- --confirm [--dry-run] [--verbose] [--no-force-locks]
 
   Полный wipe БД (без конфига ingest/фаз):
     • raw_messages, parsed_events, parse_attempts, phase_runs, domain_events
     • ingest cursors/backfill, read-model карты
     • places, place_aliases, geo_feature, place_geo_link, geo_dataset_file, regions
 
-  После wipe вручную или через npm run system:reset -- --confirm:
-    npm run geo:init
-    npm run parse-engine:rebuild:drain   # когда нужен перепарс
+  НЕ трогает: channels, ingest_providers, phase_definitions, .env
+
+  --verbose         полный SQL в лог
+  --no-force-locks  не закрывать dev/API через pg_terminate_backend (по умолчанию закрываем)
+
+  После wipe:
+    npm run geo:catalog:import -w @radar/api
+    npm run parse-engine:ingest:backfill -w @radar/worker
+    npm run parse-engine:rebuild:drain -w @radar/worker
 `);
 }
 
-/** Полный wipe операционки + гео-каталога. */
+/** Полный wipe операционки + гео-каталога (без Telegram / composition root). */
 async function main(): Promise<void> {
   loadRootEnv(MONOREPO_ROOT);
   const flags = parseLongFlagsMap(process.argv);
   const dryRun = hasAnyFlag(flags, ["dry-run", "dryRun"]);
+  const verbose = hasAnyFlag(flags, ["verbose", "v"]);
+  const forceLocks = !hasAnyFlag(flags, ["no-force-locks", "noForceLocks"]);
   const confirm = isWipeConfirmed(flags);
 
   if (hasAnyFlag(flags, ["help", "h"])) {
@@ -48,37 +56,67 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  if (dryRun) {
-    console.log("[dry-run] system:wipe не выполнялся.");
-    process.exit(0);
+  const reporter = createSystemWipeReporter({ verbose });
+
+  if (!dryRun) {
+    if (forceLocks) {
+      reporter.log.line(
+        "forceLocks: прочие подключения к БД будут закрыты (pg_terminate_backend)",
+      );
+    } else {
+      reporter.log.line(
+        "без forceLocks: остановите npm run dev / API вручную",
+      );
+    }
+    reporter.log.printFullPlan();
   }
 
-  const runtime = await createWorkerCompositionRoot({
-    storageMode: WorkerStorageMode.Db,
-    startIngestParseDaemon: false,
-    geoCatalog: GeoCatalog.empty(),
-  });
-  if (!runtime.dataSource || !runtime.workerRepos) {
-    console.error("system:wipe: нужен RADAR_STORAGE_MODE=db и DATABASE_URL");
-    process.exit(1);
-  }
+  reporter.log.line("подключение к БД…");
+  const dataSource = await createWorkerDataSource();
+  const repos = await createWorkerDbRepositories(dataSource);
+  reporter.log.line("БД — ok");
 
-  const { steps } = await runSystemFullWipe({
-    dataSource: runtime.dataSource,
-    repos: runtime.workerRepos,
-  });
+  try {
+    if (dryRun) {
+      const { steps } = await wipeFullDataStack({
+        dataSource,
+        repos,
+        dryRun: true,
+        reporter,
+      });
+      reporter.log.line("dry-run — план фаз:");
+      for (const step of steps) {
+        reporter.log.detail(`[${step.phase}] ${step.action}`);
+        for (const note of step.notes ?? []) {
+          reporter.log.detail(`  • ${note}`);
+        }
+      }
+      return;
+    }
 
-  console.log("\nvendor-ingest-parse-geo:wipe done");
-  for (const step of steps) {
-    console.log(`  [${step.phase}]`);
-    for (const [k, v] of Object.entries(step.counts)) {
-      console.log(`    ${k}: ${v}`);
+    const { steps } = await wipeFullDataStack({
+      dataSource,
+      repos,
+      dryRun: false,
+      reporter,
+      forceLocks,
+    });
+
+    reporter.log.line("итого по фазам:");
+    for (const step of steps) {
+      reporter.log.detail(`[${step.phase}]`);
+      for (const [k, v] of Object.entries(step.counts)) {
+        reporter.log.detail(`  ${k}: ${v}`);
+      }
+    }
+
+    await notifyMapPushSnapshot();
+    reporter.log.line("Дальше: npm run geo:catalog:import -w @radar/api");
+  } finally {
+    if (dataSource.isInitialized) {
+      await dataSource.destroy();
     }
   }
-
-  await notifyMapPushSnapshot();
-  console.log("\nДальше: npm run geo:run  или  npm run system:reset -- --confirm");
-  await runtime.shutdown?.();
 }
 
 main().catch((err) => {

@@ -1,5 +1,6 @@
 import type {
   AliasDraft,
+  GeoProviderSnapshot,
   IDomainEventRepository,
   IGeoSourceProvider,
   IPlaceAliasRepository,
@@ -13,10 +14,27 @@ import type {
 } from "@radar/shared";
 import { randomUUID } from "node:crypto";
 import { normalizeName, placeDraftKey } from "./diff-engine";
-import { regionStemKey } from "../../infrastructure/geo-providers/region-canonicalization";
+import {
+  alignRegionRowsWithExisting,
+  buildRegionIndexForSnapshot,
+  resolveRegionFromIndex,
+} from "./geo-sync-region-index";
 import { runGeoSyncPersist } from "./geo-sync-persist.runner";
 import type { GeoSyncApplyRunOptions } from "./geo-sync.reporter.port";
 import type { GeoSyncPlan, GeoSyncPlanService } from "./geo-sync-plan.service";
+
+/** Фактическая запись snapshot vs plan (plan может завышать после wipe). */
+export type GeoSyncApplyPersistStats = {
+  snapshotPlaces: number;
+  placeRowsBuilt: number;
+  unresolvedPlaceDrafts: number;
+  regionRows: number;
+};
+
+export type GeoSyncApplyResult = {
+  plan: GeoSyncPlan;
+  persist: GeoSyncApplyPersistStats;
+};
 
 export class GeoSyncApplyService {
   constructor(
@@ -54,36 +72,6 @@ export class GeoSyncApplyService {
     };
   }
 
-  /** Builds lookup index for region identifiers, codes and normalized names. */
-  private buildRegionIndex(regions: RegionRecord[]): Map<string, RegionRecord> {
-    const index = new Map<string, RegionRecord>();
-    for (const region of regions) {
-      const keys = new Set<string>([region.id, region.code, normalizeName(region.name)]);
-      if (region.fiasId) keys.add(region.fiasId);
-      if (region.kladrId) keys.add(region.kladrId);
-      if (region.iso) keys.add(region.iso);
-      if (region.nameWithType) keys.add(normalizeName(region.nameWithType));
-      keys.add(regionStemKey(region.name));
-      if (region.nameWithType) keys.add(regionStemKey(region.nameWithType));
-      for (const key of keys) {
-        index.set(key, region);
-      }
-    }
-    return index;
-  }
-
-  /** Resolves region by external key or normalized fallback key. */
-  private resolveRegion(
-    index: Map<string, RegionRecord>,
-    regionCode: string,
-  ): RegionRecord | undefined {
-    return (
-      index.get(regionCode) ??
-      index.get(normalizeName(regionCode)) ??
-      index.get(regionStemKey(regionCode))
-    );
-  }
-
   /** Maps place draft into persistence record bound to region id. */
   private toPlaceRecord(options: {
     draft: PlaceDraft;
@@ -106,6 +94,10 @@ export class GeoSyncApplyService {
       centroidLon: draft.centroidLon,
       sourceMeta: draft.sourceMeta,
       lastSourceRevision: sourceRevision,
+      trustState: "verified",
+      isTrusted: true,
+      trustScore: 1,
+      evidenceProviders: ["catalog"],
     };
   }
 
@@ -143,7 +135,7 @@ export class GeoSyncApplyService {
     } = options;
     const placeByExternalKey = new Map<string, PlaceRecord>();
     for (const draft of drafts) {
-      const region = this.resolveRegion(regionByExternalKey, draft.regionCode);
+      const region = resolveRegionFromIndex(regionByExternalKey, draft.regionCode);
       if (!region) continue;
       const persistedPlace = draft.fiasId
         ? placeByFias.get(draft.fiasId)
@@ -171,7 +163,7 @@ export class GeoSyncApplyService {
 
       let placeId: string | undefined;
       if (aliasDraft.targetKind === "region") {
-        const region = this.resolveRegion(
+        const region = resolveRegionFromIndex(
           options.regionByExternalKey,
           aliasDraft.targetExternalKey,
         );
@@ -228,7 +220,7 @@ export class GeoSyncApplyService {
   ): PlaceRecord[] {
     return snapshot.places
       .map((draft) => {
-        const region = this.resolveRegion(regionByExternalKey, draft.regionCode);
+        const region = resolveRegionFromIndex(regionByExternalKey, draft.regionCode);
         if (!region) return undefined;
         return this.toPlaceRecord({
           draft,
@@ -240,9 +232,13 @@ export class GeoSyncApplyService {
   }
 
   /** Applies sync plan: persists regions/places/aliases and emits audit/events. */
-  async apply(options?: GeoSyncApplyRunOptions): Promise<GeoSyncPlan> {
-    const snapshot = await this.provider.loadSnapshot();
-    options?.snapshot?.snapshotLoaded();
+  async apply(
+    options?: GeoSyncApplyRunOptions & { providerSnapshot?: GeoProviderSnapshot },
+  ): Promise<GeoSyncApplyResult> {
+    const snapshot = options?.providerSnapshot ?? await this.provider.loadSnapshot();
+    if (!options?.providerSnapshot) {
+      options?.snapshot?.snapshotLoaded();
+    }
 
     const auditRow = await this.audit.start({
       target: "all",
@@ -252,11 +248,16 @@ export class GeoSyncApplyService {
     const plan = await this.planner.plan({ skipSnapshot: true, snapshot });
 
     try {
-      const regionRows = snapshot.regions.map((draft) =>
-        this.toRegionRecord(draft, snapshot.sourceRevision),
+      const existingRegions = await this.regions.listActive();
+      const regionRows = alignRegionRowsWithExisting(
+        snapshot.regions.map((draft) =>
+          this.toRegionRecord(draft, snapshot.sourceRevision),
+        ),
+        existingRegions,
       );
-      const regionByExternalKey = this.buildRegionIndex(await this.regions.listActive());
+      const regionByExternalKey = buildRegionIndexForSnapshot(existingRegions, regionRows);
       const placeRows = this.buildPlaceRows(snapshot, regionByExternalKey);
+      const unresolvedPlaceDrafts = snapshot.places.length - placeRows.length;
 
       await runGeoSyncPersist({
         regions: this.regions,
@@ -315,7 +316,15 @@ export class GeoSyncApplyService {
         },
       ]);
 
-      return plan;
+      return {
+        plan,
+        persist: {
+          snapshotPlaces: snapshot.places.length,
+          placeRowsBuilt: placeRows.length,
+          unresolvedPlaceDrafts,
+          regionRows: regionRows.length,
+        },
+      };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       await this.audit.finish(auditRow.id, {

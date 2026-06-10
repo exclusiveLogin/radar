@@ -2,7 +2,11 @@ import type { DataSource } from "typeorm";
 import dataSource from "../../data-source";
 import { GeoSyncApplyService } from "../../application/geo-sync/geo-sync-apply.service";
 import { GeoSyncPlanService } from "../../application/geo-sync/geo-sync-plan.service";
-import { CompositeGeoProvider, AllCitiesFiasCatalogProvider, RussiaGeoJsonOsmProvider } from "../../infrastructure/geo-providers";
+import { CompositeGeoProvider } from "../../infrastructure/geo-providers";
+import {
+  FrontlineCatalogProvider,
+  TabularCatalogProvider,
+} from "../../infrastructure/geo-catalog";
 import { TypeOrmDomainEventRepository } from "../../infrastructure/persistence/typeorm-domain-event.repository";
 import { TypeOrmPlaceAliasRepository } from "../../infrastructure/persistence/typeorm-place-alias.repository";
 import { TypeOrmPlaceRepository } from "../../infrastructure/persistence/typeorm-place.repository";
@@ -37,10 +41,11 @@ async function withDataSource<T>(
   }
 }
 
+/** Legacy geo:db:* — только catalog snapshot (tabular → frontline), без OSM drafts. */
 function buildGeoProvider(): CompositeGeoProvider {
   return new CompositeGeoProvider([
-    new RussiaGeoJsonOsmProvider(),
-    new AllCitiesFiasCatalogProvider(),
+    new TabularCatalogProvider(),
+    new FrontlineCatalogProvider(),
   ]);
 }
 
@@ -67,11 +72,11 @@ async function run(): Promise<void> {
         planner,
       );
       try {
-        const result = await service.apply({
+        const { plan, persist } = await service.apply({
           persist: createGeoSyncPersistReporter(),
           snapshot: snapshotUi.reporter,
         });
-        console.log(JSON.stringify({ mode, result }, null, 2));
+        console.log(JSON.stringify({ mode, plan, persist }, null, 2));
       } finally {
         snapshotUi.stop();
       }

@@ -1,6 +1,7 @@
 import type { DataSource } from "typeorm";
 import type { WorkerDbRepositories } from "../../../infrastructure/persistence/workerDbRepos.types.js";
 import { clearOperationalMapState } from "../../archive/clearOperationalMapState.js";
+import { truncateTableCounted } from "../../archive/wipeTableSql.js";
 import { clearParsedArtifacts } from "../pipelineOperationalReset.js";
 import { stopAllActivePhaseRuns } from "../stopAllActivePhaseRuns.js";
 import type { PhaseMutationResult } from "./phaseLifecycle.types.js";
@@ -20,7 +21,7 @@ export async function wipeParsePhase(input: {
       dryRun: true,
       counts: {},
       notes: [
-        "Удалит parsed_events (+ event_locations), parse_attempts, event_evidence, place_enrichment_jobs, read-model карты.",
+        "TRUNCATE parsed_events (+ event_locations), parse_attempts, event_evidence, place_enrichment_jobs, read-model.",
         "raw_messages не трогает.",
       ],
     };
@@ -34,18 +35,12 @@ export async function wipeParsePhase(input: {
 
   const map = await clearOperationalMapState(input.dataSource, "parse:wipe");
   const parsedEvents = await clearParsedArtifacts(input.dataSource);
-
-  const parseAttemptRows = (await input.dataSource.query(
-    `DELETE FROM parse_attempts RETURNING id`,
-  )) as Array<{ id: string }>;
-
-  const evidenceRows = (await input.dataSource.query(
-    `DELETE FROM event_evidence RETURNING id`,
-  )) as Array<{ id: string }>;
-
-  const jobsRows = (await input.dataSource.query(
-    `DELETE FROM place_enrichment_jobs RETURNING id`,
-  )) as Array<{ id: string }>;
+  const parseAttempts = await truncateTableCounted(input.dataSource, "parse_attempts");
+  const eventEvidence = await truncateTableCounted(input.dataSource, "event_evidence");
+  const enrichmentJobs = await truncateTableCounted(
+    input.dataSource,
+    "place_enrichment_jobs",
+  );
 
   return {
     phase: "parse",
@@ -53,9 +48,9 @@ export async function wipeParsePhase(input: {
     dryRun: false,
     counts: {
       parsed_events: parsedEvents,
-      parse_attempts: parseAttemptRows.length,
-      event_evidence: evidenceRows.length,
-      place_enrichment_jobs: jobsRows.length,
+      parse_attempts: parseAttempts,
+      event_evidence: eventEvidence,
+      place_enrichment_jobs: enrichmentJobs,
       place_status_read_model: map.placesCleared,
       region_status_read_model: map.regionsCleared,
     },

@@ -155,6 +155,17 @@ export class TypeOrmPlaceRepository implements IPlaceRepository {
     return this.toRecord(row);
   }
 
+  /** Finds place by ОКТМО в рамках субъекта (geometry link + catalog upsert). */
+  async findByOktmoInRegion(
+    regionId: string,
+    oktmo: string,
+  ): Promise<PlaceRecord | null> {
+    const row = await this.repo().findOne({
+      where: { regionId, oktmo, isActive: true },
+    });
+    return row ? this.toRecord(row) : null;
+  }
+
   /** Finds place by normalized name scoped to region (legacy, по nameNormalized). */
   async findByNameInRegion(
     name: string,
@@ -204,13 +215,43 @@ export class TypeOrmPlaceRepository implements IPlaceRepository {
     return rows.map((row) => this.toRecord(row));
   }
 
+  /**
+   * При catalog upsert сохраняем enrich/geo поля существующей строки.
+   * Повторный import не сбрасывает trust и geo_feature_id.
+   */
+  private preserveExistingEnrichment(
+    entity: PlaceEntity,
+    existing: PlaceEntity,
+  ): PlaceEntity {
+    if (existing.geoFeatureId && !entity.geoFeatureId) {
+      entity.geoFeatureId = existing.geoFeatureId;
+    }
+
+    const hasIngestEvidence = (existing.evidenceProviders ?? []).some(
+      (provider) => provider !== "catalog",
+    );
+    if (hasIngestEvidence) {
+      entity.trustState = existing.trustState;
+      entity.isTrusted = existing.isTrusted;
+      entity.trustScore = existing.trustScore;
+      entity.evidenceProviders = existing.evidenceProviders;
+      entity.trustUpdatedAt = existing.trustUpdatedAt;
+    }
+
+    return entity;
+  }
+
   /** Upserts batch of places with deterministic identity matching. */
   async upsertMany(places: PlaceRecord[]): Promise<void> {
     if (places.length === 0) return;
     for (const place of places) {
       const normalizedName = normalizeName(place.name);
       const existing = await this.findExistingPlace(place, normalizedName);
-      await this.repo().save(this.toEntity(place, normalizedName, existing?.id));
+      let entity = this.toEntity(place, normalizedName, existing?.id);
+      if (existing) {
+        entity = this.preserveExistingEnrichment(entity, existing);
+      }
+      await this.repo().save(entity);
     }
   }
 

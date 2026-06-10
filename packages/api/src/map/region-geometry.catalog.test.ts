@@ -25,6 +25,33 @@ test("OSM-подписи республик и областей → разные
   RegionGeometryCatalog.resetForTests();
 });
 
+test("OSM Russia_regions: сокращения АО / Республика → ISO", () => {
+  const catalog = RegionGeometryCatalog.getInstance();
+  catalog.bindRegions([]);
+
+  const cases: Array<[string, string]> = [
+    ["Еврейская АО", "RU-YEV"],
+    ["Кабардино-Балкарская Республика", "RU-KB"],
+    ["Карачаево-Черкесская Республика", "RU-KC"],
+    ["Ненецкий АО", "RU-NEN"],
+    ["Удмуртская Республика", "RU-UD"],
+    ["Ханты-Мансийский АО - Югра", "RU-KHM"],
+    ["Чеченская Республика", "RU-CE"],
+    ["Чукотский АО", "RU-CHU"],
+    ["Ямало-Ненецкий АО", "RU-YAN"],
+  ];
+
+  for (const [label, iso] of cases) {
+    assert.equal(
+      catalog.resolveIsoForTest(label),
+      iso,
+      `label=${label}`,
+    );
+  }
+
+  RegionGeometryCatalog.resetForTests();
+});
+
 test("buildLayer: у каждого контура свой regionCode", () => {
   const catalog = RegionGeometryCatalog.getInstance();
   catalog.bindRegions([]);

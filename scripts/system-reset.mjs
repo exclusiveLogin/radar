@@ -1,11 +1,15 @@
 #!/usr/bin/env node
 /**
- * Полный reset: wipe БД (raw + операционка + geo-каталог) → geo:init.
+ * Полный reset БД (+ опционально legacy geo:init).
  *
  *   npm run system:reset -- --confirm
- *   npm run system:reset -- --confirm --wipe-only   # без geo:init
+ *   npm run system:reset -- --confirm --wipe-only
  *
- * Перед запуском остановите dev/worker (иначе снова наполнит очереди).
+ * Актуальный трек без legacy geo:init:
+ *   parse-engine:system:wipe → geo:catalog:import → backfill → rebuild:drain
+ *   (см. docs/runbook/geo-clean-rebuild.md)
+ *
+ * Перед запуском остановите dev/worker.
  */
 import { run } from "./utils.mjs";
 
@@ -16,23 +20,28 @@ const help = args.includes("--help") || args.includes("-h");
 
 if (help) {
   console.log(`
-system:reset — wipe + раскатка geo с нуля
+system:reset — wipe БД (+ опционально legacy geo:init)
 
   npm run system:reset -- --confirm
   npm run system:reset -- --confirm --wipe-only
 
-Шаги (без --wipe-only):
-  1. parse-engine:system:wipe  — raw, parsed, places, regions, geo_feature, …
-  2. geo:init                  — regions:seed → vendor → sync → seed → features:import
+Шаги:
+  1. vendor-ingest-parse-geo:wipe — raw, parsed, places, regions, geo_feature, …
+  2. geo:init (legacy) — только без --wipe-only
 
-После reset при необходимости:
-  npm run parse-engine:rebuild:drain
+Диск (data/geo/artifacts, catalog) не трогает.
+Для свежего OSM-клона вручную: npm run vendor:wipe
+
+Рекомендуемый трек после --wipe-only:
+  npm run geo:catalog:import -w @radar/api
+  npm run parse-engine:ingest:backfill -w @radar/worker
+  npm run parse-engine:rebuild:drain -w @radar/worker
 `);
   process.exit(0);
 }
 
 if (!confirm) {
-  console.error("\x1b[31mНужен флаг --confirm. Пример: npm run system:reset -- --confirm\x1b[0m");
+  console.error("\n\x1b[31mНужен флаг --confirm. Пример: npm run system:reset -- --confirm\x1b[0m");
   process.exit(1);
 }
 
@@ -44,23 +53,24 @@ function runNpm(scriptArgs) {
   run("npm", ["run", ...scriptArgs]);
 }
 
-console.log("\n\x1b[36m=== system:reset (full wipe) ===\x1b[0m");
+console.log("\n\x1b[36m=== system:reset (DB wipe) ===\x1b[0m");
 
-console.log("\n\x1b[33m[1] vendor:wipe (диск, опционально)\x1b[0m");
-runNpm(["vendor:wipe"]);
-
-console.log("\n\x1b[33m[2] vendor-ingest-parse-geo:wipe (БД)\x1b[0m");
+console.log("\n\x1b[33m[1] vendor-ingest-parse-geo:wipe (БД)\x1b[0m");
 process.env.RADAR_CONFIRM_SYSTEM_WIPE = "1";
 runNpm(["vendor-ingest-parse-geo:wipe"]);
 
 if (!wipeOnly) {
-  console.log("\n\x1b[33m[3] geo:init (regions → vendor → sync → seed → features)\x1b[0m");
+  console.log("\n\x1b[33m[2] geo:init (legacy: regions → vendor → sync → features)\x1b[0m");
   runNpm(["geo:init"]);
 }
 
 console.log("\n\x1b[32msystem:reset completed\x1b[0m");
-if (!wipeOnly) {
+if (wipeOnly) {
   console.log(
-    "\x1b[90mОпционально: npm run parse-engine:rebuild:drain — перепарс raw после появления ingest\x1b[0m",
+    "\x1b[90mДальше: geo:catalog:import → ingest:backfill → rebuild:drain (runbook/geo-clean-rebuild.md)\x1b[0m",
+  );
+} else {
+  console.log(
+    "\x1b[90mLegacy geo:init выполнен. Для catalog SSOT предпочтительнее: geo:catalog:import\x1b[0m",
   );
 }

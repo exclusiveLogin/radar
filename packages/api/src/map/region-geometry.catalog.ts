@@ -106,6 +106,20 @@ export function registerRegionIsoAliases(
     if (tail) put(`Республика ${base} (${tail})`);
     put(`${input.name} Республика`);
   }
+
+  // OSM Russia_regions.geojson: «… АО», «… Республика» вместо полных nameWithType
+  const nameWithType = input.nameWithType ?? "";
+  if (/автономная\s+область/i.test(nameWithType)) {
+    put(`${input.name} АО`);
+  }
+  if (/автономный\s+округ/i.test(nameWithType)) {
+    put(nameWithType.replace(/автономный\s+округ/gi, "АО"));
+    put(`${input.name} АО`);
+  }
+  const republicShort = nameWithType.match(/^(.+?)\s+Респ\.?$/i);
+  if (republicShort?.[1]) {
+    put(`${republicShort[1].trim()} Республика`);
+  }
 }
 
 /**

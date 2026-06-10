@@ -2,6 +2,8 @@
 
 PowerShell, корень репо. Нужны `DATABASE_URL`, `RADAR_STORAGE_MODE=db`, запущенный Postgres.
 
+> 📌 **Полный сброс + переливка каталога + reparse:** [runbook/geo-clean-rebuild.md](./runbook/geo-clean-rebuild.md)
+
 ---
 
 ## Запуск dev-стека
@@ -47,12 +49,14 @@ npm run dev:app      # только shared + api + web (без worker)
   place_status_read_model  ← read-model карты
 ```
 
-**Geo-каталог (структурные данные, не runtime):**
+**Geo-каталог (staging, не runtime parse):**
 
 ```
-data/geo/catalog/regions.json  →  regions + places(kind=region)
-data/geo/artifacts/...GeoJSON  →  geo_feature + places(kind=district/...)
+npm run geo:catalog:import -w @radar/api
+  tabular → frontline → osm_geometry → adjacency
 ```
+
+Подробно: [runbook/geo-clean-rebuild.md](./runbook/geo-clean-rebuild.md)
 
 ---
 
@@ -95,21 +99,19 @@ data/geo/artifacts/...GeoJSON  →  geo_feature + places(kind=district/...)
 
 | Команда | Что делает |
 |---------|-----------|
-| `npm run geo:init` | Полная инициализация с нуля: regions:seed → vendor → sync → seed → features:import |
-| `npm run geo:regions:seed` | Записать регионы из `data/geo/catalog/regions.json` → `regions` + `places(kind=region)` |
-| `npm run geo:features:import` | OSM GeoJSON → `geo_feature` + catalog `places` (district/city_district) + `place_geo_link` |
-| `npm run geo:vendor` | Скачать/клонировать OSM GeoJSON (data/geo/vendor) |
-| `npm run geo:sync` | Синхронизировать артефакты из vendor в data/geo/artifacts |
-| `npm run geo:seed` | Записать реестр `geo_dataset_file` (трекинг импорта) |
-| `npm run geo:update` | Обновить vendor + пересинк + re-import features |
-| `npm run vendor:wipe` | Удалить data/geo/artifacts + data/geo/vendor (диск, не БД) |
-| `npm run vendor:run` | `geo:vendor` + `geo:sync` |
+| `npm run geo:catalog:import -w @radar/api` | **Основной:** tabular → frontline → osm → adjacency |
+| `npm run geo:catalog:reset -w @radar/api -- --confirm` | Wipe гео-справочника (places/regions/geo_feature) |
+| `npm run geo:catalog:plan -w @radar/api` | Dry-run шагов catalog import |
+| `npm run geo:regions:seed -w @radar/api` | legacy: только regions.json |
+| `npm run geo:features:import -w @radar/api` | legacy: только osm_geometry |
+| `npm run geo:db:apply -w @radar/api` | legacy: tabular + frontline без osm/adjacency |
+| `npm run vendor:wipe` | Удалить data/geo/vendor (OSM clone); artifacts — только с `--with-artifacts` |
 
 ### Geo-обогащение мест (координаты)
 
 | Команда | Что делает |
 |---------|-----------|
-| `npm run geo:run` | `geo:regions:seed` + `geo:features:import` |
+| `npm run geo:run` | legacy alias → см. `geo:catalog:import` |
 | `npm run geo:reset [-- --dry-run]` | Обнулить centroid/bbox/trust у places; очистить jobs/evidence |
 | `npm run geo:wipe [-- --dry-run]` | Удалить все places + aliases. **geo_feature/regions остаются** |
 | `npm run geo-catalog:wipe [-- --dry-run]` | Удалить regions + geo_feature + place_geo_link |
@@ -123,7 +125,8 @@ data/geo/artifacts/...GeoJSON  →  geo_feature + places(kind=district/...)
 |---------|------------|
 | `npm run ingest-parse:wipe [-- --dry-run]` | raw + parsed + evloc + очереди + read-model |
 | `npm run vendor-ingest-parse-geo:wipe [-- --dry-run]` | всё выше + places + geo_feature + regions |
-| `npm run system:reset -- --confirm` | vendor:wipe + vendor-ingest-parse-geo:wipe + geo:init |
+| `npm run system:reset -- --confirm` | vendor-ingest-parse-geo:wipe + geo:init (legacy); диск не трогает |
+| `npm run system:reset -- --confirm --wipe-only` | только wipe БД → дальше geo:catalog:import |
 | `npm run system:reset -- --confirm --wipe-only` | только wipe, без geo:init |
 
 ### Очистить только очереди (без удаления данных)
@@ -173,27 +176,22 @@ run   — раскатить фазу заново (без удаления)
 
 ## Сценарии
 
-### Полный сброс и накатка гео
+> Полные сценарии (wipe → catalog → backfill → rebuild): **[runbook/geo-clean-rebuild.md](./runbook/geo-clean-rebuild.md)**
+
+### Быстро: чистая система
 
 ```powershell
-# Остановить dev (Ctrl+C)
-npm run system:reset -- --confirm
-# После: опционально перепарсить raw
-npm run parse:run
+npm run parse-engine:system:wipe -w @radar/worker -- --confirm
+npm run geo:catalog:import -w @radar/api
+npm run parse-engine:ingest:backfill -w @radar/worker
+npm run parse-engine:rebuild:drain -w @radar/worker
 ```
 
-### Перепарсить все raw без сброса гео-каталога
+### Перепарсить raw без смены каталога
 
 ```powershell
-# Остановить worker если крутится
-npm run parse:wipe
+npm run parse-engine:reset -w @radar/worker
 npm run parse:run
-```
-
-### Обновить гео-данные (новые границы районов)
-
-```powershell
-npm run geo:update          # vendor → sync → re-import features
 ```
 
 ### Сбросить только очереди (не удалять данные)

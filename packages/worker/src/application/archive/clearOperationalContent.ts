@@ -4,6 +4,8 @@ import { stopAllActivePhaseRuns } from "../phases/stopAllActivePhaseRuns.js";
 import { clearIngestOperationalState } from "./clearIngestOperationalState.js";
 import { clearOperationalMapState } from "./clearOperationalMapState.js";
 import { clearRawArchive } from "./clearRawArchive.js";
+import { truncateTableCounted } from "./wipeTableSql.js";
+import { runWipeStep, type WipeStepOptions } from "./wipeStepReporter.js";
 
 export const CLEAR_OPERATIONAL_CONTENT_REASON = "clear:archive";
 
@@ -21,67 +23,117 @@ export type ClearOperationalContentResult = {
   rawMessagesDeleted: number;
 };
 
+const truncateOpts = (ctx: WipeStepOptions) => ({
+  log: ctx.log,
+  forceLocks: ctx.forceLocks,
+});
+
 /**
  * Полная очистка операционного контента: raw → parse → карта → очереди фаз → outbox.
- * Не трогает: channels, ingest_providers/bindings, regions/places (справочник), phase_definitions, status_dictionary.
  */
-export async function clearOperationalContent(input: {
-  dataSource: DataSource;
-  repos: WorkerDbRepositories;
-  reason?: string;
-}): Promise<ClearOperationalContentResult> {
+export async function clearOperationalContent(
+  input: {
+    dataSource: DataSource;
+    repos: WorkerDbRepositories;
+    reason?: string;
+  } & WipeStepOptions,
+): Promise<ClearOperationalContentResult> {
   const reason = input.reason ?? CLEAR_OPERATIONAL_CONTENT_REASON;
   const { dataSource, repos } = input;
 
-  const { phaseRunsClosed: phaseRunsStopped, queueCleared } = await stopAllActivePhaseRuns({
-    dataSource,
-    repos,
-    reason,
+  let phaseRunsStopped = 0;
+  let queueCleared = 0;
+  await runWipeStep(input, "остановка phase_runs + очередей", async () => {
+    input.log?.detail("cancel active phase_runs, clear phase_coverage + geo jobs");
+    const stopped = await stopAllActivePhaseRuns({
+      dataSource,
+      repos,
+      reason,
+    });
+    phaseRunsStopped = stopped.phaseRunsClosed;
+    queueCleared = stopped.queueCleared + stopped.geoJobsCleared;
+    input.log?.detail(
+      `остановлено: phase_runs=${stopped.phaseRunsClosed}, ingest_queue=${stopped.queueCleared}, geo_jobs=${stopped.geoJobsCleared}`,
+    );
+    return phaseRunsStopped + queueCleared;
   });
 
-  const map = await clearOperationalMapState(dataSource, reason);
-
-  const parsedRows = (await dataSource.query(
-    `DELETE FROM parsed_events RETURNING id`,
-  )) as Array<{ id: string }>;
-
-  const parseAttemptRows = (await dataSource.query(
-    `DELETE FROM parse_attempts RETURNING id`,
-  )) as Array<{ id: string }>;
-
-  const evidenceRows = (await dataSource.query(
-    `DELETE FROM event_evidence RETURNING id`,
-  )) as Array<{ id: string }>;
-
-  const jobsRows = (await dataSource.query(
-    `DELETE FROM place_enrichment_jobs RETURNING id`,
-  )) as Array<{ id: string }>;
-
-  const phaseRunRows = (await dataSource.query(
-    `DELETE FROM phase_runs RETURNING id`,
-  )) as Array<{ id: string }>;
-
-  const domainRows = (await dataSource.query(
-    `DELETE FROM domain_events RETURNING id`,
-  )) as Array<{ id: string }>;
-
-  const ingest = await clearIngestOperationalState(dataSource, {
-    includeDomainEvents: false,
+  let map = { placesCleared: 0, regionsCleared: 0 };
+  await runWipeStep(input, "read-model карты (TRUNCATE)", async () => {
+    map = await clearOperationalMapState(dataSource, reason, truncateOpts(input));
+    return -1;
   });
 
-  const raw = await clearRawArchive(dataSource, { force: true });
+  const parsedEventsDeleted = await runWipeStep(
+    input,
+    "parsed_events + evloc (TRUNCATE CASCADE)",
+    () =>
+      truncateTableCounted(dataSource, "parsed_events", {
+        cascade: true,
+        ...truncateOpts(input),
+      }),
+  );
+
+  const parseAttemptsDeleted = await runWipeStep(input, "parse_attempts", () =>
+    truncateTableCounted(dataSource, "parse_attempts", truncateOpts(input)),
+  );
+
+  const eventEvidenceDeleted = await runWipeStep(input, "event_evidence", () =>
+    truncateTableCounted(dataSource, "event_evidence", truncateOpts(input)),
+  );
+
+  const placeEnrichmentJobsDeleted = await runWipeStep(
+    input,
+    "place_enrichment_jobs",
+    () => truncateTableCounted(dataSource, "place_enrichment_jobs", truncateOpts(input)),
+  );
+
+  const phaseRunsDeleted = await runWipeStep(input, "phase_runs", () =>
+    truncateTableCounted(dataSource, "phase_runs", truncateOpts(input)),
+  );
+
+  let ingest = {
+    backfillJobsCanceled: 0,
+    backfillJobsDeleted: 0,
+    cursorsDeleted: 0,
+    providersErrorsCleared: 0,
+    domainEventsDeleted: 0,
+  };
+  let domainEventsDeleted = 0;
+  await runWipeStep(input, "ingest cursors/backfill", async () => {
+    input.log?.detail("TRUNCATE ingest_backfill_jobs, ingest_cursors; clear provider errors");
+    ingest = await clearIngestOperationalState(dataSource, {
+      includeDomainEvents: false,
+      log: input.log,
+    });
+    input.log?.detail(
+      `ingest: jobs=${ingest.backfillJobsDeleted}, cursors=${ingest.cursorsDeleted}, provider_errors_cleared=${ingest.providersErrorsCleared}`,
+    );
+    return ingest.cursorsDeleted + ingest.backfillJobsDeleted;
+  });
+
+  domainEventsDeleted = await runWipeStep(input, "domain_events", () =>
+    truncateTableCounted(dataSource, "domain_events", truncateOpts(input)),
+  );
+  ingest.domainEventsDeleted = domainEventsDeleted;
+
+  const rawMessagesDeleted = await runWipeStep(input, "raw_messages", async () => {
+    input.log?.detail("TRUNCATE raw_messages CASCADE (force, parsed уже пуст)");
+    const raw = await clearRawArchive(dataSource, { force: true, log: input.log });
+    return raw.rawMessagesDeleted;
+  });
 
   return {
     phaseRunsStopped,
     queueCleared,
-    phaseRunsDeleted: phaseRunRows.length,
+    phaseRunsDeleted,
     map,
-    parsedEventsDeleted: parsedRows.length,
-    parseAttemptsDeleted: parseAttemptRows.length,
-    eventEvidenceDeleted: evidenceRows.length,
-    placeEnrichmentJobsDeleted: jobsRows.length,
-    domainEventsDeleted: domainRows.length,
+    parsedEventsDeleted,
+    parseAttemptsDeleted,
+    eventEvidenceDeleted,
+    placeEnrichmentJobsDeleted,
+    domainEventsDeleted,
     ingest,
-    rawMessagesDeleted: raw.rawMessagesDeleted,
+    rawMessagesDeleted,
   };
 }

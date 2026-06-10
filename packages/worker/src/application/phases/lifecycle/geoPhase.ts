@@ -1,26 +1,32 @@
 import type { DataSource } from "typeorm";
 import type { WorkerDbRepositories } from "../../../infrastructure/persistence/workerDbRepos.types.js";
+import {
+  countTableRows,
+  runSqlOptional,
+  truncateGroupCounted,
+  truncateTableCounted,
+} from "../../archive/wipeTableSql.js";
+import { runWipeStep, type WipeStepOptions } from "../../archive/wipeStepReporter.js";
 import { stopAllActivePhaseRuns } from "../stopAllActivePhaseRuns.js";
 import type { PhaseMutationResult } from "./phaseLifecycle.types.js";
 
-async function deleteOptional(dataSource: DataSource, sql: string): Promise<number> {
-  try {
-    const rows = (await dataSource.query(sql)) as unknown[];
-    return rows.length;
-  } catch {
-    return 0;
-  }
-}
+const PLACES_TRUNCATE_TABLES = [
+  "place_enrichment_jobs",
+  "event_evidence",
+  "place_aliases",
+  "places",
+] as const;
 
 /**
  * geo:wipe — все places (операционные + catalog mirror), без structural geo-каталога.
- * regions, geo_feature, geo_dataset_file, place_geo_link остаются.
  */
-export async function wipeGeoPlacesPhase(input: {
-  dataSource: DataSource;
-  repos: WorkerDbRepositories;
-  dryRun: boolean;
-}): Promise<PhaseMutationResult> {
+export async function wipeGeoPlacesPhase(
+  input: {
+    dataSource: DataSource;
+    repos: WorkerDbRepositories;
+    dryRun: boolean;
+  } & WipeStepOptions,
+): Promise<PhaseMutationResult> {
   if (input.dryRun) {
     return {
       phase: "geo",
@@ -28,61 +34,57 @@ export async function wipeGeoPlacesPhase(input: {
       dryRun: true,
       counts: {},
       notes: [
-        "Удалит places, place_aliases; сбросит regions.canonical_place_id.",
-        "Не трогает: regions, geo_feature, place_geo_link, geo_dataset_file.",
+        "TRUNCATE places CASCADE (aliases, jobs, place_geo_link).",
+        "Сбросит regions.canonical_place_id.",
+        "Не трогает: regions, geo_feature, geo_dataset_file.",
       ],
     };
   }
 
-  await stopAllActivePhaseRuns({
-    dataSource: input.dataSource,
-    repos: input.repos,
-    reason: "geo:wipe",
+  const { dataSource } = input;
+
+  await runWipeStep(input, "остановка phase_runs (geo)", async () => {
+    const stopped = await stopAllActivePhaseRuns({
+      dataSource,
+      repos: input.repos,
+      reason: "geo:wipe",
+    });
+    input.log?.detail(
+      `geo stop: phase_runs=${stopped.phaseRunsClosed}, geo_jobs=${stopped.geoJobsCleared}`,
+    );
+    return stopped.phaseRunsClosed + stopped.geoJobsCleared;
   });
 
-  try {
-    await input.dataSource.query(
+  await runWipeStep(input, "unlink FK (regions, event_locations)", async () => {
+    await runSqlOptional(
+      dataSource,
       `UPDATE regions SET canonical_place_id = NULL WHERE canonical_place_id IS NOT NULL`,
+      input.log,
     );
-  } catch {
-    // optional column
-  }
+    await runSqlOptional(
+      dataSource,
+      `UPDATE event_locations SET place_id = NULL WHERE place_id IS NOT NULL`,
+      input.log,
+    );
+    return 0;
+  });
 
-  const jobs = await deleteOptional(
-    input.dataSource,
-    `DELETE FROM place_enrichment_jobs RETURNING id`,
-  );
-  const evidence = await deleteOptional(
-    input.dataSource,
-    `DELETE FROM event_evidence RETURNING id`,
-  );
-  const aliases = await deleteOptional(
-    input.dataSource,
-    `DELETE FROM place_aliases RETURNING id`,
-  );
-
-  // event_locations.place_id = RESTRICT — обнулить ссылку перед удалением places
-  await deleteOptional(
-    input.dataSource,
-    `UPDATE event_locations SET place_id = NULL WHERE place_id IS NOT NULL RETURNING id`,
-  );
-
-  await input.dataSource.query(`DELETE FROM places WHERE parent_place_id IS NOT NULL`);
-  const places = await deleteOptional(
-    input.dataSource,
-    `DELETE FROM places RETURNING id`,
-  );
+  const places = await runWipeStep(input, "places + зависимости (TRUNCATE CASCADE)", async () => {
+    input.log?.detail(`таблицы: ${PLACES_TRUNCATE_TABLES.join(", ")}`);
+    const placesCount = await countTableRows(dataSource, "places", input.log);
+    await truncateGroupCounted(dataSource, [...PLACES_TRUNCATE_TABLES], {
+      cascade: true,
+      log: input.log,
+      forceLocks: input.forceLocks,
+    });
+    return placesCount;
+  });
 
   return {
     phase: "geo",
     action: "wipe",
     dryRun: false,
-    counts: {
-      places,
-      place_aliases: aliases,
-      place_enrichment_jobs: jobs,
-      event_evidence: evidence,
-    },
+    counts: { places },
   };
 }
 
@@ -101,7 +103,7 @@ export async function resetGeoEnrichmentPhase(input: {
       dryRun: true,
       counts: {},
       notes: [
-        "Обнулит centroid/bbox/trust на places; удалит place_enrichment_jobs и event_evidence.",
+        "Обнулит centroid/bbox/trust на places; TRUNCATE place_enrichment_jobs и event_evidence.",
         "geo_feature_id и каталог regions не трогает.",
       ],
     };
@@ -114,16 +116,11 @@ export async function resetGeoEnrichmentPhase(input: {
     clearGeoJobs: true,
   });
 
-  const jobs = await deleteOptional(
-    input.dataSource,
-    `DELETE FROM place_enrichment_jobs RETURNING id`,
-  );
-  const evidence = await deleteOptional(
-    input.dataSource,
-    `DELETE FROM event_evidence RETURNING id`,
-  );
+  const jobs = await truncateTableCounted(input.dataSource, "place_enrichment_jobs");
+  const evidence = await truncateTableCounted(input.dataSource, "event_evidence");
 
-  const updated = (await input.dataSource.query(
+  const placesBefore = await countTableRows(input.dataSource, "places");
+  await input.dataSource.query(
     `UPDATE places SET
        centroid_lat = NULL,
        centroid_lon = NULL,
@@ -134,16 +131,15 @@ export async function resetGeoEnrichmentPhase(input: {
        trust_score = NULL,
        trust_updated_at = NULL,
        evidence_providers = '[]'::jsonb,
-       updated_at = now()
-     RETURNING id`,
-  )) as Array<{ id: string }>;
+       updated_at = now()`,
+  );
 
   return {
     phase: "geo",
     action: "reset",
     dryRun: false,
     counts: {
-      places_enrichment_cleared: updated.length,
+      places_enrichment_cleared: placesBefore,
       place_enrichment_jobs: jobs,
       event_evidence: evidence,
     },

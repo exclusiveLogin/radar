@@ -1,17 +1,15 @@
 import type { DataSource } from "typeorm";
 import type { WorkerDbRepositories } from "../../infrastructure/persistence/workerDbRepos.types.js";
+import { truncateTableCounted } from "../archive/wipeTableSql.js";
 import { MapStateFullReset } from "../map-state/mapStateFullReset.js";
 import { sortPhasesByOrder } from "./phaseOrder.js";
 import { stopAllActivePhaseRuns } from "./stopAllActivePhaseRuns.js";
 
 export const PIPELINE_RESET_REASON = "pipeline:operational-reset";
 
-/** Удаляет результаты parse/enrich (архив raw_messages не трогает). */
+/** TRUNCATE parsed_events (+ event_locations CASCADE). */
 export async function clearParsedArtifacts(dataSource: DataSource): Promise<number> {
-  const rows = (await dataSource.query(
-    `DELETE FROM parsed_events RETURNING id`,
-  )) as Array<{ id: string }>;
-  return rows.length;
+  return truncateTableCounted(dataSource, "parsed_events", { cascade: true });
 }
 
 export type PipelineOperationalResetInput = {
@@ -47,10 +45,7 @@ export async function runPipelineOperationalReset(
   const map = await mapReset.run(new Date(), PIPELINE_RESET_REASON);
 
   const parsedEventsDeleted = await clearParsedArtifacts(dataSource);
-
-  const parseAttemptRows = (await dataSource.query(
-    `DELETE FROM parse_attempts RETURNING id`,
-  )) as Array<{ id: string }>;
+  const parseAttemptsDeleted = await truncateTableCounted(dataSource, "parse_attempts");
 
   const allPhaseIds = (await repos.phaseDefinitions.listAll()).map((p) => p.id);
   const coverageInvalidated =
@@ -82,7 +77,7 @@ export async function runPipelineOperationalReset(
     mapPlacesCleared: map.placesCleared,
     mapRegionsGrey: map.regionsGrey,
     parsedEventsDeleted,
-    parseAttemptsDeleted: parseAttemptRows.length,
+    parseAttemptsDeleted,
     coverageInvalidated,
     coverageProcessingToPending,
     phaseRunsClosed,

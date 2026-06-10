@@ -1,8 +1,6 @@
 /**
- * Импортирует структурную геометрию OSM → geo_feature + catalog place.
- * Запуск: npm run geo:features:import  (или geo:features:import -w @radar/api)
- *
- * Предусловие: geo:regions:seed уже выполнен (regions + places(kind=region) заполнены).
+ * Legacy: только шаг osm_geometry. Предпочтительно geo:catalog:import.
+ * Предусловие: tabular/frontline import уже выполнен (places в БД).
  */
 import * as path from "node:path";
 import * as dotenv from "dotenv";
@@ -16,6 +14,9 @@ async function run(): Promise<void> {
     await dataSource.initialize();
   }
   try {
+    console.warn(
+      "[geo:features:import] deprecated — используйте npm run geo:catalog:import -w @radar/api",
+    );
     console.log("[geo:features:import] Запуск...");
     const importer = new OsmRussiaGeoImporter(dataSource);
     const stats = await importer.run();

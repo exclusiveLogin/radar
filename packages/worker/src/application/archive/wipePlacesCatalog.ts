@@ -32,14 +32,6 @@ export async function wipePlacesCatalog(input: {
   await clearOperationalMapState(dataSource, "catalog:wipe-places");
   await clearParsedArtifacts(dataSource);
 
-  const jobsRows = (await dataSource.query(
-    `DELETE FROM place_enrichment_jobs RETURNING id`,
-  )) as Array<{ id: string }>;
-
-  const evidenceRows = (await dataSource.query(
-    `DELETE FROM event_evidence RETURNING id`,
-  )) as Array<{ id: string }>;
-
   const geo = await wipeGeoPlacesPhase({
     dataSource,
     repos,
@@ -48,9 +40,9 @@ export async function wipePlacesCatalog(input: {
 
   return {
     regionsCanonicalCleared: 0,
-    enrichmentJobsDeleted: jobsRows.length,
-    eventEvidenceDeleted: evidenceRows.length,
-    aliasesDeleted: geo.counts.place_aliases ?? 0,
+    enrichmentJobsDeleted: 0,
+    eventEvidenceDeleted: 0,
+    aliasesDeleted: 0,
     placeCacheDeleted: 0,
     placesDeleted: geo.counts.places ?? 0,
   };

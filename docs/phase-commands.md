@@ -22,7 +22,7 @@
 | Команда | Эффект |
 |---------|--------|
 | `vendor:run` | `geo:vendor` + `geo:sync` |
-| `vendor:wipe` | Удалить `data/geo/artifacts`, `data/geo/vendor` |
+| `vendor:wipe` | Удалить `data/geo/vendor`; `artifacts` — только `--with-artifacts` |
 
 ### ingest
 
@@ -46,7 +46,9 @@
 
 | Команда | Эффект |
 |---------|--------|
-| `geo:run` | `geo:regions:seed` + `geo:features:import` |
+| `geo:catalog:import` | tabular → frontline → osm_geometry → adjacency ([runbook](./runbook/geo-clean-rebuild.md)) |
+| `geo:catalog:reset -- --confirm` | wipe гео-справочника (без raw/parsed) |
+| `geo:run` | legacy → предпочтительно `geo:catalog:import` |
 | `geo:reset` | Обнулить centroid/bbox/trust на places; jobs/evidence |
 | `geo:wipe` | DELETE places + aliases; **каталог** (regions, geo_feature) **остаётся** |
 
@@ -68,7 +70,8 @@
 |---------|--------|
 | `ingest-parse:wipe` | = `ingest:wipe` |
 | `vendor-ingest-parse-geo:wipe` | ingest-parse + geo:wipe + geo-catalog:wipe (БД) |
-| `system:reset -- --confirm` | полный wipe БД + `geo:init` (+ опционально vendor на диске вручную) |
+| `system:reset -- --confirm` | wipe БД + legacy `geo:init`; диск не трогает |
+| `system:reset -- --confirm --wipe-only` | только wipe БД → `geo:catalog:import` |
 
 ---
 

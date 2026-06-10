@@ -1,4 +1,6 @@
 import type { DataSource } from "typeorm";
+import type { WipeLogger } from "./wipeLog.js";
+import { truncateTableCounted } from "./wipeTableSql.js";
 
 export const CLEAR_INGEST_REASON = "clear:ingest";
 
@@ -12,47 +14,41 @@ export type ClearIngestOperationalStateResult = {
 
 /**
  * Сброс операционного состояния ingest: курсоры, backfill-джобы, ошибки провайдеров.
- * Конфиг (channels, providers, bindings) не удаляется.
  */
 export async function clearIngestOperationalState(
   dataSource: DataSource,
-  options: { includeDomainEvents?: boolean } = {},
+  options: { includeDomainEvents?: boolean; log?: WipeLogger } = {},
 ): Promise<ClearIngestOperationalStateResult> {
-  const canceledRows = (await dataSource.query(
-    `UPDATE ingest_backfill_jobs SET status = 'canceled', updated_at = now()
-     WHERE status IN ('pending', 'running')
-     RETURNING id`,
-  )) as Array<{ id: string }>;
+  const { log } = options;
 
-  const deletedJobs = (await dataSource.query(
-    `DELETE FROM ingest_backfill_jobs RETURNING id`,
-  )) as Array<{ id: string }>;
+  const backfillJobsDeleted = await truncateTableCounted(
+    dataSource,
+    "ingest_backfill_jobs",
+    { log },
+  );
+  const cursorsDeleted = await truncateTableCounted(dataSource, "ingest_cursors", { log });
 
-  const deletedCursors = (await dataSource.query(
-    `DELETE FROM ingest_cursors RETURNING channel_id`,
-  )) as Array<{ channel_id: string }>;
-
-  const clearedProviders = (await dataSource.query(
+  const providersWithErrors = (await dataSource.query(
+    `SELECT COUNT(*)::int AS count FROM ingest_providers WHERE last_error IS NOT NULL`,
+  )) as Array<{ count: number }>;
+  log?.detail(
+    `очистка ingest_providers.last_error (${providersWithErrors[0]?.count ?? 0} строк)`,
+  );
+  await dataSource.query(
     `UPDATE ingest_providers SET last_error = NULL, updated_at = now()
-     WHERE last_error IS NOT NULL
-     RETURNING id`,
-  )) as Array<{ id: string }>;
+     WHERE last_error IS NOT NULL`,
+  );
 
   let domainEventsDeleted = 0;
   if (options.includeDomainEvents !== false) {
-    const eventRows = (await dataSource.query(
-      `DELETE FROM domain_events
-       WHERE aggregate_type IN ('ingest_provider', 'ingest_binding', 'raw_message')
-       RETURNING id`,
-    )) as Array<{ id: string }>;
-    domainEventsDeleted = eventRows.length;
+    domainEventsDeleted = await truncateTableCounted(dataSource, "domain_events", { log });
   }
 
   return {
-    backfillJobsCanceled: canceledRows.length,
-    backfillJobsDeleted: deletedJobs.length,
-    cursorsDeleted: deletedCursors.length,
-    providersErrorsCleared: clearedProviders.length,
+    backfillJobsCanceled: 0,
+    backfillJobsDeleted,
+    cursorsDeleted,
+    providersErrorsCleared: providersWithErrors[0]?.count ?? 0,
     domainEventsDeleted,
   };
 }

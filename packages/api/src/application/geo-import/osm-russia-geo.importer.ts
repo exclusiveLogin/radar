@@ -1,6 +1,6 @@
 /**
- * Импортирует структурную геометрию из OSM-артефактов в таблицу geo_feature
- * и создаёт catalog place(kind=district/city_district) для parse-матча.
+ * Импортирует структурную геометрию из OSM-артефактов в geo_feature
+ * и привязывает к уже существующим places (после tabular/frontline import).
  *
  * 5 источников в порядке обхода:
  *  1. Countries/Russia_regions.geojson         → layer=subject (85 РФ)
@@ -9,14 +9,18 @@
  *  4. Cities/{CityName}_{EN}.geojson           → layer=city_district (районы городов)
  *  5. Federal Districts/*.geojson              → layer=federal_district (8 ФО)
  *
- * Идемпотентен: upsert по (region_id, layer, name_stem) или по fias_id.
+ * Идемпотентен: geo_feature upsert по (region_id, layer, name_stem);
+ * places не создаются — только link geo_feature_id.
  */
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { randomUUID } from "node:crypto";
 import type { DataSource } from "typeorm";
 import { placeStem } from "@radar/shared";
-import type { RegionRecord } from "@radar/shared";
+import type { PlaceRecord, RegionRecord } from "@radar/shared";
+import {
+  geometryLinkFallbackKinds,
+} from "../../infrastructure/geo-catalog/osm-layer-kind";
 import { RegionGeometryCatalog } from "../../map/region-geometry.catalog";
 import { TypeOrmRegionRepository } from "../../infrastructure/persistence/typeorm-region.repository";
 import { TypeOrmPlaceRepository } from "../../infrastructure/persistence/typeorm-place.repository";
@@ -75,7 +79,8 @@ export type ImportStats = {
   districtsUpserted: number;
   cityDistrictsUpserted: number;
   federalDistrictsUpserted: number;
-  catalogPlacesUpserted: number;
+  placesLinked: number;
+  orphanFeatures: number;
   placeGeoLinksCreated: number;
 };
 
@@ -106,7 +111,8 @@ export class OsmRussiaGeoImporter {
       districtsUpserted: 0,
       cityDistrictsUpserted: 0,
       federalDistrictsUpserted: 0,
-      catalogPlacesUpserted: 0,
+      placesLinked: 0,
+      orphanFeatures: 0,
       placeGeoLinksCreated: 0,
     };
 
@@ -135,7 +141,8 @@ export class OsmRussiaGeoImporter {
           "district",
         );
         stats.districtsUpserted += count.features;
-        stats.catalogPlacesUpserted += count.places;
+        stats.placesLinked += count.linked;
+        stats.orphanFeatures += count.orphans;
       }
     }
 
@@ -149,7 +156,8 @@ export class OsmRussiaGeoImporter {
         "city_district",
       );
       stats.cityDistrictsUpserted += count.features;
-      stats.catalogPlacesUpserted += count.places;
+      stats.placesLinked += count.linked;
+      stats.orphanFeatures += count.orphans;
     }
 
     // 5. Федеральные округа из Federal Districts/*.geojson
@@ -236,9 +244,9 @@ export class OsmRussiaGeoImporter {
     filePath: string,
     foFolder: string | null,
     layer: "district" | "city_district",
-  ): Promise<{ features: number; places: number }> {
+  ): Promise<{ features: number; linked: number; orphans: number }> {
     const collection = readGeoJson(filePath);
-    if (!collection) return { features: 0, places: 0 };
+    if (!collection) return { features: 0, linked: 0, orphans: 0 };
 
     // Извлекаем имя региона/города из имени файла
     const regionName = extractNameFromFilename(path.basename(filePath));
@@ -246,11 +254,12 @@ export class OsmRussiaGeoImporter {
 
     if (!region) {
       console.warn(`[geo:import] не найден регион для файла: ${path.basename(filePath)}`);
-      return { features: 0, places: 0 };
+      return { features: 0, linked: 0, orphans: 0 };
     }
 
     let features = 0;
-    let places = 0;
+    let linked = 0;
+    let orphans = 0;
     for (const feature of collection.features) {
       const districtName = String(
         feature.properties["district"] ?? feature.properties["name"] ?? "",
@@ -271,17 +280,20 @@ export class OsmRussiaGeoImporter {
       });
       features++;
 
-      // Создаём catalog place для parse-матча
-      const catalogPlaceId = await this.upsertCatalogPlace({
+      const linkResult = await this.linkPlaceToGeoFeature({
         regionId: region.id,
-        kind: layer,
+        layer,
         name: districtName,
         geoFeatureId,
       });
-      if (catalogPlaceId) places++;
+      if (linkResult.linked) {
+        linked++;
+      } else {
+        orphans++;
+      }
     }
 
-    return { features, places };
+    return { features, linked, orphans };
   }
 
   // ─── 5: Федеральные округа ───────────────────────────────────────────────────
@@ -367,48 +379,79 @@ export class OsmRussiaGeoImporter {
     return geoFeatureId;
   }
 
-  // ─── Upsert catalog place ────────────────────────────────────────────────────
+  // ─── Link geometry к существующему place ─────────────────────────────────────
 
-  private async upsertCatalogPlace(input: {
+  /**
+   * Ищет place по fias → oktmo → region+kind+stem и проставляет geo_feature_id.
+   * Новые places из OSM не создаём.
+   */
+  private async linkPlaceToGeoFeature(input: {
     regionId: string;
-    kind: "district" | "city_district";
+    layer: "district" | "city_district";
     name: string;
     geoFeatureId: string;
-  }): Promise<string | null> {
-    const stem = placeStem(input.name);
-    const existing = await this.places.findByStemInRegion(stem, input.regionId);
-
-    if (existing) {
-      // Обновляем geo_feature_id если не заполнен
-      if (!existing.geoFeatureId) {
-        await this.dataSource.query(
-          `UPDATE places SET geo_feature_id = $1, name_stem = $2, updated_at = now()
-           WHERE id = $3`,
-          [input.geoFeatureId, stem, existing.id],
-        );
-      }
-      return existing.id;
+    fiasId?: string;
+    oktmo?: string;
+  }): Promise<{ linked: boolean }> {
+    const place = await this.resolvePlaceForGeometry(input);
+    if (!place) {
+      return { linked: false };
     }
 
-    const placeId = randomUUID();
-    await this.dataSource.query(`
-      INSERT INTO places (
-        id, region_id, kind, name, name_normalized, name_stem,
-        geo_feature_id, trust_state, is_trusted, trust_score,
-        evidence_providers, is_active, created_at, updated_at
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,'verified',true,1,'["catalog"]',true,now(),now())
-      ON CONFLICT DO NOTHING
-    `, [
-      placeId,
-      input.regionId,
-      input.kind,
-      input.name,
-      input.name.toLowerCase().trim(),
-      stem,
-      input.geoFeatureId,
-    ]);
+    const stem = placeStem(input.name);
+    // geometry_artifact_key не трогаем: FK → geo_dataset_file, геометрия в geo_feature.
+    await this.dataSource.query(
+      `
+      UPDATE places SET
+        geo_feature_id = COALESCE(geo_feature_id, $1::uuid),
+        name_stem = COALESCE(NULLIF(name_stem, ''), $2),
+        updated_at = now()
+      WHERE id = $3::uuid
+      `,
+      [input.geoFeatureId, stem, place.id],
+    );
 
-    return placeId;
+    return { linked: true };
+  }
+
+  /** Каскад geometry lookup: fias → oktmo → region+kind+stem. */
+  private async resolvePlaceForGeometry(input: {
+    regionId: string;
+    layer: "district" | "city_district";
+    name: string;
+    fiasId?: string;
+    oktmo?: string;
+  }): Promise<PlaceRecord | null> {
+    if (input.fiasId) {
+      const byFias = await this.places.findByFias(input.fiasId);
+      if (byFias && byFias.regionId === input.regionId) {
+        return byFias;
+      }
+    }
+
+    if (input.oktmo) {
+      const byOktmo = await this.places.findByOktmoInRegion(
+        input.regionId,
+        input.oktmo,
+      );
+      if (byOktmo) {
+        return byOktmo;
+      }
+    }
+
+    const stem = placeStem(input.name);
+    for (const kind of geometryLinkFallbackKinds(input.layer)) {
+      const byStem = await this.places.findByStemInRegion(
+        stem,
+        input.regionId,
+        kind,
+      );
+      if (byStem) {
+        return byStem;
+      }
+    }
+
+    return null;
   }
 
   // ─── Upsert place_geo_link ───────────────────────────────────────────────────
