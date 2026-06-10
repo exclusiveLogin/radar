@@ -3,7 +3,6 @@ import { PlaceEntity } from "../../geo/entities";
 import type { GeoProviderSnapshot } from "@radar/shared";
 import { GeoSyncApplyService } from "../geo-sync/geo-sync-apply.service";
 import { GeoSyncPlanService } from "../geo-sync/geo-sync-plan.service";
-import { syncRegionCanonicalPlaces } from "../geo-sync/region-place-mirror";
 import { OsmRussiaGeoImporter } from "../geo-import/osm-russia-geo.importer";
 import { TypeOrmDomainEventRepository } from "../../infrastructure/persistence/typeorm-domain-event.repository";
 import { TypeOrmPlaceAliasRepository } from "../../infrastructure/persistence/typeorm-place-alias.repository";
@@ -62,7 +61,6 @@ export class GeoCatalogImportService {
         aliases,
         audit,
         events,
-        syncRegionPlaces: true,
       }),
     );
 
@@ -78,7 +76,6 @@ export class GeoCatalogImportService {
         aliases,
         audit,
         events,
-        syncRegionPlaces: false,
       }),
     );
 
@@ -112,7 +109,6 @@ export class GeoCatalogImportService {
     aliases: TypeOrmPlaceAliasRepository;
     audit: TypeOrmSyncAuditRepository;
     events: TypeOrmDomainEventRepository;
-    syncRegionPlaces: boolean;
   }): Promise<GeoCatalogStepStats> {
     const started = Date.now();
     this.deps.reporter?.stepBegin(input.label, input.stepIndex + 1, STEP_LABELS.length);
@@ -155,10 +151,6 @@ export class GeoCatalogImportService {
       providerSnapshot: input.snapshot,
       persist: this.deps.persist,
     });
-
-    if (input.syncRegionPlaces) {
-      await syncRegionCanonicalPlaces(input.regions, input.places, input.aliases);
-    }
 
     const dbPlacesByKind = await this.countActivePlacesByKind();
 
