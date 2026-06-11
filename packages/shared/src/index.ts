@@ -172,6 +172,17 @@ export type {
   MapStateFoldInput,
   MapStateFoldResult,
 } from "./domain/region-state/mapStateFold";
+export {
+  isMassClearTextEligible,
+  normalizeClearHaystack,
+  resolveMassClearTargets,
+} from "./domain/region-state/massClearTargets";
+export type { MassClearRegionRef } from "./domain/region-state/massClearTargets";
+export {
+  buildAuthorPlaceClearFacts,
+  loadMapFoldFacts,
+} from "./domain/region-state/mapFoldFactsLoader";
+export type { MapFoldDbQuery } from "./domain/region-state/mapFoldFactsLoader";
 export { ingestMessageHash } from "./domain/ingestMessageHash";
 export type { RawMessageHashInput } from "./domain/ingestMessageHash";
 export {

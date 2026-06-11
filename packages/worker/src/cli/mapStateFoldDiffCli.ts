@@ -1,5 +1,5 @@
 /**
- * Shadow-сверка: fold фактов на now vs materialized read-model.
+ * Shadow-сверка: fold фактов на now vs materialized read-model (с теми же фильтрами, что API).
  *
  * Usage:
  *   npm run map:fold:diff -w @radar/worker
@@ -9,9 +9,9 @@ import * as path from "node:path";
 import { MONOREPO_ROOT } from "@repo/root";
 import {
   foldMapState,
-  type EventLocationFact,
-  type MapStatusAction,
-  type StateLevel,
+  loadMapFoldFacts,
+  REGION_CALM_SUPPRESS_MS,
+  sqlPlaceNotSuppressedByRegionClear,
 } from "@radar/shared";
 import { resolveMapStateTtlMs } from "../infrastructure/config/mapStateExpiryConfig.js";
 import { loadRootEnv } from "../infrastructure/config/loadRootEnv.js";
@@ -27,68 +27,12 @@ type ReadModelRow = {
   stale: boolean;
 };
 
-async function loadFacts(
-  dataSource: Awaited<ReturnType<typeof createWorkerDataSource>>,
-  asOf: Date,
-  ttlMs: number,
-): Promise<EventLocationFact[]> {
-  const cutoff = new Date(asOf.getTime() - ttlMs);
-  const rows = (await dataSource.query(
-    `
-    SELECT el.id AS fact_id,
-           el.region_id,
-           r.iso AS region_code,
-           el.place_id,
-           COALESCE(el.status_code, pe.event_type) AS status_code,
-           COALESCE(sd.state_level::text, 'grey') AS state_level,
-           COALESCE(
-             el.action,
-             CASE WHEN pe.event_type = 'cleared' OR pe.is_active = false THEN 'clear' ELSE 'raise' END
-           ) AS action,
-           COALESCE(el.author_channel_key, c.key) AS author_channel_key,
-           el.entity_kind,
-           COALESCE(el.occurred_at, rm.posted_at, pe.parsed_at) AS occurred_at
-    FROM event_locations el
-    JOIN parsed_events pe ON pe.id = el.parsed_event_id
-    JOIN raw_messages rm ON rm.id = pe.raw_message_id
-    JOIN channels c ON c.id = rm.channel_id
-    LEFT JOIN regions r ON r.id = el.region_id
-    LEFT JOIN status_dictionary sd
-      ON sd.code = COALESCE(el.status_code, pe.event_type) AND sd.is_active = true
-    WHERE COALESCE(el.occurred_at, rm.posted_at, pe.parsed_at) <= $1::timestamptz
-      AND COALESCE(el.occurred_at, rm.posted_at, pe.parsed_at) > $2::timestamptz
-    `,
-    [asOf.toISOString(), cutoff.toISOString()],
-  )) as Array<{
-    fact_id: string;
-    region_id: string;
-    region_code: string | null;
-    place_id: string | null;
-    status_code: string;
-    state_level: string;
-    action: string;
-    author_channel_key: string | null;
-    entity_kind: string | null;
-    occurred_at: Date;
-  }>;
-
-  return rows.map((row) => ({
-    factId: row.fact_id,
-    regionId: row.region_id,
-    regionCode: row.region_code ?? row.region_id,
-    placeId: row.place_id,
-    statusCode: row.status_code,
-    stateLevel: row.state_level as StateLevel,
-    action: row.action as MapStatusAction,
-    occurredAt: new Date(row.occurred_at).toISOString(),
-    authorChannelKey: row.author_channel_key,
-    entityKind: row.entity_kind as EventLocationFact["entityKind"],
-  }));
-}
-
 async function loadReadModel(
   dataSource: Awaited<ReturnType<typeof createWorkerDataSource>>,
+  asOf: Date,
 ): Promise<ReadModelRow[]> {
+  const calmCutoff = new Date(asOf.getTime() - REGION_CALM_SUPPRESS_MS).toISOString();
+
   const regions = (await dataSource.query(
     `
     SELECT region_code AS entity_key,
@@ -99,8 +43,13 @@ async function loadReadModel(
            winner_occurred_at,
            stale
     FROM region_status_read_model
-    WHERE stale = false OR action = 'raise'
+    WHERE NOT (
+      NOT stale
+      AND state_level IN ('green', 'grey')
+      AND winner_occurred_at < $1::timestamptz
+    )
     `,
+    [calmCutoff],
   )) as ReadModelRow[];
 
   const places = (await dataSource.query(
@@ -115,7 +64,9 @@ async function loadReadModel(
     FROM place_status_read_model psm
     JOIN places p ON p.id = psm.place_id
     LEFT JOIN regions r ON r.id = psm.region_id
-    WHERE psm.action = 'raise' AND psm.stale = false
+    WHERE psm.action = 'raise'
+      AND psm.stale = false
+      ${sqlPlaceNotSuppressedByRegionClear("psm")}
     `,
   )) as ReadModelRow[];
 
@@ -132,7 +83,7 @@ async function main(): Promise<void> {
   const asOf = new Date();
   const ttlMs = resolveMapStateTtlMs();
 
-  const facts = await loadFacts(dataSource, asOf, ttlMs);
+  const facts = await loadMapFoldFacts(dataSource, asOf, ttlMs);
   const folded = foldMapState({ asOf, ttlMs, facts });
 
   const foldRegions = new Map(
@@ -150,7 +101,7 @@ async function main(): Promise<void> {
       ]),
   );
 
-  const readRows = await loadReadModel(dataSource);
+  const readRows = await loadReadModel(dataSource, asOf);
   const mismatches: Array<Record<string, unknown>> = [];
 
   for (const row of readRows) {

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { EventLocationFact } from "./mapStateFold";
+import { buildAuthorPlaceClearFacts } from "./mapFoldFactsLoader";
 import {
   foldMapState,
   isRegionVisibleInSnapshot,
@@ -139,6 +140,30 @@ test("foldMapState: факты старше TTL не участвуют", () => 
     ],
   });
   assert.equal(result.regions.length, 0);
+});
+
+test("buildAuthorPlaceClearFacts: региональный clear гасит place raise того же автора", () => {
+  const placeRaise = fact({
+    factId: "p1",
+    entityKind: "place",
+    placeId: "place-1",
+    occurredAt: "2026-06-11T10:00:00.000Z",
+    authorChannelKey: "radar",
+  });
+  const regionClear = fact({
+    factId: "c1",
+    entityKind: "region",
+    placeId: null,
+    occurredAt: "2026-06-11T13:00:00.000Z",
+    action: "clear",
+    stateLevel: "green",
+    statusCode: "cleared",
+    authorChannelKey: "radar",
+  });
+  const synthetics = buildAuthorPlaceClearFacts([regionClear], [placeRaise]);
+  assert.equal(synthetics.length, 1);
+  assert.equal(synthetics[0]?.placeId, "place-1");
+  assert.equal(synthetics[0]?.action, "clear");
 });
 
 test("isRegionVisibleInSnapshot: green старше 3ч скрыт", () => {

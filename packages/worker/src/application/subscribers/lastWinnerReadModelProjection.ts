@@ -6,7 +6,13 @@ import type {
   IStatusDictionaryRepository,
   StatusDictionaryRecord,
 } from "@radar/shared";
-import { SOURCE_TRUST, isMapEventOlderThanTtl, mergeContribution } from "@radar/shared";
+import {
+  SOURCE_TRUST,
+  isMapEventOlderThanTtl,
+  isMassClearTextEligible,
+  mergeContribution,
+  resolveMassClearTargets,
+} from "@radar/shared";
 import type { DataSource } from "typeorm";
 import { bridgeEventCategoryToCode } from "../../domain/region-state/eventCategoryBridge.js";
 
@@ -247,9 +253,8 @@ export class LastWinnerReadModelProjection {
     payload: MessageParsedPayload;
     locations: ParsedLocation[];
   }): Promise<Array<{ regionId: string; regionCode: string }>> {
-    if (input.payload.eventType !== "cleared") return [];
-    const hasManyRegions = input.locations.filter((loc) => loc.entityKind !== "place").length > 1;
-    if (hasManyRegions) return [];
+    const nonPlaceCount = input.locations.filter((loc) => loc.entityKind !== "place").length;
+    if (!isMassClearTextEligible(input.payload.eventType, nonPlaceCount)) return [];
     if (!input.payload.rawMessageId) return [];
 
     const rows = (await this.deps.dataSource.query(
@@ -263,11 +268,6 @@ export class LastWinnerReadModelProjection {
     const rawText = rows[0]?.raw_text ?? "";
     if (!rawText) return [];
 
-    // Групповой отбой: перечисление субъектов через запятую после двоеточия.
-    if (!/отбой/i.test(rawText) || !/:/.test(rawText)) {
-      return [];
-    }
-
     const regions = (await this.deps.dataSource.query(
       `SELECT id, iso, name, name_with_type, short_name FROM regions WHERE is_active = true`,
     )) as Array<{
@@ -277,27 +277,17 @@ export class LastWinnerReadModelProjection {
       name_with_type: string | null;
       short_name: string | null;
     }>;
-    const normalize = (value: string): string =>
-      value
-        .toLowerCase()
-        .replace(/ё/g, "е")
-        .replace(/[!?.:;()[\]{}«»"']/g, " ")
-        .replace(/\s+/g, " ")
-        .trim();
-    const haystack = normalize(rawText);
-    const hits: Array<{ regionId: string; regionCode: string }> = [];
-    for (const region of regions) {
-      const variants = [region.name, region.name_with_type ?? "", region.short_name ?? ""]
-        .map((x) => normalize(x))
-        .filter(Boolean);
-      if (variants.some((variant) => haystack.includes(variant))) {
-        hits.push({
-          regionId: region.id,
-          regionCode: region.iso ?? region.name,
-        });
-      }
-    }
-    return hits;
+
+    return resolveMassClearTargets(
+      rawText,
+      regions.map((region) => ({
+        id: region.id,
+        iso: region.iso,
+        name: region.name,
+        nameWithType: region.name_with_type,
+        shortName: region.short_name,
+      })),
+    );
   }
 
   private async ensureDictionary(): Promise<void> {
