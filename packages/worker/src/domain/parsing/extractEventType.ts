@@ -1,6 +1,9 @@
 import type { EventSubject, EventType } from "@radar/shared";
 import { isChannelCityListPromo } from "./channelCityListPromo.js";
 
+/** Суффикс кириллических окончаний (JS: \w не матчит кириллицу). */
+const CYR_SUFFIX = "[а-яёА-ЯЁ]*";
+
 /** Рекламный/коммерческий контекст: «внимание» не оперативный сигнал. */
 const COMMERCIAL_NOISE = [
   /интернет[-\s]?магазин/i,
@@ -35,9 +38,25 @@ const rules: Array<{ regex: RegExp; type: EventType }> = [
 
   // Сводная статистика ПВО: итог уничтожений за период с конкретным числом.
   // Идёт ДО fixation/intercept/pvo_work — специфичнее (число + период).
-  { regex: /уничтожен\w*\s+\d+\s+(?:украинских\s+)?(?:бпла|беспилотн)/i, type: "pvo_report" },
-  { regex: /перехвачен\w+\s+и\s+уничтожен\w+\s+\d+/i,                    type: "pvo_report" },
-  { regex: /силами\s+(?:пво|противовоздушной\s+обороны)\s+было\s+уничтожено/i, type: "pvo_report" },
+  {
+    regex: new RegExp(
+      `уничтожен${CYR_SUFFIX}\\s+\\d+\\s+(?:украинских\\s+)?(?:бпла|беспилотн)`,
+      "i",
+    ),
+    type: "pvo_report",
+  },
+  {
+    regex: new RegExp(
+      `перехвачен${CYR_SUFFIX}\\s+и\\s+уничтожен${CYR_SUFFIX}\\s+\\d+`,
+      "i",
+    ),
+    type: "pvo_report",
+  },
+  // «противоздушной» и «противовоздушной» — оба варианта в каналах.
+  {
+    regex: /силами\s+(?:пво|противо?воздушной\s+обороны)\s+было\s+уничтожено/i,
+    type: "pvo_report",
+  },
 
   // Фиксация (порядок слов свободный: «фиксация … БПЛА» / «БПЛА … фиксация»).
   { regex: /фиксаци(?:я|и).*(?:бпла|мвш)/is, type: "fixation" },
