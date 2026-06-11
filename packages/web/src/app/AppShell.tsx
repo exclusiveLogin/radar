@@ -7,6 +7,7 @@ import { startProvidersStore } from "../shared/state/providersStore";
 import { startPvoReportsStore } from "../shared/state/pvoReportsStore";
 import { startTopActivityStore } from "../shared/state/topActivityStore";
 import { RegionDetailWidget } from "../widgets/region-detail/RegionDetailWidget";
+import { MapTimelineBar } from "../widgets/map-timeline/MapTimelineBar";
 import { WIDGETS, type WidgetZone } from "./widgetRegistry";
 
 /** Начальная видимость виджетов из реестра. */
@@ -111,6 +112,8 @@ export function AppShell() {
             </div>
           ))}
         </aside>
+
+        <MapTimelineBar />
       </main>
     </div>
   );

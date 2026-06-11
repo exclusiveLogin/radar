@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { useObservable } from "../hooks/useObservable";
 import { connectionStatus$ } from "../realtime/ws";
+import { historicalAsOf$ } from "../state/mapStore";
 import { systemHealth$ } from "../state/providersStore";
+import { formatDateTime } from "../format/dateTime";
 
 type LiveClockProps = {
   /** Часовой пояс (по умолчанию локальный). */
@@ -50,6 +52,7 @@ type LiveBadgeKind = "ok" | "warn" | "error";
 /** Индикатор realtime-потока: WS + health API/БД. */
 export function LiveBadge() {
   const wsStatus = useObservable(connectionStatus$, "connecting");
+  const historicalAsOf = useObservable(historicalAsOf$, null);
   const health = useObservable(systemHealth$, {
     apiOk: false,
     dbReady: false,
@@ -57,6 +60,15 @@ export function LiveBadge() {
   });
 
   const { kind, label, title, pulse } = useMemo(() => {
+    if (historicalAsOf) {
+      return {
+        kind: "warn" as LiveBadgeKind,
+        label: "REPLAY",
+        title: `Карта на ${formatDateTime(historicalAsOf)} · WS отключён`,
+        pulse: false,
+      };
+    }
+
     const healthChecked = health.lastCheckAt !== null;
 
     if (healthChecked && !health.apiOk) {
@@ -97,7 +109,7 @@ export function LiveBadge() {
       title: "WS подключён · API · БД",
       pulse: true,
     };
-  }, [health.apiOk, health.dbReady, health.lastCheckAt, wsStatus]);
+  }, [health.apiOk, health.dbReady, health.lastCheckAt, historicalAsOf, wsStatus]);
 
   return (
     <span

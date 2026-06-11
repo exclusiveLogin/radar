@@ -5,6 +5,7 @@ import type { AccordionItem } from "../../shared/ds";
 import { RegionCodeChips } from "../../shared/components/RegionCodeChips";
 import { formatDateTime, formatTimeShort } from "../../shared/format/dateTime";
 import { useObservable } from "../../shared/hooks/useObservable";
+import { setHistoricalAsOf } from "../../shared/state/mapStore";
 import { stateChangesFeed$ } from "../../shared/state/stateChangesFeedStore";
 import { selectRegion, selectedRegion$ } from "../../shared/state/selectionStore";
 import type { WidgetProps } from "../widgetProps";
@@ -66,6 +67,18 @@ export function StateChangesWidget({ defaultCollapsed = false }: WidgetProps) {
           <span className="ds-muted ds-accordion__head-time">
             {formatTimeShort(row.postedAt)}
           </span>
+          <button
+            type="button"
+            className="map-timeline__jump"
+            title="Карта на момент события"
+            aria-label="Карта на момент события"
+            onClick={(event) => {
+              event.stopPropagation();
+              void setHistoricalAsOf(row.postedAt);
+            }}
+          >
+            ⏱
+          </button>
         </>
       ),
       body: (
