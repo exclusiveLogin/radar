@@ -5,6 +5,7 @@ import { GeoFeatureEntity, PlaceEntity, PlaceGeoLinkEntity, RegionEntity } from 
 import { MapController } from "./map.controller";
 import { MapGateway } from "./map.gateway";
 import { MapQueryService } from "./map-query.service";
+import { MapFoldRealtimePoller } from "./map-fold-realtime.poller";
 import { MapStateFoldRepository } from "./map-state-fold.repository";
 import { MapStateFoldService } from "./map-state-fold.service";
 import { MapRealtimeBroadcastService } from "./map-realtime-broadcast.service";
@@ -24,6 +25,7 @@ import { RegionStatePoller } from "./region-state.poller";
   providers: [
     MapStateFoldRepository,
     MapStateFoldService,
+    MapFoldRealtimePoller,
     MapQueryService,
     RegionStatePoller,
     PlaceStatePoller,

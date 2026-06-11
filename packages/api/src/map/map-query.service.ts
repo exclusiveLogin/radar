@@ -19,7 +19,11 @@ import { GeoFeatureEntity, PlaceEntity, RegionEntity } from "../geo/entities";
 import { resolvePlaceMapCentroid, resolveRegionCentroid } from "./map-centroid.resolver";
 import { loadLayout } from "./layout.loader";
 import { loadRegionAdjacency } from "./adjacency.loader";
-import { maxStateLevel, sqlPlaceNotSuppressedByRegionClear } from "@radar/shared";
+import {
+  maxStateLevel,
+  resolveMapReadSource,
+  sqlPlaceNotSuppressedByRegionClear,
+} from "@radar/shared";
 import type { SourceMessage } from "@radar/shared";
 import type { GeoRegionRef, PlaceRef } from "./map.dto";
 import {
@@ -61,6 +65,15 @@ export class MapQueryService {
       geometry: Record<string, unknown>;
     }>;
   }> {
+    if (resolveMapReadSource() === "fold") {
+      const snapshot = await this.mapStateFold.getSnapshotAt(new Date());
+      const placeIds = snapshot.places.map((place) => place.placeId);
+      if (placeIds.length === 0) {
+        return { type: "FeatureCollection", features: [] };
+      }
+      return this.loadActiveDistrictsGeoJsonByPlaceIds(placeIds);
+    }
+
     const rows = (await this.dataSource.query(
       `SELECT DISTINCT ON (gf.id)
               gf.id,
@@ -95,6 +108,74 @@ export class MapQueryService {
       geometry: Record<string, unknown>;
     }>;
 
+    return this.toDistrictsFeatureCollection(rows);
+  }
+
+  /** Активные полигоны районов по списку placeId (fold read-line). */
+  private async loadActiveDistrictsGeoJsonByPlaceIds(placeIds: string[]): Promise<{
+    type: "FeatureCollection";
+    features: Array<{
+      type: "Feature";
+      id: string;
+      properties: Record<string, string | number | null>;
+      geometry: Record<string, unknown>;
+    }>;
+  }> {
+    const rows = (await this.dataSource.query(
+      `SELECT DISTINCT ON (gf.id)
+              gf.id,
+              gf.name,
+              gf.layer,
+              gf.name_stem,
+              gf.region_id,
+              gf.centroid_lat::float8 AS centroid_lat,
+              gf.centroid_lon::float8 AS centroid_lon,
+              r.iso AS region_iso,
+              gf.geometry
+       FROM geo_feature gf
+       INNER JOIN places p ON p.geo_feature_id = gf.id AND p.is_active = true
+       LEFT JOIN regions r ON r.id = gf.region_id
+       WHERE p.id = ANY($1::uuid[])
+         AND gf.layer = ANY($2)
+         AND gf.is_active = true
+         AND gf.geometry IS NOT NULL`,
+      [placeIds, ["district", "city_district"]],
+    )) as Array<{
+      id: string;
+      name: string;
+      layer: string;
+      name_stem: string;
+      region_id: string | null;
+      centroid_lat: number | null;
+      centroid_lon: number | null;
+      region_iso: string | null;
+      geometry: Record<string, unknown>;
+    }>;
+
+    return this.toDistrictsFeatureCollection(rows);
+  }
+
+  private toDistrictsFeatureCollection(
+    rows: Array<{
+      id: string;
+      name: string;
+      layer: string;
+      name_stem: string;
+      region_id: string | null;
+      centroid_lat: number | null;
+      centroid_lon: number | null;
+      region_iso: string | null;
+      geometry: Record<string, unknown>;
+    }>,
+  ): {
+    type: "FeatureCollection";
+    features: Array<{
+      type: "Feature";
+      id: string;
+      properties: Record<string, string | number | null>;
+      geometry: Record<string, unknown>;
+    }>;
+  } {
     return {
       type: "FeatureCollection",
       features: rows.map((row) => ({
@@ -182,12 +263,19 @@ export class MapQueryService {
   /** Полигоны активных регионов (OSM GeoJSON) + stateLevel из region_state_active. */
   async getRegionsGeoJsonLayer(): Promise<RegionsGeoJsonLayer> {
     await this.ensureCatalogBound();
-    const states = await this.loadRegionStateRows();
 
     const stateByIso = new Map<string, StateLevel>();
-    for (const row of states) {
-      if (!row.regionCode) continue;
-      stateByIso.set(row.regionCode, row.stateLevel as StateLevel);
+    if (resolveMapReadSource() === "fold") {
+      const snapshot = await this.mapStateFold.getSnapshotAt(new Date());
+      for (const region of snapshot.regions) {
+        stateByIso.set(region.regionCode, region.stateLevel as StateLevel);
+      }
+    } else {
+      const states = await this.loadRegionStateRows();
+      for (const row of states) {
+        if (!row.regionCode) continue;
+        stateByIso.set(row.regionCode, row.stateLevel as StateLevel);
+      }
     }
 
     // Полный набор контуров: цвет/видимость задаёт клиент по WS snapshot (не режем геометрию).
@@ -220,6 +308,22 @@ export class MapQueryService {
 
   /** Лёгкий снапшот карты: регионы + stateLevel + activity + layout, без полигонов. */
   async getSnapshot(since?: string): Promise<MapSnapshot> {
+    if (resolveMapReadSource() === "fold") {
+      const snapshot = await this.mapStateFold.getSnapshotAt(new Date());
+      if (!since) return snapshot;
+      const sinceDate = new Date(since);
+      if (!Number.isFinite(sinceDate.getTime())) return snapshot;
+      return {
+        generatedAt: snapshot.generatedAt,
+        regions: snapshot.regions.filter(
+          (region) => region.statusEventAt && new Date(region.statusEventAt) > sinceDate,
+        ),
+        places: snapshot.places.filter(
+          (place) => place.statusEventAt && new Date(place.statusEventAt) > sinceDate,
+        ),
+      };
+    }
+
     const regions = await this.dataSource.getRepository(RegionEntity).find({
       where: { isActive: true },
       order: { name: "ASC" },

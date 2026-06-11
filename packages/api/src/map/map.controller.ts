@@ -47,7 +47,7 @@ export class MapController {
   @ApiOperation({
     summary: "Полный снапшот карты",
     description:
-      "Без параметров — live read-model (now). " +
+      "Без параметров — live snapshot (fold по умолчанию, см. RADAR_MAP_READ_SOURCE). " +
       "`asOf` (ISO8601) — historical fold из facts на маркер времени (таймлайн). " +
       "`since` — incremental cursor по updated_at (только live, взаимоисключимо с asOf).",
   })
