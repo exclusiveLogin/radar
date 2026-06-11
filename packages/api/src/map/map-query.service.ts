@@ -22,7 +22,7 @@ import {
   RegionGeometryCatalog,
   type RegionsGeoJsonLayer,
 } from "./region-geometry.catalog";
-import { MapStateFoldService } from "./map-state-fold.service";
+import { MapSnapshotQueryService } from "./map-snapshot-query.service";
 
 type RegionStateLevel = MapRegionSnapshot["stateLevel"];
 
@@ -39,7 +39,7 @@ export class MapQueryService {
 
   constructor(
     @InjectDataSource() private readonly dataSource: DataSource,
-    private readonly mapStateFold: MapStateFoldService,
+    private readonly mapSnapshotQuery: MapSnapshotQueryService,
   ) {}
 
   /**
@@ -55,7 +55,7 @@ export class MapQueryService {
       geometry: Record<string, unknown>;
     }>;
   }> {
-    const snapshot = await this.mapStateFold.getSnapshotAt(new Date());
+    const snapshot = await this.mapSnapshotQuery.getSnapshotAt(new Date());
     const placeIds = snapshot.places.map((place) => place.placeId);
     if (placeIds.length === 0) {
       return { type: "FeatureCollection", features: [] };
@@ -216,7 +216,7 @@ export class MapQueryService {
   async getRegionsGeoJsonLayer(): Promise<RegionsGeoJsonLayer> {
     await this.ensureCatalogBound();
 
-    const snapshot = await this.mapStateFold.getSnapshotAt(new Date());
+    const snapshot = await this.mapSnapshotQuery.getSnapshotAt(new Date());
     const stateByIso = new Map<string, StateLevel>(
       snapshot.regions.map((region) => [region.regionCode, region.stateLevel as StateLevel]),
     );
@@ -246,12 +246,12 @@ export class MapQueryService {
 
   /** Historical snapshot: fold фактов на маркер asOf (read-line, фаза 1). */
   async getSnapshotAt(asOf: Date): Promise<MapSnapshot> {
-    return this.mapStateFold.getSnapshotAt(asOf);
+    return this.mapSnapshotQuery.getSnapshotAt(asOf);
   }
 
   /** Лёгкий снапшот карты: fold фактов на now. */
   async getSnapshot(since?: string): Promise<MapSnapshot> {
-    const snapshot = await this.mapStateFold.getSnapshotAt(new Date());
+    const snapshot = await this.mapSnapshotQuery.getSnapshotAt(new Date());
     if (!since) return snapshot;
     const sinceDate = new Date(since);
     if (!Number.isFinite(sinceDate.getTime())) return snapshot;

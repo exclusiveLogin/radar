@@ -47,19 +47,3 @@ export function isPlaceSuppressedByRegionClear(input: {
   if (!input.regionStatusEventAt || !input.placeStatusEventAt) return false;
   return input.regionStatusEventAt > input.placeStatusEventAt;
 }
-
-/**
- * SQL-фрагмент: place raise виден только если нет более свежего регионального clear.
- * SSOT для map-query, districts-active и sweep.
- */
-export function sqlPlaceNotSuppressedByRegionClear(placeAlias = "psm"): string {
-  return `
-    AND NOT EXISTS (
-      SELECT 1
-      FROM region_status_read_model rsm
-      WHERE rsm.region_id = ${placeAlias}.region_id
-        AND rsm.stale = false
-        AND rsm.action = 'clear'
-        AND rsm.winner_occurred_at > ${placeAlias}.winner_occurred_at
-    )`;
-}

@@ -15,20 +15,20 @@
 
 ---
 
-## Фаза 2 — Cutover live на fold
+## Фаза 2 — Cutover live на fold (DONE)
 
 **Критерий входа:** `map:fold:diff` → 0 mismatches (или согласованный allowlist).
 
 - `getSnapshot()` без `asOf` → `getSnapshotAt(now)`
 - WS pollers / `districts-active-geojson` на fold
-- Feature flag `RADAR_MAP_READ_SOURCE=fold|read_model`
+- Feature flag `RADAR_MAP_READ_SOURCE=fold|read_model` (удалён в Phase 3)
 - Догнать fold: mass clear из текста, channel clear parity
 
 **Коммит:** отдельный, только cutover + flag.
 
 ---
 
-## Фаза 3 — Убрать write-side state
+## Фаза 3 — Убрать write-side state (DONE)
 
 - Отписать `LastWinnerReadModelProjection` от `MessageParsed`
 - Остановить `MapStateExpirySweep` / daemon
@@ -39,18 +39,18 @@
 
 ---
 
-## Фаза 4 — SOLID / чистая архитектура (без переходных костылей)
+## Фаза 4 — SOLID / чистая архитектура (DONE)
 
 **Цель:** код соответствует ToBe, без дублирования SQL и shadow-хаков.
 
-| Задача | Действие |
-|--------|----------|
-| Дубли SQL facts | Один `MapFactsLoader` (shared или api port), worker CLI через него |
-| Fold + enrich | `MapSnapshotQuery` use-case; API — тонкий adapter |
-| Именование | `parsed_events.parsed_at` → документировать/мигрировать на `posted_at` |
-| Read-model следы | Удалить `sqlPlaceNotSuppressedByRegionClear` на таблицах, pure fold |
-| Таймлайн UI | Store `historicalAsOf`, без смешения с live WS |
-| Тесты | Golden fold fixtures из prod mismatches |
+| Задача | Статус |
+|--------|--------|
+| Дубли SQL facts | `loadMapFacts` в `@radar/shared` (`mapFactsLoader.ts`) |
+| Fold + enrich | `MapSnapshotQueryService` + `MapFactsRepository`; `MapQueryService` — adapter |
+| Именование | `posted_at` SSOT в SQL loader (коммент в `loadLocationFacts`) |
+| Read-model следы | `sqlPlaceNotSuppressedByRegionClear` удалён |
+| Таймлайн UI | `MapTimelineBar` + ⏱ в ленте событий, `historicalAsOf$`, WS guard |
+| Тесты | Golden fold fixture (mass clear) в `mapStateFold.test.ts` |
 
 **Коммит(ы):** рефакторинг пакетами (shared → api → worker → web), без смешения с фичами.
 

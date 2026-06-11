@@ -28,6 +28,13 @@ export const stateChanges$ = new BehaviorSubject<Warning[]>([]);
 /** Время последнего полученного снапшота (ISO). */
 export const lastSnapshotAt$ = new BehaviorSubject<string | null>(null);
 
+/** Маркер исторического просмотра; live WS игнорируется пока !== null. */
+export const historicalAsOf$ = new BehaviorSubject<string | null>(null);
+
+export function isHistoricalMapView(): boolean {
+  return historicalAsOf$.value !== null;
+}
+
 /**
  * Коды регионов, ставших yellow исключительно по производному правилу соседства
  * (реальный уровень — grey, но сосед red → визуально yellow).
@@ -43,8 +50,11 @@ let adjacency: Record<string, string[]> = {};
 
 let started = false;
 
-/** Повторно загрузить snapshot с API (после clear:archive, если WS не пришёл). */
+/** Повторно загрузить live snapshot с API (не в historical mode). */
 export function refetchMapSnapshot(): Promise<void> {
+  if (historicalAsOf$.value !== null) {
+    return Promise.resolve();
+  }
   return mapApi
     .snapshot()
     .then((snap) => {
@@ -54,6 +64,28 @@ export function refetchMapSnapshot(): Promise<void> {
       reportError(err);
       throw err;
     });
+}
+
+/** Загрузить карту на маркере asOf; live WS не применяется до clearHistoricalView. */
+export async function setHistoricalAsOf(iso: string | null): Promise<void> {
+  if (iso === null) {
+    historicalAsOf$.next(null);
+    await refetchMapSnapshot();
+    return;
+  }
+  const snap = await mapApi.snapshot({ asOf: iso });
+  historicalAsOf$.next(iso);
+  seedSnapshot(snap.regions, snap.places ?? [], snap.generatedAt);
+}
+
+/** @deprecated используй setHistoricalAsOf */
+export async function loadHistoricalSnapshot(asOf: string): Promise<void> {
+  await setHistoricalAsOf(asOf);
+}
+
+/** Вернуться к live-карте. */
+export function clearHistoricalView(): Promise<void> {
+  return setHistoricalAsOf(null);
 }
 
 /** Однократная инициализация: REST-снапшот + подписка на WS-дельты. */
@@ -165,6 +197,7 @@ function isSameRegionSnapshotMap(
 function seedSnapshot(
   regions: MapRegionSnapshot[],
   places: MapPlaceSnapshot[],
+  generatedAt?: string,
 ): void {
   const rawRegions = new Map<string, MapRegionSnapshot>();
   for (const region of regions) rawRegions.set(region.regionCode, region);
@@ -176,10 +209,11 @@ function seedSnapshot(
   for (const place of places) rawPlaces.set(place.placeId, place);
   placesById$.next(prunePlacesForRegions(rawPlaces, nextRegions));
 
-  lastSnapshotAt$.next(new Date().toISOString());
+  lastSnapshotAt$.next(generatedAt ?? new Date().toISOString());
 }
 
 function applyMessage(message: WsServerMessage): void {
+  if (historicalAsOf$.value !== null) return;
   if (message.type === "snapshot") {
     seedSnapshot(message.payload.regions, message.payload.places ?? []);
     return;

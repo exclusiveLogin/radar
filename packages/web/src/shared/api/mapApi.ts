@@ -61,7 +61,7 @@ async function getJson<T>(url: string, schema: { parse: (data: unknown) => T }):
 }
 
 export type MapSnapshotQuery = {
-  /** Live incremental cursor (read-model). */
+  /** Live incremental cursor (deprecated, fold-only). */
   since?: string;
   /** Historical fold на маркер времени (read-line). */
   asOf?: string;

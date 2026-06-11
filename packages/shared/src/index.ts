@@ -151,7 +151,6 @@ export {
   isStaleStatusEvent,
   isMapEventOlderThanTtl,
   isPlaceSuppressedByRegionClear,
-  sqlPlaceNotSuppressedByRegionClear,
   PLACE_STATUS_EVENT_AT_META_KEY,
   readPlaceStatusEventAt,
 } from "./domain/region-state/statusEventOrdering";
@@ -180,9 +179,10 @@ export {
 export type { MassClearRegionRef } from "./domain/region-state/massClearTargets";
 export {
   buildAuthorPlaceClearFacts,
+  loadMapFacts,
   loadMapFoldFacts,
-} from "./domain/region-state/mapFoldFactsLoader";
-export type { MapFoldDbQuery } from "./domain/region-state/mapFoldFactsLoader";
+} from "./domain/region-state/mapFactsLoader";
+export type { MapFactsDbQuery, MapFoldDbQuery } from "./domain/region-state/mapFactsLoader";
 export { ingestMessageHash } from "./domain/ingestMessageHash";
 export type { RawMessageHashInput } from "./domain/ingestMessageHash";
 export {

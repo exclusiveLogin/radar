@@ -1,14 +1,14 @@
 import { Injectable } from "@nestjs/common";
 import { InjectDataSource } from "@nestjs/typeorm";
 import type { DataSource } from "typeorm";
-import { loadMapFoldFacts, type EventLocationFact } from "@radar/shared";
+import { loadMapFacts, type EventLocationFact } from "@radar/shared";
 
-/** Загрузка фактов event_locations для fold на маркере asOf. */
+/** Порт загрузки фактов event_locations для read-line fold. */
 @Injectable()
-export class MapStateFoldRepository {
+export class MapFactsRepository {
   constructor(@InjectDataSource() private readonly dataSource: DataSource) {}
 
   async loadFacts(asOf: Date, ttlMs: number): Promise<EventLocationFact[]> {
-    return loadMapFoldFacts(this.dataSource, asOf, ttlMs);
+    return loadMapFacts(this.dataSource, asOf, ttlMs);
   }
 }

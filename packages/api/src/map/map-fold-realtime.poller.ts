@@ -7,7 +7,7 @@ import type {
   WsServerMessage,
 } from "@radar/shared";
 import { loadLayout } from "./layout.loader";
-import { MapStateFoldService } from "./map-state-fold.service";
+import { MapSnapshotQueryService } from "./map-snapshot-query.service";
 
 type Emit = (message: WsServerMessage) => void;
 
@@ -31,7 +31,7 @@ export class MapFoldRealtimePoller {
   private lastRegions = new Map<string, MapRegionSnapshot>();
   private lastPlaces = new Map<string, MapPlaceSnapshot>();
 
-  constructor(private readonly mapStateFold: MapStateFoldService) {}
+  constructor(private readonly mapSnapshotQuery: MapSnapshotQueryService) {}
 
   start(emit: Emit): void {
     if (this.timer) return;
@@ -48,7 +48,7 @@ export class MapFoldRealtimePoller {
   }
 
   private async tick(emit: Emit): Promise<void> {
-    const snapshot = await this.mapStateFold.getSnapshotAt(new Date());
+    const snapshot = await this.mapSnapshotQuery.getSnapshotAt(new Date());
     const nextRegions = new Map(snapshot.regions.map((region) => [region.regionId, region]));
     const nextPlaces = new Map(snapshot.places.map((place) => [place.placeId, place]));
 

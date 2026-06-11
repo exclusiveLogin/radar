@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { EventLocationFact } from "./mapStateFold";
-import { buildAuthorPlaceClearFacts } from "./mapFoldFactsLoader";
+import { buildAuthorPlaceClearFacts } from "./mapFactsLoader";
 import {
   foldMapState,
   isRegionVisibleInSnapshot,
@@ -164,6 +164,28 @@ test("buildAuthorPlaceClearFacts: региональный clear гасит plac
   assert.equal(synthetics.length, 1);
   assert.equal(synthetics[0]?.placeId, "place-1");
   assert.equal(synthetics[0]?.action, "clear");
+});
+
+test("golden fold: mass clear синтетика гасит регион raise в TTL", () => {
+  const tRaise = "2026-06-11T10:00:00.000Z";
+  const tClear = "2026-06-11T14:00:00.000Z";
+  const result = foldMapState({
+    asOf,
+    ttlMs: DAY_MS,
+    facts: [
+      fact({ factId: "raise", occurredAt: tRaise }),
+      fact({
+        factId: "synthetic-mass-clear:evt-1",
+        occurredAt: tClear,
+        action: "clear",
+        stateLevel: "green",
+        statusCode: "cleared",
+      }),
+    ],
+  });
+  assert.equal(result.regions.length, 1);
+  assert.equal(result.regions[0]?.action, "clear");
+  assert.equal(result.regions[0]?.occurredAt, tClear);
 });
 
 test("isRegionVisibleInSnapshot: green старше 3ч скрыт", () => {

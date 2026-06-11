@@ -12,7 +12,7 @@ import { GeoFeatureEntity, PlaceEntity, RegionEntity } from "../geo/entities";
 import { StatusDictionaryEntity } from "../events/entities";
 import { resolvePlaceMapCentroid, resolveRegionCentroid } from "./map-centroid.resolver";
 import { loadLayout } from "./layout.loader";
-import { MapStateFoldRepository } from "./map-state-fold.repository";
+import { MapFactsRepository } from "./map-facts.repository";
 
 type RegionStateLevel = MapRegionSnapshot["stateLevel"];
 
@@ -22,17 +22,17 @@ function toNumber(value: string | null): number | undefined {
   return Number.isFinite(parsed) ? parsed : undefined;
 }
 
-/** Read-line: snapshot карты как fold фактов на маркер asOf. */
+/** Use-case: fold фактов на asOf + enrich geo/layout → MapSnapshot. */
 @Injectable()
-export class MapStateFoldService {
+export class MapSnapshotQueryService {
   constructor(
     @InjectDataSource() private readonly dataSource: DataSource,
-    private readonly foldRepository: MapStateFoldRepository,
+    private readonly factsRepository: MapFactsRepository,
   ) {}
 
   async getSnapshotAt(asOf: Date): Promise<MapSnapshot> {
     const ttlMs = resolveMapStateTtlMs(process.env);
-    const facts = await this.foldRepository.loadFacts(asOf, ttlMs);
+    const facts = await this.factsRepository.loadFacts(asOf, ttlMs);
     const folded = foldMapState({ asOf, ttlMs, facts });
     const levelByStatus = await this.loadStatusLevels();
 

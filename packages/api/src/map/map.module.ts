@@ -6,8 +6,8 @@ import { MapController } from "./map.controller";
 import { MapGateway } from "./map.gateway";
 import { MapQueryService } from "./map-query.service";
 import { MapFoldRealtimePoller } from "./map-fold-realtime.poller";
-import { MapStateFoldRepository } from "./map-state-fold.repository";
-import { MapStateFoldService } from "./map-state-fold.service";
+import { MapFactsRepository } from "./map-facts.repository";
+import { MapSnapshotQueryService } from "./map-snapshot-query.service";
 import { MapRealtimeBroadcastService } from "./map-realtime-broadcast.service";
 
 @Module({
@@ -21,8 +21,8 @@ import { MapRealtimeBroadcastService } from "./map-realtime-broadcast.service";
     ]),
   ],
   providers: [
-    MapStateFoldRepository,
-    MapStateFoldService,
+    MapFactsRepository,
+    MapSnapshotQueryService,
     MapFoldRealtimePoller,
     MapQueryService,
     MapRealtimeBroadcastService,

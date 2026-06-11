@@ -8,10 +8,13 @@ import {
   type MassClearRegionRef,
 } from "./massClearTargets";
 
-/** Минимальный контракт БД для загрузки фактов fold (TypeORM DataSource и worker DS). */
-export type MapFoldDbQuery = {
+/** Минимальный контракт БД для загрузки фактов карты (TypeORM DataSource и worker DS). */
+export type MapFactsDbQuery = {
   query<T = unknown>(sql: string, parameters?: unknown[]): Promise<T>;
 };
+
+/** @deprecated используй MapFactsDbQuery */
+export type MapFoldDbQuery = MapFactsDbQuery;
 
 type FactRow = {
   fact_id: string;
@@ -77,8 +80,12 @@ function toRegionClearFact(row: SyntheticClearRow, prefix: string): EventLocatio
   };
 }
 
+/**
+ * Время события на read-line: el.occurred_at → rm.posted_at → pe.parsed_at.
+ * posted_at — SSOT порядка fold; parsed_at только fallback без posted_at.
+ */
 async function loadLocationFacts(
-  db: MapFoldDbQuery,
+  db: MapFactsDbQuery,
   asOf: Date,
   cutoff: Date,
 ): Promise<EventLocationFact[]> {
@@ -117,7 +124,7 @@ async function loadLocationFacts(
  * Глобальный отбой без locations: синтетические clear по регионам канала с raise за 24ч до clear.
  */
 async function loadChannelClearFacts(
-  db: MapFoldDbQuery,
+  db: MapFactsDbQuery,
   asOf: Date,
   cutoff: Date,
 ): Promise<EventLocationFact[]> {
@@ -165,7 +172,7 @@ async function loadChannelClearFacts(
 
 /** Групповой отбой из raw_text (resolveClearTargets). */
 async function loadMassClearFacts(
-  db: MapFoldDbQuery,
+  db: MapFactsDbQuery,
   asOf: Date,
   cutoff: Date,
   regions: MassClearRegionRef[],
@@ -324,8 +331,8 @@ function collectRegionClearFacts(facts: EventLocationFact[]): EventLocationFact[
 }
 
 /** Полная загрузка фактов для fold: locations + синтетики mass/channel/place-clear. */
-export async function loadMapFoldFacts(
-  db: MapFoldDbQuery,
+export async function loadMapFacts(
+  db: MapFactsDbQuery,
   asOf: Date,
   ttlMs: number,
 ): Promise<EventLocationFact[]> {
@@ -356,3 +363,6 @@ export async function loadMapFoldFacts(
     ...authorPlaceClearFacts,
   ];
 }
+
+/** @deprecated используй loadMapFacts */
+export const loadMapFoldFacts = loadMapFacts;
