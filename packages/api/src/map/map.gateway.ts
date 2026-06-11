@@ -4,15 +4,13 @@ import {
   WebSocketGateway,
   WebSocketServer,
 } from "@nestjs/websockets";
-import { resolveMapReadSource, wsClientMessageSchema } from "@radar/shared";
+import { wsClientMessageSchema } from "@radar/shared";
 import type { WsChannel, WsServerMessage } from "@radar/shared";
 import { WebSocket } from "ws";
 import type { RawData, Server } from "ws";
 import { MapQueryService } from "./map-query.service";
 import { MapRealtimeBroadcastService } from "./map-realtime-broadcast.service";
 import { MapFoldRealtimePoller } from "./map-fold-realtime.poller";
-import { PlaceStatePoller } from "./place-state.poller";
-import { RegionStatePoller } from "./region-state.poller";
 
 const ALL_CHANNELS: WsChannel[] = ["region-state", "place-state", "warnings"];
 
@@ -24,9 +22,8 @@ function channelOf(message: WsServerMessage): WsChannel {
 }
 
 /**
- * WebSocket-шлюз карты (path `/ws`): отдаёт snapshot при подключении,
- * принимает subscribe/unsubscribe и транслирует смены состояния/предупреждения
- * подписанным клиентам. Источник realtime — RegionStatePoller (region_state_history).
+ * WebSocket-шлюз карты (path `/ws`): snapshot при подключении,
+ * realtime — diff fold snapshot (MapFoldRealtimePoller).
  */
 @WebSocketGateway({ path: "/ws" })
 export class MapGateway
@@ -38,8 +35,6 @@ export class MapGateway
 
   constructor(
     private readonly map: MapQueryService,
-    private readonly regionPoller: RegionStatePoller,
-    private readonly placePoller: PlaceStatePoller,
     private readonly foldPoller: MapFoldRealtimePoller,
     private readonly realtime: MapRealtimeBroadcastService,
   ) {}
@@ -47,18 +42,11 @@ export class MapGateway
   onModuleInit(): void {
     const emit = (message: WsServerMessage): void => this.broadcast(message);
     this.realtime.bindEmit(emit);
-    if (resolveMapReadSource() === "fold") {
-      this.foldPoller.start(emit);
-      return;
-    }
-    this.regionPoller.start(emit);
-    this.placePoller.start(emit);
+    this.foldPoller.start(emit);
   }
 
   onModuleDestroy(): void {
     this.foldPoller.stop();
-    this.regionPoller.stop();
-    this.placePoller.stop();
   }
 
   async handleConnection(client: WebSocket): Promise<void> {

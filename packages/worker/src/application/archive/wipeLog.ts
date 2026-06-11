@@ -34,7 +34,6 @@ export class WipeLogger {
     this.line("═══════════════════════════════════════════════════════");
     this.phase("ingest-parse", 1, 3, [
       "cancel phase_runs + очистка ingest/geo очередей",
-      "TRUNCATE place_status_read_model, region_status_read_model",
       "TRUNCATE parsed_events CASCADE → event_locations, event_evidence, …",
       "TRUNCATE parse_attempts, place_enrichment_jobs, phase_runs",
       "TRUNCATE ingest_backfill_jobs, ingest_cursors, domain_events",

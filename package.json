@@ -96,8 +96,7 @@
     "parse:ab": "npm run parse:ab -w @radar/worker --",
     "parse:score": "npm run parse:score -w @radar/worker --",
     "parse:golden:bootstrap": "npm run parse:golden:bootstrap -w @radar/worker --",
-    "worker:map-state:expire": "npm run worker:map-state:expire -w @radar/worker",
-    "map:fold:diff": "npm run map:fold:diff -w @radar/worker"
+    "map:fold:status": "npm run map:fold:status -w @radar/worker"
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",

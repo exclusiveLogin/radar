@@ -307,12 +307,37 @@ export class ReadSideQueryService {
   > {
     const rows = (await this.dataSource.query(
       `
+      WITH ranked AS (
+        SELECT el.place_id,
+               el.region_id,
+               COALESCE(el.status_code, pe.event_type) AS status_code,
+               COALESCE(sd.state_level::text, 'grey') AS state_level,
+               COALESCE(
+                 el.action,
+                 CASE WHEN pe.event_type = 'cleared' OR pe.is_active = false THEN 'clear' ELSE 'raise' END
+               ) AS action,
+               COALESCE(el.author_channel_key, c.key) AS author_channel_key,
+               COALESCE(el.occurred_at, rm.posted_at, pe.parsed_at) AS occurred_at,
+               ROW_NUMBER() OVER (
+                 PARTITION BY el.place_id
+                 ORDER BY COALESCE(el.occurred_at, rm.posted_at, pe.parsed_at) DESC, el.id DESC
+               ) AS rn
+        FROM event_locations el
+        JOIN parsed_events pe ON pe.id = el.parsed_event_id
+        JOIN raw_messages rm ON rm.id = pe.raw_message_id
+        JOIN channels c ON c.id = rm.channel_id
+        LEFT JOIN status_dictionary sd
+          ON sd.code = COALESCE(el.status_code, pe.event_type) AND sd.is_active = true
+        WHERE el.place_id IS NOT NULL
+      )
       SELECT place_id, region_id, status_code, state_level, action,
-             author_channel_key, updated_at, winner_occurred_at
-      FROM place_status_read_model
-      WHERE ($1::uuid IS NULL OR place_id = $1::uuid)
+             author_channel_key, occurred_at
+      FROM ranked
+      WHERE rn = 1
+        AND action = 'raise'
+        AND ($1::uuid IS NULL OR place_id = $1::uuid)
         AND ($2::text IS NULL OR status_code = $2::text)
-      ORDER BY updated_at DESC
+      ORDER BY occurred_at DESC
       LIMIT $3
       `,
       [params.placeId ?? null, params.statusCode ?? null, params.limit],
@@ -323,8 +348,7 @@ export class ReadSideQueryService {
       state_level: string;
       action: "raise" | "clear";
       author_channel_key: string | null;
-      updated_at: Date;
-      winner_occurred_at: Date;
+      occurred_at: Date;
     }>;
     return rows.map((row) => ({
       placeId: row.place_id,
@@ -333,8 +357,8 @@ export class ReadSideQueryService {
       stateLevel: row.state_level,
       action: row.action,
       authorChannelKey: row.author_channel_key,
-      updatedAt: row.updated_at.toISOString(),
-      occurredAt: row.winner_occurred_at.toISOString(),
+      updatedAt: row.occurred_at.toISOString(),
+      occurredAt: row.occurred_at.toISOString(),
     }));
   }
 

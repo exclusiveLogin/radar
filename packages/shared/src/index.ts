@@ -159,10 +159,8 @@ export type { MapStatusAction } from "./domain/region-state/statusEventOrdering"
 export {
   DEFAULT_MAP_STATE_TTL_MS,
   REGION_CALM_SUPPRESS_MS,
-  resolveMapReadSource,
   resolveMapStateTtlMs,
 } from "./domain/region-state/mapStateTtl";
-export type { MapReadSource } from "./domain/region-state/mapStateTtl";
 export {
   foldMapState,
   shouldIncomingBeatWinner,

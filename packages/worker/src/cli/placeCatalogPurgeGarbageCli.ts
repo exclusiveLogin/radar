@@ -15,7 +15,7 @@ async function main(): Promise<void> {
     console.log(`Usage: npm run parse-engine:catalog:purge-garbage [--dry-run]
 
   Деактивирует places с isGarbageIngestPlaceName (is_active=false, trust=rejected).
-  Удаляет place_enrichment_jobs и place_status_read_model для них.`);
+  Удаляет place_enrichment_jobs для них.`);
     process.exit(0);
   }
 

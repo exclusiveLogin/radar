@@ -21,7 +21,7 @@ export async function wipeParsePhase(input: {
       dryRun: true,
       counts: {},
       notes: [
-        "TRUNCATE parsed_events (+ event_locations), parse_attempts, event_evidence, place_enrichment_jobs, read-model.",
+        "TRUNCATE parsed_events (+ event_locations), parse_attempts, event_evidence, place_enrichment_jobs.",
         "raw_messages не трогает.",
       ],
     };
@@ -33,7 +33,7 @@ export async function wipeParsePhase(input: {
     reason: "parse:wipe",
   });
 
-  const map = await clearOperationalMapState(input.dataSource, "parse:wipe");
+  await clearOperationalMapState(input.dataSource, "parse:wipe");
   const parsedEvents = await clearParsedArtifacts(input.dataSource);
   const parseAttempts = await truncateTableCounted(input.dataSource, "parse_attempts");
   const eventEvidence = await truncateTableCounted(input.dataSource, "event_evidence");
@@ -51,8 +51,6 @@ export async function wipeParsePhase(input: {
       parse_attempts: parseAttempts,
       event_evidence: eventEvidence,
       place_enrichment_jobs: enrichmentJobs,
-      place_status_read_model: map.placesCleared,
-      region_status_read_model: map.regionsCleared,
     },
   };
 }

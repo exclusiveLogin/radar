@@ -9,8 +9,6 @@ import { MapFoldRealtimePoller } from "./map-fold-realtime.poller";
 import { MapStateFoldRepository } from "./map-state-fold.repository";
 import { MapStateFoldService } from "./map-state-fold.service";
 import { MapRealtimeBroadcastService } from "./map-realtime-broadcast.service";
-import { PlaceStatePoller } from "./place-state.poller";
-import { RegionStatePoller } from "./region-state.poller";
 
 @Module({
   imports: [
@@ -27,8 +25,6 @@ import { RegionStatePoller } from "./region-state.poller";
     MapStateFoldService,
     MapFoldRealtimePoller,
     MapQueryService,
-    RegionStatePoller,
-    PlaceStatePoller,
     MapRealtimeBroadcastService,
     MapGateway,
   ],

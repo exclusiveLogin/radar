@@ -1,24 +1,21 @@
 import type { DataSource } from "typeorm";
 import type { WipeLogger } from "./wipeLog.js";
-import { truncateTables, type TruncateOptions } from "./wipeTableSql.js";
+import type { TruncateOptions } from "./wipeTableSql.js";
 
 export type ClearOperationalMapStateResult = {
   placesCleared: number;
   regionsCleared: number;
 };
 
-const READ_MODEL_TABLES = ["place_status_read_model", "region_status_read_model"] as const;
-
 /**
- * Сброс read-model карты: один TRUNCATE обеих таблиц.
+ * Legacy hook после удаления read_model (фаза 3).
+ * Состояние карты живёт в event_locations; сброс — через TRUNCATE parsed_events.
  */
 export async function clearOperationalMapState(
-  dataSource: DataSource,
-  _reason: string,
+  _dataSource: DataSource,
+  reason: string,
   options: Pick<TruncateOptions, "log" | "forceLocks"> = {},
 ): Promise<ClearOperationalMapStateResult> {
-  const { log } = options;
-  log?.detail(`read-model: ${READ_MODEL_TABLES.join(", ")}`);
-  await truncateTables(dataSource, [...READ_MODEL_TABLES], options);
+  options.log?.detail(`map-state: skip read_model (${reason}), facts via parsed_events wipe`);
   return { placesCleared: 0, regionsCleared: 0 };
 }

@@ -58,14 +58,6 @@ import type {
   ResolvedEnricherFlags,
 } from "../infrastructure/enrichers/enricherChainFactory.js";
 import { GeoCatalog } from "../infrastructure/geo-catalog/index.js";
-import {
-  isMapStateExpiryEnabled,
-  resolveMapStateExpiryPollMs,
-  resolveMapStateTtlMs,
-} from "../infrastructure/config/mapStateExpiryConfig.js";
-import { MapStateExpiryDaemon } from "./map-state/mapStateExpiryDaemon.js";
-import { MapStateExpirySweep } from "./map-state/mapStateExpirySweep.js";
-import { LastWinnerReadModelProjection } from "./subscribers/lastWinnerReadModelProjection.js";
 import { GeoValidationService } from "./parsing/geoValidationService.js";
 import { createParsePipeline } from "./parsing/createParsePipeline.js";
 import { isParseWorkerPoolEnabled, ParseWorkerPool } from "./parsing/parseWorkerPool.js";
@@ -161,7 +153,6 @@ export async function createWorkerCompositionRoot(
   let outboxRelay: { start: () => void; stop: () => void } | undefined;
   let ingestOrchestrator: IngestOrchestrator | undefined;
   let backfillDaemon: BackfillDaemonService | undefined;
-  let mapStateExpiryDaemon: MapStateExpiryDaemon | undefined;
   let ingestParseDaemon: IngestParseDaemonService | undefined;
   let placeEnrichmentDaemon: PlaceEnrichmentDaemonService | undefined;
   let phaseManualRunPoller: PhaseManualRunPoller | undefined;
@@ -214,30 +205,11 @@ export async function createWorkerCompositionRoot(
     bus.subscribe("MessageParsed", parseAttemptWriter.handler);
     bus.subscribe("MessageParseFailed", parseAttemptWriter.handler);
 
-    const lastWinnerProjection = new LastWinnerReadModelProjection({
-      dataSource,
-      statusDictionary: repos.statusDictionary,
-      mapStateTtlMs: resolveMapStateTtlMs(),
-    });
-    bus.subscribe("MessageParsed", lastWinnerProjection.handler);
-
-    if (isMapStateExpiryEnabled()) {
-      const sweep = new MapStateExpirySweep({
-        dataSource,
-        ttlMs: resolveMapStateTtlMs(),
-      });
-      mapStateExpiryDaemon = new MapStateExpiryDaemon(
-        sweep,
-        resolveMapStateExpiryPollMs(),
-      );
-    }
-
     outboxRelay = new OutboxRelay(dataSource, bus);
     outboxRelay.start();
 
     shutdown = async () => {
       outboxRelay?.stop();
-      mapStateExpiryDaemon?.stop();
       phaseManualRunPoller?.stop();
       ingestParseDaemon?.stop();
       placeEnrichmentDaemon?.stop();
@@ -402,7 +374,6 @@ export async function createWorkerCompositionRoot(
     parseRawMessageHandler,
     ingestOrchestrator,
     backfillDaemon,
-    mapStateExpiryDaemon,
     ingestParseDaemon,
     placeEnrichmentDaemon,
     placeEnrichmentRunner,

@@ -108,10 +108,6 @@ export async function deprecateCatalogPlace(
     `DELETE FROM place_enrichment_jobs WHERE place_id = $1`,
     [placeId],
   );
-  await dataSource.query(
-    `DELETE FROM place_status_read_model WHERE place_id = $1`,
-    [placeId],
-  );
 }
 
 export type PurgeGarbagePlacesSummary = {

@@ -9,16 +9,6 @@ function parsePositiveInt(raw: string | undefined, fallback: number): number {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
-/** Источник live read-line карты: fold фактов или materialized read_model. */
-export type MapReadSource = "fold" | "read_model";
-
-/** Live snapshot/WS: fold (default после фазы 2b) или legacy read_model. */
-export function resolveMapReadSource(env: NodeJS.ProcessEnv = process.env): MapReadSource {
-  const raw = env.RADAR_MAP_READ_SOURCE?.trim().toLowerCase();
-  if (raw === "read_model") return "read_model";
-  return "fold";
-}
-
 /** Длительность удержания статуса на карте (мс). SSOT для worker и API fold. */
 export function resolveMapStateTtlMs(env: NodeJS.ProcessEnv = process.env): number {
   const hours = env.RADAR_MAP_STATE_TTL_HOURS?.trim();

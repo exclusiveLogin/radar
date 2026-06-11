@@ -231,7 +231,6 @@ export async function removeSweepPlace(
 
   await dataSource.query(`DELETE FROM place_aliases WHERE place_id = $1`, [placeId]);
   await dataSource.query(`DELETE FROM place_enrichment_jobs WHERE place_id = $1`, [placeId]);
-  await dataSource.query(`DELETE FROM place_status_read_model WHERE place_id = $1`, [placeId]);
   await dataSource.query(`DELETE FROM event_evidence WHERE place_id = $1`, [placeId]);
   await dataSource.query(
     `UPDATE places SET parent_place_id = NULL WHERE parent_place_id = $1`,

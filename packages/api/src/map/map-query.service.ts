@@ -3,7 +3,6 @@ import { InjectDataSource } from "@nestjs/typeorm";
 import type { DataSource } from "typeorm";
 import { In } from "typeorm";
 import type {
-  MapPlaceSnapshot,
   MapRegionSnapshot,
   MapSnapshot,
   MessageFeedItem,
@@ -15,15 +14,8 @@ import type {
 import {
   StatusDictionaryEntity,
 } from "../events/entities";
-import { GeoFeatureEntity, PlaceEntity, RegionEntity } from "../geo/entities";
-import { resolvePlaceMapCentroid, resolveRegionCentroid } from "./map-centroid.resolver";
-import { loadLayout } from "./layout.loader";
+import { PlaceEntity, RegionEntity } from "../geo/entities";
 import { loadRegionAdjacency } from "./adjacency.loader";
-import {
-  maxStateLevel,
-  resolveMapReadSource,
-  sqlPlaceNotSuppressedByRegionClear,
-} from "@radar/shared";
 import type { SourceMessage } from "@radar/shared";
 import type { GeoRegionRef, PlaceRef } from "./map.dto";
 import {
@@ -33,7 +25,6 @@ import {
 import { MapStateFoldService } from "./map-state-fold.service";
 
 type RegionStateLevel = MapRegionSnapshot["stateLevel"];
-const REGION_DRAW_SUPPRESS_AGE_MS = 3 * 60 * 60 * 1000;
 
 /** Преобразует numeric-строку TypeORM в число (или undefined). */
 function toNumber(value: string | null): number | undefined {
@@ -52,9 +43,8 @@ export class MapQueryService {
   ) {}
 
   /**
-   * Активные полигоны районов: только те geo_feature, у которых есть place
-   * с action='raise' в place_status_read_model.
-   * Возвращает несколько объектов вместо ~2500 — безопасно грузить при каждом обновлении places.
+   * Активные полигоны районов: geo_feature мест из fold snapshot.
+   * Лёгкий ответ — безопасно грузить при каждом place-state WS-событии.
    */
   async getActiveDistrictsGeoJsonLayer(): Promise<{
     type: "FeatureCollection";
@@ -65,50 +55,12 @@ export class MapQueryService {
       geometry: Record<string, unknown>;
     }>;
   }> {
-    if (resolveMapReadSource() === "fold") {
-      const snapshot = await this.mapStateFold.getSnapshotAt(new Date());
-      const placeIds = snapshot.places.map((place) => place.placeId);
-      if (placeIds.length === 0) {
-        return { type: "FeatureCollection", features: [] };
-      }
-      return this.loadActiveDistrictsGeoJsonByPlaceIds(placeIds);
+    const snapshot = await this.mapStateFold.getSnapshotAt(new Date());
+    const placeIds = snapshot.places.map((place) => place.placeId);
+    if (placeIds.length === 0) {
+      return { type: "FeatureCollection", features: [] };
     }
-
-    const rows = (await this.dataSource.query(
-      `SELECT DISTINCT ON (gf.id)
-              gf.id,
-              gf.name,
-              gf.layer,
-              gf.name_stem,
-              gf.region_id,
-              gf.centroid_lat::float8 AS centroid_lat,
-              gf.centroid_lon::float8 AS centroid_lon,
-              r.iso AS region_iso,
-              gf.geometry
-       FROM geo_feature gf
-       INNER JOIN places p ON p.geo_feature_id = gf.id AND p.is_active = true
-       INNER JOIN place_status_read_model psm ON psm.place_id = p.id
-         AND psm.action = 'raise'
-         AND psm.stale = false
-       LEFT JOIN regions r ON r.id = gf.region_id
-       WHERE gf.layer = ANY($1)
-         AND gf.is_active = true
-         AND gf.geometry IS NOT NULL
-         ${sqlPlaceNotSuppressedByRegionClear("psm")}`,
-      [["district", "city_district"]],
-    )) as Array<{
-      id: string;
-      name: string;
-      layer: string;
-      name_stem: string;
-      region_id: string | null;
-      centroid_lat: number | null;
-      centroid_lon: number | null;
-      region_iso: string | null;
-      geometry: Record<string, unknown>;
-    }>;
-
-    return this.toDistrictsFeatureCollection(rows);
+    return this.loadActiveDistrictsGeoJsonByPlaceIds(placeIds);
   }
 
   /** Активные полигоны районов по списку placeId (fold read-line). */
@@ -264,19 +216,10 @@ export class MapQueryService {
   async getRegionsGeoJsonLayer(): Promise<RegionsGeoJsonLayer> {
     await this.ensureCatalogBound();
 
-    const stateByIso = new Map<string, StateLevel>();
-    if (resolveMapReadSource() === "fold") {
-      const snapshot = await this.mapStateFold.getSnapshotAt(new Date());
-      for (const region of snapshot.regions) {
-        stateByIso.set(region.regionCode, region.stateLevel as StateLevel);
-      }
-    } else {
-      const states = await this.loadRegionStateRows();
-      for (const row of states) {
-        if (!row.regionCode) continue;
-        stateByIso.set(row.regionCode, row.stateLevel as StateLevel);
-      }
-    }
+    const snapshot = await this.mapStateFold.getSnapshotAt(new Date());
+    const stateByIso = new Map<string, StateLevel>(
+      snapshot.regions.map((region) => [region.regionCode, region.stateLevel as StateLevel]),
+    );
 
     // Полный набор контуров: цвет/видимость задаёт клиент по WS snapshot (не режем геометрию).
     return RegionGeometryCatalog.getInstance().buildLayer(stateByIso, {
@@ -306,64 +249,21 @@ export class MapQueryService {
     return this.mapStateFold.getSnapshotAt(asOf);
   }
 
-  /** Лёгкий снапшот карты: регионы + stateLevel + activity + layout, без полигонов. */
+  /** Лёгкий снапшот карты: fold фактов на now. */
   async getSnapshot(since?: string): Promise<MapSnapshot> {
-    if (resolveMapReadSource() === "fold") {
-      const snapshot = await this.mapStateFold.getSnapshotAt(new Date());
-      if (!since) return snapshot;
-      const sinceDate = new Date(since);
-      if (!Number.isFinite(sinceDate.getTime())) return snapshot;
-      return {
-        generatedAt: snapshot.generatedAt,
-        regions: snapshot.regions.filter(
-          (region) => region.statusEventAt && new Date(region.statusEventAt) > sinceDate,
-        ),
-        places: snapshot.places.filter(
-          (place) => place.statusEventAt && new Date(place.statusEventAt) > sinceDate,
-        ),
-      };
-    }
-
-    const regions = await this.dataSource.getRepository(RegionEntity).find({
-      where: { isActive: true },
-      order: { name: "ASC" },
-    });
-    const states = await this.loadRegionStateRows();
-    const stateByRegionId = new Map(states.map((s) => [s.regionId, s]));
-    const layout = loadLayout();
-    const sinceDate = since ? new Date(since) : null;
-    const placeCentroidByRegion = await this.loadPlaceCentroidByRegion();
-    const levelByStatus = await this.loadStatusLevels();
-
-    const items: MapRegionSnapshot[] = [];
-    for (const region of regions) {
-      const state = stateByRegionId.get(region.id);
-      if (!state) continue;
-      if (sinceDate && state.updatedAt <= sinceDate) continue;
-
-      const code = region.iso ?? region.fiasId ?? region.name;
-      const tile = layout.tiles[code];
-      const centroid = resolveRegionCentroid({
-        region,
-        placeFallback: placeCentroidByRegion.get(region.id),
-      });
-      items.push({
-        regionId: region.id,
-        regionCode: code,
-        name: region.name,
-        stateLevel: state.stateLevel as RegionStateLevel,
-        activity: state.activity ?? 0,
-        layout: tile,
-        centroidLat: centroid?.lat,
-        centroidLon: centroid?.lon,
-        statusEventAt: state.statusEventAt?.toISOString(),
-        statusAction: state.statusAction,
-      });
-    }
-
-    const places = await this.loadMapPlaces(levelByStatus);
-
-    return { generatedAt: new Date().toISOString(), regions: items, places };
+    const snapshot = await this.mapStateFold.getSnapshotAt(new Date());
+    if (!since) return snapshot;
+    const sinceDate = new Date(since);
+    if (!Number.isFinite(sinceDate.getTime())) return snapshot;
+    return {
+      generatedAt: snapshot.generatedAt,
+      regions: snapshot.regions.filter(
+        (region) => region.statusEventAt && new Date(region.statusEventAt) > sinceDate,
+      ),
+      places: snapshot.places.filter(
+        (place) => place.statusEventAt && new Date(place.statusEventAt) > sinceDate,
+      ),
+    };
   }
 
   /** Тяжёлая геометрия: ссылки на регионы (centroid/bbox/artifactKey), тянется лениво гео-виджетом. */
@@ -419,22 +319,27 @@ export class MapQueryService {
     }));
   }
 
-  /** Фид предупреждений (аккордеон): последние смены состояния регионов. */
+  /** Фид предупреждений (аккордеон): последние региональные факты из event_locations. */
   async getWarnings(
     params: { regionId?: string; since?: string; limit: number },
   ): Promise<Warning[]> {
     const rows = (await this.dataSource.query(
       `
-      SELECT rm.region_id,
-             rm.region_code,
-             rm.state_level,
-             rm.status_code,
-             rm.updated_at,
-             rm.winner_occurred_at
-      FROM region_status_read_model rm
-      WHERE ($1::uuid IS NULL OR rm.region_id = $1::uuid)
-        AND ($2::timestamptz IS NULL OR rm.updated_at > $2::timestamptz)
-      ORDER BY rm.updated_at DESC
+      SELECT el.region_id,
+             r.iso AS region_code,
+             COALESCE(sd.state_level::text, 'grey') AS state_level,
+             COALESCE(el.status_code, pe.event_type) AS status_code,
+             COALESCE(el.occurred_at, rm.posted_at, pe.parsed_at) AS event_at
+      FROM event_locations el
+      JOIN parsed_events pe ON pe.id = el.parsed_event_id
+      JOIN raw_messages rm ON rm.id = pe.raw_message_id
+      JOIN regions r ON r.id = el.region_id
+      LEFT JOIN status_dictionary sd
+        ON sd.code = COALESCE(el.status_code, pe.event_type) AND sd.is_active = true
+      WHERE COALESCE(el.entity_kind, 'region') <> 'place'
+        AND ($1::uuid IS NULL OR el.region_id = $1::uuid)
+        AND ($2::timestamptz IS NULL OR COALESCE(el.occurred_at, rm.posted_at, pe.parsed_at) > $2::timestamptz)
+      ORDER BY COALESCE(el.occurred_at, rm.posted_at, pe.parsed_at) DESC
       LIMIT $3
       `,
       [params.regionId ?? null, params.since ?? null, params.limit],
@@ -443,137 +348,19 @@ export class MapQueryService {
       region_code: string;
       state_level: RegionStateLevel;
       status_code: string;
-      updated_at: Date;
-      winner_occurred_at: Date;
+      event_at: Date;
     }>;
     const regionNames = await this.loadRegionNames(rows.map((row) => row.region_id));
     return rows.map((row) => ({
-      id: `${row.region_id}:${new Date(row.updated_at).toISOString()}`,
+      id: `${row.region_id}:${new Date(row.event_at).toISOString()}`,
       regionId: row.region_id,
       regionCode: row.region_code,
       regionName: regionNames.get(row.region_id),
       title: this.warningTitle(row.state_level),
       text: row.status_code ?? undefined,
       stateLevel: row.state_level,
-      eventAt: new Date(row.winner_occurred_at).toISOString(),
+      eventAt: new Date(row.event_at).toISOString(),
     }));
-  }
-
-  /** Средний центроид мест региона — fallback, если у региона нет своего centroid. */
-  private async loadPlaceCentroidByRegion(): Promise<
-    Map<string, { lat: number; lon: number }>
-  > {
-    const rows = (await this.dataSource.query(
-      `SELECT region_id,
-              AVG(centroid_lat::float8) AS lat,
-              AVG(centroid_lon::float8) AS lon
-       FROM places
-       WHERE is_active = true
-         AND centroid_lat IS NOT NULL
-         AND centroid_lon IS NOT NULL
-       GROUP BY region_id`,
-    )) as Array<{ region_id: string; lat: string; lon: string }>;
-
-    const map = new Map<string, { lat: number; lon: number }>();
-    for (const row of rows) {
-      const lat = Number(row.lat);
-      const lon = Number(row.lon);
-      if (Number.isFinite(lat) && Number.isFinite(lon)) {
-        map.set(row.region_id, { lat, lon });
-      }
-    }
-    return map;
-  }
-
-  /** Активные места с координатами и уровнем ≠ grey (для гео-слоя places). */
-  private async loadMapPlaces(
-    levelByStatus: Map<string, StateLevel>,
-  ): Promise<MapPlaceSnapshot[]> {
-    const rows = await this.loadPlaceStateRows();
-
-    const byPlace = new Map<
-      string,
-      {
-        place: PlaceEntity;
-        regionCode: string;
-        statusCodes: string[];
-        updatedAt: Date;
-        statusEventAt: string | undefined;
-      }
-    >();
-
-    for (const row of rows) {
-      const place = row.place;
-      if (!place?.region) continue;
-      // Субъект РФ (kind=region) — только контур, не маркер.
-      if (place.kind === "region") continue;
-
-      const regionCode = place.region.iso ?? place.region.name;
-      const rowEventAt = row.statusEventAt;
-      const bucket = byPlace.get(place.id) ?? {
-        place,
-        regionCode,
-        statusCodes: [],
-        updatedAt: row.updatedAt,
-        statusEventAt: rowEventAt,
-      };
-      bucket.statusCodes.push(row.statusCode);
-      if (row.updatedAt > bucket.updatedAt) bucket.updatedAt = row.updatedAt;
-      if (rowEventAt && (!bucket.statusEventAt || rowEventAt > bucket.statusEventAt)) {
-        bucket.statusEventAt = rowEventAt;
-      }
-      byPlace.set(place.id, bucket);
-    }
-
-    // Batch-загрузка centroid из geo_feature для catalog-places (district/city_district),
-    // у которых place.centroid_* не заполнены, но geo_feature.centroid_* есть.
-    const geoFeatureIds = [...new Set(
-      [...byPlace.values()]
-        .map((e) => e.place.geoFeatureId)
-        .filter((id): id is string => id != null),
-    )];
-    const geoFeatureMap = new Map<string, { lat: number; lon: number }>();
-    if (geoFeatureIds.length > 0) {
-      const geoFeatures = await this.dataSource
-        .getRepository(GeoFeatureEntity)
-        .find({ where: { id: In(geoFeatureIds) } });
-      for (const gf of geoFeatures) {
-        const lat = toNumber(gf.centroidLat);
-        const lon = toNumber(gf.centroidLon);
-        if (lat !== undefined && lon !== undefined) {
-          geoFeatureMap.set(gf.id, { lat, lon });
-        }
-      }
-    }
-
-    const items: MapPlaceSnapshot[] = [];
-    for (const entry of byPlace.values()) {
-      const stateLevel = maxStateLevel(entry.statusCodes, levelByStatus);
-      if (stateLevel === "grey") continue;
-
-      const geoFeatureCentroid = entry.place.geoFeatureId
-        ? geoFeatureMap.get(entry.place.geoFeatureId)
-        : undefined;
-      const coords = resolvePlaceMapCentroid({ place: entry.place, geoFeatureCentroid });
-      if (!coords) continue;
-
-      items.push({
-        placeId: entry.place.id,
-        placeName: entry.place.name,
-        regionId: entry.place.regionId,
-        regionCode: entry.regionCode,
-        statusCode: entry.statusCodes[0]!,
-        stateLevel,
-        kind: entry.place.kind,
-        geoFeatureId: entry.place.geoFeatureId ?? undefined,
-        lat: coords.lat,
-        lon: coords.lon,
-        updatedAt: entry.updatedAt.toISOString(),
-        statusEventAt: entry.statusEventAt,
-      });
-    }
-
-    return items;
   }
 
   /** Последнее raw-сообщение, привязанное к региону (по ISO-коду). */
@@ -659,13 +446,6 @@ export class MapQueryService {
       channelKey: row.channel_key,
       regionCodes: row.region_codes ?? [],
     };
-  }
-
-  private async loadStatusLevels(): Promise<Map<string, StateLevel>> {
-    const rows = await this.dataSource
-      .getRepository(StatusDictionaryEntity)
-      .find({ where: { isActive: true } });
-    return new Map(rows.map((row) => [row.code, row.stateLevel as StateLevel]));
   }
 
   private async loadRegionNames(ids: string[]): Promise<Map<string, string>> {
@@ -824,106 +604,6 @@ export class MapQueryService {
       bbox: region.bbox ?? undefined,
       geometryArtifactKey: region.geometryArtifactKey ?? undefined,
     };
-  }
-
-  private async loadRegionStateRows(): Promise<
-    Array<{
-      regionId: string;
-      regionCode: string;
-      stateLevel: StateLevel;
-      activity: number;
-      updatedAt: Date;
-      statusEventAt: Date | null;
-      statusAction: "raise" | "clear";
-    }>
-  > {
-    const rows = (await this.dataSource.query(
-      `
-      SELECT rm.region_id,
-             rm.region_code,
-             CASE WHEN rm.stale THEN 'grey' ELSE rm.state_level END AS state_level,
-             0::int AS activity,
-             rm.updated_at,
-             rm.winner_occurred_at AS status_event_at,
-             rm.action AS status_action
-      FROM region_status_read_model rm
-      WHERE NOT (
-        NOT rm.stale
-        AND rm.state_level IN ('green', 'grey')
-        AND rm.winner_occurred_at < $1::timestamptz
-      )
-      `,
-      [new Date(Date.now() - REGION_DRAW_SUPPRESS_AGE_MS).toISOString()],
-    )) as Array<{
-      region_id: string;
-      region_code: string;
-      state_level: StateLevel;
-      activity: number;
-      updated_at: Date;
-      status_event_at: Date | null;
-      status_action: "raise" | "clear";
-    }>;
-
-    return rows.map((row) => ({
-      regionId: row.region_id,
-      regionCode: row.region_code,
-      stateLevel: row.state_level,
-      activity: Number(row.activity ?? 0),
-      updatedAt: new Date(row.updated_at),
-      statusEventAt: row.status_event_at ? new Date(row.status_event_at) : null,
-      statusAction: row.status_action,
-    }));
-  }
-
-  private async loadPlaceStateRows(): Promise<
-    Array<{
-      place: PlaceEntity;
-      statusCode: string;
-      updatedAt: Date;
-      statusEventAt: string | undefined;
-    }>
-  > {
-    const readRows = (await this.dataSource.query(
-      `
-      SELECT psm.place_id,
-             psm.status_code,
-             psm.updated_at,
-             psm.winner_occurred_at
-      FROM place_status_read_model psm
-      WHERE psm.action = 'raise'
-        AND psm.stale = false
-        ${sqlPlaceNotSuppressedByRegionClear("psm")}
-      `,
-    )) as Array<{
-      place_id: string;
-      status_code: string;
-      updated_at: Date;
-      winner_occurred_at: Date | null;
-    }>;
-
-    const allPlaceIds = [...new Set(readRows.map((row) => row.place_id))];
-    if (allPlaceIds.length === 0) return [];
-
-    const places = await this.dataSource.getRepository(PlaceEntity).find({
-      where: { id: In(allPlaceIds) },
-      relations: { region: true },
-    });
-    const byPlaceId = new Map(places.map((row) => [row.id, row]));
-
-    const fromRead = readRows
-      .map((row) => {
-        const place = byPlaceId.get(row.place_id);
-        if (!place) return null;
-        return {
-          place,
-          statusCode: row.status_code,
-          updatedAt: new Date(row.updated_at),
-          statusEventAt: row.winner_occurred_at?.toISOString(),
-        };
-      })
-      .filter((row): row is NonNullable<typeof row> => row !== null);
-
-    return fromRead;
   }
 
   /**

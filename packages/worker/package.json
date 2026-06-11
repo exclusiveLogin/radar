@@ -53,10 +53,8 @@
     "parse-engine:phase:stop": "tsx src/cli/phaseRunsStopAllCli.ts",
     "parse-engine:manifest:import": "tsx src/cli/phaseManifestCli.ts import",
     "parse-engine:manifest:export": "tsx src/cli/phaseManifestCli.ts export",
-    "worker:map-state:expire": "tsx src/cli/mapStateExpireCli.ts",
     "worker:map-state:diagnose": "tsx src/cli/mapStateDiagnoseCli.ts",
-    "map:fold:diff": "tsx src/cli/mapStateFoldDiffCli.ts",
-    "worker:backfill:status-read-models": "tsx src/cli/backfillStatusReadModelsCli.ts",
+    "map:fold:status": "tsx src/cli/mapStateFoldDiffCli.ts",
     "verify:parse-threads": "tsx scripts/verify-parse-threads.mjs",
     "verify:bootstrap": "tsx scripts/verify-worker-bootstrap.mjs"
   },

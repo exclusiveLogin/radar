@@ -47,7 +47,7 @@ export class MapController {
   @ApiOperation({
     summary: "Полный снапшот карты",
     description:
-      "Без параметров — live snapshot (fold по умолчанию, см. RADAR_MAP_READ_SOURCE). " +
+      "Без параметров — live fold snapshot(now). " +
       "`asOf` (ISO8601) — historical fold из facts на маркер времени (таймлайн). " +
       "`since` — incremental cursor по updated_at (только live, взаимоисключимо с asOf).",
   })
@@ -92,7 +92,7 @@ export class MapController {
   }
 
   /**
-   * GeoJSON только активных районов: geo_feature с place_status_read_model.action='raise'.
+   * GeoJSON активных районов: geo_feature мест из fold snapshot.
    * Лёгкий ответ (~единицы объектов) — безопасно вызывать при каждом обновлении places.
    */
   @Get("map/districts-active-geojson")

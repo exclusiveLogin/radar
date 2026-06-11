@@ -21,7 +21,7 @@ export async function wipeIngestPhase(
       action: "wipe",
       dryRun: true,
       counts: {},
-      notes: ["Удалит raw_messages, parsed_events, event_locations, parse_attempts, phase_runs, domain_events, ingest cursors/backfill, read-model карты."],
+      notes: ["Удалит raw_messages, parsed_events, event_locations, parse_attempts, phase_runs, domain_events, ingest cursors/backfill."],
     };
   }
 
@@ -42,8 +42,6 @@ export async function wipeIngestPhase(
       parse_attempts: r.parseAttemptsDeleted,
       phase_runs: r.phaseRunsDeleted,
       domain_events: r.domainEventsDeleted,
-      place_status_read_model: r.map.placesCleared,
-      region_status_read_model: r.map.regionsCleared,
       ingest_cursors: r.ingest.cursorsDeleted,
       ingest_backfill_jobs: r.ingest.backfillJobsDeleted,
       event_evidence: r.eventEvidenceDeleted,

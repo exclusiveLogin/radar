@@ -96,8 +96,8 @@ export class ReadSideController {
    */
   @Get("places/status")
   @ApiOperation({
-    summary: "[DEPRECATED] place_status_read_model (raw)",
-    description: "Прямой дамп place_status_read_model. Используй GET /map/snapshot.",
+    summary: "[DEPRECATED] Текущие place winners из event_locations",
+    description: "Fold winners по place_id. Используй GET /map/snapshot.",
     deprecated: true,
   })
   @ApiQuery({ name: "placeId", required: false, schema: { type: "string", format: "uuid" } })
@@ -121,7 +121,7 @@ export class ReadSideController {
   @Get("places/status/history")
   @ApiOperation({
     summary: "[DEPRECATED] История статусов места (raw)",
-    description: "Сырая история place_status_read_model. Только для отладки.",
+    description: "История фактов event_locations по place. Только для отладки.",
     deprecated: true,
   })
   @ApiQuery({ name: "placeId", required: false, schema: { type: "string", format: "uuid" } })
