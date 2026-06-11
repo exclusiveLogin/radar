@@ -4,7 +4,6 @@
  */
 const REGION_ALIAS_TO_CANONICAL: Record<string, string> = {
   "UA-43": "RU-CR",
-  "RU-SE": "RU-SEV",
 };
 
 export function normalizeRegionCodeAlias(code: string): string {

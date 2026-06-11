@@ -53,6 +53,7 @@
     "parse-engine:manifest:import": "tsx src/cli/phaseManifestCli.ts import",
     "parse-engine:manifest:export": "tsx src/cli/phaseManifestCli.ts export",
     "worker:map-state:expire": "tsx src/cli/mapStateExpireCli.ts",
+    "worker:map-state:diagnose": "tsx src/cli/mapStateDiagnoseCli.ts",
     "worker:backfill:status-read-models": "tsx src/cli/backfillStatusReadModelsCli.ts",
     "verify:parse-threads": "tsx scripts/verify-parse-threads.mjs",
     "verify:bootstrap": "tsx scripts/verify-worker-bootstrap.mjs"

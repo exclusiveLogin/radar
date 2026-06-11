@@ -41,7 +41,6 @@ function normalizeRegionCodeAlias(code: string): string {
   const raw = code.trim().toUpperCase();
   if (!raw) return raw;
   if (raw === "UA-43") return "RU-CR";
-  if (raw === "RU-SE") return "RU-SEV";
   return raw;
 }
 

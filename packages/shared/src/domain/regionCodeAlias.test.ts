@@ -14,3 +14,7 @@ test("normalizeRegionCodeAlias: сохраняет полный ISO", () => {
 test("normalizeRegionCodeAlias: legacy aliases", () => {
   assert.equal(normalizeRegionCodeAlias("UA-43"), "RU-CR");
 });
+
+test("normalizeRegionCodeAlias: RU-SE остаётся Северной Осетией", () => {
+  assert.equal(normalizeRegionCodeAlias("RU-SE"), "RU-SE");
+});

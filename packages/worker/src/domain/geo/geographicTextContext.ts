@@ -79,6 +79,13 @@ export function isExplicitFederalSubjectAlias(alias: string): boolean {
   return isFederalSubjectLabel(alias);
 }
 
+/** Стебель названия субъекта без хвостового типа («… Респ» → «карачаево-черкесская»). */
+function subjectStemFromCatalogName(name: string): string {
+  return normalize(name)
+    .replace(/\s+(республика|респ|область|обл|край|ао|округ)$/g, "")
+    .trim();
+}
+
 /** Есть ли в тексте явная отсылка к этому субъекту (не только стем прилагательного). */
 export function regionHasExplicitMentionInText(
   rawText: string,
@@ -103,11 +110,11 @@ export function regionHasExplicitMentionInText(
     return true;
   }
 
-  // DB: name «Калужская», текст: «Калужская область» — явный субъект
-  const shortName = normalize(region.name);
-  if (shortName && !isExplicitFederalSubjectAlias(region.name)) {
+  // DB: «Кабардино-Балкарская Респ», текст: «… Республика» — явный субъект
+  const stem = subjectStemFromCatalogName(region.name);
+  if (stem) {
     for (const typeToken of SUBJECT_TYPE_TOKENS) {
-      if (containsWholeToken(haystack, `${shortName} ${typeToken}`)) {
+      if (containsWholeToken(haystack, `${stem} ${typeToken}`)) {
         return true;
       }
     }

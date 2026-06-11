@@ -6,7 +6,7 @@ import type {
   IStatusDictionaryRepository,
   StatusDictionaryRecord,
 } from "@radar/shared";
-import { SOURCE_TRUST, mergeContribution } from "@radar/shared";
+import { SOURCE_TRUST, isMapEventOlderThanTtl, mergeContribution } from "@radar/shared";
 import type { DataSource } from "typeorm";
 import { bridgeEventCategoryToCode } from "../../domain/region-state/eventCategoryBridge.js";
 
@@ -36,7 +36,55 @@ type MessageParsedPayload = {
 type ProjectionDeps = {
   dataSource: DataSource;
   statusDictionary: IStatusDictionaryRepository;
+  /** Окно карты по postedAt raw (не по времени reparse). SSOT: resolveMapStateTtlMs(). */
+  mapStateTtlMs: number;
 };
+
+/** Идемпотентный upsert: не трогаем строку, если winner и семантика уже совпадают. */
+const READ_MODEL_IDEMPOTENT_SKIP = `
+  AND NOT (
+    region_status_read_model.winner_occurred_at = EXCLUDED.winner_occurred_at
+    AND region_status_read_model.action IS NOT DISTINCT FROM EXCLUDED.action
+    AND region_status_read_model.status_code = EXCLUDED.status_code
+    AND region_status_read_model.state_level::text = EXCLUDED.state_level::text
+  )`;
+
+const PLACE_READ_MODEL_IDEMPOTENT_SKIP = `
+  AND NOT (
+    place_status_read_model.winner_occurred_at = EXCLUDED.winner_occurred_at
+    AND place_status_read_model.action IS NOT DISTINCT FROM EXCLUDED.action
+    AND place_status_read_model.status_code = EXCLUDED.status_code
+    AND place_status_read_model.state_level::text = EXCLUDED.state_level::text
+  )`;
+
+/** stale сбрасываем только при strictly newer winner (postedAt), не при reparse того же события. */
+const STALE_RESET_ON_NEW_WINNER = `
+  stale = CASE
+    WHEN region_status_read_model.winner_occurred_at IS NULL
+      OR region_status_read_model.winner_occurred_at < EXCLUDED.winner_occurred_at
+    THEN false
+    ELSE region_status_read_model.stale
+  END,
+  stale_at = CASE
+    WHEN region_status_read_model.winner_occurred_at IS NULL
+      OR region_status_read_model.winner_occurred_at < EXCLUDED.winner_occurred_at
+    THEN NULL
+    ELSE region_status_read_model.stale_at
+  END`;
+
+const PLACE_STALE_RESET_ON_NEW_WINNER = `
+  stale = CASE
+    WHEN place_status_read_model.winner_occurred_at IS NULL
+      OR place_status_read_model.winner_occurred_at < EXCLUDED.winner_occurred_at
+    THEN false
+    ELSE place_status_read_model.stale
+  END,
+  stale_at = CASE
+    WHEN place_status_read_model.winner_occurred_at IS NULL
+      OR place_status_read_model.winner_occurred_at < EXCLUDED.winner_occurred_at
+    THEN NULL
+    ELSE place_status_read_model.stale_at
+  END`;
 
 /**
  * Read-model проекция LastWinner для region/place.
@@ -53,16 +101,19 @@ export class LastWinnerReadModelProjection {
     const payload = event.payload as MessageParsedPayload;
     const locations = payload.locations ?? [];
 
+    const messagePostedAt = this.resolveMessagePostedAt(payload, event);
+
     // Отбой без геолокаций: чистим все регионы, в которые канал писал за последние 24ч.
     if (payload.eventType === "cleared" && locations.length === 0 && payload.channelKey) {
+      if (!this.shouldProjectMapEvent(messagePostedAt)) return;
       await this.ensureDictionary();
       const resolvedStatusCode = this.resolveDeactivateStatusCode();
-      const fallbackOccurredAt = payload.postedAt ?? event.occurredAt;
-      await this.clearChannelRegions(payload.channelKey, resolvedStatusCode, fallbackOccurredAt);
+      await this.clearChannelRegions(payload.channelKey, resolvedStatusCode, messagePostedAt);
       return;
     }
 
     if (locations.length === 0) return;
+    if (!this.shouldProjectMapEvent(messagePostedAt)) return;
 
     await this.ensureDictionary();
     const resolvedStatusCode =
@@ -72,8 +123,6 @@ export class LastWinnerReadModelProjection {
     const resolvedStateLevel = this.levelOf(resolvedStatusCode);
     const fallbackAction: "raise" | "clear" =
       payload.active === false || resolvedStateLevel === "green" ? "clear" : "raise";
-    const fallbackOccurredAt = payload.postedAt ?? event.occurredAt;
-
     const clearTargetRegionIds = await this.resolveClearTargets({
       payload,
       locations,
@@ -88,7 +137,7 @@ export class LastWinnerReadModelProjection {
         ? "clear"
         : (location.action ?? "raise");
       const authorChannelKey = location.authorChannelKey ?? payload.channelKey ?? null;
-      const occurredAt = location.occurredAt ?? fallbackOccurredAt;
+      const occurredAt = location.occurredAt ?? messagePostedAt;
       const entityKind = location.entityKind ?? (location.placeId ? "place" : "region");
 
       await this.upsertRegionWinner({
@@ -134,7 +183,7 @@ export class LastWinnerReadModelProjection {
           stateLevel: this.levelOf(resolvedStatusCode),
           action: "clear",
           authorChannelKey: payload.channelKey ?? null,
-          occurredAt: fallbackOccurredAt,
+          occurredAt: messagePostedAt,
         });
         if (payload.channelKey) {
           await this.clearAuthorPlacesInRegion({
@@ -143,7 +192,7 @@ export class LastWinnerReadModelProjection {
             statusCode: resolvedStatusCode,
             stateLevel: this.levelOf(resolvedStatusCode),
             authorChannelKey: payload.channelKey,
-            occurredAt: fallbackOccurredAt,
+            occurredAt: messagePostedAt,
           });
         }
       }
@@ -300,6 +349,23 @@ export class LastWinnerReadModelProjection {
     return this.stateLevelByCode?.get(statusCode) ?? "grey";
   }
 
+  /** SSOT времени события для карты: postedAt канала, не occurredAt парсинга/reparse. */
+  private resolveMessagePostedAt(
+    payload: MessageParsedPayload,
+    event: DomainEvent,
+  ): string {
+    return payload.postedAt ?? event.occurredAt;
+  }
+
+  /** События старше TTL по postedAt не меняют read-model (reparse идемпотентен). */
+  private shouldProjectMapEvent(messagePostedAt: string): boolean {
+    return !isMapEventOlderThanTtl(
+      messagePostedAt,
+      Date.now(),
+      this.deps.mapStateTtlMs,
+    );
+  }
+
   private async upsertRegionWinner(input: {
     regionId: string;
     regionCode: string;
@@ -323,8 +389,7 @@ export class LastWinnerReadModelProjection {
           action = EXCLUDED.action,
           author_channel_key = EXCLUDED.author_channel_key,
           winner_occurred_at = EXCLUDED.winner_occurred_at,
-          stale = false,
-          stale_at = NULL,
+          ${STALE_RESET_ON_NEW_WINNER},
           updated_at = now()
       WHERE region_status_read_model.winner_occurred_at <= EXCLUDED.winner_occurred_at
         AND (
@@ -338,6 +403,7 @@ export class LastWinnerReadModelProjection {
                region_status_read_model.state_level::text
              )
         )
+        ${READ_MODEL_IDEMPOTENT_SKIP}
       `,
       [
         input.regionId,
@@ -403,8 +469,7 @@ export class LastWinnerReadModelProjection {
           action = EXCLUDED.action,
           author_channel_key = EXCLUDED.author_channel_key,
           winner_occurred_at = EXCLUDED.winner_occurred_at,
-          stale = false,
-          stale_at = NULL,
+          ${PLACE_STALE_RESET_ON_NEW_WINNER},
           updated_at = now()
       WHERE place_status_read_model.winner_occurred_at <= EXCLUDED.winner_occurred_at
         AND (
@@ -418,6 +483,7 @@ export class LastWinnerReadModelProjection {
                place_status_read_model.state_level::text
              )
         )
+        ${PLACE_READ_MODEL_IDEMPOTENT_SKIP}
       `,
       [
         input.placeId,

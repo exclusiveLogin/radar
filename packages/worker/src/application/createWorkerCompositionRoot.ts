@@ -217,6 +217,7 @@ export async function createWorkerCompositionRoot(
     const lastWinnerProjection = new LastWinnerReadModelProjection({
       dataSource,
       statusDictionary: repos.statusDictionary,
+      mapStateTtlMs: resolveMapStateTtlMs(),
     });
     bus.subscribe("MessageParsed", lastWinnerProjection.handler);
 

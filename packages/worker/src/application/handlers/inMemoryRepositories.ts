@@ -285,9 +285,7 @@ export class InMemoryRegionRepository implements IRegionRepository {
   async findByCode(code: string): Promise<RegionRecord | null> {
     const normalized = code.trim().toUpperCase() === "UA-43"
       ? "RU-CR"
-      : code.trim().toUpperCase() === "RU-SE"
-        ? "RU-SEV"
-        : code;
+      : code;
     const direct = this.rows.get(normalized);
     if (direct) return direct;
 

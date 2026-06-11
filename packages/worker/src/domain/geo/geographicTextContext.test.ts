@@ -229,3 +229,25 @@ test("resolveEnricherGeocode: омонимичный район + явная о�
   );
   assert.equal(out.bindPlaceName, "Николаевский район");
 });
+
+const CAUCASUS_BPLA_MSG =
+  "Кабардино-Балкарская Республика, Карачаево-Черкесская Республика, Республика Дагестан, "
+  + "Республика Ингушетия, Республика Северная Осетия - Алания, Чеченская Республика - "
+  + "опасность по БПЛА от Республики Абхазия";
+
+test("filter: перечисление республик СКФО — все шесть субъектов", () => {
+  const regions = [
+    { code: "RU-KB", name: "Кабардино-Балкарская Респ" },
+    { code: "RU-KC", name: "Карачаево-Черкесская Респ" },
+    { code: "RU-DA", name: "Республика Дагестан" },
+    { code: "RU-IN", name: "Республика Ингушетия" },
+    { code: "RU-SE", name: "Республика Северная Осетия - Алания" },
+    { code: "RU-CE", name: "Чеченская Респ" },
+  ];
+  const anchors = findLocalityAnchorsInText(CAUCASUS_BPLA_MSG, ANCHORS);
+  const out = filterRegionsByTextContext(regions, CAUCASUS_BPLA_MSG, anchors);
+  assert.deepEqual(
+    out.map((region) => region.code).sort(),
+    ["RU-CE", "RU-DA", "RU-IN", "RU-KB", "RU-KC", "RU-SE"].sort(),
+  );
+});

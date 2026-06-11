@@ -3,7 +3,7 @@ import type { DadataSuggestion } from "./mapDadataSuggestion.js";
 
 /** DaData ISO ↔ наш каталог (Севастополь, Крым). */
 const DADATA_ISO_EQUIVALENTS: Record<string, string[]> = {
-  "RU-SEV": ["UA-40", "RU-SE"],
+  "RU-SEV": ["UA-40"],
   "RU-CR": ["UA-43"],
 };
 

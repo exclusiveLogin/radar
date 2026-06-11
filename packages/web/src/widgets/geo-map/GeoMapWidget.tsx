@@ -6,7 +6,12 @@ import type {
   Popup,
 } from "maplibre-gl";
 import type { Subscription } from "rxjs";
-import type { MapPlaceSnapshot, MapRegionSnapshot, StateLevel } from "@radar/shared";
+import type {
+  MapPlaceSnapshot,
+  MapRegionSnapshot,
+  SourceMessage,
+  StateLevel,
+} from "@radar/shared";
 import { Panel } from "../../shared/ds";
 import { mapApi } from "../../shared/api/mapApi";
 import { regionFadeFactor } from "../../shared/utils/regionFade";
@@ -56,9 +61,54 @@ const REGION_GEOJSON_SOURCE = {
 
 const FEATURE_SELECTED = ["boolean", ["feature-state", "selected"], false] as const;
 
-/** Place-слой выше fill региона — при hover на точку не показываем тултип области. */
-function hasPlaceAtPointer(map: MapLibreMap, point: { x: number; y: number }): boolean {
-  return map.queryRenderedFeatures(point, { layers: [PLACES_LAYER] }).length > 0;
+/** Дочерние сущности (place-маркер или полигон района) перекрывают регион. */
+function hasChildEntityAtPointer(
+  map: MapLibreMap,
+  point: { x: number; y: number },
+): boolean {
+  return map.queryRenderedFeatures(point, {
+    layers: [PLACES_LAYER, DISTRICTS_FILL, DISTRICTS_OUTLINE],
+  }).length > 0;
+}
+
+/** Текст тултипа региона: уровень, время статуса, тип и фрагмент raw. */
+function buildRegionPopupLines(code: string): string[] {
+  const region = regionsByCode$.value.get(code);
+  const isDerived = derivedRegionCodes$.value.has(code);
+  const recentEvent = stateChangesFeed$.value.find((e) => e.regionCodes.includes(code));
+  const levelLabel = region ? LEVEL_LABELS[region.stateLevel] : null;
+  return [
+    `${code} — ${region?.name ?? code}`,
+    isDerived && levelLabel
+      ? `${levelLabel} (производный)`
+      : levelLabel
+        ? `${levelLabel} · ×${region?.activity ?? 0}`
+        : null,
+    recentEvent?.eventType ? `тип: ${recentEvent.eventType}` : null,
+    region?.statusEventAt ? `статус с ${formatDateTime(region.statusEventAt)}` : null,
+    recentEvent?.rawText ? recentEvent.rawText.slice(0, 80) : null,
+  ].filter((line): line is string => !!line);
+}
+
+/** Текст тултипа place: уровень, код статуса, время и фрагмент raw (как у региона). */
+function buildPlacePopupLines(
+  placeId: string,
+  sourceMessage?: SourceMessage | null,
+): string[] {
+  const place = placesById$.value.get(placeId);
+  if (!place) return [];
+
+  const region = regionsByCode$.value.get(place.regionCode);
+  const regionLevel = region?.stateLevel ?? "grey";
+  const level = effectivePlaceLevel(place.stateLevel, regionLevel);
+
+  return [
+    `${place.placeName} · ${place.regionCode}`,
+    LEVEL_LABELS[level],
+    place.statusCode ? `тип: ${place.statusCode}` : null,
+    place.statusEventAt ? `статус с ${formatDateTime(place.statusEventAt)}` : null,
+    sourceMessage?.rawText ? sourceMessage.rawText.slice(0, 80) : null,
+  ].filter((line): line is string => !!line);
 }
 
 type PointFeature = {
@@ -215,9 +265,13 @@ function paintActiveDistricts(
       ...feature,
       properties: {
         ...feature.properties,
+        kind: "place",
         color: LEVEL_COLORS[level],
         placeId: place.placeId,
         placeName: place.placeName,
+        regionCode: place.regionCode,
+        statusCode: place.statusCode,
+        stateLabel: LEVEL_LABELS[level],
       },
     });
   }
@@ -240,6 +294,33 @@ function whenStyleReady(
     fn();
   };
   map.on("styledata", onStyleData);
+}
+
+/** setData с повтором на idle — после pan/zoom до загрузки geo источник может быть ещё не готов. */
+function setGeoJsonSourceData(
+  map: MapLibreMap,
+  sourceId: string,
+  data: unknown,
+): boolean {
+  const source = map.getSource(sourceId) as GeoJSONSource | undefined;
+  if (!source) return false;
+  source.setData(data as never);
+  map.triggerRepaint();
+  return true;
+}
+
+function applyGeoJsonSourceData(
+  map: MapLibreMap,
+  sourceId: string,
+  data: unknown,
+): void {
+  const push = (): boolean => setGeoJsonSourceData(map, sourceId, data);
+  whenStyleReady(map, () => {
+    if (push()) return;
+    map.once("idle", () => {
+      push();
+    });
+  });
 }
 
 /**
@@ -459,6 +540,13 @@ export function GeoMapWidget(_props: WidgetProps) {
     let fadeTicker: ReturnType<typeof setInterval> | undefined;
     let placePopup: Popup | null = null;
     let regionPopup: Popup | null = null;
+    /** Кэш raw-сообщения place — не дергаем API на каждый mousemove. */
+    const placeSourceCache = new Map<string, SourceMessage | null>();
+    const placeSourcePending = new Map<string, Promise<SourceMessage | null>>();
+    let activePlacePopupId: string | null = null;
+    /** Пользователь сдвинул карту до прихода geojson — не делаем auto-fit/stop. */
+    let userAdjustedViewBeforeGeo = false;
+    let geoRecoveryHooked = false;
     // Хранит ссылку на maplibre после динамического import — нужна для Popup в обработчиках
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let maplibreRef: any = null;
@@ -489,6 +577,21 @@ export function GeoMapWidget(_props: WidgetProps) {
       didFitRef.current = true;
     };
 
+    const scheduleGeoLayerRecovery = (): void => {
+      if (!map || geoRecoveryHooked) return;
+      geoRecoveryHooked = true;
+      const recover = (): void => {
+        if (disposed || !map || !baseRegionsRef.current) return;
+        applyRegions();
+        if (baseDistrictsRef.current) {
+          applyDistrictsLayer(baseDistrictsRef.current);
+        }
+        applyPlacesLayerOnly();
+      };
+      map.once("idle", recover);
+      map.once("moveend", recover);
+    };
+
     const applyRegions = (): void => {
       if (!map || !baseRegionsRef.current) return;
       whenStyleReady(map, () => {
@@ -499,14 +602,12 @@ export function GeoMapWidget(_props: WidgetProps) {
           Date.now(),
         );
         setRegionOutlines(painted.features.length);
-        const fillSource = map.getSource(REGIONS_SOURCE) as
-          | GeoJSONSource
-          | undefined;
-        fillSource?.setData(painted as never);
-        const outlineSource = map.getSource(REGIONS_OUTLINE_SOURCE) as
-          | GeoJSONSource
-          | undefined;
-        outlineSource?.setData(paintRegionInsetOutlines(painted) as never);
+        applyGeoJsonSourceData(map, REGIONS_SOURCE, painted);
+        applyGeoJsonSourceData(
+          map,
+          REGIONS_OUTLINE_SOURCE,
+          paintRegionInsetOutlines(painted),
+        );
         if (highlightedCode) {
           setRegionFeatureSelected(map, highlightedCode, true);
         }
@@ -514,9 +615,11 @@ export function GeoMapWidget(_props: WidgetProps) {
           placesById$.value,
           regionsByCode$.value,
         );
-        fitIfNeeded(painted.features, placeFeatures);
-        if (requestOverviewFit) {
-          tryFitOverview(0);
+        if (!userAdjustedViewBeforeGeo) {
+          fitIfNeeded(painted.features, placeFeatures);
+          if (requestOverviewFit) {
+            tryFitOverview(0);
+          }
         }
       });
     };
@@ -535,8 +638,7 @@ export function GeoMapWidget(_props: WidgetProps) {
           placesById$.value,
           regionsByCode$.value,
         );
-        const source = map.getSource(DISTRICTS_SOURCE) as GeoJSONSource | undefined;
-        source?.setData(painted as never);
+        applyGeoJsonSourceData(map, DISTRICTS_SOURCE, painted);
       });
     };
 
@@ -570,8 +672,7 @@ export function GeoMapWidget(_props: WidgetProps) {
         );
         setPlaceCount(collection.features.length);
         lastPlaceFeaturesRef.current = collection.features.length;
-        const source = map.getSource(PLACES_SOURCE) as GeoJSONSource | undefined;
-        source?.setData(collection as never);
+        applyGeoJsonSourceData(map, PLACES_SOURCE, collection);
       });
     };
 
@@ -600,9 +701,11 @@ export function GeoMapWidget(_props: WidgetProps) {
         if (highlightedCode) {
           setRegionFeatureSelected(map, highlightedCode, true);
         }
-        fitIfNeeded(painted.features, collection.features);
-        if (requestOverviewFit) {
-          tryFitOverview(0);
+        if (!userAdjustedViewBeforeGeo) {
+          fitIfNeeded(painted.features, collection.features);
+          if (requestOverviewFit) {
+            tryFitOverview(0);
+          }
         }
       });
     };
@@ -615,6 +718,7 @@ export function GeoMapWidget(_props: WidgetProps) {
           baseRegionsRef.current = layer as GeoJsonCollection;
           setGeoError(null);
           applyRegions();
+          scheduleGeoLayerRecovery();
         })
         .catch((error: unknown) => {
           const message = error instanceof Error ? error.message : "Ошибка загрузки геометрии";
@@ -778,23 +882,34 @@ export function GeoMapWidget(_props: WidgetProps) {
         }
       };
 
-      const onPlaceHover = (event: MapLayerMouseEvent): void => {
+      const resolvePlaceSource = async (placeId: string): Promise<SourceMessage | null> => {
+        if (placeSourceCache.has(placeId)) {
+          return placeSourceCache.get(placeId) ?? null;
+        }
+        let pending = placeSourcePending.get(placeId);
+        if (!pending) {
+          pending = mapApi
+            .placeSourceMessage(placeId)
+            .then((response) => response.message)
+            .catch(() => null);
+          placeSourcePending.set(placeId, pending);
+        }
+        const message = await pending;
+        placeSourceCache.set(placeId, message);
+        placeSourcePending.delete(placeId);
+        return message;
+      };
+
+      const showPlacePopup = (lngLat: MapLayerMouseEvent["lngLat"], placeId: string): void => {
         if (!map) return;
+        activePlacePopupId = placeId;
         regionPopup?.remove();
         regionPopup = null;
         map.getCanvas().style.cursor = "pointer";
-        const props = event.features?.[0]?.properties;
-        const name = props?.placeName;
-        if (typeof name !== "string" || !name) return;
-        const regionCode = props?.regionCode;
-        const stateLabel = props?.stateLabel;
-        const statusCode = props?.statusCode;
-        const lines = [
-          name,
-          typeof regionCode === "string" ? regionCode : null,
-          typeof stateLabel === "string" ? stateLabel : null,
-          typeof statusCode === "string" ? statusCode : null,
-        ].filter(Boolean);
+
+        const lines = buildPlacePopupLines(placeId);
+        if (lines.length === 0) return;
+
         placePopup?.remove();
         placePopup = new ml.Popup({
           closeButton: false,
@@ -802,42 +917,41 @@ export function GeoMapWidget(_props: WidgetProps) {
           className: "geo-map-place-popup",
           offset: 12,
         })
-          .setLngLat(event.lngLat)
+          .setLngLat(lngLat)
           .setText(lines.join("\n"))
           .addTo(map);
+
+        void resolvePlaceSource(placeId).then((sourceMessage) => {
+          if (!map || !placePopup || activePlacePopupId !== placeId) return;
+          const enriched = buildPlacePopupLines(placeId, sourceMessage);
+          if (enriched.length === 0) return;
+          placePopup.setText(enriched.join("\n"));
+        });
+      };
+
+      const onPlaceHover = (event: MapLayerMouseEvent): void => {
+        const placeId = event.features?.[0]?.properties?.placeId;
+        if (typeof placeId !== "string" || !placeId) return;
+        showPlacePopup(event.lngLat, placeId);
+      };
+
+      const onDistrictHover = (event: MapLayerMouseEvent): void => {
+        const placeId = event.features?.[0]?.properties?.placeId;
+        if (typeof placeId !== "string" || !placeId) return;
+        showPlacePopup(event.lngLat, placeId);
       };
 
       const onPlaceHoverEnd = (): void => {
         if (!map) return;
         map.getCanvas().style.cursor = "";
+        activePlacePopupId = null;
         placePopup?.remove();
         placePopup = null;
       };
 
-      /**
-       * Строит текст тултипа для региона с eventType, derived-меткой и rawText.
-       */
-      const buildRegionPopupLines = (code: string): string[] => {
-        const region = regionsByCode$.value.get(code);
-        const isDerived = derivedRegionCodes$.value.has(code);
-        const recentEvent = stateChangesFeed$.value.find((e) => e.regionCodes.includes(code));
-        const levelLabel = region ? LEVEL_LABELS[region.stateLevel] : null;
-        return [
-          `${code} — ${region?.name ?? code}`,
-          isDerived && levelLabel
-            ? `${levelLabel} (производный)`
-            : levelLabel
-              ? `${levelLabel} · ×${region?.activity ?? 0}`
-              : null,
-          recentEvent?.eventType ? `тип: ${recentEvent.eventType}` : null,
-          region?.statusEventAt ? `статус с ${formatDateTime(region.statusEventAt)}` : null,
-          recentEvent?.rawText ? recentEvent.rawText.slice(0, 80) : null,
-        ].filter((l): l is string => !!l);
-      };
-
       const onRegionHover = (event: MapLayerMouseEvent): void => {
         if (!map) return;
-        if (hasPlaceAtPointer(map, event.point)) {
+        if (hasChildEntityAtPointer(map, event.point)) {
           regionPopup?.remove();
           regionPopup = null;
           return;
@@ -870,8 +984,29 @@ export function GeoMapWidget(_props: WidgetProps) {
       map.on("mouseenter", PLACES_LAYER, onPlaceHover);
       map.on("mousemove", PLACES_LAYER, onPlaceHover);
       map.on("mouseleave", PLACES_LAYER, onPlaceHoverEnd);
+      map.on("mouseenter", DISTRICTS_FILL, onDistrictHover);
+      map.on("mousemove", DISTRICTS_FILL, onDistrictHover);
+      map.on("mouseleave", DISTRICTS_FILL, onPlaceHoverEnd);
+      map.on("mouseenter", DISTRICTS_OUTLINE, onDistrictHover);
+      map.on("mousemove", DISTRICTS_OUTLINE, onDistrictHover);
+      map.on("mouseleave", DISTRICTS_OUTLINE, onPlaceHoverEnd);
       map.on("mousemove", REGIONS_FILL, onRegionHover);
       map.on("mouseleave", REGIONS_FILL, onRegionHoverEnd);
+
+      // До прихода geojson — запоминаем ручной pan/zoom, чтобы не сбивать камеру auto-fit.
+      map.on("movestart", () => {
+        if (!baseRegionsRef.current) {
+          userAdjustedViewBeforeGeo = true;
+        }
+      });
+
+      if (baseRegionsRef.current) {
+        applyRegions();
+      }
+      if (baseDistrictsRef.current) {
+        applyDistrictsLayer(baseDistrictsRef.current);
+      }
+      applyPlacesLayerOnly();
     };
 
     void (async () => {
@@ -917,6 +1052,11 @@ export function GeoMapWidget(_props: WidgetProps) {
           afterStyleChange(map, () => {
             if (disposed || !map) return;
             if (highlightedCode) setRegionFeatureSelected(map, highlightedCode, true);
+            applyRegions();
+            if (baseDistrictsRef.current) {
+              applyDistrictsLayer(baseDistrictsRef.current);
+            }
+            applyPlacesLayerOnly();
           });
         });
 
