@@ -37,3 +37,24 @@ export function fadedLayerOpacity(
 ): number {
   return baseOpacity * regionFadeFactor(statusEventAt, now);
 }
+
+/** Заливка region/place на гео — regionFadeFactor × fillScale (схема: fillScale=1). */
+export function geoMapFillOpacity(
+  statusEventAt: string | undefined,
+  now: number,
+  fillScale = 1,
+): number {
+  return regionFadeFactor(statusEventAt, now) * fillScale;
+}
+
+/**
+ * Контур: минимум +50% к заливке (strokeFillRatio), но не выше 1.0.
+ */
+export function geoMapStrokeOpacity(
+  statusEventAt: string | undefined,
+  now: number,
+  fillScale = 1,
+  strokeFillRatio = 1.5,
+): number {
+  return Math.min(1, geoMapFillOpacity(statusEventAt, now, fillScale) * strokeFillRatio);
+}

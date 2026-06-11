@@ -14,7 +14,7 @@ async function main(): Promise<void> {
   if (hasAnyFlag(flags, ["help", "h"])) {
     console.log(`Usage: npm run parse-engine:catalog:wipe [--dry-run]
 
-  Удаляет places, aliases, geo_feature, parse/map read-model.
+  Удаляет places, aliases, geo_feature, event_locations.place_id unlink.
   НЕ трогает: raw_messages, regions.
 
   Полный wipe + раскатка:

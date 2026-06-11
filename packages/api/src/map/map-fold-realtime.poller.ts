@@ -20,7 +20,7 @@ const WARNING_TITLES: Record<string, string> = {
 };
 
 /**
- * WS realtime при RADAR_MAP_READ_SOURCE=fold: diff snapshot(now) раз в pollMs.
+ * WS realtime: diff fold snapshot(now) раз в pollMs.
  * Клиент при connect получает полный snapshot; poller шлёт только дельты.
  */
 @Injectable()

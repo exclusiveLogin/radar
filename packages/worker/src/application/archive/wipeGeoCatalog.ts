@@ -21,8 +21,6 @@ export type WipeGeoCatalogResult = {
 
 const CATALOG_TABLES = [
   "region_adjacency",
-  "region_state_history",
-  "region_state_active",
   "place_geo_link",
   "geo_feature",
   "place_aliases",
@@ -84,12 +82,8 @@ export async function wipeGeoCatalog(
   const placeGeoLinksDeleted = await countTableRows(dataSource, "place_geo_link", log);
   const geoDatasetFilesDeleted = await countTableRows(dataSource, "geo_dataset_file", log);
   const regionAdjacencyDeleted = await countTableRows(dataSource, "region_adjacency", log);
-  const regionStateHistoryDeleted = await countTableRows(
-    dataSource,
-    "region_state_history",
-    log,
-  );
-  const regionStateActiveDeleted = await countTableRows(dataSource, "region_state_active", log);
+  const regionStateHistoryDeleted = 0;
+  const regionStateActiveDeleted = 0;
   const regionsDeleted = includeRegions
     ? await countTableRows(dataSource, "regions", log)
     : 0;

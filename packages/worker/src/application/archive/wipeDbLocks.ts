@@ -93,7 +93,7 @@ export async function terminateTableLockBlockers(
 
 /**
  * Закрыть все прочие client-подключения к текущей БД (dev/API/DBeaver).
- * Для system:wipe --confirm — иначе TRUNCATE read-model часто ждёт lock.
+ * Для system:wipe --confirm — иначе TRUNCATE parsed/events часто ждёт lock.
  */
 export async function terminateOtherDatabaseBackends(
   dataSource: DataSource,

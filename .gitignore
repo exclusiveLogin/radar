@@ -154,5 +154,9 @@ vite.config.ts.timestamp-*
 # Сторонние geo-репозитории (git clone из scripts/fetch-geo-vendor.mjs)
 data/geo/vendor/
 
+# Локальные отчёты и диагностика (не коммитить)
+reports/
+
 # Времянки: ад-хок диагностика/однократные проверки (не коммитить)
 tmp/
+

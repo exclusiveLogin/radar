@@ -23,7 +23,7 @@ PowerShell, корень репозитория. Нужны `DATABASE_URL`, `RAD
         │
         ▼
   places (trust, coords)    ← обогащение
-  *_status_read_model       ← карта
+  fold snapshot             ← read-line карта (без materialized read_model)
 ```
 
 **Geo-каталог (staging, не runtime parse):**

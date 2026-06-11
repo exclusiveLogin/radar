@@ -45,8 +45,7 @@ npm run dev:app      # только shared + api + web (без worker)
         │
         ▼
   places.centroid_*     ← geo-обогащённые места
-  region_status_read_model
-  place_status_read_model  ← read-model карты
+  fold snapshot         ← read-line (event_locations → foldMapState)
 ```
 
 **Geo-каталог (staging, не runtime parse):**
@@ -78,7 +77,7 @@ npm run geo:catalog:import -w @radar/api
 | Команда | Что делает |
 |---------|-----------|
 | `npm run ingest:run -- --channels=<key>` | backfill канала (грузит старые сообщения) |
-| `npm run ingest:wipe` | Удалить raw + parsed + evloc + очереди + read-model. **Places/regions не трогает** |
+| `npm run ingest:wipe` | Удалить raw + parsed + evloc + очереди. **Places/regions не трогает** |
 | `npm run ingest:reset` | noop (нечего сбрасывать) |
 
 ### Parse — разбор сообщений → события
@@ -86,7 +85,7 @@ npm run geo:catalog:import -w @radar/api
 | Команда | Что делает |
 |---------|-----------|
 | `npm run parse:run` | Перепарсить все raw (rebuild + drain) |
-| `npm run parse:wipe [-- --dry-run]` | Удалить parsed_events + evloc + read-model. **Raw остаётся** |
+| `npm run parse:wipe [-- --dry-run]` | Удалить parsed_events + evloc. **Raw остаётся** |
 | `npm run parse:reset` | noop |
 | `npm run parse-engine:rebuild` | Заново заполнить phase_coverage по всем raw (без drain) |
 | `npm run parse-engine:drain` | Догнать очереди (нужен worker) |
@@ -123,7 +122,7 @@ npm run geo:catalog:import -w @radar/api
 
 | Команда | Что удаляет |
 |---------|------------|
-| `npm run ingest-parse:wipe [-- --dry-run]` | raw + parsed + evloc + очереди + read-model |
+| `npm run ingest-parse:wipe [-- --dry-run]` | raw + parsed + evloc + очереди |
 | `npm run vendor-ingest-parse-geo:wipe [-- --dry-run]` | всё выше + places + geo_feature + regions |
 | `npm run system:reset -- --confirm` | vendor-ingest-parse-geo:wipe + geo:init (legacy); диск не трогает |
 | `npm run system:reset -- --confirm --wipe-only` | только wipe БД → дальше geo:catalog:import |

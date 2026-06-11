@@ -12,7 +12,6 @@ parse-engine:clear — полный сброс операционного кон
 
   • phase_runs, phase_coverage, domain_events
   • parsed_events, parse_attempts, event_locations
-  • region_state → grey, place_status, history лент
   • event_evidence, place_enrichment_jobs
   • ingest cursors/backfill
   • raw_messages
@@ -59,7 +58,7 @@ async function main(): Promise<void> {
   console.log(`  parsed_events: ${result.parsedEventsDeleted}`);
   console.log(`  parse_attempts: ${result.parseAttemptsDeleted}`);
   console.log(
-    `  карта(read-model): places=${result.map.placesCleared} regions=${result.map.regionsCleared}`,
+    `  map-state (no-op): places=${result.map.placesCleared} regions=${result.map.regionsCleared}`,
   );
   console.log(`  phase_runs: ${result.phaseRunsDeleted} (остановлено ${result.phaseRunsStopped})`);
   console.log(`  phase_coverage queue: ${result.queueCleared}`);

@@ -212,7 +212,7 @@ export class MapQueryService {
     };
   }
 
-  /** Полигоны активных регионов (OSM GeoJSON) + stateLevel из region_state_active. */
+  /** Полигоны активных регионов (OSM GeoJSON) + stateLevel из fold snapshot. */
   async getRegionsGeoJsonLayer(): Promise<RegionsGeoJsonLayer> {
     await this.ensureCatalogBound();
 

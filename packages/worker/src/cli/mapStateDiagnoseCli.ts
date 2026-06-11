@@ -2,12 +2,12 @@ import { MONOREPO_ROOT } from "@repo/root";
 import { foldMapState, loadMapFoldFacts } from "@radar/shared";
 import { createWorkerDataSource } from "../infrastructure/persistence/createWorkerDataSource.js";
 import { loadRootEnv } from "../infrastructure/config/loadRootEnv.js";
-import { resolveMapStateTtlMs } from "../infrastructure/config/mapStateExpiryConfig.js";
+import { resolveMapStateTtlMs } from "@radar/shared";
 
 /** Диагностика fold read-line: видимые регионы/места на now. */
 async function main(): Promise<void> {
   loadRootEnv(MONOREPO_ROOT);
-  const ttlMs = resolveMapStateTtlMs();
+  const ttlMs = resolveMapStateTtlMs(process.env);
   const dataSource = await createWorkerDataSource();
   const asOf = new Date();
   const cutoff = new Date(asOf.getTime() - ttlMs).toISOString();

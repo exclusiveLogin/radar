@@ -59,7 +59,7 @@ export async function clearOperationalContent(
   });
 
   let map = { placesCleared: 0, regionsCleared: 0 };
-  await runWipeStep(input, "read-model карты (TRUNCATE)", async () => {
+  await runWipeStep(input, "map-state (no-op, facts via parsed_events wipe)", async () => {
     map = await clearOperationalMapState(dataSource, reason, truncateOpts(input));
     return -1;
   });

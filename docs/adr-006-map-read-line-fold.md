@@ -2,10 +2,12 @@
 
 ## Контекст
 
-Операционное состояние карты (winner, уровень, видимость) материализовалось в
+Операционное состояние карты (winner, уровень, видимость) раньше материализовалось в
 `region_status_read_model` / `place_status_read_model` на write-path
 (`LastWinnerReadModelProjection`, `MapStateExpirySweep`). Это давало рассинхрон
 region/place, stale-флаги и зависимость от времени reparse.
+
+**Статус (2026):** миграция завершена. Materialized read_model удалён из кода и БД.
 
 ## Решение
 
@@ -17,8 +19,11 @@ Append-only цепочка:
 - `parsed_events`
 - `event_locations` (`occurred_at` = postedAt публикации)
 
-Идемпотентность ingest/parse — по `postedAt`, hash, identity сообщения.
+Идемпотентность ingest/parse — по hash и identity сообщения.
 **Статусы на write-line не хранятся.**
+
+Коррекция сообщения (edit/revision) — **новый raw + parse**, тот же `posted_at`;
+fold на read-side выбирает winner (clear бьёт raise при том же времени).
 
 ### Read-line — вычисление от маркера времени
 
@@ -26,30 +31,32 @@ Append-only цепочка:
 snapshot(asOf, policies) = foldMapState(facts where occurred_at <= asOf)
 ```
 
-- `asOf` по умолчанию `now`; позже — курсор таймлайна UI
+- `asOf` по умолчанию `now`; UI — ползунок таймлайна (`MapTimelineBar`)
 - TTL 24h: факт вне окна `(asOf - TTL, asOf]` не участвует в fold
 - Fade 3h: на фронте от `statusEventAt` (= winner `occurred_at`)
 - Place suppress: региональный clear новее place raise (см. `isPlaceSuppressedByRegionClear`)
 
-SSOT логики fold: `packages/shared/src/domain/region-state/mapStateFold.ts`
+SSOT логики fold: `packages/shared/src/domain/region-state/mapStateFold.ts`  
+SSOT загрузки фактов: `packages/shared/src/domain/region-state/mapFactsLoader.ts`
 
-### Legacy read-model (deprecated cache)
+### Архитектура API
 
-`region_status_read_model`, `place_status_read_model` — **не SSOT**.
-Фаза 1: live `GET /map/snapshot` читает read-model; `?asOf=` — fold из facts.
-Фаза 2: cutover live на fold. Фаза 3: удаление проекции и таблиц.
+- `MapFactsRepository` — загрузка фактов
+- `MapSnapshotQueryService` — fold + enrich → `MapSnapshot`
+- `MapQueryService` — REST adapter
+- `MapFoldRealtimePoller` — WS diff fold snapshot(now)
 
 ## API
 
 | Endpoint | Источник |
 |----------|----------|
-| `GET /map/snapshot` | read-model (live, now) |
-| `GET /map/snapshot?asOf=ISO` | fold из facts (таймлайн / shadow) |
+| `GET /map/snapshot` | fold на `now` |
+| `GET /map/snapshot?asOf=ISO` | fold на маркер времени (таймлайн) |
+| `GET /map/snapshot?since=ISO` | fold на `now`, фильтр по `statusEventAt > since` |
 
 `since` и `asOf` взаимоисключающие.
 
 ## Вне scope ADR
 
-- Raw semantic dedup (`posted_at` + normalized text)
-- Переименование `parsed_events.parsed_at` → `posted_at`
-- WS pollers на fold (фаза 2)
+- Raw semantic dedup cross-channel (`posted_at` + normalized text)
+- Переименование `parsed_events.parsed_at` → `posted_at` в схеме БД

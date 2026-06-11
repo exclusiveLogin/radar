@@ -30,7 +30,7 @@
 |---------|--------|
 | `ingest:run` | backfill всех каналов (= `parse-engine:ingest:backfill`) |
 | `ingest:reset` | **noop** |
-| `ingest:wipe` | `raw_messages` + parsed, evloc, parse_attempts, ingest cursors/backfill, read-model карты |
+| `ingest:wipe` | `raw_messages` + parsed, evloc, parse_attempts, ingest cursors/backfill |
 
 **Не трогает:** places, regions, geo_feature.
 
@@ -40,7 +40,7 @@
 |---------|--------|
 | `parse:run` | `parse-engine:rebuild:drain` |
 | `parse:reset` | **noop** |
-| `parse:wipe` | parsed + evloc + read-model; **raw остаётся** |
+| `parse:wipe` | parsed + evloc; **raw остаётся** |
 
 ### geo (places как актив)
 

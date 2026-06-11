@@ -31,7 +31,7 @@ function placeStatusAt(row: MapPlaceSnapshot): string {
   return row.statusEventAt ?? row.updatedAt;
 }
 
-/** Текущие активные угрозы: region_state_active ≠ grey и place_status_active. */
+/** Текущие активные угрозы: регионы/места из mapStore (fold snapshot + WS). */
 export function ActiveThreatsWidget({ defaultCollapsed = false }: WidgetProps) {
   const regions = useBehaviorSubject(regionsByCode$);
   const places = useBehaviorSubject(placesById$);

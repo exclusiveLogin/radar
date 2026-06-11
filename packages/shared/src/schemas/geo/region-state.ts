@@ -12,7 +12,7 @@ export const layoutTileSchema = z.object({
   row: z.number().int().min(0),
 });
 
-/** Срез текущего состояния региона (строка проекции region_state_active). */
+/** Срез состояния региона для UI (из fold snapshot / WS). */
 export const regionStateRecordSchema = z.object({
   regionId: z.string().uuid(),
   regionCode: z.string().min(1),

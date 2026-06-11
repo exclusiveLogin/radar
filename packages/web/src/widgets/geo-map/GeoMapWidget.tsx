@@ -14,17 +14,20 @@ import type {
 } from "@radar/shared";
 import { Panel } from "../../shared/ds";
 import { mapApi } from "../../shared/api/mapApi";
-import { fadedLayerOpacity, regionFadeFactor } from "../../shared/utils/regionFade";
+import { geoMapFillOpacity, geoMapStrokeOpacity } from "../../shared/utils/regionFade";
 import {
-  DISTRICT_MAP_FILL_OPACITY,
   DISTRICT_MAP_MIN_ZOOM,
   DISTRICT_MAP_STROKE_WIDTH,
+  GEO_MAP_PLACE_FILL_OPACITY,
+  GEO_MAP_PLACE_STROKE_OPACITY,
+  GEO_MAP_REGION_FILL_OPACITY,
+  GEO_MAP_REGION_STROKE_OPACITY,
+  GEO_MAP_STROKE_FILL_RATIO,
   LEVEL_COLORS,
   LEVEL_LABELS,
   MAP_INITIAL_VIEW,
   PLACE_CIRCLE_RADIUS_DEFAULT,
   PLACE_CIRCLE_RADIUS_DISTRICT,
-  REGION_MAP_FILL_OPACITY,
   REGION_MAP_INSET_FACTOR,
   REGION_MAP_SELECTED_FILL_OPACITY,
   REGION_MAP_SELECTED_STROKE_WIDTH,
@@ -46,8 +49,6 @@ const REGIONS_OUTLINE_SOURCE = "regions-outline-inset";
 const REGIONS_FILL = "regions-fill";
 const REGIONS_OUTLINE = "regions-outline";
 const REGIONS_SELECTION = "regions-selection";
-/** Базовая непрозрачность контура place-полигона (до fade). */
-const PLACE_MAP_STROKE_OPACITY = 0.85;
 
 /** Слой активных place-полигонов (geo_feature) — рисуется над регионами. */
 const DISTRICTS_SOURCE = "districts-active";
@@ -56,20 +57,40 @@ const DISTRICTS_OUTLINE = "districts-active-outline";
 const PLACES_SOURCE = "places";
 const PLACES_LAYER = "places-circles";
 
+/** Z-order: region → district → place (moveLayer без beforeId — наверх стека). */
+const GEO_ENTITY_LAYER_ORDER = [
+  REGIONS_FILL,
+  REGIONS_OUTLINE,
+  REGIONS_SELECTION,
+  DISTRICTS_FILL,
+  DISTRICTS_OUTLINE,
+  PLACES_LAYER,
+] as const;
+
+function enforceGeoEntityLayerOrder(map: MapLibreMap): void {
+  for (const layerId of GEO_ENTITY_LAYER_ORDER) {
+    if (map.getLayer(layerId)) map.moveLayer(layerId);
+  }
+}
+
 /** promoteId — быстрый feature-state для выделения без полного setData. */
 const REGION_GEOJSON_SOURCE = {
   type: "geojson" as const,
   promoteId: "regionCode",
 };
 
-const FEATURE_SELECTED = ["boolean", ["feature-state", "selected"], false] as const;
+const FEATURE_SELECTED: ["boolean", ["feature-state", "selected"], false] = [
+  "boolean",
+  ["feature-state", "selected"],
+  false,
+];
 
 /** Дочерние сущности (place-маркер или полигон района) перекрывают регион. */
 function hasChildEntityAtPointer(
   map: MapLibreMap,
   point: { x: number; y: number },
 ): boolean {
-  return map.queryRenderedFeatures(point, {
+  return map.queryRenderedFeatures([point.x, point.y], {
     layers: [PLACES_LAYER, DISTRICTS_FILL, DISTRICTS_OUTLINE],
   }).length > 0;
 }
@@ -134,8 +155,7 @@ type GeoJsonCollection = {
 
 /**
  * Контуры регионов: все уровни, включая grey; цвет по stateLevel из снапшота.
- * fillOpacity — затухание пропорционально времени с момента последнего события (3ч окно).
- * Базовая геометрия загружается один раз; при WS меняются только properties.
+ * Заливка приглушена; контур ≥ fill × GEO_MAP_STROKE_FILL_RATIO.
  */
 function paintRegionOutlines(
   base: GeoJsonCollection,
@@ -149,7 +169,6 @@ function paintRegionOutlines(
     if (!region || !isRegionVisibleOnMap(region)) continue;
 
     const stateLevel = region.stateLevel as StateLevel;
-    const fade = regionFadeFactor(region.statusEventAt, now);
     features.push({
       ...feature,
       properties: {
@@ -158,8 +177,17 @@ function paintRegionOutlines(
         stateLevel,
         color: LEVEL_COLORS[stateLevel],
         kind: "region",
-        fillOpacity: REGION_MAP_FILL_OPACITY * fade,
-        lineOpacity: 0.95 * fade,
+        fillOpacity: geoMapFillOpacity(
+          region.statusEventAt,
+          now,
+          GEO_MAP_REGION_FILL_OPACITY,
+        ),
+        lineOpacity: geoMapStrokeOpacity(
+          region.statusEventAt,
+          now,
+          GEO_MAP_REGION_FILL_OPACITY,
+          GEO_MAP_STROKE_FILL_RATIO,
+        ),
       },
     });
   }
@@ -260,6 +288,7 @@ function geoJsonFingerprint(data: unknown): string {
       props.fillOpacity,
       props.lineOpacity,
       props.circleOpacity,
+      props.circleStrokeOpacity,
       props.color,
     ].join(":");
   });
@@ -292,7 +321,17 @@ function placesToFeatures(
           statusEventAt: place.statusEventAt ?? "",
           stateLabel: LEVEL_LABELS[level],
           color: LEVEL_COLORS[level],
-          circleOpacity: fadedLayerOpacity(place.statusEventAt, now, 1),
+          circleOpacity: geoMapFillOpacity(
+            place.statusEventAt,
+            now,
+            GEO_MAP_PLACE_FILL_OPACITY,
+          ),
+          circleStrokeOpacity: geoMapStrokeOpacity(
+            place.statusEventAt,
+            now,
+            GEO_MAP_PLACE_FILL_OPACITY,
+            GEO_MAP_STROKE_FILL_RATIO,
+          ),
           // Для district дублируется полигоном — маленький кружок-якорь.
           radius: DISTRICT_KINDS.has(place.kind ?? "") ? PLACE_CIRCLE_RADIUS_DISTRICT : PLACE_CIRCLE_RADIUS_DEFAULT,
         },
@@ -338,8 +377,17 @@ function paintActiveDistricts(
         statusCode: place.statusCode,
         statusEventAt: place.statusEventAt ?? "",
         stateLabel: LEVEL_LABELS[level],
-        fillOpacity: fadedLayerOpacity(place.statusEventAt, now, DISTRICT_MAP_FILL_OPACITY),
-        lineOpacity: fadedLayerOpacity(place.statusEventAt, now, PLACE_MAP_STROKE_OPACITY),
+        fillOpacity: geoMapFillOpacity(
+          place.statusEventAt,
+          now,
+          GEO_MAP_PLACE_FILL_OPACITY,
+        ),
+        lineOpacity: geoMapStrokeOpacity(
+          place.statusEventAt,
+          now,
+          GEO_MAP_PLACE_FILL_OPACITY,
+          GEO_MAP_STROKE_FILL_RATIO,
+        ),
       },
     });
   }
@@ -799,7 +847,7 @@ export function GeoMapWidget(_props: WidgetProps) {
 
     const applyPlaces = (): void => {
       applyPlacesFadeLayers();
-      if (!baseRegionsRef.current) return;
+      if (!map || !baseRegionsRef.current) return;
       whenStyleReady(map, () => {
         if (!map || !baseRegionsRef.current) return;
         const collection = placesCollection(
@@ -886,7 +934,7 @@ export function GeoMapWidget(_props: WidgetProps) {
               "case",
               FEATURE_SELECTED,
               REGION_MAP_SELECTED_FILL_OPACITY,
-              ["coalesce", ["get", "fillOpacity"], REGION_MAP_FILL_OPACITY],
+              ["coalesce", ["get", "fillOpacity"], GEO_MAP_REGION_FILL_OPACITY],
             ],
           },
         });
@@ -905,7 +953,7 @@ export function GeoMapWidget(_props: WidgetProps) {
               REGION_MAP_SELECTED_STROKE_WIDTH,
               REGION_MAP_STROKE_WIDTH,
             ],
-            "line-opacity": ["coalesce", ["get", "lineOpacity"], 0.95],
+            "line-opacity": ["coalesce", ["get", "lineOpacity"], GEO_MAP_REGION_STROKE_OPACITY],
           },
         });
       }
@@ -942,7 +990,7 @@ export function GeoMapWidget(_props: WidgetProps) {
           minzoom: DISTRICT_MAP_MIN_ZOOM,
           paint: {
             "fill-color": ["coalesce", ["get", "color"], LEVEL_COLORS.yellow],
-            "fill-opacity": ["coalesce", ["get", "fillOpacity"], DISTRICT_MAP_FILL_OPACITY],
+            "fill-opacity": ["coalesce", ["get", "fillOpacity"], GEO_MAP_PLACE_FILL_OPACITY],
           },
         });
       }
@@ -955,7 +1003,7 @@ export function GeoMapWidget(_props: WidgetProps) {
           paint: {
             "line-color": ["coalesce", ["get", "color"], LEVEL_COLORS.yellow],
             "line-width": DISTRICT_MAP_STROKE_WIDTH,
-            "line-opacity": ["coalesce", ["get", "lineOpacity"], PLACE_MAP_STROKE_OPACITY],
+            "line-opacity": ["coalesce", ["get", "lineOpacity"], GEO_MAP_PLACE_STROKE_OPACITY],
           },
         });
       }
@@ -978,11 +1026,17 @@ export function GeoMapWidget(_props: WidgetProps) {
             "circle-radius": ["coalesce", ["get", "radius"], PLACE_CIRCLE_RADIUS_DEFAULT],
             "circle-stroke-color": "#ffffff",
             "circle-stroke-width": 2,
-            "circle-opacity": ["coalesce", ["get", "circleOpacity"], 1],
+            "circle-opacity": ["coalesce", ["get", "circleOpacity"], GEO_MAP_PLACE_FILL_OPACITY],
+            "circle-stroke-opacity": [
+              "coalesce",
+              ["get", "circleStrokeOpacity"],
+              GEO_MAP_PLACE_STROKE_OPACITY,
+            ],
           },
         });
-        map.moveLayer(PLACES_LAYER);
       }
+
+      enforceGeoEntityLayerOrder(map);
 
       // --- Обработчики событий (переустанавливаем после смены стиля) ---
       const onPick = (event: MapLayerMouseEvent): void => {

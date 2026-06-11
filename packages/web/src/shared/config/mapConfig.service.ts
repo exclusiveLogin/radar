@@ -175,16 +175,35 @@ export const REGION_MAP_SELECTED_FILL_OPACITY = 0.5;
 export const REGION_MAP_SELECTION_HALO = "#ffffff";
 
 /**
- * Полупрозрачная заливка региона (субъект = нижний слой, темнее/тусклее районов).
- * Районы рисуются выше с большей непрозрачностью → субъект = «подложка», район = «маркер».
+ * Яркость заливки на гео (× regionFadeFactor).
+ * Регион — приглушённее, place/district — parity со схемой; контур всегда ≥ fill × STROKE_FILL_RATIO.
  */
-export const REGION_MAP_FILL_OPACITY = 0.18;
+export const GEO_MAP_STROKE_FILL_RATIO = 1.5;
+export const GEO_MAP_REGION_FILL_OPACITY = 0.5;
+export const GEO_MAP_PLACE_FILL_OPACITY = 1;
+
+/** @deprecated используй GEO_MAP_PLACE_FILL_OPACITY */
+export const GEO_MAP_FILL_OPACITY = GEO_MAP_PLACE_FILL_OPACITY;
+
+/** Fallback line-opacity для слоёв (без fade — верхняя граница). */
+export const GEO_MAP_REGION_STROKE_OPACITY = Math.min(
+  1,
+  GEO_MAP_REGION_FILL_OPACITY * GEO_MAP_STROKE_FILL_RATIO,
+);
+export const GEO_MAP_PLACE_STROKE_OPACITY = Math.min(
+  1,
+  GEO_MAP_PLACE_FILL_OPACITY * GEO_MAP_STROKE_FILL_RATIO,
+);
+
+/** @deprecated используй GEO_MAP_REGION_FILL_OPACITY */
+export const REGION_MAP_FILL_OPACITY = GEO_MAP_REGION_FILL_OPACITY;
+
+/** @deprecated используй GEO_MAP_PLACE_FILL_OPACITY */
+export const DISTRICT_MAP_FILL_OPACITY = GEO_MAP_PLACE_FILL_OPACITY;
 
 /** Сжатие полигона к центроиду для inset-контура (~0.4%). */
 export const REGION_MAP_INSET_FACTOR = 0.996;
 
-/** Полигон района (district/city_district) — выше региона, насыщеннее. */
-export const DISTRICT_MAP_FILL_OPACITY = 0.35;
 export const DISTRICT_MAP_STROKE_WIDTH = 1.5;
 /** Минимальный zoom для показа полигонов районов (при мелком масштабе слишком мелко). */
 export const DISTRICT_MAP_MIN_ZOOM = 6;

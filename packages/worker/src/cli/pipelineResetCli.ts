@@ -13,8 +13,6 @@ function printPlan(): void {
   console.log(`
 Операционный сброс (архив raw_messages сохраняется):
 
-  • place_status_active — deactivate
-  • region_state_active — grey
   • parsed_events + event_locations (CASCADE)
   • parse_attempts
   • phase_coverage — invalidate + processing→pending

@@ -117,7 +117,7 @@ function buildEnricherTelemetry(
   return events;
 }
 
-/** Обогащает локации action/status для persist и read-model. */
+/** Обогащает локации action/status для persist в event_locations. */
 function toFactLocations(
   locations: EventLocation[],
   input: {

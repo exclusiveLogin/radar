@@ -4,7 +4,7 @@ import { createWipeLogger, type WipeLogger } from "../application/archive/wipeLo
 const PHASE_ACTIONS: Record<string, string[]> = {
   "ingest-parse": [
     "phase_runs + очереди",
-    "read-model карты",
+    "map-state (no-op)",
     "parsed_events, parse_attempts, jobs, phase_runs",
     "ingest cursors/backfill, domain_events",
     "raw_messages",

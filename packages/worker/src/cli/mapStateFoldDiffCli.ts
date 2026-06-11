@@ -8,7 +8,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { MONOREPO_ROOT } from "@repo/root";
 import { foldMapState, loadMapFoldFacts } from "@radar/shared";
-import { resolveMapStateTtlMs } from "../infrastructure/config/mapStateExpiryConfig.js";
+import { resolveMapStateTtlMs } from "@radar/shared";
 import { loadRootEnv } from "../infrastructure/config/loadRootEnv.js";
 import { createWorkerDataSource } from "../infrastructure/persistence/createWorkerDataSource.js";
 
@@ -16,7 +16,7 @@ async function main(): Promise<void> {
   loadRootEnv(MONOREPO_ROOT);
   const dataSource = await createWorkerDataSource();
   const asOf = new Date();
-  const ttlMs = resolveMapStateTtlMs();
+  const ttlMs = resolveMapStateTtlMs(process.env);
 
   const facts = await loadMapFoldFacts(dataSource, asOf, ttlMs);
   const folded = foldMapState({ asOf, ttlMs, facts });

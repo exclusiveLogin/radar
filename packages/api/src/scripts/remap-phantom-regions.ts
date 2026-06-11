@@ -8,9 +8,8 @@
  * Действия (только при --apply, иначе dry-run):
  *   1. places.region_id  фантом → канон
  *   2. event_locations.region_id фантом → канон
- *   3. region_state_active/history.region_id фантом → канон (обычно 0)
- *   4. DELETE place_aliases с region_id фантома (пересоздаются через geo:db:apply)
- *   5. DELETE фантом-регионы
+ *   3. DELETE place_aliases с region_id фантома (пересоздаются через geo:db:apply)
+ *   4. DELETE фантом-регионы
  *
  * Запуск (из packages/api):
  *   npx tsx src/scripts/remap-phantom-regions.ts          # dry-run
@@ -96,8 +95,6 @@ async function main(): Promise<void> {
     for (const { phantom, canon: target } of pairs) {
       await client.query(`UPDATE places SET region_id = $1 WHERE region_id = $2`, [target.id, phantom.id]);
       await client.query(`UPDATE event_locations SET region_id = $1 WHERE region_id = $2`, [target.id, phantom.id]);
-      await client.query(`UPDATE region_state_active SET region_id = $1 WHERE region_id = $2`, [target.id, phantom.id]);
-      await client.query(`UPDATE region_state_history SET region_id = $1 WHERE region_id = $2`, [target.id, phantom.id]);
     }
     await client.query(`DELETE FROM place_aliases WHERE region_id = ANY($1::uuid[])`, [phantomIds]);
     await client.query(`DELETE FROM regions WHERE id = ANY($1::uuid[])`, [phantomIds]);

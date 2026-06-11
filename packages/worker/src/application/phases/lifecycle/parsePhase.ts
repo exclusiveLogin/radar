@@ -7,7 +7,7 @@ import { stopAllActivePhaseRuns } from "../stopAllActivePhaseRuns.js";
 import type { PhaseMutationResult } from "./phaseLifecycle.types.js";
 
 /**
- * parse:wipe — срез после ingest: raw остаётся, parsed/evloc/read-model снимаются.
+ * parse:wipe — срез после ingest: raw остаётся, parsed/evloc снимаются.
  */
 export async function wipeParsePhase(input: {
   dataSource: DataSource;

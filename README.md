@@ -38,10 +38,10 @@
 ## Конвейер данных
 
 1. **Ingest** — GramJS live + poll fallback, backfill, dedup raw.
-2. **Parse** — классификация события (угроза / отбой / шум), извлечение локаций.
+2. **Parse** — классификация события (угроза / отбой / шум), извлечение локаций → `event_locations`.
 3. **Geo** — artifacts-first, enrichers (`cache → dadata → nominatim → llm`), place trust.
-4. **Projection** — `place_status_active` + `region_state_active` (липкий автомат + соседи).
-5. **Delivery** — REST snapshot, WS `/ws`, поллеры history → UI.
+4. **Read-line** — `foldMapState(facts, asOf)` → snapshot карты (live и historical).
+5. **Delivery** — REST snapshot, WS diff poller, UI таймлайн.
 
 > Сервис повышает **наблюдаемость** и скорость понимания картины; решения пользователь принимает сам.
 
@@ -56,28 +56,28 @@
   - **Гео-карта** — MapLibre, контуры субъектов (fill + inset outline), маркеры places.
   - **Схема** — layout.json, heat по `stateLevel`.
   - **Обзор** — KPI по уровням + donut.
-  - **Активные угрозы**, **Лента изменений** — live feed из `region_state_history`.
+  - **Активные угрозы**, **Лента изменений** — feed из `event_locations` / recent events.
   - **Сообщения** — лента raw ingest (канал, время MSK, parse status).
   - **Топ активности**, **Динамика событий** — sparkline + BarMini по журналу.
   - **Каналы**, **Система** — ingest providers, worker probe, WS/db health.
-- **Realtime:** `mapStore` — snapshot + WS `region-state` | `place-state` | `warning`.
+- **Realtime:** `mapStore` — fold snapshot + WS diff; historical mode через `MapTimelineBar`.
 - **Тема:** light/dark (`data-theme`), design-system primitives, тонкие accent-скроллбары.
 
 ### Backend / worker
 
 - NestJS API, Swagger `/api/docs`, PostgreSQL + TypeORM.
-- WS gateway, region/place state pollers.
-- Worker: parse pipeline, `RegionStateProjection`, outbox events.
+- WS gateway, `MapFoldRealtimePoller` (diff fold snapshot).
+- Worker: parse pipeline, outbox events.
 - **Live ingest fixes:** `getPeerId` для GramJS, poll fallback, orchestrator recovery.
 - **Worker probe:** HTTP `:3010/status`, REST `GET /api/worker/status`.
-- **Map state:** TTL expiry daemon; каскадный сброс place при региональном отбое.
+- **Map state:** TTL на read-line (fold); каскадный place clear при региональном отбое — в fold loader.
 - Geo CLI: `vendor → sync → seed → db:apply`.
 
 ---
 
 ## Roadmap (ещё не в UI / в работе)
 
-- ⏱️ Time Machine — scrub по срезам времени.
+- ⏱️ Time Machine — scrub по срезам времени (**в UI:** `MapTimelineBar`).
 - 🎯 ETA / курс / траектория подлёта.
 - 🔔 Push / геозонные алерты.
 - 🔥 Heatmap накопительная по периодам.
@@ -235,9 +235,9 @@ ADR: [docs/adr-003-phase-enrichment-accumulator.md](./docs/adr-003-phase-enrichm
 
 - **Монорепо:** `api`, `worker`, `web`, `shared` — cold start, dev-стек, TypeScript strict.
 - **Web:** OSINT glass-shell, 9 виджетов, dual-theme DS, LiveBadge (WS + health).
-- **Карта:** MapLibre + schematic layout; `region_state_active` / `place_status_active`; inset contours.
+- **Карта:** MapLibre + schematic layout; read-line fold (`event_locations` → snapshot); inset contours.
 - **Realtime:** WS `/ws` — `snapshot`, `region-state`, `place-state`, `warning`; GeoJSON — `GET /api/map/regions-geojson`.
-- **Worker:** live MTProto + poll, probe `:3010`, map-state TTL, cascade place clear on regional green.
+- **Worker:** live MTProto + poll, probe `:3010`, fold read-line (без projection daemon).
 - **Geo:** `vendor → artifacts → manifest → geo:seed → geo:db:apply`.
 - **Ingest/parse:** db-mode, backfill V2, offline snapshots в `tests/`.
 
@@ -323,11 +323,11 @@ Live:  region-state | place-state | warning  →  патч store (не refetch s
 | **Каналы / система** | `providersStore` (REST poll 30s) + `connectionStatus$` (WS) |
 | **LiveBadge** | WS open + `/api/health` + `/api/ready` |
 
-Поллеры API читают `region_state_history` / `place_status_history` (раз в 1 с). События **до перезапуска API** по WS не переигрываются — только snapshot при connect.
+Поллер WS читает diff fold snapshot(now). События **до перезапуска API** по WS не переигрываются — только snapshot при connect.
 
-Данные на карте после ingest: `npm run parse-engine:rebuild` (пересчёт проекций из `raw_messages`).
+Данные на карте после ingest: reparse raw (`parse-engine:rebuild` или phase pipeline).
 
-**TTL статусов (24 ч по умолчанию):** в `db`-режиме worker запускает `MapStateExpiryDaemon` — регионы с `state_level ≠ grey` и места в `place_status_active`, не обновлявшиеся дольше порога, сбрасываются (`grey` / `deactivate`) с записью в `*_history` → WS. Ручной прогон: `npm run worker:map-state:expire`. Env: `RADAR_MAP_STATE_TTL_HOURS`, `RADAR_MAP_STATE_EXPIRY_ENABLED`, `RADAR_MAP_STATE_EXPIRY_POLL_MS`.
+**TTL карты (24 ч по умолчанию):** на read-line — факты старше окна не участвуют в fold. Env: `RADAR_MAP_STATE_TTL_HOURS` / `RADAR_MAP_STATE_TTL_MS`. Legacy `MapStateExpiryDaemon` и `*_status_read_model` удалены.
 
 ### LLM (опционально)
 
@@ -371,7 +371,7 @@ docker compose --profile llm-ui up -d
 - **CompositeEnricher**: цепочка провайдеров по приоритету.
 - **CachingEnricher**: сначала cache (`place_cache`/in-memory), потом внешние вызовы.
 - Базовый сценарий: если регион найден локально, используем словарь; если в тексте есть уточнение — добираем через enrichers.
-- Для карт/time-machine статусы place ведутся отдельными тегами (`place_status_active` + `place_status_history`), а `cleared` вычисляется read-side как отсутствие активных тегов.
+- Для карт/time-machine статусы place вычисляются read-side из fold (`event_locations`); `cleared` — action=clear или отсутствие raise в TTL-окне.
 
 ### LLM runtime config (env)
 

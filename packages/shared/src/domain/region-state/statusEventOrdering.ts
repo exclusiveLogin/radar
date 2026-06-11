@@ -31,7 +31,7 @@ export function readPlaceStatusEventAt(
   return typeof value === "string" ? value : undefined;
 }
 
-/** Последнее действие read-model региона/места. */
+/** Последнее действие winner региона/места в fold. */
 export type MapStatusAction = "raise" | "clear";
 
 /**

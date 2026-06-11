@@ -126,24 +126,6 @@ export class GeoCatalogResetService {
           ),
       },
       {
-        id: "region_state_history",
-        label: "region_state_history",
-        run: () =>
-          deleteOptional(
-            this.dataSource,
-            `DELETE FROM region_state_history RETURNING region_id`,
-          ),
-      },
-      {
-        id: "region_state_active",
-        label: "region_state_active",
-        run: () =>
-          deleteOptional(
-            this.dataSource,
-            `DELETE FROM region_state_active RETURNING region_id`,
-          ),
-      },
-      {
         id: "place_geo_link",
         label: "place_geo_link",
         run: () =>

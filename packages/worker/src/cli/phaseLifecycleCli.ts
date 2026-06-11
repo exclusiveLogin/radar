@@ -18,7 +18,7 @@ import { hasAnyFlag, parseLongFlagsMap, parsePositionalArgs } from "./workerCliA
 
 const PHASE_HELP: Record<string, string> = {
   ingest: "raw + производные parse; places не трогает",
-  parse: "parsed/evloc/read-model; raw остаётся",
+  parse: "parsed/evloc; raw остаётся",
   geo: "places + aliases; geo_feature/regions остаются",
   "geo-catalog": "regions + geo_feature + geo_dataset_file (БД)",
   "ingest-parse": "ingest:wipe (raw + всё до places)",

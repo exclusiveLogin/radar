@@ -28,7 +28,7 @@ flowchart LR
 |-----------|------------|------------|
 | **PostgreSQL** | `npm run db:up` | Данные: события, места, ingest, outbox |
 | **@radar/shared** | в составе `dev` | Общие схемы; API ждёт `packages/shared/dist` |
-| **API** | `api:dev` / `dev` | REST, Swagger, admin ingest, карта/read-model |
+| **API** | `api:dev` / `dev` | REST, Swagger, admin ingest, карта (read-line fold) |
 | **Web** | `web:dev` / `dev` | UI |
 | **Worker** | `worker:dev` / `dev` | Ingest + parse + outbox relay (в db mode) |
 

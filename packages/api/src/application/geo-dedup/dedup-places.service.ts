@@ -39,15 +39,6 @@ export class PlaceDedupService {
   ): Promise<void> {
     // Таблицы с уникальностью: сначала убрать конфликтующие строки loser, потом перенести.
     await sql(
-      `DELETE FROM place_status_active l
-       WHERE l.place_id = $1
-         AND EXISTS (
-           SELECT 1 FROM place_status_active s
-           WHERE s.place_id = $2 AND s.status_code = l.status_code
-         )`,
-      [loser, survivor],
-    );
-    await sql(
       `DELETE FROM place_aliases l
        WHERE l.place_id = $1 AND l.is_active
          AND EXISTS (
@@ -59,10 +50,7 @@ export class PlaceDedupService {
       [loser, survivor],
     );
 
-    // Перенос ссылок (для status_active/aliases остаток уже без конфликтов).
     for (const table of [
-      "place_status_active",
-      "place_status_history",
       "place_aliases",
       "event_locations",
       "place_evidence",

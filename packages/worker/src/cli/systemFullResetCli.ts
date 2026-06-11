@@ -21,7 +21,7 @@ function printHelp(): void {
 
   Полный wipe БД (без конфига ingest/фаз):
     • raw_messages, parsed_events, parse_attempts, phase_runs, domain_events
-    • ingest cursors/backfill, read-model карты
+    • ingest cursors/backfill
     • places, place_aliases, geo_feature, place_geo_link, geo_dataset_file, regions
 
   НЕ трогает: channels, ingest_providers, phase_definitions, .env
