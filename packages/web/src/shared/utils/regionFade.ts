@@ -28,3 +28,12 @@ export function regionFadeFactor(
   if (elapsed >= FADE_DURATION_MS) return REGION_FADE_MIN;
   return 1.0 - (elapsed / FADE_DURATION_MS) * (1.0 - REGION_FADE_MIN);
 }
+
+/** Базовая непрозрачность слоя × коэффициент затухания по statusEventAt. */
+export function fadedLayerOpacity(
+  statusEventAt: string | undefined,
+  now: number,
+  baseOpacity: number,
+): number {
+  return baseOpacity * regionFadeFactor(statusEventAt, now);
+}

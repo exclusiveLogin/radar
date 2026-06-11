@@ -14,7 +14,7 @@ import type {
 } from "@radar/shared";
 import { Panel } from "../../shared/ds";
 import { mapApi } from "../../shared/api/mapApi";
-import { regionFadeFactor } from "../../shared/utils/regionFade";
+import { fadedLayerOpacity, regionFadeFactor } from "../../shared/utils/regionFade";
 import {
   DISTRICT_MAP_FILL_OPACITY,
   DISTRICT_MAP_MIN_ZOOM,
@@ -46,7 +46,10 @@ const REGIONS_OUTLINE_SOURCE = "regions-outline-inset";
 const REGIONS_FILL = "regions-fill";
 const REGIONS_OUTLINE = "regions-outline";
 const REGIONS_SELECTION = "regions-selection";
-/** Слой активных районов (district/city_district) из geo_feature — рисуется над регионами. */
+/** Базовая непрозрачность контура place-полигона (до fade). */
+const PLACE_MAP_STROKE_OPACITY = 0.85;
+
+/** Слой активных place-полигонов (geo_feature) — рисуется над регионами. */
 const DISTRICTS_SOURCE = "districts-active";
 const DISTRICTS_FILL = "districts-active-fill";
 const DISTRICTS_OUTLINE = "districts-active-outline";
@@ -205,10 +208,69 @@ function paintRegionInsetOutlines(
 
 const DISTRICT_KINDS = new Set(["district", "city_district"]);
 
-/** Точки places: маркер-кружок; радиус меньше для district (у них есть polygon-слой). */
+const PLACE_SOURCE_CACHE_MAX = 80;
+
+/** LRU-кэш popup raw-сообщений — без неограниченного роста при hover. */
+class LruCache<K, V> {
+  private readonly maxSize: number;
+  private readonly map = new Map<K, V>();
+
+  constructor(maxSize: number) {
+    this.maxSize = maxSize;
+  }
+
+  has(key: K): boolean {
+    return this.map.has(key);
+  }
+
+  get(key: K): V | undefined {
+    const value = this.map.get(key);
+    if (value === undefined) return undefined;
+    this.map.delete(key);
+    this.map.set(key, value);
+    return value;
+  }
+
+  set(key: K, value: V): void {
+    if (this.map.has(key)) this.map.delete(key);
+    this.map.set(key, value);
+    if (this.map.size > this.maxSize) {
+      const oldest = this.map.keys().next().value;
+      if (oldest !== undefined) this.map.delete(oldest);
+    }
+  }
+
+  clear(): void {
+    this.map.clear();
+  }
+}
+
+/** Компактный отпечаток GeoJSON — пропускаем setData при неизменных данных. */
+function geoJsonFingerprint(data: unknown): string {
+  if (!data || typeof data !== "object") return "";
+  const collection = data as { features?: Array<{ properties?: Record<string, unknown> }> };
+  const features = collection.features ?? [];
+  const parts = features.map((feature) => {
+    const props = feature.properties ?? {};
+    return [
+      props.regionCode,
+      props.placeId,
+      props.stateLevel,
+      props.statusEventAt,
+      props.fillOpacity,
+      props.lineOpacity,
+      props.circleOpacity,
+      props.color,
+    ].join(":");
+  });
+  return `${features.length}|${parts.join(";")}`;
+}
+
+/** Точки places: маркер-кружок; яркость затухает по statusEventAt (как у региона). */
 function placesToFeatures(
   places: Map<string, MapPlaceSnapshot>,
   regions: Map<string, MapRegionSnapshot>,
+  now: number,
 ): PointFeature[] {
   return [...places.values()]
     .filter((place) => isPlaceVisibleOnMap(place, regions))
@@ -227,8 +289,10 @@ function placesToFeatures(
           placeName: place.placeName,
           regionCode: place.regionCode,
           statusCode: place.statusCode,
+          statusEventAt: place.statusEventAt ?? "",
           stateLabel: LEVEL_LABELS[level],
           color: LEVEL_COLORS[level],
+          circleOpacity: fadedLayerOpacity(place.statusEventAt, now, 1),
           // Для district дублируется полигоном — маленький кружок-якорь.
           radius: DISTRICT_KINDS.has(place.kind ?? "") ? PLACE_CIRCLE_RADIUS_DISTRICT : PLACE_CIRCLE_RADIUS_DEFAULT,
         },
@@ -237,13 +301,14 @@ function placesToFeatures(
 }
 
 /**
- * Активные полигоны районов: из базовой геометрии geo_feature оставляем только те,
- * которые присутствуют в снапшоте places (есть статус). Цвет берётся из place.stateLevel.
+ * Активные place-полигоны: из geo_feature оставляем только места со статусом.
+ * Цвет — place.stateLevel; яркость затухает по place.statusEventAt.
  */
 function paintActiveDistricts(
   base: GeoJsonCollection,
   places: Map<string, MapPlaceSnapshot>,
   regions: Map<string, MapRegionSnapshot>,
+  now: number,
 ): GeoJsonCollection {
   // Индекс geoFeatureId → place для быстрого поиска.
   const byGeoFeatureId = new Map<string, MapPlaceSnapshot>();
@@ -271,7 +336,10 @@ function paintActiveDistricts(
         placeName: place.placeName,
         regionCode: place.regionCode,
         statusCode: place.statusCode,
+        statusEventAt: place.statusEventAt ?? "",
         stateLabel: LEVEL_LABELS[level],
+        fillOpacity: fadedLayerOpacity(place.statusEventAt, now, DISTRICT_MAP_FILL_OPACITY),
+        lineOpacity: fadedLayerOpacity(place.statusEventAt, now, PLACE_MAP_STROKE_OPACITY),
       },
     });
   }
@@ -301,10 +369,16 @@ function setGeoJsonSourceData(
   map: MapLibreMap,
   sourceId: string,
   data: unknown,
+  lastFingerprints: Map<string, string>,
 ): boolean {
+  const fingerprint = geoJsonFingerprint(data);
+  if (lastFingerprints.get(sourceId) === fingerprint) {
+    return true;
+  }
   const source = map.getSource(sourceId) as GeoJSONSource | undefined;
   if (!source) return false;
   source.setData(data as never);
+  lastFingerprints.set(sourceId, fingerprint);
   map.triggerRepaint();
   return true;
 }
@@ -313,8 +387,9 @@ function applyGeoJsonSourceData(
   map: MapLibreMap,
   sourceId: string,
   data: unknown,
+  lastFingerprints: Map<string, string>,
 ): void {
-  const push = (): boolean => setGeoJsonSourceData(map, sourceId, data);
+  const push = (): boolean => setGeoJsonSourceData(map, sourceId, data, lastFingerprints);
   whenStyleReady(map, () => {
     if (push()) return;
     map.once("idle", () => {
@@ -377,10 +452,11 @@ function preserveUserLayers(prevStyle: any, nextStyle: any): any {
 function placesCollection(
   places: Map<string, MapPlaceSnapshot>,
   regions: Map<string, MapRegionSnapshot>,
+  now = Date.now(),
 ) {
   return {
     type: "FeatureCollection" as const,
-    features: placesToFeatures(places, regions),
+    features: placesToFeatures(places, regions, now),
   };
 }
 
@@ -443,9 +519,11 @@ function fitOperationalOverview(
   duration: number,
 ): void {
   const painted = paintRegionOutlines(base, regionsByCode$.value, Date.now());
+  const now = Date.now();
   const placeFeatures = placesToFeatures(
     placesById$.value,
     regionsByCode$.value,
+    now,
   );
   fitMapView(map, painted.features, placeFeatures, duration);
 }
@@ -541,8 +619,12 @@ export function GeoMapWidget(_props: WidgetProps) {
     let placePopup: Popup | null = null;
     let regionPopup: Popup | null = null;
     /** Кэш raw-сообщения place — не дергаем API на каждый mousemove. */
-    const placeSourceCache = new Map<string, SourceMessage | null>();
+    const placeSourceCache = new LruCache<string, SourceMessage | null>(PLACE_SOURCE_CACHE_MAX);
     const placeSourcePending = new Map<string, Promise<SourceMessage | null>>();
+    /** Последний fingerprint GeoJSON per source — меньше native churn от setData. */
+    const geoSourceFingerprints = new Map<string, string>();
+    /** Fingerprint заливок регионов (включая fade bucket) — пропуск лишних repaint. */
+    let lastRegionsPaintFingerprint = "";
     let activePlacePopupId: string | null = null;
     /** Пользователь сдвинул карту до прихода geojson — не делаем auto-fit/stop. */
     let userAdjustedViewBeforeGeo = false;
@@ -586,27 +668,45 @@ export function GeoMapWidget(_props: WidgetProps) {
         if (baseDistrictsRef.current) {
           applyDistrictsLayer(baseDistrictsRef.current);
         }
-        applyPlacesLayerOnly();
+        applyPlacesFadeLayers();
       };
       map.once("idle", recover);
       map.once("moveend", recover);
     };
 
-    const applyRegions = (): void => {
+    const buildRegionsPaintFingerprint = (now: number): string => {
+      const fadeBucket = Math.floor(now / 60_000);
+      const parts: string[] = [];
+      for (const [code, region] of regionsByCode$.value) {
+        if (!isRegionVisibleOnMap(region)) continue;
+        parts.push(`${code}:${region.stateLevel}:${region.statusEventAt ?? ""}:${fadeBucket}`);
+      }
+      parts.sort();
+      return parts.join("|");
+    };
+
+    const applyRegions = (force = false): void => {
       if (!map || !baseRegionsRef.current) return;
       whenStyleReady(map, () => {
         if (!map || !baseRegionsRef.current) return;
+        const now = Date.now();
+        const paintFingerprint = buildRegionsPaintFingerprint(now);
+        if (!force && paintFingerprint === lastRegionsPaintFingerprint) {
+          return;
+        }
+        lastRegionsPaintFingerprint = paintFingerprint;
         const painted = paintRegionOutlines(
           baseRegionsRef.current,
           regionsByCode$.value,
-          Date.now(),
+          now,
         );
         setRegionOutlines(painted.features.length);
-        applyGeoJsonSourceData(map, REGIONS_SOURCE, painted);
+        applyGeoJsonSourceData(map, REGIONS_SOURCE, painted, geoSourceFingerprints);
         applyGeoJsonSourceData(
           map,
           REGIONS_OUTLINE_SOURCE,
           paintRegionInsetOutlines(painted),
+          geoSourceFingerprints,
         );
         if (highlightedCode) {
           setRegionFeatureSelected(map, highlightedCode, true);
@@ -614,6 +714,7 @@ export function GeoMapWidget(_props: WidgetProps) {
         const placeFeatures = placesToFeatures(
           placesById$.value,
           regionsByCode$.value,
+          now,
         );
         if (!userAdjustedViewBeforeGeo) {
           fitIfNeeded(painted.features, placeFeatures);
@@ -637,8 +738,9 @@ export function GeoMapWidget(_props: WidgetProps) {
           layer,
           placesById$.value,
           regionsByCode$.value,
+          Date.now(),
         );
-        applyGeoJsonSourceData(map, DISTRICTS_SOURCE, painted);
+        applyGeoJsonSourceData(map, DISTRICTS_SOURCE, painted, geoSourceFingerprints);
       });
     };
 
@@ -661,31 +763,42 @@ export function GeoMapWidget(_props: WidgetProps) {
       districtsReloadTimer = setTimeout(loadAndApplyDistricts, 500);
     };
 
-    /** Только слой place-маркеров — без repaint регионов и без HTTP. */
-    const applyPlacesLayerOnly = (): void => {
+    /** Place-маркеры и place-полигоны с пересчётом fade — без repaint регионов и без HTTP. */
+    const applyPlacesFadeLayers = (): void => {
       if (!map) return;
       whenStyleReady(map, () => {
         if (!map) return;
+        const now = Date.now();
         const collection = placesCollection(
           placesById$.value,
           regionsByCode$.value,
+          now,
         );
         setPlaceCount(collection.features.length);
         lastPlaceFeaturesRef.current = collection.features.length;
-        applyGeoJsonSourceData(map, PLACES_SOURCE, collection);
+        applyGeoJsonSourceData(map, PLACES_SOURCE, collection, geoSourceFingerprints);
+        if (baseDistrictsRef.current) {
+          const painted = paintActiveDistricts(
+            baseDistrictsRef.current,
+            placesById$.value,
+            regionsByCode$.value,
+            now,
+          );
+          applyGeoJsonSourceData(map, DISTRICTS_SOURCE, painted, geoSourceFingerprints);
+        }
       });
     };
 
     const schedulePlacesLayerRefresh = (): void => {
       clearTimeout(placesLayerTimer);
       placesLayerTimer = setTimeout(() => {
-        applyPlacesLayerOnly();
+        applyPlacesFadeLayers();
         scheduleDistrictsReload();
       }, 120);
     };
 
     const applyPlaces = (): void => {
-      applyPlacesLayerOnly();
+      applyPlacesFadeLayers();
       if (!baseRegionsRef.current) return;
       whenStyleReady(map, () => {
         if (!map || !baseRegionsRef.current) return;
@@ -733,8 +846,6 @@ export function GeoMapWidget(_props: WidgetProps) {
       geoReloadTimer = setTimeout(() => {
         if (baseRegionsRef.current) {
           applyRegions();
-          applyPlaces();
-          scheduleDistrictsReload();
           return;
         }
         loadRegionGeometry();
@@ -831,7 +942,7 @@ export function GeoMapWidget(_props: WidgetProps) {
           minzoom: DISTRICT_MAP_MIN_ZOOM,
           paint: {
             "fill-color": ["coalesce", ["get", "color"], LEVEL_COLORS.yellow],
-            "fill-opacity": DISTRICT_MAP_FILL_OPACITY,
+            "fill-opacity": ["coalesce", ["get", "fillOpacity"], DISTRICT_MAP_FILL_OPACITY],
           },
         });
       }
@@ -844,7 +955,7 @@ export function GeoMapWidget(_props: WidgetProps) {
           paint: {
             "line-color": ["coalesce", ["get", "color"], LEVEL_COLORS.yellow],
             "line-width": DISTRICT_MAP_STROKE_WIDTH,
-            "line-opacity": 0.85,
+            "line-opacity": ["coalesce", ["get", "lineOpacity"], PLACE_MAP_STROKE_OPACITY],
           },
         });
       }
@@ -867,7 +978,7 @@ export function GeoMapWidget(_props: WidgetProps) {
             "circle-radius": ["coalesce", ["get", "radius"], PLACE_CIRCLE_RADIUS_DEFAULT],
             "circle-stroke-color": "#ffffff",
             "circle-stroke-width": 2,
-            "circle-opacity": 1,
+            "circle-opacity": ["coalesce", ["get", "circleOpacity"], 1],
           },
         });
         map.moveLayer(PLACES_LAYER);
@@ -1006,7 +1117,7 @@ export function GeoMapWidget(_props: WidgetProps) {
       if (baseDistrictsRef.current) {
         applyDistrictsLayer(baseDistrictsRef.current);
       }
-      applyPlacesLayerOnly();
+      applyPlacesFadeLayers();
     };
 
     void (async () => {
@@ -1056,7 +1167,7 @@ export function GeoMapWidget(_props: WidgetProps) {
             if (baseDistrictsRef.current) {
               applyDistrictsLayer(baseDistrictsRef.current);
             }
-            applyPlacesLayerOnly();
+            applyPlacesFadeLayers();
           });
         });
 
@@ -1090,9 +1201,11 @@ export function GeoMapWidget(_props: WidgetProps) {
           map.once("idle", () => applyPlaces());
         }
 
-        // Тик 60с для пересчёта затухания яркости заливок (now → fillOpacity в GeoJSON).
+        // Тик 60с: пересчёт fade для регионов, place-полигонов и маркеров.
         fadeTicker = setInterval(() => {
-          if (!disposed) applyRegions();
+          if (disposed) return;
+          applyRegions(false);
+          applyPlacesFadeLayers();
         }, 60_000);
       });
     })();
@@ -1108,6 +1221,9 @@ export function GeoMapWidget(_props: WidgetProps) {
       placePopup = null;
       regionPopup?.remove();
       regionPopup = null;
+      placeSourceCache.clear();
+      placeSourcePending.clear();
+      geoSourceFingerprints.clear();
       unsubRegions?.unsubscribe();
       unsubPlaces?.unsubscribe();
       unsubSelected?.unsubscribe();

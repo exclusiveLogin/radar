@@ -139,6 +139,29 @@ function extractDerivedCodes(
   return derived;
 }
 
+/** Сравнение снапшотов регионов без учёта ссылки на Map (меньше шторма WS → MapLibre). */
+function isSameRegionSnapshotMap(
+  a: Map<string, MapRegionSnapshot>,
+  b: Map<string, MapRegionSnapshot>,
+): boolean {
+  if (a.size !== b.size) return false;
+  for (const [code, region] of a) {
+    const other = b.get(code);
+    if (!other) return false;
+    if (
+      region.stateLevel !== other.stateLevel
+      || region.activity !== other.activity
+      || region.statusEventAt !== other.statusEventAt
+      || region.statusAction !== other.statusAction
+      || region.centroidLat !== other.centroidLat
+      || region.centroidLon !== other.centroidLon
+    ) {
+      return false;
+    }
+  }
+  return true;
+}
+
 function seedSnapshot(
   regions: MapRegionSnapshot[],
   places: MapPlaceSnapshot[],
@@ -207,7 +230,7 @@ function applyRegionState(event: RegionStateEvent): void {
   }
   raw.set(event.regionCode, updated);
   const next = deriveNeighborLevels(raw, adjacency);
-  if (next === regionsByCode$.value) {
+  if (isSameRegionSnapshotMap(next, regionsByCode$.value)) {
     return;
   }
   derivedRegionCodes$.next(extractDerivedCodes(raw, next));
