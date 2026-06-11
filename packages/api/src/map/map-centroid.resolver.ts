@@ -34,6 +34,7 @@ export function resolveRegionCentroid(input: {
  * Fallback на geo_feature позволяет отображать catalog-places (districts), у которых
  * place.centroid_lat/lon не заполнены, но geo_feature содержит вычисленный центроид полигона.
  * Fallback на регион намеренно не делается — давал фантомные дубли регионов.
+ * Heatmap (getEventsHeatmapGeoJson) дублирует цепочку + el.lat/lon из event_locations.
  */
 export function resolvePlaceMapCentroid(input: {
   place: CentroidInput;

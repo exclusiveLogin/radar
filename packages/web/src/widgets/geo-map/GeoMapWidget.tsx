@@ -18,6 +18,13 @@ import { geoMapFillOpacity, geoMapStrokeOpacity } from "../../shared/utils/regio
 import {
   DISTRICT_MAP_MIN_ZOOM,
   DISTRICT_MAP_STROKE_WIDTH,
+  EVENTS_HEATMAP_LAYER,
+  EVENTS_HEATMAP_POINTS_LAYER,
+  EVENTS_HEATMAP_SOURCE,
+  eventsHeatmapPaint,
+  eventsHeatmapPointsPaint,
+  EVENTS_HEATMAP_ZOOM_HEAT_MAX,
+  EVENTS_HEATMAP_ZOOM_POINTS_MIN,
   GEO_MAP_PLACE_FILL_OPACITY,
   GEO_MAP_PLACE_STROKE_OPACITY,
   GEO_MAP_REGION_FILL_OPACITY,
@@ -37,10 +44,20 @@ import {
 } from "../../shared/config/mapConfig.service";
 import { formatDateTime } from "../../shared/format/dateTime";
 import { effectivePlaceLevel, isPlaceVisibleOnMap, isRegionVisibleOnMap } from "../../shared/state/derivations";
-import { derivedRegionCodes$, placesById$, regionsByCode$ } from "../../shared/state/mapStore";
+import { derivedRegionCodes$, historicalAsOf$, placesById$, regionsByCode$ } from "../../shared/state/mapStore";
+import {
+  geoMapLayers$,
+  type GeoMapLayerId,
+} from "../../shared/state/mapLayerStore";
+import {
+  heatmapPeriod$,
+  setHeatmapLoading,
+  setHeatmapMeta,
+} from "../../shared/state/heatmapStore";
 import { selectRegion, selectedRegion$ } from "../../shared/state/selectionStore";
 import { stateChangesFeed$ } from "../../shared/state/stateChangesFeedStore";
 import { theme$ } from "../../shared/state/themeStore";
+import type { ThemeMode } from "../../shared/state/themeStore";
 import type { WidgetProps } from "../widgetProps";
 import { insetRegionGeometry } from "./regionInsetOutline";
 
@@ -57,8 +74,10 @@ const DISTRICTS_OUTLINE = "districts-active-outline";
 const PLACES_SOURCE = "places";
 const PLACES_LAYER = "places-circles";
 
-/** Z-order: region → district → place (moveLayer без beforeId — наверх стека). */
+/** Z-order: heatmap → region → district → place (moveLayer без beforeId — наверх стека). */
 const GEO_ENTITY_LAYER_ORDER = [
+  EVENTS_HEATMAP_LAYER,
+  EVENTS_HEATMAP_POINTS_LAYER,
   REGIONS_FILL,
   REGIONS_OUTLINE,
   REGIONS_SELECTION,
@@ -70,6 +89,44 @@ const GEO_ENTITY_LAYER_ORDER = [
 function enforceGeoEntityLayerOrder(map: MapLibreMap): void {
   for (const layerId of GEO_ENTITY_LAYER_ORDER) {
     if (map.getLayer(layerId)) map.moveLayer(layerId);
+  }
+}
+
+/** Применяет paint теплокарты (heatmap + points) под текущую тему. */
+function applyEventsHeatmapPaint(map: MapLibreMap, theme: ThemeMode): void {
+  if (map.getLayer(EVENTS_HEATMAP_LAYER)) {
+    for (const [key, value] of Object.entries(eventsHeatmapPaint(theme))) {
+      map.setPaintProperty(EVENTS_HEATMAP_LAYER, key, value);
+    }
+  }
+  if (map.getLayer(EVENTS_HEATMAP_POINTS_LAYER)) {
+    for (const [key, value] of Object.entries(eventsHeatmapPointsPaint(theme))) {
+      map.setPaintProperty(EVENTS_HEATMAP_POINTS_LAYER, key, value);
+    }
+  }
+}
+
+/** MapLibre-слои по toggle из mapLayerStore (timeline — только UI). */
+const MAPLIBRE_LAYERS_BY_TOGGLE: Record<
+  Exclude<GeoMapLayerId, "timeline">,
+  readonly string[]
+> = {
+  regions: [REGIONS_FILL, REGIONS_OUTLINE, REGIONS_SELECTION],
+  districts: [DISTRICTS_FILL, DISTRICTS_OUTLINE],
+  places: [PLACES_LAYER],
+  heatmap: [EVENTS_HEATMAP_LAYER, EVENTS_HEATMAP_POINTS_LAYER],
+};
+
+function applyGeoMapLayerVisibility(
+  map: MapLibreMap,
+  layers: Record<GeoMapLayerId, boolean>,
+): void {
+  for (const [key, layerIds] of Object.entries(MAPLIBRE_LAYERS_BY_TOGGLE)) {
+    const visible = layers[key as Exclude<GeoMapLayerId, "timeline">];
+    for (const layerId of layerIds) {
+      if (!map.getLayer(layerId)) continue;
+      map.setLayoutProperty(layerId, "visibility", visible ? "visible" : "none");
+    }
   }
 }
 
@@ -460,6 +517,7 @@ function afterStyleChange(map: MapLibreMap, fn: () => void): void {
 }
 
 const USER_SOURCE_IDS = [
+  EVENTS_HEATMAP_SOURCE,
   "regions",
   "regions-outline-inset",
   "districts-active",
@@ -467,6 +525,8 @@ const USER_SOURCE_IDS = [
 ] as const;
 
 const USER_LAYER_IDS = new Set([
+  EVENTS_HEATMAP_LAYER,
+  EVENTS_HEATMAP_POINTS_LAYER,
   "regions-fill",
   "regions-outline",
   "regions-selection",
@@ -652,6 +712,10 @@ export function GeoMapWidget(_props: WidgetProps) {
     let unsubPlaces: Subscription | undefined;
     let unsubSelected: Subscription | undefined;
     let unsubTheme: Subscription | undefined;
+    let unsubHeatmapPeriod: Subscription | undefined;
+    let unsubHistoricalAsOf: Subscription | undefined;
+    let unsubGeoMapLayers: Subscription | undefined;
+    let heatmapReloadTimer: ReturnType<typeof setTimeout> | undefined;
     /**
      * Инициализируем null, чтобы первый emit BehaviorSubject всегда обрабатывался
      * (иначе code === prev → early return → flyToRegion не вызывается).
@@ -900,6 +964,48 @@ export function GeoMapWidget(_props: WidgetProps) {
       }, 300);
     };
 
+    /** Загрузка теплокарты — только когда слой включён. */
+    const loadEventsHeatmap = (): void => {
+      if (!map || !geoMapLayers$.value.heatmap) return;
+      clearTimeout(heatmapReloadTimer);
+      heatmapReloadTimer = setTimeout(() => {
+        if (disposed || !map || !geoMapLayers$.value.heatmap) return;
+        const period = heatmapPeriod$.value;
+        const until = historicalAsOf$.value ?? new Date().toISOString();
+        setHeatmapLoading(true);
+        void mapApi
+          .eventsHeatmap({ period, until })
+          .then((data) => {
+            if (disposed || !map || !geoMapLayers$.value.heatmap) return;
+            setHeatmapMeta(data.meta);
+            applyGeoJsonSourceData(
+              map,
+              EVENTS_HEATMAP_SOURCE,
+              { type: "FeatureCollection", features: data.features },
+              geoSourceFingerprints,
+            );
+            applyGeoMapLayerVisibility(map, geoMapLayers$.value);
+          })
+          .catch((error: unknown) => {
+            console.error("[GeoMapWidget] events-heatmap", error);
+          })
+          .finally(() => {
+            if (!disposed) setHeatmapLoading(false);
+          });
+      }, 400);
+    };
+
+    const hideEventsHeatmap = (): void => {
+      clearTimeout(heatmapReloadTimer);
+      for (const layerId of [EVENTS_HEATMAP_LAYER, EVENTS_HEATMAP_POINTS_LAYER]) {
+        if (map?.getLayer(layerId)) {
+          map.setLayoutProperty(layerId, "visibility", "none");
+        }
+      }
+      setHeatmapMeta(null);
+      setHeatmapLoading(false);
+    };
+
     /**
      * Добавляет источники, слои и обработчики событий на карту.
      * Вызывается при начальной загрузке и при каждой смене стиля (map.setStyle).
@@ -908,6 +1014,36 @@ export function GeoMapWidget(_props: WidgetProps) {
     const setupLayersAndHandlers = (): void => {
       if (!map || !maplibreRef) return;
       const ml = maplibreRef;
+
+      // --- Теплокарта событий (под контурами) ---
+      if (!map.getSource(EVENTS_HEATMAP_SOURCE)) {
+        map.addSource(EVENTS_HEATMAP_SOURCE, {
+          type: "geojson",
+          data: { type: "FeatureCollection", features: [] },
+        });
+      }
+      if (!map.getLayer(EVENTS_HEATMAP_LAYER)) {
+        map.addLayer({
+          id: EVENTS_HEATMAP_LAYER,
+          type: "heatmap",
+          source: EVENTS_HEATMAP_SOURCE,
+          maxzoom: EVENTS_HEATMAP_ZOOM_HEAT_MAX,
+          layout: { visibility: "none" },
+          paint: eventsHeatmapPaint(theme$.value) as never,
+        });
+      } else {
+        applyEventsHeatmapPaint(map, theme$.value);
+      }
+      if (!map.getLayer(EVENTS_HEATMAP_POINTS_LAYER)) {
+        map.addLayer({
+          id: EVENTS_HEATMAP_POINTS_LAYER,
+          type: "circle",
+          source: EVENTS_HEATMAP_SOURCE,
+          minzoom: EVENTS_HEATMAP_ZOOM_POINTS_MIN,
+          layout: { visibility: "none" },
+          paint: eventsHeatmapPointsPaint(theme$.value) as never,
+        });
+      }
 
       // --- Регионы ---
       if (!map.getSource(REGIONS_SOURCE)) {
@@ -962,15 +1098,12 @@ export function GeoMapWidget(_props: WidgetProps) {
           id: REGIONS_SELECTION,
           type: "line",
           source: REGIONS_OUTLINE_SOURCE,
-          filter: [
-            "all",
-            ["==", ["get", "kind"], "region"],
-            FEATURE_SELECTED,
-          ],
+          filter: ["==", ["get", "kind"], "region"],
           paint: {
             "line-color": REGION_MAP_SELECTION_HALO,
             "line-width": REGION_MAP_SELECTED_STROKE_WIDTH + 1.5,
-            "line-opacity": 0.9,
+            // feature-state нельзя в filter — видимость через opacity.
+            "line-opacity": ["case", FEATURE_SELECTED, 0.9, 0],
           },
         });
       }
@@ -1037,6 +1170,7 @@ export function GeoMapWidget(_props: WidgetProps) {
       }
 
       enforceGeoEntityLayerOrder(map);
+      applyGeoMapLayerVisibility(map, geoMapLayers$.value);
 
       // --- Обработчики событий (переустанавливаем после смены стиля) ---
       const onPick = (event: MapLayerMouseEvent): void => {
@@ -1196,6 +1330,28 @@ export function GeoMapWidget(_props: WidgetProps) {
         loadRegionGeometry();
         loadAndApplyDistricts();
         applyPlaces();
+        applyGeoMapLayerVisibility(map, geoMapLayers$.value);
+        if (geoMapLayers$.value.heatmap) {
+          loadEventsHeatmap();
+        }
+
+        let prevHeatmapOn = geoMapLayers$.value.heatmap;
+        unsubGeoMapLayers = geoMapLayers$.subscribe((layers) => {
+          if (!map) return;
+          applyGeoMapLayerVisibility(map, layers);
+          if (!layers.heatmap) {
+            hideEventsHeatmap();
+          } else if (!prevHeatmapOn) {
+            loadEventsHeatmap();
+          }
+          prevHeatmapOn = layers.heatmap;
+        });
+        unsubHeatmapPeriod = heatmapPeriod$.subscribe(() => {
+          if (geoMapLayers$.value.heatmap) loadEventsHeatmap();
+        });
+        unsubHistoricalAsOf = historicalAsOf$.subscribe(() => {
+          if (geoMapLayers$.value.heatmap) loadEventsHeatmap();
+        });
 
         unsubRegions = regionsByCode$.subscribe(() => scheduleMapRefresh());
         unsubPlaces = placesById$.subscribe(() => schedulePlacesLayerRefresh());
@@ -1222,6 +1378,9 @@ export function GeoMapWidget(_props: WidgetProps) {
               applyDistrictsLayer(baseDistrictsRef.current);
             }
             applyPlacesFadeLayers();
+            applyEventsHeatmapPaint(map, theme);
+            applyGeoMapLayerVisibility(map, geoMapLayers$.value);
+            if (geoMapLayers$.value.heatmap) loadEventsHeatmap();
           });
         });
 
@@ -1270,6 +1429,7 @@ export function GeoMapWidget(_props: WidgetProps) {
       clearTimeout(geoReloadTimer);
       clearTimeout(placesLayerTimer);
       clearTimeout(districtsReloadTimer);
+      clearTimeout(heatmapReloadTimer);
       clearInterval(fadeTicker);
       placePopup?.remove();
       placePopup = null;
@@ -1282,6 +1442,9 @@ export function GeoMapWidget(_props: WidgetProps) {
       unsubPlaces?.unsubscribe();
       unsubSelected?.unsubscribe();
       unsubTheme?.unsubscribe();
+      unsubHeatmapPeriod?.unsubscribe();
+      unsubHistoricalAsOf?.unsubscribe();
+      unsubGeoMapLayers?.unsubscribe();
       map?.remove();
     };
   }, []);

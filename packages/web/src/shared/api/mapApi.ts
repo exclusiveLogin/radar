@@ -8,6 +8,7 @@ import {
   sourceMessageResponseSchema,
   statusDictionarySchema,
   warningSchema,
+  eventHeatmapResponseSchema,
 } from "@radar/shared";
 import type {
   MapSnapshot,
@@ -16,6 +17,8 @@ import type {
   SourceMessage,
   StatusDictionary,
   Warning,
+  EventHeatmapPeriod,
+  EventHeatmapResponse,
 } from "@radar/shared";
 import { z } from "zod";
 
@@ -152,6 +155,17 @@ export const mapApi = {
       `/api/map/regions/by-code/${encodeURIComponent(code)}/events?limit=${limit}`,
       stateChangeEventsResponseSchema,
     ),
+  /** Теплокарта raise-событий (GeoJSON Point + meta). */
+  eventsHeatmap: (params: {
+    period: EventHeatmapPeriod;
+    until?: string;
+    limit?: number;
+  }): Promise<EventHeatmapResponse> => {
+    const qs = new URLSearchParams({ period: params.period });
+    if (params.until) qs.set("until", params.until);
+    if (params.limit !== undefined) qs.set("limit", String(params.limit));
+    return getJson(`/api/map/events/heatmap?${qs}`, eventHeatmapResponseSchema);
+  },
 };
 
 const geoJsonFeatureCollectionSchema = z.object({

@@ -244,17 +244,146 @@
   box-shadow: var(--shadow-panel);
 }
 
-/* ── Таймлайн карты (replay asOf) ── */
-.map-timeline {
+/* ── Bottom dock: таймлайн (слой timeline) ── */
+.map-bottom-dock {
   position: absolute;
   left: 50%;
   bottom: 16px;
   transform: translateX(-50%);
   z-index: 15;
+  width: min(520px, calc(100% - 2 * var(--rail-width) - 48px));
+  pointer-events: none;
+}
+
+.map-bottom-dock > * {
+  pointer-events: auto;
+}
+
+/* ── Панель слоёв (боковая) ── */
+.map-layers-panel {
+  position: absolute;
+  right: calc(var(--rail-width) + 20px);
+  top: 12px;
+  z-index: 12;
+  width: 200px;
+  max-height: calc(100% - 100px);
+  overflow-y: auto;
+  padding: 10px 12px;
+  background: var(--glass-bg);
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  backdrop-filter: blur(12px);
+  box-shadow: var(--shadow-panel);
+  pointer-events: auto;
+}
+
+.map-layers-panel__title {
+  margin: 0 0 8px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.map-layers-panel__list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.map-layers-panel__item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.map-layers__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  padding: 6px 4px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: var(--text);
+  font-size: 12px;
+  text-align: left;
+}
+
+.map-layers__row:hover {
+  color: var(--accent);
+}
+
+.map-layers__label {
+  flex: 1;
+  font-weight: 500;
+}
+
+.map-layers__track {
+  position: relative;
+  width: 34px;
+  height: 18px;
+  border-radius: 9px;
+  background: var(--border);
+  flex-shrink: 0;
+  transition: background 0.15s ease;
+}
+
+.map-layers__row.is-on .map-layers__track {
+  background: var(--accent);
+}
+
+.map-layers__thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+  transition: transform 0.15s ease;
+}
+
+.map-layers__row.is-on .map-layers__thumb {
+  transform: translateX(16px);
+}
+
+.map-layers__subpanel {
+  padding: 0 4px 4px 8px;
+  border-left: 2px solid var(--border);
+  margin-left: 4px;
+}
+
+.map-layers__periods {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.map-layers__periods .ds-button {
+  min-width: 2.2rem;
+  padding: 2px 6px;
+  font-size: 10px;
+}
+
+.map-layers__hint {
+  display: block;
+  margin-top: 4px;
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+/* ── Таймлайн карты (replay asOf) ── */
+.map-timeline {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 8px;
-  width: min(520px, calc(100% - 2 * var(--rail-width) - 48px));
+  width: 100%;
   padding: 10px 14px;
   background: var(--glass-bg);
   border: 1px solid var(--border-strong);
@@ -395,13 +524,26 @@
     flex-shrink: 0;
   }
 
-  .map-timeline {
+  .map-bottom-dock {
     position: relative;
     left: auto;
     bottom: auto;
     transform: none;
     width: calc(100% - 16px);
     margin: 8px auto;
+  }
+
+  .map-layers-panel {
+    right: 8px;
+    top: auto;
+    bottom: 8px;
+    width: min(200px, calc(100% - 16px));
+    max-height: 40vh;
+  }
+
+  .map-timeline {
+    width: 100%;
+    margin: 0;
   }
 
   .shell__rail-item {

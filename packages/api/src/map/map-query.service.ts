@@ -10,10 +10,11 @@ import type {
   StateLevel,
   StatusDictionary,
   Warning,
+  EventHeatmapPeriod,
+  EventHeatmapResponse,
 } from "@radar/shared";
-import {
-  StatusDictionaryEntity,
-} from "../events/entities";
+import { STATE_LEVEL_RANK, eventHeatmapPeriodMs } from "@radar/shared";
+import { StatusDictionaryEntity } from "../events/entities";
 import { PlaceEntity, RegionEntity } from "../geo/entities";
 import { loadRegionAdjacency } from "./adjacency.loader";
 import type { SourceMessage } from "@radar/shared";
@@ -741,6 +742,83 @@ export class MapQueryService {
       regionCodes: row.region_codes ?? [],
       regionNames: row.region_names ?? [],
     }));
+  }
+
+  /**
+   * Точки raise-событий для теплокарты (read-side, PG; future: ClickHouse adapter).
+   * Только place; координаты как на live-карте: el → place.centroid → geo_feature.centroid
+   * (@see map-centroid.resolver resolvePlaceMapCentroid).
+   */
+  async getEventsHeatmapGeoJson(params: {
+    period: EventHeatmapPeriod;
+    until?: Date;
+    limit?: number;
+  }): Promise<EventHeatmapResponse> {
+    const until = params.until ?? new Date();
+    const limit = Math.min(Math.max(params.limit ?? 8000, 1), 15000);
+    const periodMs = eventHeatmapPeriodMs(params.period);
+    const since =
+      periodMs === null ? null : new Date(until.getTime() - periodMs);
+
+    const rows = (await this.dataSource.query(
+      `SELECT el.id,
+              COALESCE(el.lon, p.centroid_lon, gf.centroid_lon)::float AS lon,
+              COALESCE(el.lat, p.centroid_lat, gf.centroid_lat)::float AS lat,
+              sd.state_level,
+              COALESCE(el.occurred_at, rm.posted_at) AS occurred_at
+       FROM event_locations el
+       JOIN parsed_events pe ON pe.id = el.parsed_event_id AND pe.is_active = true
+       JOIN raw_messages rm ON rm.id = pe.raw_message_id
+       JOIN places p ON p.id = el.place_id AND p.is_active = true
+       LEFT JOIN geo_feature gf ON gf.id = p.geo_feature_id
+       JOIN status_dictionary sd
+         ON sd.code = COALESCE(el.status_code, pe.event_type) AND sd.is_active = true
+       WHERE el.action = 'raise'
+         AND el.place_id IS NOT NULL
+         AND sd.state_level IS NOT NULL
+         AND sd.state_level NOT IN ('grey', 'green')
+         AND COALESCE(el.lon, p.centroid_lon, gf.centroid_lon) IS NOT NULL
+         AND COALESCE(el.lat, p.centroid_lat, gf.centroid_lat) IS NOT NULL
+         AND ($2::timestamptz IS NULL OR rm.posted_at >= $2::timestamptz)
+         AND rm.posted_at <= $1::timestamptz
+       ORDER BY occurred_at DESC
+       LIMIT $3`,
+      [until.toISOString(), since?.toISOString() ?? null, limit],
+    )) as Array<{
+      id: string;
+      lon: number;
+      lat: number;
+      state_level: StateLevel;
+      occurred_at: Date;
+    }>;
+
+    const features = rows.map((row) => {
+      const stateLevel = row.state_level;
+      const weight = Math.max(1, STATE_LEVEL_RANK[stateLevel] ?? 1);
+      return {
+        type: "Feature" as const,
+        geometry: {
+          type: "Point" as const,
+          coordinates: [row.lon, row.lat] as [number, number],
+        },
+        properties: {
+          weight,
+          stateLevel,
+          occurredAt: row.occurred_at.toISOString(),
+        },
+      };
+    });
+
+    return {
+      type: "FeatureCollection",
+      features,
+      meta: {
+        period: params.period,
+        since: since?.toISOString() ?? null,
+        until: until.toISOString(),
+        count: features.length,
+      },
+    };
   }
 
 }

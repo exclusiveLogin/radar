@@ -317,6 +317,18 @@ export type {
   PhasesUpdatePayload,
 } from "./admin";
 
+export {
+  eventHeatmapPeriodSchema,
+  eventHeatmapMetaSchema,
+  eventHeatmapResponseSchema,
+  eventHeatmapPeriodMs,
+} from "./map/event-heatmap";
+export type {
+  EventHeatmapPeriod,
+  EventHeatmapMeta,
+  EventHeatmapResponse,
+} from "./map/event-heatmap";
+
 /** Браузер-безопасные хелперы карты (Vite: @radar/shared → этот barrel, не src/index). */
 export { isPlaceSuppressedByRegionClear } from "../domain/region-state/statusEventOrdering.js";
 export type { MapStatusAction } from "../domain/region-state/statusEventOrdering.js";

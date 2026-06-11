@@ -211,3 +211,155 @@ export const DISTRICT_MAP_MIN_ZOOM = 6;
 /** Радиус маркера place на карте: точка для district меньше, чтобы не перекрывать полигон. */
 export const PLACE_CIRCLE_RADIUS_DEFAULT = 9;
 export const PLACE_CIRCLE_RADIUS_DISTRICT = 6;
+
+/** MapLibre: теплокарта raise-событий (heatmap + точки при zoom). */
+export const EVENTS_HEATMAP_SOURCE = "events-heatmap";
+export const EVENTS_HEATMAP_LAYER = "events-heatmap-layer";
+export const EVENTS_HEATMAP_POINTS_LAYER = "events-heatmap-points";
+/** Heatmap гаснет к этому zoom; кружки появляются с EVENTS_HEATMAP_ZOOM_POINTS_MIN. */
+export const EVENTS_HEATMAP_ZOOM_HEAT_MAX = 9;
+export const EVENTS_HEATMAP_ZOOM_POINTS_MIN = 7;
+
+/**
+ * Градиент density: растянутый переход, максимум — orange (без red).
+ */
+export function eventsHeatmapColorExpression(_theme: ThemeMode): unknown[] {
+  return [
+    "interpolate",
+    ["linear"],
+    ["heatmap-density"],
+    0,
+    "rgba(50, 50, 255, 0)",
+    0.1,
+    "rgba(0, 120, 200, 0.35)",
+    0.22,
+    "rgb(0, 180, 220)",
+    0.38,
+    "rgb(80, 200, 160)",
+    0.52,
+    "rgb(160, 220, 120)",
+    0.66,
+    "rgb(230, 230, 90)",
+    0.8,
+    "rgb(255, 190, 60)",
+    0.92,
+    LEVEL_COLORS.orange,
+    1,
+    LEVEL_COLORS.orange,
+  ];
+}
+
+/** Heatmap на обзоре: intensity/radius по zoom и weight события. */
+export function eventsHeatmapPaint(_theme: ThemeMode): Record<string, unknown> {
+  return {
+    "heatmap-weight": [
+      "interpolate",
+      ["linear"],
+      ["coalesce", ["get", "weight"], 2],
+      2,
+      0.1,
+      3,
+      0.22,
+      4,
+      0.38,
+    ],
+    "heatmap-intensity": [
+      "interpolate",
+      ["linear"],
+      ["zoom"],
+      0,
+      0.55,
+      5,
+      0.75,
+      EVENTS_HEATMAP_ZOOM_HEAT_MAX,
+      0.95,
+    ],
+    // Радиус только по zoom (MapLibre: zoom — top-level interpolate, без умножения).
+    "heatmap-radius": [
+      "interpolate",
+      ["linear"],
+      ["zoom"],
+      0,
+      4,
+      3,
+      7,
+      5,
+      11,
+      7,
+      16,
+      EVENTS_HEATMAP_ZOOM_HEAT_MAX,
+      24,
+    ],
+    "heatmap-color": eventsHeatmapColorExpression(_theme),
+    "heatmap-opacity": [
+      "interpolate",
+      ["linear"],
+      ["zoom"],
+      EVENTS_HEATMAP_ZOOM_POINTS_MIN,
+      1,
+      EVENTS_HEATMAP_ZOOM_HEAT_MAX,
+      0,
+    ],
+  };
+}
+
+/** Точки-события при приближении (crossfade с heatmap). */
+export function eventsHeatmapPointsPaint(_theme: ThemeMode): Record<string, unknown> {
+  return {
+    "circle-color": [
+      "match",
+      ["get", "stateLevel"],
+      "red",
+      LEVEL_COLORS.red,
+      "orange",
+      LEVEL_COLORS.orange,
+      "yellow",
+      LEVEL_COLORS.yellow,
+      LEVEL_COLORS.yellow,
+    ],
+    "circle-stroke-color": "#ffffff",
+    "circle-stroke-width": 1,
+    "circle-radius": [
+      "interpolate",
+      ["linear"],
+      ["zoom"],
+      EVENTS_HEATMAP_ZOOM_POINTS_MIN,
+      [
+        "interpolate",
+        ["linear"],
+        ["coalesce", ["get", "weight"], 1],
+        1,
+        4,
+        2,
+        6,
+        3,
+        8,
+        4,
+        10,
+      ],
+      14,
+      [
+        "interpolate",
+        ["linear"],
+        ["coalesce", ["get", "weight"], 1],
+        1,
+        8,
+        2,
+        12,
+        3,
+        16,
+        4,
+        20,
+      ],
+    ],
+    "circle-opacity": [
+      "interpolate",
+      ["linear"],
+      ["zoom"],
+      EVENTS_HEATMAP_ZOOM_POINTS_MIN,
+      0,
+      EVENTS_HEATMAP_ZOOM_POINTS_MIN + 1,
+      1,
+    ],
+  };
+}

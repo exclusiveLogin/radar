@@ -8,6 +8,9 @@ import { startPvoReportsStore } from "../shared/state/pvoReportsStore";
 import { startTopActivityStore } from "../shared/state/topActivityStore";
 import { RegionDetailWidget } from "../widgets/region-detail/RegionDetailWidget";
 import { MapTimelineBar } from "../widgets/map-timeline/MapTimelineBar";
+import { MapLayersPanel } from "../widgets/map-layers/MapLayersPanel";
+import { useObservable } from "../shared/hooks/useObservable";
+import { geoMapLayers$ } from "../shared/state/mapLayerStore";
 import { WIDGETS, type WidgetZone } from "./widgetRegistry";
 
 /** Начальная видимость виджетов из реестра. */
@@ -25,6 +28,7 @@ function widgetsByZone(zone: WidgetZone, visible: Record<string, boolean>) {
 export function AppShell() {
   const [visible, setVisible] = useState<Record<string, boolean>>(initialVisibility);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const geoLayers = useObservable(geoMapLayers$, geoMapLayers$.value);
 
   useEffect(() => {
     startMapStore();
@@ -97,6 +101,8 @@ export function AppShell() {
           ))}
         </div>
 
+        <MapLayersPanel />
+
         <aside className="shell__rail shell__rail--left">
           {left.map(({ id, component: Widget }) => (
             <div key={id} className="shell__rail-item">
@@ -113,7 +119,11 @@ export function AppShell() {
           ))}
         </aside>
 
-        <MapTimelineBar />
+        {geoLayers.timeline && (
+          <div className="map-bottom-dock">
+            <MapTimelineBar />
+          </div>
+        )}
       </main>
     </div>
   );

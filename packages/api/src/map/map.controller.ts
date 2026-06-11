@@ -7,6 +7,8 @@ import {
   statusDictionarySchema,
   sourceMessageResponseSchema,
   warningSchema,
+  eventHeatmapPeriodSchema,
+  eventHeatmapResponseSchema,
 } from "@radar/shared";
 import { z } from "zod";
 import {
@@ -274,5 +276,41 @@ export class MapController {
   ) {
     const items = await this.map.getRegionEvents(code, parseLimit(limit, 50));
     return { items };
+  }
+
+  @Get("map/events/heatmap")
+  @ApiOperation({
+    summary: "Теплокарта raise-событий",
+    description:
+      "GeoJSON Point + meta. Place-события: el.lat/lon → places.centroid → geo_feature.centroid. " +
+      "period=24h|7d|30d|all; until=ISO (replay).",
+  })
+  @ApiQuery({ name: "period", required: false, enum: ["24h", "7d", "30d", "all"] })
+  @ApiQuery({ name: "until", required: false, description: "ISO8601 верхняя граница (default now)" })
+  @ApiQuery({ name: "limit", required: false, description: "Max точек (default 8000, max 15000)" })
+  @ApiResponse({ status: 200, description: "FeatureCollection + meta" })
+  async eventsHeatmap(
+    @Query("period") periodRaw?: string,
+    @Query("until") untilRaw?: string,
+    @Query("limit") limitRaw?: string,
+  ) {
+    const periodParsed = eventHeatmapPeriodSchema.safeParse(periodRaw ?? "24h");
+    if (!periodParsed.success) {
+      throw new BadRequestException("Invalid period (24h|7d|30d|all)");
+    }
+    let until: Date | undefined;
+    if (untilRaw) {
+      until = new Date(untilRaw);
+      if (!Number.isFinite(until.getTime())) {
+        throw new BadRequestException("Invalid until datetime");
+      }
+    }
+    return eventHeatmapResponseSchema.parse(
+      await this.map.getEventsHeatmapGeoJson({
+        period: periodParsed.data,
+        until,
+        limit: parseLimit(limitRaw, 8000),
+      }),
+    );
   }
 }
