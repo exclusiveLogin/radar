@@ -1,4 +1,4 @@
-import { Controller, Get, NotFoundException, Param, Post, Query } from "@nestjs/common";
+import { BadRequestException, Controller, Get, NotFoundException, Param, Post, Query } from "@nestjs/common";
 import { ApiOperation, ApiParam, ApiQuery, ApiResponse, ApiTags } from "@nestjs/swagger";
 import {
   mapSnapshotSchema,
@@ -47,12 +47,27 @@ export class MapController {
   @ApiOperation({
     summary: "Полный снапшот карты",
     description:
-      "Возвращает актуальные статусы регионов, places, предупреждения и layout-тайлы схемы. " +
-      "Параметр `since` (ISO8601) ограничивает выборку только записями после указанного времени.",
+      "Без параметров — live read-model (now). " +
+      "`asOf` (ISO8601) — historical fold из facts на маркер времени (таймлайн). " +
+      "`since` — incremental cursor по updated_at (только live, взаимоисключимо с asOf).",
   })
-  @ApiQuery({ name: "since", required: false, description: "ISO8601 cursor — вернуть только изменения после этого времени" })
-  @ApiResponse({ status: 200, description: "MapSnapshot (regions + places + warnings + layout)" })
-  async snapshot(@Query("since") since?: string) {
+  @ApiQuery({ name: "since", required: false, description: "ISO8601 cursor — только live snapshot" })
+  @ApiQuery({ name: "asOf", required: false, description: "ISO8601 — historical fold на момент времени" })
+  @ApiResponse({ status: 200, description: "MapSnapshot (regions + places)" })
+  async snapshot(
+    @Query("since") since?: string,
+    @Query("asOf") asOf?: string,
+  ) {
+    if (asOf && since) {
+      throw new BadRequestException("asOf and since are mutually exclusive");
+    }
+    if (asOf) {
+      const at = new Date(asOf);
+      if (!Number.isFinite(at.getTime())) {
+        throw new BadRequestException("Invalid asOf datetime");
+      }
+      return mapSnapshotSchema.parse(await this.map.getSnapshotAt(at));
+    }
     return mapSnapshotSchema.parse(await this.map.getSnapshot(since));
   }
 

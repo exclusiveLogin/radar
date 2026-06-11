@@ -1,5 +1,6 @@
-/** TTL операционного статуса на карте: по умолчанию 24 часа. */
-export const DEFAULT_MAP_STATE_TTL_MS = 24 * 60 * 60 * 1000;
+import { resolveMapStateTtlMs as resolveMapStateTtlMsShared } from "@radar/shared";
+
+export { DEFAULT_MAP_STATE_TTL_MS } from "@radar/shared";
 
 const DEFAULT_POLL_MS = 5 * 60 * 1000;
 
@@ -10,12 +11,7 @@ function parsePositiveInt(raw: string | undefined, fallback: number): number {
 
 /** Длительность удержания статуса до сброса (мс). */
 export function resolveMapStateTtlMs(): number {
-  const hours = process.env.RADAR_MAP_STATE_TTL_HOURS?.trim();
-  if (hours) {
-    const h = Number(hours);
-    if (Number.isFinite(h) && h > 0) return h * 60 * 60 * 1000;
-  }
-  return parsePositiveInt(process.env.RADAR_MAP_STATE_TTL_MS, DEFAULT_MAP_STATE_TTL_MS);
+  return resolveMapStateTtlMsShared(process.env);
 }
 
 /** Период фонового sweep (мс). */

@@ -156,6 +156,22 @@ export {
   readPlaceStatusEventAt,
 } from "./domain/region-state/statusEventOrdering";
 export type { MapStatusAction } from "./domain/region-state/statusEventOrdering";
+export {
+  DEFAULT_MAP_STATE_TTL_MS,
+  REGION_CALM_SUPPRESS_MS,
+  resolveMapStateTtlMs,
+} from "./domain/region-state/mapStateTtl";
+export {
+  foldMapState,
+  shouldIncomingBeatWinner,
+  isRegionVisibleInSnapshot,
+} from "./domain/region-state/mapStateFold";
+export type {
+  EventLocationFact,
+  MapEntityWinner,
+  MapStateFoldInput,
+  MapStateFoldResult,
+} from "./domain/region-state/mapStateFold";
 export { ingestMessageHash } from "./domain/ingestMessageHash";
 export type { RawMessageHashInput } from "./domain/ingestMessageHash";
 export {

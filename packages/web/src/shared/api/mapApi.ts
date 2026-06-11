@@ -60,12 +60,24 @@ async function getJson<T>(url: string, schema: { parse: (data: unknown) => T }):
   return schema.parse((await response.json()) as unknown);
 }
 
+export type MapSnapshotQuery = {
+  /** Live incremental cursor (read-model). */
+  since?: string;
+  /** Historical fold на маркер времени (read-line). */
+  asOf?: string;
+};
+
 export const mapApi = {
-  snapshot: (since?: string): Promise<MapSnapshot> =>
-    getJson(
-      `/api/map/snapshot${since ? `?since=${encodeURIComponent(since)}` : ""}`,
+  snapshot: (query?: MapSnapshotQuery): Promise<MapSnapshot> => {
+    const params = new URLSearchParams();
+    if (query?.since) params.set("since", query.since);
+    if (query?.asOf) params.set("asOf", query.asOf);
+    const qs = params.toString();
+    return getJson(
+      `/api/map/snapshot${qs ? `?${qs}` : ""}`,
       mapSnapshotSchema,
-    ),
+    );
+  },
   statusDictionary: (): Promise<StatusDictionary> =>
     getJson("/api/status-dictionary", statusDictionarySchema),
   warnings: (params?: { regionId?: string; since?: string }): Promise<Warning[]> => {

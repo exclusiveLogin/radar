@@ -26,6 +26,7 @@ import {
   RegionGeometryCatalog,
   type RegionsGeoJsonLayer,
 } from "./region-geometry.catalog";
+import { MapStateFoldService } from "./map-state-fold.service";
 
 type RegionStateLevel = MapRegionSnapshot["stateLevel"];
 const REGION_DRAW_SUPPRESS_AGE_MS = 3 * 60 * 60 * 1000;
@@ -41,7 +42,10 @@ function toNumber(value: string | null): number | undefined {
 export class MapQueryService {
   private catalogBound = false;
 
-  constructor(@InjectDataSource() private readonly dataSource: DataSource) {}
+  constructor(
+    @InjectDataSource() private readonly dataSource: DataSource,
+    private readonly mapStateFold: MapStateFoldService,
+  ) {}
 
   /**
    * Активные полигоны районов: только те geo_feature, у которых есть place
@@ -207,6 +211,11 @@ export class MapQueryService {
       })),
     );
     this.catalogBound = true;
+  }
+
+  /** Historical snapshot: fold фактов на маркер asOf (read-line, фаза 1). */
+  async getSnapshotAt(asOf: Date): Promise<MapSnapshot> {
+    return this.mapStateFold.getSnapshotAt(asOf);
   }
 
   /** Лёгкий снапшот карты: регионы + stateLevel + activity + layout, без полигонов. */

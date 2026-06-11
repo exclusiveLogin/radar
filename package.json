@@ -81,6 +81,8 @@
     "parse-engine:ingest:backfill": "npm run parse-engine:ingest:backfill -w @radar/worker --",
     "worker:ingest:backfill": "npm run parse-engine:ingest:backfill --",
     "parse-engine:geo:drain": "npm run parse-engine:geo:drain -w @radar/worker --",
+    "parse-engine:channel:audit": "npm run parse-engine:channel:audit -w @radar/worker --",
+    "heap:snapshot:diff": "node scripts/heap-snapshot-diff.mjs",
     "parse-engine:geo:check": "npm run parse-engine:geo:check -w @radar/worker",
     "parse-engine:geo:recover": "npm run parse-engine:geo:recover -w @radar/worker",
     "parse-engine:catalog:heal": "npm run parse-engine:catalog:heal -w @radar/worker --",
@@ -94,7 +96,8 @@
     "parse:ab": "npm run parse:ab -w @radar/worker --",
     "parse:score": "npm run parse:score -w @radar/worker --",
     "parse:golden:bootstrap": "npm run parse:golden:bootstrap -w @radar/worker --",
-    "worker:map-state:expire": "npm run worker:map-state:expire -w @radar/worker"
+    "worker:map-state:expire": "npm run worker:map-state:expire -w @radar/worker",
+    "map:fold:diff": "npm run map:fold:diff -w @radar/worker"
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",

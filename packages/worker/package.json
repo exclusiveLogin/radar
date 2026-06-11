@@ -39,6 +39,7 @@
     "parse-engine:ingest:backfill": "tsx src/cli/ingestBackfillCli.ts",
     "worker:ingest:backfill": "tsx src/cli/ingestBackfillCli.ts",
     "parse-engine:geo:drain": "tsx src/cli/placeEnrichmentDrainCli.ts",
+    "parse-engine:channel:audit": "tsx src/cli/channelIngestAuditCli.ts",
     "parse-engine:geo:check": "tsx src/cli/geoDadataCheckCli.ts",
     "parse-engine:geo:recover": "tsx src/cli/geoRecoverCli.ts",
     "parse-engine:catalog:heal": "tsx src/cli/placeCatalogHealCli.ts",
@@ -54,6 +55,7 @@
     "parse-engine:manifest:export": "tsx src/cli/phaseManifestCli.ts export",
     "worker:map-state:expire": "tsx src/cli/mapStateExpireCli.ts",
     "worker:map-state:diagnose": "tsx src/cli/mapStateDiagnoseCli.ts",
+    "map:fold:diff": "tsx src/cli/mapStateFoldDiffCli.ts",
     "worker:backfill:status-read-models": "tsx src/cli/backfillStatusReadModelsCli.ts",
     "verify:parse-threads": "tsx scripts/verify-parse-threads.mjs",
     "verify:bootstrap": "tsx scripts/verify-worker-bootstrap.mjs"
