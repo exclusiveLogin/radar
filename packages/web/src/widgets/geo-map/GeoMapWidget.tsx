@@ -1106,6 +1106,15 @@ export function GeoMapWidget(_props: WidgetProps) {
             "line-opacity": ["case", FEATURE_SELECTED, 0.9, 0],
           },
         });
+      } else {
+        // HMR/повторный setup: слой мог остаться со старым filter(feature-state).
+        map.setFilter(REGIONS_SELECTION, ["==", ["get", "kind"], "region"]);
+        map.setPaintProperty(REGIONS_SELECTION, "line-opacity", [
+          "case",
+          FEATURE_SELECTED,
+          0.9,
+          0,
+        ]);
       }
 
       // --- Районы ---

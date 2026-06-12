@@ -274,21 +274,17 @@ export function eventsHeatmapPaint(_theme: ThemeMode): Record<string, unknown> {
       EVENTS_HEATMAP_ZOOM_HEAT_MAX,
       0.95,
     ],
-    // Радиус только по zoom (MapLibre: zoom — top-level interpolate, без умножения).
+    // heatmap-radius — только data-driven (weight); zoom в MapLibre 4.x здесь запрещён.
     "heatmap-radius": [
       "interpolate",
       ["linear"],
-      ["zoom"],
-      0,
-      4,
+      ["coalesce", ["get", "weight"], 2],
+      2,
+      6,
       3,
-      7,
-      5,
       11,
-      7,
-      16,
-      EVENTS_HEATMAP_ZOOM_HEAT_MAX,
-      24,
+      4,
+      18,
     ],
     "heatmap-color": eventsHeatmapColorExpression(_theme),
     "heatmap-opacity": [
