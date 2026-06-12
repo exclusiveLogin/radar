@@ -225,3 +225,30 @@ flowchart LR
   - provider-agnostic контракты,
   - rate limits, retry/backoff, idempotency,
   - promotion policy `unverified -> verified`.
+
+### Итерация 4 — Tracking & Forecasting (2026-06-12)
+
+Цель: автоматическая сборка траекторий из OSINT-точек, прогноз положения целей, аналитика ПВО (Kill/Pass).
+
+Документация (фаза 0 — **выполнено**):
+
+- [roadmap-tracking-forecasting.md](./roadmap-tracking-forecasting.md) — vision, 7 идей, зависимости
+- [rfc/tracking-pipeline-phases.md](./rfc/tracking-pipeline-phases.md) — фазы 0–4
+- ADR: [007](./adr-007-trajectory-graph-kalman-worker.md) (граф + Kalman), [008](./adr-008-kinematic-vs-static-events.md) (кинематика vs статика), [009](./adr-009-osint-pre-collapse.md) (схлопывание), [010](./adr-010-pvo-kill-pass-layers.md) (Kill/Pass), [011](./adr-011-deckgl-track-rendering.md) (Deck.gl)
+- Features: [эллипсы](./features/tracking-confidence-ellipse.md), [temporal color](./features/tracking-temporal-color.md), [heatmap filter](./features/tracking-heatmap-filter.md)
+
+#### Scope MVP (фаза 1)
+
+1. OSINT pre-collapse → kinematic routing → background Kalman worker
+2. `GET /map/tracks` API
+3. Heatmap filter по `eventType` / `eventCategory`
+
+#### Post-MVP
+
+- Фаза 2: эллипсы прогноза + Time Machine
+- Фаза 3: Kill/Pass слои ПВО
+- Фаза 4: Deck.gl остывающие треки
+
+#### Следующий инженерный шаг
+
+ADR-007 + ADR-009 + ADR-008 → базовый `GET /map/tracks`. Между эллипсами и Kill/Pass после этого — **сначала Kill/Pass** (ADR-010).
