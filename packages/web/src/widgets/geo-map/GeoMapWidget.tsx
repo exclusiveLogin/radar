@@ -5,7 +5,7 @@
  * Данные приходят из RxJS-store (regions, places, selection, theme, heatmap) и HTTP geojson API.
  *
  * Runtime (geoMapRuntime): fingerprints, popup LRU, feature-state.
- * Debounce store→карта — Observable-фабрики в geoMapEffects.ts; подписка в lifecycle виджета.
+ * Debounce store→карта — чистые Observable в geoMapEffects; side effects в subscribe виджета.
  */
 import { useEffect, useRef, useState } from "react";
 import type {
@@ -50,9 +50,14 @@ import {
   type GeoMapLayerId,
 } from "../../shared/state/mapLayerStore";
 import {
+  setHeatmapError,
   setHeatmapLoading,
   setHeatmapMeta,
 } from "../../shared/state/heatmapStore";
+import {
+  setDistrictsGeoError,
+  setDistrictsGeoLoading,
+} from "../../shared/state/geoMapDistrictsStore";
 import { selectRegion, selectedRegion$ } from "../../shared/state/selectionStore";
 import { stateChangesFeed$ } from "../../shared/state/stateChangesFeedStore";
 import { theme$ } from "../../shared/state/themeStore";
@@ -84,11 +89,11 @@ import {
 } from "./geoMapPaint";
 import { createGeoMapRuntime, whenStyleReady } from "./geoMapRuntime";
 import {
-  eventsHeatmap$,
-  geoMapLayersVisibility$,
-  type GeoMapEffectContext,
-  placesDistrictsGeoJson$,
+  createDistrictsFetchStreams,
+  createHeatmapFetchStreams,
+  placesFadeTick$,
   regionsRefresh$,
+  type GeoMapEffectSignals,
 } from "./geoMapEffects";
 import type { GeoJsonCollection, PointFeature, PolygonFeature } from "./geoMapTypes";
 
@@ -599,6 +604,7 @@ export function GeoMapWidget(_props: WidgetProps) {
       }
       setHeatmapMeta(null);
       setHeatmapLoading(false);
+      setHeatmapError(null);
     };
 
     /**
@@ -915,21 +921,17 @@ export function GeoMapWidget(_props: WidgetProps) {
         loadAndApplyDistricts();
         applyPlaces();
 
-        const effectCtx: GeoMapEffectContext = {
+        const effectSignals: GeoMapEffectSignals = {
           resetRegionsDebounce$,
           heatmapManualRefresh$,
-          runtime,
-          getMap: () => map,
-          isDisposed: () => disposed,
-          baseRegionsRef,
-          applyPlacesFadeLayers,
-          syncGeoOverlayLayers,
-          hideEventsHeatmap,
         };
 
-        // --- Подписки store → карта: виджет владеет lifecycle, effects — только pipe ---
+        const districtsFetch = createDistrictsFetchStreams();
+        const heatmapFetch = createHeatmapFetchStreams(effectSignals);
+
+        // --- Подписки store → карта: pipe = данные/статусы, subscribe = side effects ---
         storeSubscriptions.add(
-          regionsRefresh$(effectCtx).pipe(takeUntil(destroy$)).subscribe(() => {
+          regionsRefresh$(effectSignals).pipe(takeUntil(destroy$)).subscribe(() => {
             if (disposed) return;
             if (baseRegionsRef.current) applyRegions();
             else loadRegionGeometry();
@@ -937,19 +939,55 @@ export function GeoMapWidget(_props: WidgetProps) {
         );
 
         storeSubscriptions.add(
-          placesDistrictsGeoJson$(effectCtx).pipe(takeUntil(destroy$)).subscribe((layer) => {
-            if (disposed || !map) return;
-            baseDistrictsRef.current = layer as GeoJsonCollection;
-            applyDistrictsLayer(baseDistrictsRef.current);
+          placesFadeTick$().pipe(takeUntil(destroy$)).subscribe(() => {
+            if (!disposed) applyPlacesFadeLayers();
           }),
         );
 
         storeSubscriptions.add(
-          eventsHeatmap$(effectCtx).pipe(takeUntil(destroy$)).subscribe(),
+          districtsFetch.loading$.pipe(takeUntil(destroy$)).subscribe(setDistrictsGeoLoading),
+        );
+        storeSubscriptions.add(
+          districtsFetch.error$.pipe(takeUntil(destroy$)).subscribe((error) => {
+            const message = error instanceof Error ? error.message : "Ошибка загрузки районов";
+            setDistrictsGeoError(message);
+            console.error("[GeoMapWidget] districts-active-geojson", error);
+          }),
+        );
+        storeSubscriptions.add(
+          districtsFetch.data$.pipe(takeUntil(destroy$)).subscribe((layer) => {
+            if (disposed || !map) return;
+            setDistrictsGeoError(null);
+            baseDistrictsRef.current = layer;
+            applyDistrictsLayer(layer);
+          }),
         );
 
         storeSubscriptions.add(
-          geoMapLayersVisibility$().pipe(takeUntil(destroy$)).subscribe((layers) => {
+          heatmapFetch.loading$.pipe(takeUntil(destroy$)).subscribe(setHeatmapLoading),
+        );
+        storeSubscriptions.add(
+          heatmapFetch.error$.pipe(takeUntil(destroy$)).subscribe((error) => {
+            const message = error instanceof Error ? error.message : "Ошибка загрузки теплокарты";
+            setHeatmapError(message);
+            console.error("[GeoMapWidget] events-heatmap", error);
+          }),
+        );
+        storeSubscriptions.add(
+          heatmapFetch.data$.pipe(takeUntil(destroy$)).subscribe((data) => {
+            if (disposed || !map || !geoMapLayers$.value.heatmap) return;
+            setHeatmapError(null);
+            setHeatmapMeta(data.meta);
+            runtime.sources.apply(EVENTS_HEATMAP_SOURCE, {
+              type: "FeatureCollection",
+              features: data.features,
+            });
+            syncGeoOverlayLayers(map, geoMapLayers$.value);
+          }),
+        );
+
+        storeSubscriptions.add(
+          geoMapLayers$.pipe(takeUntil(destroy$)).subscribe((layers) => {
             if (!map || disposed) return;
             syncGeoOverlayLayers(map, layers);
             if (!layers.heatmap) hideEventsHeatmap();

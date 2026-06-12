@@ -1,5 +1,5 @@
 import { BehaviorSubject } from "rxjs";
-import { setHeatmapLoading, setHeatmapMeta } from "./heatmapStore";
+import { setHeatmapError, setHeatmapLoading, setHeatmapMeta } from "./heatmapStore";
 
 /** Оверлейные слои гео-карты (видимость + вложенные панели). */
 export const GEO_MAP_LAYER_ORDER = [
@@ -42,6 +42,7 @@ export function setGeoMapLayer(id: GeoMapLayerId, enabled: boolean): void {
   if (id === "heatmap" && !enabled) {
     setHeatmapMeta(null);
     setHeatmapLoading(false);
+    setHeatmapError(null);
   }
 }
 

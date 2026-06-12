@@ -1,72 +1,54 @@
-import type { Map as MapLibreMap } from "maplibre-gl";
-import type { MutableRefObject } from "react";
 import {
   combineLatest,
   debounce,
   debounceTime,
-  EMPTY,
-  from,
   type Observable,
   switchMap,
-  takeUntil,
   timer,
 } from "rxjs";
 import type { Subject } from "rxjs";
-import { catchError, filter, finalize, map, skip, startWith, tap } from "rxjs/operators";
+import { filter, map, skip, startWith, takeUntil } from "rxjs/operators";
 import { mapApi } from "../../shared/api/mapApi";
-import { EVENTS_HEATMAP_SOURCE } from "../../shared/config/mapConfig.service";
-import { heatmapPeriod$, setHeatmapLoading, setHeatmapMeta } from "../../shared/state/heatmapStore";
-import { geoMapLayers$, type GeoMapLayerId } from "../../shared/state/mapLayerStore";
+import { heatmapPeriod$ } from "../../shared/state/heatmapStore";
+import { geoMapLayers$ } from "../../shared/state/mapLayerStore";
 import { historicalAsOf$, placesById$, regionsByCode$ } from "../../shared/state/mapStore";
-import type { GeoMapRuntime } from "./geoMapRuntime";
-import type { GeoJsonCollection } from "./geoMapTypes";
+import type { FetchPhase, DistrictsFetchData, HeatmapFetchData } from "./geoMapEffectTypes";
+import { splitFetchPhase$, toFetchPhase$ } from "./geoMapRx";
 
-/**
- * Контекст эффектов карты — только данные/колбэки, без подписок.
- * Подписка и takeUntil(destroy$) — в lifecycle GeoMapWidget (аналог ngOnInit/ngOnDestroy).
- */
-export type GeoMapEffectContext = {
+/** Императивные сигналы, пробивающие reactive-слой (selection, manual refresh). */
+export type GeoMapEffectSignals = {
   resetRegionsDebounce$: Subject<void>;
   heatmapManualRefresh$: Subject<void>;
-  runtime: GeoMapRuntime;
-  getMap(): MapLibreMap | null;
-  isDisposed(): boolean;
-  baseRegionsRef: MutableRefObject<GeoJsonCollection | null>;
-  applyPlacesFadeLayers(): void;
-  syncGeoOverlayLayers(
-    map: MapLibreMap,
-    layers: Record<GeoMapLayerId, boolean>,
-  ): void;
-  hideEventsHeatmap(): void;
 };
 
 /** regionsByCode$ → debounce 300 ms; skip(1) — первичная загрузка на map.load. */
-export function regionsRefresh$(ctx: GeoMapEffectContext): Observable<void> {
+export function regionsRefresh$(signals: GeoMapEffectSignals): Observable<void> {
   return regionsByCode$.pipe(
     skip(1),
-    debounce(() => timer(300).pipe(takeUntil(ctx.resetRegionsDebounce$))),
+    debounce(() => timer(300).pipe(takeUntil(signals.resetRegionsDebounce$))),
     map(() => undefined),
   );
 }
 
-/** placesById$ → 120 ms repaint + 500 ms HTTP districts-active. */
-export function placesDistrictsGeoJson$(
-  ctx: GeoMapEffectContext,
-): Observable<unknown> {
+/** placesById$ → debounce 120 ms — тик перерисовки маркеров (без HTTP). */
+export function placesFadeTick$(): Observable<void> {
   return placesById$.pipe(
     skip(1),
     debounceTime(120),
-    tap(() => {
-      if (!ctx.isDisposed()) ctx.applyPlacesFadeLayers();
-    }),
+    map(() => undefined),
+  );
+}
+
+/** Базовый HTTP districts-active после debounce places (120 + 500 ms). */
+function districtsFetchPhase$(): Observable<FetchPhase<DistrictsFetchData>> {
+  return placesById$.pipe(
+    skip(1),
+    debounceTime(120),
     switchMap(() =>
       timer(500).pipe(
         switchMap(() =>
-          from(mapApi.activeDistrictsGeoJson()).pipe(
-            catchError((err: unknown) => {
-              console.error("[GeoMapWidget] districts-active-geojson", err);
-              return EMPTY;
-            }),
+          toFetchPhase$(() =>
+            mapApi.activeDistrictsGeoJson().then((layer) => layer as DistrictsFetchData),
           ),
         ),
       ),
@@ -74,45 +56,41 @@ export function placesDistrictsGeoJson$(
   );
 }
 
-/** Теплокарта: layers + period + asOf + manual refresh → debounce 400 ms → HTTP. */
-export function eventsHeatmap$(ctx: GeoMapEffectContext): Observable<void> {
+/** Districts: loading / data / error — отдельные потоки. */
+export function createDistrictsFetchStreams(): {
+  loading$: Observable<boolean>;
+  data$: Observable<DistrictsFetchData>;
+  error$: Observable<unknown>;
+} {
+  return splitFetchPhase$(districtsFetchPhase$());
+}
+
+/** Триггер запроса теплокарты (без HTTP). */
+function heatmapFetchPhase$(signals: GeoMapEffectSignals): Observable<FetchPhase<HeatmapFetchData>> {
   return combineLatest([
     geoMapLayers$,
     heatmapPeriod$,
     historicalAsOf$,
-    ctx.heatmapManualRefresh$.pipe(startWith(undefined)),
+    signals.heatmapManualRefresh$.pipe(startWith(undefined)),
   ]).pipe(
     filter(([layers]) => layers.heatmap),
     debounceTime(400),
-    switchMap(([, period, until]) => {
-      if (ctx.isDisposed() || !ctx.getMap()) return EMPTY;
-      setHeatmapLoading(true);
-      const untilIso = until ?? new Date().toISOString();
-      return from(mapApi.eventsHeatmap({ period, until: untilIso })).pipe(
-        tap((data) => {
-          if (ctx.isDisposed() || !ctx.getMap() || !geoMapLayers$.value.heatmap) return;
-          setHeatmapMeta(data.meta);
-          ctx.runtime.sources.apply(EVENTS_HEATMAP_SOURCE, {
-            type: "FeatureCollection",
-            features: data.features,
-          });
-          const map = ctx.getMap();
-          if (map) ctx.syncGeoOverlayLayers(map, geoMapLayers$.value);
+    switchMap(([, period, until]) =>
+      toFetchPhase$(() =>
+        mapApi.eventsHeatmap({
+          period,
+          until: until ?? new Date().toISOString(),
         }),
-        catchError((error: unknown) => {
-          console.error("[GeoMapWidget] events-heatmap", error);
-          return EMPTY;
-        }),
-        finalize(() => {
-          if (!ctx.isDisposed()) setHeatmapLoading(false);
-        }),
-        map(() => undefined),
-      );
-    }),
+      ),
+    ),
   );
 }
 
-/** Видимость оверлеев по mapLayerStore — без debounce. */
-export function geoMapLayersVisibility$(): Observable<Record<GeoMapLayerId, boolean>> {
-  return geoMapLayers$;
+/** Heatmap: loading / data / error — отдельные потоки. */
+export function createHeatmapFetchStreams(signals: GeoMapEffectSignals): {
+  loading$: Observable<boolean>;
+  data$: Observable<HeatmapFetchData>;
+  error$: Observable<unknown>;
+} {
+  return splitFetchPhase$(heatmapFetchPhase$(signals));
 }
