@@ -1,20 +1,22 @@
+/**
+ * GeoMapWidget — интерактивная карта оперативной обстановки (MapLibre GL).
+ *
+ * Слои снизу вверх: теплокарта событий → регионы → районы (place-полигоны) → place-маркеры.
+ * Данные приходят из RxJS-store (regions, places, selection, theme, heatmap) и HTTP geojson API.
+ *
+ * Runtime (geoMapRuntime): fingerprints, popup LRU, feature-state.
+ * Debounce store→карта — Observable-фабрики в geoMapEffects.ts; подписка в lifecycle виджета.
+ */
 import { useEffect, useRef, useState } from "react";
 import type {
-  GeoJSONSource,
   Map as MapLibreMap,
   MapLayerMouseEvent,
   Popup,
 } from "maplibre-gl";
-import type { Subscription } from "rxjs";
-import type {
-  MapPlaceSnapshot,
-  MapRegionSnapshot,
-  SourceMessage,
-  StateLevel,
-} from "@radar/shared";
+import { Subject, Subscription, takeUntil } from "rxjs";
+import type { SourceMessage } from "@radar/shared";
 import { Panel } from "../../shared/ds";
 import { mapApi } from "../../shared/api/mapApi";
-import { geoMapFillOpacity, geoMapStrokeOpacity } from "../../shared/utils/regionFade";
 import {
   DISTRICT_MAP_MIN_ZOOM,
   DISTRICT_MAP_STROKE_WIDTH,
@@ -29,13 +31,10 @@ import {
   GEO_MAP_PLACE_STROKE_OPACITY,
   GEO_MAP_REGION_FILL_OPACITY,
   GEO_MAP_REGION_STROKE_OPACITY,
-  GEO_MAP_STROKE_FILL_RATIO,
   LEVEL_COLORS,
   LEVEL_LABELS,
   MAP_INITIAL_VIEW,
   PLACE_CIRCLE_RADIUS_DEFAULT,
-  PLACE_CIRCLE_RADIUS_DISTRICT,
-  REGION_MAP_INSET_FACTOR,
   REGION_MAP_SELECTED_FILL_OPACITY,
   REGION_MAP_SELECTED_STROKE_WIDTH,
   REGION_MAP_SELECTION_HALO,
@@ -44,14 +43,13 @@ import {
   resolveMapBasemapStyleForTheme,
 } from "../../shared/config/mapConfig.service";
 import { formatDateTime } from "../../shared/format/dateTime";
-import { effectivePlaceLevel, isPlaceVisibleOnMap, isRegionVisibleOnMap } from "../../shared/state/derivations";
-import { derivedRegionCodes$, historicalAsOf$, placesById$, regionsByCode$ } from "../../shared/state/mapStore";
+import { effectivePlaceLevel } from "../../shared/state/derivations";
+import { derivedRegionCodes$, placesById$, regionsByCode$ } from "../../shared/state/mapStore";
 import {
   geoMapLayers$,
   type GeoMapLayerId,
 } from "../../shared/state/mapLayerStore";
 import {
-  heatmapPeriod$,
   setHeatmapLoading,
   setHeatmapMeta,
 } from "../../shared/state/heatmapStore";
@@ -60,34 +58,41 @@ import { stateChangesFeed$ } from "../../shared/state/stateChangesFeedStore";
 import { theme$ } from "../../shared/state/themeStore";
 import type { ThemeMode } from "../../shared/state/themeStore";
 import type { WidgetProps } from "../widgetProps";
-import { insetRegionGeometry } from "./regionInsetOutline";
-
-const REGIONS_SOURCE = "regions";
-const REGIONS_OUTLINE_SOURCE = "regions-outline-inset";
-const REGIONS_FILL = "regions-fill";
-const REGIONS_OUTLINE = "regions-outline";
-/** Белый halo поверх цветного контура — только для выбранного региона (opacity + feature-state). */
-const REGIONS_SELECTION = "regions-selection";
-
-/** Слой активных place-полигонов (geo_feature) — рисуется над регионами. */
-const DISTRICTS_SOURCE = "districts-active";
-const DISTRICTS_FILL = "districts-active-fill";
-const DISTRICTS_OUTLINE = "districts-active-outline";
-const PLACES_SOURCE = "places";
-const PLACES_LAYER = "places-circles";
-
-/** Z-order: heatmap → region → district → place (moveLayer без beforeId — наверх стека). */
-const GEO_ENTITY_LAYER_ORDER = [
-  EVENTS_HEATMAP_LAYER,
-  EVENTS_HEATMAP_POINTS_LAYER,
-  REGIONS_FILL,
-  REGIONS_OUTLINE,
-  REGIONS_SELECTION,
+import {
   DISTRICTS_FILL,
   DISTRICTS_OUTLINE,
+  DISTRICTS_SOURCE,
+  FEATURE_SELECTED,
+  GEO_ENTITY_LAYER_ORDER,
+  GEO_OVERLAY_LAYERS,
   PLACES_LAYER,
-] as const;
+  PLACES_SOURCE,
+  REGION_GEOJSON_SOURCE,
+  REGIONS_FILL,
+  REGIONS_OUTLINE,
+  REGIONS_OUTLINE_SOURCE,
+  REGIONS_SELECTION,
+  REGIONS_SOURCE,
+  USER_LAYER_IDS,
+  USER_SOURCE_IDS,
+} from "./geoMapLayerIds";
+import {
+  paintActiveDistricts,
+  paintRegionOutlines,
+  placesCollection,
+  placesToFeatures,
+} from "./geoMapPaint";
+import { createGeoMapRuntime, whenStyleReady } from "./geoMapRuntime";
+import {
+  eventsHeatmap$,
+  geoMapLayersVisibility$,
+  type GeoMapEffectContext,
+  placesDistrictsGeoJson$,
+  regionsRefresh$,
+} from "./geoMapEffects";
+import type { GeoJsonCollection, PointFeature, PolygonFeature } from "./geoMapTypes";
 
+/** Поднимает наши слои в фиксированном z-order (heatmap внизу, places сверху). */
 function enforceGeoEntityLayerOrder(map: MapLibreMap): void {
   for (const layerId of GEO_ENTITY_LAYER_ORDER) {
     if (map.getLayer(layerId)) map.moveLayer(layerId);
@@ -108,17 +113,6 @@ function applyEventsHeatmapPaint(map: MapLibreMap, theme: ThemeMode): void {
   }
 }
 
-/** SSOT: toggle mapLayerStore → id слоёв MapLibre. */
-const GEO_OVERLAY_LAYERS: Record<
-  Exclude<GeoMapLayerId, "timeline">,
-  readonly string[]
-> = {
-  regions: [REGIONS_FILL, REGIONS_OUTLINE, REGIONS_SELECTION],
-  districts: [DISTRICTS_FILL, DISTRICTS_OUTLINE],
-  places: [PLACES_LAYER],
-  heatmap: [EVENTS_HEATMAP_LAYER, EVENTS_HEATMAP_POINTS_LAYER],
-};
-
 /** Видимость оверлеев по store — без moveLayer и без побочных эффектов. */
 function syncGeoOverlayLayers(
   map: MapLibreMap,
@@ -132,18 +126,6 @@ function syncGeoOverlayLayers(
     }
   }
 }
-
-/** promoteId — быстрый feature-state для выделения без полного setData. */
-const REGION_GEOJSON_SOURCE = {
-  type: "geojson" as const,
-  promoteId: "regionCode",
-};
-
-const FEATURE_SELECTED: ["boolean", ["feature-state", "selected"], false] = [
-  "boolean",
-  ["feature-state", "selected"],
-  false,
-];
 
 /** Дочерние сущности (place-маркер или полигон района) перекрывают регион. */
 function hasChildEntityAtPointer(
@@ -195,365 +177,6 @@ function buildPlacePopupLines(
   ].filter((line): line is string => !!line);
 }
 
-type PointFeature = {
-  type: "Feature";
-  geometry: { type: "Point"; coordinates: [number, number] };
-  properties: Record<string, string | number>;
-};
-
-type PolygonFeature = {
-  type: "Feature";
-  id?: string;
-  geometry: { type: string; coordinates: unknown };
-  properties: Record<string, string | number>;
-};
-
-type GeoJsonCollection = {
-  type: "FeatureCollection";
-  features: PolygonFeature[];
-};
-
-/**
- * Контуры регионов: все уровни, включая grey; цвет по stateLevel из снапшота.
- * Заливка приглушена; контур ≥ fill × GEO_MAP_STROKE_FILL_RATIO.
- */
-function paintRegionOutlines(
-  base: GeoJsonCollection,
-  regions: Map<string, MapRegionSnapshot>,
-  now: number,
-): GeoJsonCollection {
-  const features: PolygonFeature[] = [];
-  for (const feature of base.features) {
-    const code = String(feature.properties.regionCode ?? "");
-    const region = regions.get(code);
-    if (!region || !isRegionVisibleOnMap(region)) continue;
-
-    const stateLevel = region.stateLevel as StateLevel;
-    features.push({
-      ...feature,
-      properties: {
-        ...feature.properties,
-        regionCode: code,
-        stateLevel,
-        color: LEVEL_COLORS[stateLevel],
-        kind: "region",
-        fillOpacity: geoMapFillOpacity(
-          region.statusEventAt,
-          now,
-          GEO_MAP_REGION_FILL_OPACITY,
-        ),
-        lineOpacity: geoMapStrokeOpacity(
-          region.statusEventAt,
-          now,
-          GEO_MAP_REGION_FILL_OPACITY,
-          GEO_MAP_STROKE_FILL_RATIO,
-        ),
-      },
-    });
-  }
-  return { type: "FeatureCollection", features };
-}
-
-/** Мгновенное выделение: без пересборки GeoJSON (setData на тысячах полигонов — медленно). */
-function setRegionFeatureSelected(
-  map: MapLibreMap,
-  regionCode: string,
-  selected: boolean,
-): void {
-  for (const source of [REGIONS_SOURCE, REGIONS_OUTLINE_SOURCE]) {
-    try {
-      map.setFeatureState({ source, id: regionCode }, { selected });
-    } catch {
-      // регион ещё не в источнике
-    }
-  }
-}
-
-function applyRegionSelection(
-  map: MapLibreMap,
-  prev: string | null,
-  next: string | null,
-): void {
-  if (prev && prev !== next) setRegionFeatureSelected(map, prev, false);
-  if (next) setRegionFeatureSelected(map, next, true);
-}
-
-/** Inset-контур для line-слоя (строго внутри полигона). */
-function paintRegionInsetOutlines(
-  painted: GeoJsonCollection,
-): GeoJsonCollection {
-  return {
-    type: "FeatureCollection",
-    features: painted.features.map((feature) => ({
-      ...feature,
-      geometry: insetRegionGeometry(
-        feature.geometry as { type: string; coordinates: unknown },
-        REGION_MAP_INSET_FACTOR,
-      ) as PolygonFeature["geometry"],
-    })),
-  };
-}
-
-/** Fill + inset-outline одним коммитом (общий fingerprint). */
-function commitRegionSources(
-  map: MapLibreMap,
-  painted: GeoJsonCollection,
-  fingerprints: Map<string, string>,
-  force: boolean,
-): boolean {
-  const outlineData = paintRegionInsetOutlines(painted);
-  const fingerprint = geoJsonFingerprint(painted);
-  if (
-    !force &&
-    fingerprints.get(REGIONS_SOURCE) === fingerprint &&
-    fingerprints.get(REGIONS_OUTLINE_SOURCE) === fingerprint
-  ) {
-    return true;
-  }
-
-  const fillSource = map.getSource(REGIONS_SOURCE) as GeoJSONSource | undefined;
-  const outlineSource = map.getSource(REGIONS_OUTLINE_SOURCE) as GeoJSONSource | undefined;
-  if (!fillSource || !outlineSource) return false;
-
-  fillSource.setData(painted as never);
-  outlineSource.setData(outlineData as never);
-  fingerprints.set(REGIONS_SOURCE, fingerprint);
-  fingerprints.set(REGIONS_OUTLINE_SOURCE, fingerprint);
-  map.triggerRepaint();
-  return true;
-}
-
-function pushRegionSources(
-  map: MapLibreMap,
-  painted: GeoJsonCollection,
-  fingerprints: Map<string, string>,
-  force: boolean,
-  onCommitted: () => void,
-): void {
-  const push = (): boolean => commitRegionSources(map, painted, fingerprints, force);
-  whenStyleReady(map, () => {
-    if (push()) {
-      onCommitted();
-      return;
-    }
-    map.once("idle", () => {
-      if (push()) onCommitted();
-    });
-  });
-}
-
-const DISTRICT_KINDS = new Set(["district", "city_district"]);
-
-const PLACE_SOURCE_CACHE_MAX = 80;
-
-/** LRU-кэш popup raw-сообщений — без неограниченного роста при hover. */
-class LruCache<K, V> {
-  private readonly maxSize: number;
-  private readonly map = new Map<K, V>();
-
-  constructor(maxSize: number) {
-    this.maxSize = maxSize;
-  }
-
-  has(key: K): boolean {
-    return this.map.has(key);
-  }
-
-  get(key: K): V | undefined {
-    const value = this.map.get(key);
-    if (value === undefined) return undefined;
-    this.map.delete(key);
-    this.map.set(key, value);
-    return value;
-  }
-
-  set(key: K, value: V): void {
-    if (this.map.has(key)) this.map.delete(key);
-    this.map.set(key, value);
-    if (this.map.size > this.maxSize) {
-      const oldest = this.map.keys().next().value;
-      if (oldest !== undefined) this.map.delete(oldest);
-    }
-  }
-
-  clear(): void {
-    this.map.clear();
-  }
-}
-
-/** Компактный отпечаток GeoJSON — пропускаем setData при неизменных данных. */
-function geoJsonFingerprint(data: unknown): string {
-  if (!data || typeof data !== "object") return "";
-  const collection = data as { features?: Array<{ properties?: Record<string, unknown> }> };
-  const features = collection.features ?? [];
-  const parts = features.map((feature) => {
-    const props = feature.properties ?? {};
-    return [
-      props.regionCode,
-      props.placeId,
-      props.stateLevel,
-      props.statusEventAt,
-      props.fillOpacity,
-      props.lineOpacity,
-      props.circleOpacity,
-      props.circleStrokeOpacity,
-      props.color,
-    ].join(":");
-  });
-  return `${features.length}|${parts.join(";")}`;
-}
-
-/** Точки places: маркер-кружок; яркость затухает по statusEventAt (как у региона). */
-function placesToFeatures(
-  places: Map<string, MapPlaceSnapshot>,
-  regions: Map<string, MapRegionSnapshot>,
-  now: number,
-): PointFeature[] {
-  return [...places.values()]
-    .filter((place) => isPlaceVisibleOnMap(place, regions))
-    .map((place) => {
-      const regionLevel = regions.get(place.regionCode)?.stateLevel ?? "grey";
-      const level = effectivePlaceLevel(place.stateLevel, regionLevel);
-      return {
-        type: "Feature" as const,
-        geometry: {
-          type: "Point" as const,
-          coordinates: [place.lon, place.lat],
-        },
-        properties: {
-          kind: "place",
-          placeId: place.placeId,
-          placeName: place.placeName,
-          regionCode: place.regionCode,
-          statusCode: place.statusCode,
-          statusEventAt: place.statusEventAt ?? "",
-          stateLabel: LEVEL_LABELS[level],
-          color: LEVEL_COLORS[level],
-          circleOpacity: geoMapFillOpacity(
-            place.statusEventAt,
-            now,
-            GEO_MAP_PLACE_FILL_OPACITY,
-          ),
-          circleStrokeOpacity: geoMapStrokeOpacity(
-            place.statusEventAt,
-            now,
-            GEO_MAP_PLACE_FILL_OPACITY,
-            GEO_MAP_STROKE_FILL_RATIO,
-          ),
-          // Для district дублируется полигоном — маленький кружок-якорь.
-          radius: DISTRICT_KINDS.has(place.kind ?? "") ? PLACE_CIRCLE_RADIUS_DISTRICT : PLACE_CIRCLE_RADIUS_DEFAULT,
-        },
-      };
-    });
-}
-
-/**
- * Активные place-полигоны: из geo_feature оставляем только места со статусом.
- * Цвет — place.stateLevel; яркость затухает по place.statusEventAt.
- */
-function paintActiveDistricts(
-  base: GeoJsonCollection,
-  places: Map<string, MapPlaceSnapshot>,
-  regions: Map<string, MapRegionSnapshot>,
-  now: number,
-): GeoJsonCollection {
-  // Индекс geoFeatureId → place для быстрого поиска.
-  const byGeoFeatureId = new Map<string, MapPlaceSnapshot>();
-  for (const place of places.values()) {
-    if (place.geoFeatureId && isPlaceVisibleOnMap(place, regions)) {
-      byGeoFeatureId.set(place.geoFeatureId, place);
-    }
-  }
-
-  const features: PolygonFeature[] = [];
-  for (const feature of base.features) {
-    const featureId = String(feature.id ?? feature.properties.geoFeatureId ?? "");
-    const place = byGeoFeatureId.get(featureId);
-    if (!place) continue;
-
-    const regionLevel = regions.get(place.regionCode)?.stateLevel ?? "grey";
-    const level = effectivePlaceLevel(place.stateLevel, regionLevel);
-    features.push({
-      ...feature,
-      properties: {
-        ...feature.properties,
-        kind: "place",
-        color: LEVEL_COLORS[level],
-        placeId: place.placeId,
-        placeName: place.placeName,
-        regionCode: place.regionCode,
-        statusCode: place.statusCode,
-        statusEventAt: place.statusEventAt ?? "",
-        stateLabel: LEVEL_LABELS[level],
-        fillOpacity: geoMapFillOpacity(
-          place.statusEventAt,
-          now,
-          GEO_MAP_PLACE_FILL_OPACITY,
-        ),
-        lineOpacity: geoMapStrokeOpacity(
-          place.statusEventAt,
-          now,
-          GEO_MAP_PLACE_FILL_OPACITY,
-          GEO_MAP_STROKE_FILL_RATIO,
-        ),
-      },
-    });
-  }
-  return { type: "FeatureCollection", features };
-}
-
-/** Выполняет fn, когда стиль MapLibre готов (иначе setData теряется). */
-function whenStyleReady(
-  map: MapLibreMap,
-  fn: () => void,
-): void {
-  if (map.isStyleLoaded()) {
-    fn();
-    return;
-  }
-  // styledata вместо load: после setStyle load не всегда срабатывает; off — без утечки слушателей.
-  const onStyleData = (): void => {
-    if (!map.isStyleLoaded()) return;
-    map.off("styledata", onStyleData);
-    fn();
-  };
-  map.on("styledata", onStyleData);
-}
-
-/** setData с повтором на idle — после pan/zoom до загрузки geo источник может быть ещё не готов. */
-function setGeoJsonSourceData(
-  map: MapLibreMap,
-  sourceId: string,
-  data: unknown,
-  lastFingerprints: Map<string, string>,
-): boolean {
-  const fingerprint = geoJsonFingerprint(data);
-  if (lastFingerprints.get(sourceId) === fingerprint) {
-    return true;
-  }
-  const source = map.getSource(sourceId) as GeoJSONSource | undefined;
-  if (!source) return false;
-  source.setData(data as never);
-  lastFingerprints.set(sourceId, fingerprint);
-  map.triggerRepaint();
-  return true;
-}
-
-function applyGeoJsonSourceData(
-  map: MapLibreMap,
-  sourceId: string,
-  data: unknown,
-  lastFingerprints: Map<string, string>,
-): void {
-  const push = (): boolean => setGeoJsonSourceData(map, sourceId, data, lastFingerprints);
-  whenStyleReady(map, () => {
-    if (push()) return;
-    map.once("idle", () => {
-      push();
-    });
-  });
-}
-
 /**
  * Ждёт полной загрузки нового стиля после map.setStyle().
  * Используем постоянный listener на "styledata" — вызывает fn() после isStyleLoaded().
@@ -566,25 +189,6 @@ function afterStyleChange(map: MapLibreMap, fn: () => void): void {
   };
   map.on("styledata", onStyleData);
 }
-
-const USER_SOURCE_IDS = [
-  EVENTS_HEATMAP_SOURCE,
-  "regions",
-  "regions-outline-inset",
-  "districts-active",
-  "places",
-] as const;
-
-const USER_LAYER_IDS = new Set([
-  EVENTS_HEATMAP_LAYER,
-  EVENTS_HEATMAP_POINTS_LAYER,
-  "regions-fill",
-  "regions-outline",
-  "regions-selection",
-  "districts-active-fill",
-  "districts-active-outline",
-  "places-circles",
-]);
 
 /**
  * Используется как `transformStyle` при map.setStyle() для смены темы.
@@ -608,17 +212,10 @@ function preserveUserLayers(prevStyle: any, nextStyle: any): any {
   };
 }
 
-function placesCollection(
-  places: Map<string, MapPlaceSnapshot>,
-  regions: Map<string, MapRegionSnapshot>,
-  now = Date.now(),
-) {
-  return {
-    type: "FeatureCollection" as const,
-    features: placesToFeatures(places, regions, now),
-  };
-}
-
+/**
+ * Подгоняет камеру под bbox всех переданных регионов и place-точек.
+ * Если геометрии нет — возврат к MAP_INITIAL_VIEW.
+ */
 function fitMapView(
   map: MapLibreMap,
   regionFeatures: PolygonFeature[],
@@ -637,6 +234,7 @@ function fitMapView(
     maxLat = Math.max(maxLat, lat);
   };
 
+  /** Рекурсивный обход GeoJSON coordinates (Polygon / MultiPolygon / вложенные кольца). */
   const walkCoords = (coords: unknown): void => {
     if (!Array.isArray(coords)) return;
     if (typeof coords[0] === "number" && typeof coords[1] === "number") {
@@ -747,26 +345,32 @@ function flyToRegion(
  * Слои отсортированы по точности геопривязки: субъект внизу, конкретный НП сверху.
  */
 export function GeoMapWidget(_props: WidgetProps) {
+  /** DOM-контейнер, в который MapLibre монтирует canvas. */
   const containerRef = useRef<HTMLDivElement | null>(null);
+  /** Статическая геометрия регионов с API (контуры без paint-свойств). */
   const baseRegionsRef = useRef<GeoJsonCollection | null>(null);
+  /** Статическая геометрия активных районов (districts-active-geojson). */
   const baseDistrictsRef = useRef<GeoJsonCollection | null>(null);
+  /** Однократный auto-fit уже выполнен (или после появления первых places). */
   const didFitRef = useRef(false);
+  /** Число place-точек на прошлом кадре — для fit при переходе 0 → N мест. */
   const lastPlaceFeaturesRef = useRef(0);
+  /** Счётчики для оверлея статистики в UI (не влияют на карту). */
   const [regionOutlines, setRegionOutlines] = useState(0);
   const [placeCount, setPlaceCount] = useState(0);
   const [geoError, setGeoError] = useState<string | null>(null);
 
+  /** Жизненный цикл карты: init MapLibre, подписки на store, cleanup при unmount. */
   useEffect(() => {
+    // --- Локальное состояние эффекта (не React state — живёт только пока смонтирован виджет) ---
     let map: MapLibreMap | null = null;
+    /** true после unmount — гасит async-callback и подписки. */
     let disposed = false;
-    let unsubRegions: Subscription | undefined;
-    let unsubPlaces: Subscription | undefined;
-    let unsubSelected: Subscription | undefined;
-    let unsubTheme: Subscription | undefined;
-    let unsubHeatmapPeriod: Subscription | undefined;
-    let unsubHistoricalAsOf: Subscription | undefined;
-    let unsubGeoMapLayers: Subscription | undefined;
-    let heatmapReloadTimer: ReturnType<typeof setTimeout> | undefined;
+    const destroy$ = new Subject<void>();
+    const resetRegionsDebounce$ = new Subject<void>();
+    const heatmapManualRefresh$ = new Subject<void>();
+    /** Все store-подписки карты — один Subscription, отписка на unmount (как ngOnDestroy). */
+    const storeSubscriptions = new Subscription();
     /**
      * Инициализируем null, чтобы первый emit BehaviorSubject всегда обрабатывался
      * (иначе code === prev → early return → flyToRegion не вызывается).
@@ -774,20 +378,10 @@ export function GeoMapWidget(_props: WidgetProps) {
     let highlightedCode: string | null = null;
     /** Сброс фильтра до загрузки контуров — догоняем fit после regions-geojson. */
     let requestOverviewFit = !selectedRegion$.value;
-    let geoReloadTimer: ReturnType<typeof setTimeout> | undefined;
-    let placesLayerTimer: ReturnType<typeof setTimeout> | undefined;
-    let districtsReloadTimer: ReturnType<typeof setTimeout> | undefined;
-    let districtsFetchGen = 0;
+    /** Интервал 60 с — пересчёт fade-прозрачности без ожидания нового WS-события. */
     let fadeTicker: ReturnType<typeof setInterval> | undefined;
     let placePopup: Popup | null = null;
     let regionPopup: Popup | null = null;
-    /** Кэш raw-сообщения place — не дергаем API на каждый mousemove. */
-    const placeSourceCache = new LruCache<string, SourceMessage | null>(PLACE_SOURCE_CACHE_MAX);
-    const placeSourcePending = new Map<string, Promise<SourceMessage | null>>();
-    /** Последний fingerprint GeoJSON per source — меньше native churn от setData. */
-    const geoSourceFingerprints = new Map<string, string>();
-    /** Fingerprint заливок регионов (включая fade bucket) — пропуск лишних repaint. */
-    let lastRegionsPaintFingerprint = "";
     let activePlacePopupId: string | null = null;
     /** Пользователь сдвинул карту до прихода geojson — не делаем auto-fit/stop. */
     let userAdjustedViewBeforeGeo = false;
@@ -796,6 +390,13 @@ export function GeoMapWidget(_props: WidgetProps) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let maplibreRef: any = null;
 
+    /** Runtime карты: fingerprints, popup LRU, feature-state — один closure на виджет. */
+    const runtime = createGeoMapRuntime({
+      getMap: () => map,
+      isDisposed: () => disposed,
+    });
+
+    /** Обзор всех активных регионов/мест — когда сброшен selectedRegion$. */
     const tryFitOverview = (duration: number): void => {
       if (!map || !baseRegionsRef.current || highlightedCode) return;
       whenStyleReady(map, () => {
@@ -806,6 +407,10 @@ export function GeoMapWidget(_props: WidgetProps) {
       });
     };
 
+    /**
+     * Первичный fitBounds: при первой загрузке геометрии или когда places появились после пустого старта.
+     * Не срабатывает, если пользователь уже двигал карту до прихода geojson.
+     */
     const fitIfNeeded = (
       regionFeatures: PolygonFeature[],
       placeFeatures: PointFeature[],
@@ -822,6 +427,7 @@ export function GeoMapWidget(_props: WidgetProps) {
       didFitRef.current = true;
     };
 
+    /** После pan/zoom/idle — перекладывает данные, если MapLibre сбросил слои (редкий race). */
     const scheduleGeoLayerRecovery = (): void => {
       if (!map || geoRecoveryHooked) return;
       geoRecoveryHooked = true;
@@ -837,30 +443,22 @@ export function GeoMapWidget(_props: WidgetProps) {
       map.once("moveend", recover);
     };
 
-    const buildRegionsPaintFingerprint = (now: number): string => {
-      const fadeBucket = Math.floor(now / 60_000);
-      const parts: string[] = [];
-      for (const [code, region] of regionsByCode$.value) {
-        if (!isRegionVisibleOnMap(region)) continue;
-        parts.push(`${code}:${region.stateLevel}:${region.statusEventAt ?? ""}:${fadeBucket}`);
-      }
-      parts.sort();
-      return parts.join("|");
-    };
-
+    /**
+     * Перекрашивает контуры регионов из baseRegionsRef + regionsByCode$.
+     * force=true — сбрасывает fingerprint (смена темы, fade-тик).
+     */
     const applyRegions = (force = false): void => {
       if (!map || !baseRegionsRef.current) return;
       whenStyleReady(map, () => {
         if (!map || !baseRegionsRef.current) return;
         const now = Date.now();
-        const paintFingerprint = buildRegionsPaintFingerprint(now);
-        if (!force && paintFingerprint === lastRegionsPaintFingerprint) {
+        const paintFingerprint = runtime.regions.buildPaintFingerprint(now);
+        if (runtime.regions.shouldSkipPaint(paintFingerprint, force)) {
           return;
         }
-        lastRegionsPaintFingerprint = paintFingerprint;
+        runtime.regions.markPainted(paintFingerprint);
         if (force) {
-          geoSourceFingerprints.delete(REGIONS_SOURCE);
-          geoSourceFingerprints.delete(REGIONS_OUTLINE_SOURCE);
+          runtime.sources.invalidateRegions();
         }
         const painted = paintRegionOutlines(
           baseRegionsRef.current,
@@ -868,8 +466,10 @@ export function GeoMapWidget(_props: WidgetProps) {
           now,
         );
         setRegionOutlines(painted.features.length);
-        pushRegionSources(map, painted, geoSourceFingerprints, force, () => {
-          if (highlightedCode) setRegionFeatureSelected(map, highlightedCode, true);
+        runtime.sources.pushRegions(painted, force, () => {
+          if (highlightedCode && map) {
+            runtime.selection.setRegionSelected(highlightedCode, true);
+          }
         });
         const placeFeatures = placesToFeatures(
           placesById$.value,
@@ -886,9 +486,8 @@ export function GeoMapWidget(_props: WidgetProps) {
     };
 
     /**
-     * Загружает активные районы с сервера и сразу рендерит.
-     * Вызывается при каждом обновлении places — ответ маленький (единицы объектов).
-     * Цвет берётся из place.stateLevel через `paintActiveDistricts`.
+     * Рендерит слой districts-active из уже загруженной геометрии.
+     * HTTP — через geoMapEffects (debounce) или loadAndApplyDistricts на map.load.
      */
     const applyDistrictsLayer = (layer: GeoJsonCollection): void => {
       if (!map) return;
@@ -900,27 +499,21 @@ export function GeoMapWidget(_props: WidgetProps) {
           regionsByCode$.value,
           Date.now(),
         );
-        applyGeoJsonSourceData(map, DISTRICTS_SOURCE, painted, geoSourceFingerprints);
+        runtime.sources.apply(DISTRICTS_SOURCE, painted);
       });
     };
 
-    /** HTTP districts-active — только по debounce; отменяем устаревшие ответы. */
+    /** Первичная загрузка districts-active (без debounce — только map.load). */
     const loadAndApplyDistricts = (): void => {
       if (!map) return;
-      const fetchGen = ++districtsFetchGen;
       void mapApi.activeDistrictsGeoJson().then((layer) => {
-        if (disposed || !map || fetchGen !== districtsFetchGen) return;
+        if (disposed || !map) return;
         baseDistrictsRef.current = layer as GeoJsonCollection;
         applyDistrictsLayer(baseDistrictsRef.current);
       }).catch((err: unknown) => {
-        if (disposed || fetchGen !== districtsFetchGen) return;
+        if (disposed) return;
         console.error("[GeoMapWidget] districts-active-geojson", err);
       });
-    };
-
-    const scheduleDistrictsReload = (): void => {
-      clearTimeout(districtsReloadTimer);
-      districtsReloadTimer = setTimeout(loadAndApplyDistricts, 500);
     };
 
     /** Place-маркеры и place-полигоны с пересчётом fade — без repaint регионов и без HTTP. */
@@ -936,7 +529,7 @@ export function GeoMapWidget(_props: WidgetProps) {
         );
         setPlaceCount(collection.features.length);
         lastPlaceFeaturesRef.current = collection.features.length;
-        applyGeoJsonSourceData(map, PLACES_SOURCE, collection, geoSourceFingerprints);
+        runtime.sources.apply(PLACES_SOURCE, collection);
         if (baseDistrictsRef.current) {
           const painted = paintActiveDistricts(
             baseDistrictsRef.current,
@@ -944,19 +537,14 @@ export function GeoMapWidget(_props: WidgetProps) {
             regionsByCode$.value,
             now,
           );
-          applyGeoJsonSourceData(map, DISTRICTS_SOURCE, painted, geoSourceFingerprints);
+          runtime.sources.apply(DISTRICTS_SOURCE, painted);
         }
       });
     };
 
-    const schedulePlacesLayerRefresh = (): void => {
-      clearTimeout(placesLayerTimer);
-      placesLayerTimer = setTimeout(() => {
-        applyPlacesFadeLayers();
-        scheduleDistrictsReload();
-      }, 120);
-    };
-
+    /**
+     * Полное обновление places после mount/load: маркеры + опциональный fit.
+     */
     const applyPlaces = (): void => {
       applyPlacesFadeLayers();
       if (!map || !baseRegionsRef.current) return;
@@ -972,7 +560,7 @@ export function GeoMapWidget(_props: WidgetProps) {
           Date.now(),
         );
         if (highlightedCode) {
-          setRegionFeatureSelected(map, highlightedCode, true);
+          runtime.selection.setRegionSelected(highlightedCode, true);
         }
         if (!userAdjustedViewBeforeGeo) {
           fitIfNeeded(painted.features, collection.features);
@@ -983,6 +571,7 @@ export function GeoMapWidget(_props: WidgetProps) {
       });
     };
 
+    /** Первичная (или повторная) загрузка контуров регионов с бэкенда. */
     const loadRegionGeometry = (): void => {
       void mapApi
         .regionsGeoJson()
@@ -1001,50 +590,8 @@ export function GeoMapWidget(_props: WidgetProps) {
     };
 
 
-    const scheduleMapRefresh = (): void => {
-      clearTimeout(geoReloadTimer);
-      geoReloadTimer = setTimeout(() => {
-        if (baseRegionsRef.current) {
-          applyRegions();
-          return;
-        }
-        loadRegionGeometry();
-      }, 300);
-    };
-
-    /** Загрузка теплокарты — только когда слой включён. */
-    const loadEventsHeatmap = (): void => {
-      if (!map || !geoMapLayers$.value.heatmap) return;
-      clearTimeout(heatmapReloadTimer);
-      heatmapReloadTimer = setTimeout(() => {
-        if (disposed || !map || !geoMapLayers$.value.heatmap) return;
-        const period = heatmapPeriod$.value;
-        const until = historicalAsOf$.value ?? new Date().toISOString();
-        setHeatmapLoading(true);
-        void mapApi
-          .eventsHeatmap({ period, until })
-          .then((data) => {
-            if (disposed || !map || !geoMapLayers$.value.heatmap) return;
-            setHeatmapMeta(data.meta);
-            applyGeoJsonSourceData(
-              map,
-              EVENTS_HEATMAP_SOURCE,
-              { type: "FeatureCollection", features: data.features },
-              geoSourceFingerprints,
-            );
-            syncGeoOverlayLayers(map, geoMapLayers$.value);
-          })
-          .catch((error: unknown) => {
-            console.error("[GeoMapWidget] events-heatmap", error);
-          })
-          .finally(() => {
-            if (!disposed) setHeatmapLoading(false);
-          });
-      }, 400);
-    };
-
+    /** Скрывает слои теплокарты и сбрасывает meta/loading при выключении в mapLayerStore. */
     const hideEventsHeatmap = (): void => {
-      clearTimeout(heatmapReloadTimer);
       for (const layerId of [EVENTS_HEATMAP_LAYER, EVENTS_HEATMAP_POINTS_LAYER]) {
         if (map?.getLayer(layerId)) {
           map.setLayoutProperty(layerId, "visibility", "none");
@@ -1113,7 +660,7 @@ export function GeoMapWidget(_props: WidgetProps) {
           source: REGIONS_SOURCE,
           filter: ["==", ["get", "kind"], "region"],
           paint: {
-            "fill-color": regionStateLevelColorExpression(),
+            "fill-color": regionStateLevelColorExpression() as never,
             "fill-opacity": [
               "case",
               FEATURE_SELECTED,
@@ -1130,7 +677,7 @@ export function GeoMapWidget(_props: WidgetProps) {
           source: REGIONS_OUTLINE_SOURCE,
           filter: ["==", ["get", "kind"], "region"],
           paint: {
-            "line-color": regionStateLevelColorExpression(),
+            "line-color": regionStateLevelColorExpression() as never,
             "line-width": REGION_MAP_STROKE_WIDTH,
             "line-opacity": ["coalesce", ["get", "lineOpacity"], GEO_MAP_REGION_STROKE_OPACITY],
           },
@@ -1215,6 +762,7 @@ export function GeoMapWidget(_props: WidgetProps) {
       syncGeoOverlayLayers(map, geoMapLayers$.value);
 
       // --- Обработчики событий (переустанавливаем после смены стиля) ---
+      /** Клик по региону или place — toggle выбора в selectionStore. */
       const onPick = (event: MapLayerMouseEvent): void => {
         const props = event.features?.[0]?.properties;
         const code = props?.regionCode;
@@ -1223,24 +771,7 @@ export function GeoMapWidget(_props: WidgetProps) {
         }
       };
 
-      const resolvePlaceSource = async (placeId: string): Promise<SourceMessage | null> => {
-        if (placeSourceCache.has(placeId)) {
-          return placeSourceCache.get(placeId) ?? null;
-        }
-        let pending = placeSourcePending.get(placeId);
-        if (!pending) {
-          pending = mapApi
-            .placeSourceMessage(placeId)
-            .then((response) => response.message)
-            .catch(() => null);
-          placeSourcePending.set(placeId, pending);
-        }
-        const message = await pending;
-        placeSourceCache.set(placeId, message);
-        placeSourcePending.delete(placeId);
-        return message;
-      };
-
+      /** Popup place/района: сначала локальные строки, затем обогащение rawText с API. */
       const showPlacePopup = (lngLat: MapLayerMouseEvent["lngLat"], placeId: string): void => {
         if (!map) return;
         activePlacePopupId = placeId;
@@ -1262,7 +793,7 @@ export function GeoMapWidget(_props: WidgetProps) {
           .setText(lines.join("\n"))
           .addTo(map);
 
-        void resolvePlaceSource(placeId).then((sourceMessage) => {
+        void runtime.popups.resolvePlaceSource(placeId).then((sourceMessage) => {
           if (!map || !placePopup || activePlacePopupId !== placeId) return;
           const enriched = buildPlacePopupLines(placeId, sourceMessage);
           if (enriched.length === 0) return;
@@ -1270,18 +801,21 @@ export function GeoMapWidget(_props: WidgetProps) {
         });
       };
 
+      /** Hover по кружку place — показываем popup. */
       const onPlaceHover = (event: MapLayerMouseEvent): void => {
         const placeId = event.features?.[0]?.properties?.placeId;
         if (typeof placeId !== "string" || !placeId) return;
         showPlacePopup(event.lngLat, placeId);
       };
 
+      /** Hover по полигону района — тот же popup, что у place (общий placeId в properties). */
       const onDistrictHover = (event: MapLayerMouseEvent): void => {
         const placeId = event.features?.[0]?.properties?.placeId;
         if (typeof placeId !== "string" || !placeId) return;
         showPlacePopup(event.lngLat, placeId);
       };
 
+      /** Уход курсора с place/района — скрываем popup и сбрасываем cursor. */
       const onPlaceHoverEnd = (): void => {
         if (!map) return;
         map.getCanvas().style.cursor = "";
@@ -1290,6 +824,10 @@ export function GeoMapWidget(_props: WidgetProps) {
         placePopup = null;
       };
 
+      /**
+       * Hover по региону: tooltip с уровнем и последним событием.
+       * Под place/районом — не показываем (дочерняя сущность перекрывает регион).
+       */
       const onRegionHover = (event: MapLayerMouseEvent): void => {
         if (!map) return;
         if (hasChildEntityAtPointer(map, event.point)) {
@@ -1312,6 +850,7 @@ export function GeoMapWidget(_props: WidgetProps) {
           .addTo(map);
       };
 
+      /** Уход курсора с региона — скрываем region popup. */
       const onRegionHoverEnd = (): void => {
         if (!map) return;
         map.getCanvas().style.cursor = "";
@@ -1319,6 +858,7 @@ export function GeoMapWidget(_props: WidgetProps) {
         regionPopup = null;
       };
 
+      // Привязка pointer-событий к слоям (пересоздаётся в setupLayersAndHandlers после setStyle).
       map.on("click", REGIONS_FILL, onPick);
       map.on("click", REGIONS_OUTLINE, onPick);
       map.on("click", PLACES_LAYER, onPick);
@@ -1350,6 +890,7 @@ export function GeoMapWidget(_props: WidgetProps) {
       applyPlacesFadeLayers();
     };
 
+    // --- Инициализация MapLibre (dynamic import — code-splitting) ---
     void (async () => {
       const maplibre = (await import("maplibre-gl")).default;
       await import("maplibre-gl/dist/maplibre-gl.css");
@@ -1364,6 +905,7 @@ export function GeoMapWidget(_props: WidgetProps) {
         attributionControl: { compact: true },
       });
 
+      // Карта и стиль готовы — слои, первая загрузка данных, RxJS-подписки.
       map.on("load", () => {
         if (!map) return;
 
@@ -1372,31 +914,53 @@ export function GeoMapWidget(_props: WidgetProps) {
         loadRegionGeometry();
         loadAndApplyDistricts();
         applyPlaces();
-        syncGeoOverlayLayers(map, geoMapLayers$.value);
-        if (geoMapLayers$.value.heatmap) {
-          loadEventsHeatmap();
-        }
 
-        unsubGeoMapLayers = geoMapLayers$.subscribe((layers) => {
-          if (!map) return;
-          syncGeoOverlayLayers(map, layers);
-          if (layers.heatmap) loadEventsHeatmap();
-          else hideEventsHeatmap();
-        });
-        unsubHeatmapPeriod = heatmapPeriod$.subscribe(() => {
-          if (geoMapLayers$.value.heatmap) loadEventsHeatmap();
-        });
-        unsubHistoricalAsOf = historicalAsOf$.subscribe(() => {
-          if (geoMapLayers$.value.heatmap) loadEventsHeatmap();
-        });
+        const effectCtx: GeoMapEffectContext = {
+          resetRegionsDebounce$,
+          heatmapManualRefresh$,
+          runtime,
+          getMap: () => map,
+          isDisposed: () => disposed,
+          baseRegionsRef,
+          applyPlacesFadeLayers,
+          syncGeoOverlayLayers,
+          hideEventsHeatmap,
+        };
 
-        unsubRegions = regionsByCode$.subscribe(() => scheduleMapRefresh());
-        unsubPlaces = placesById$.subscribe(() => schedulePlacesLayerRefresh());
+        // --- Подписки store → карта: виджет владеет lifecycle, effects — только pipe ---
+        storeSubscriptions.add(
+          regionsRefresh$(effectCtx).pipe(takeUntil(destroy$)).subscribe(() => {
+            if (disposed) return;
+            if (baseRegionsRef.current) applyRegions();
+            else loadRegionGeometry();
+          }),
+        );
+
+        storeSubscriptions.add(
+          placesDistrictsGeoJson$(effectCtx).pipe(takeUntil(destroy$)).subscribe((layer) => {
+            if (disposed || !map) return;
+            baseDistrictsRef.current = layer as GeoJsonCollection;
+            applyDistrictsLayer(baseDistrictsRef.current);
+          }),
+        );
+
+        storeSubscriptions.add(
+          eventsHeatmap$(effectCtx).pipe(takeUntil(destroy$)).subscribe(),
+        );
+
+        storeSubscriptions.add(
+          geoMapLayersVisibility$().pipe(takeUntil(destroy$)).subscribe((layers) => {
+            if (!map || disposed) return;
+            syncGeoOverlayLayers(map, layers);
+            if (!layers.heatmap) hideEventsHeatmap();
+          }),
+        );
 
         // appliedTheme хранит тему, уже применённую к карте —
         // реагируем только на реальное изменение, не на начальный emit BehaviorSubject.
         let appliedTheme = theme$.value;
-        unsubTheme = theme$.subscribe((theme) => {
+        storeSubscriptions.add(
+          theme$.pipe(takeUntil(destroy$)).subscribe((theme) => {
           if (!map || disposed || theme === appliedTheme) return;
           appliedTheme = theme;
           placePopup?.remove();
@@ -1409,7 +973,9 @@ export function GeoMapWidget(_props: WidgetProps) {
           // После загрузки нового стиля восстанавливаем выделение региона.
           afterStyleChange(map, () => {
             if (disposed || !map) return;
-            if (highlightedCode) setRegionFeatureSelected(map, highlightedCode, true);
+            if (highlightedCode) {
+              runtime.selection.setRegionSelected(highlightedCode, true);
+            }
             applyRegions();
             if (baseDistrictsRef.current) {
               applyDistrictsLayer(baseDistrictsRef.current);
@@ -1417,16 +983,17 @@ export function GeoMapWidget(_props: WidgetProps) {
             applyPlacesFadeLayers();
             applyEventsHeatmapPaint(map, theme);
             syncGeoOverlayLayers(map, geoMapLayers$.value);
-            if (geoMapLayers$.value.heatmap) loadEventsHeatmap();
+            if (geoMapLayers$.value.heatmap) heatmapManualRefresh$.next();
           });
-        });
+          }),
+        );
 
-        unsubSelected = selectedRegion$.subscribe((code) => {
-          clearTimeout(geoReloadTimer);
+        // Выбор региона: feature-state + flyTo / overview fit.
+        storeSubscriptions.add(
+          selectedRegion$.pipe(takeUntil(destroy$)).subscribe((code) => {
+          resetRegionsDebounce$.next();
           const prev = highlightedCode;
-          if (map) {
-            applyRegionSelection(map, prev, code);
-          }
+          runtime.selection.apply(prev, code);
           highlightedCode = code;
 
           if (!code) {
@@ -1444,7 +1011,8 @@ export function GeoMapWidget(_props: WidgetProps) {
             const animate = prev === null;
             flyToRegion(map, code, baseRegionsRef.current, animate ? 320 : 0);
           });
-        });
+          }),
+        );
 
         // Снапшот мог прийти до mount виджета — повторно кладём точки на карту.
         if (placesById$.value.size > 0) {
@@ -1460,42 +1028,36 @@ export function GeoMapWidget(_props: WidgetProps) {
       });
     })();
 
+    // --- Cleanup: таймеры, подписки, popup, кэши, destroy map ---
     return () => {
       disposed = true;
-      districtsFetchGen += 1;
-      clearTimeout(geoReloadTimer);
-      clearTimeout(placesLayerTimer);
-      clearTimeout(districtsReloadTimer);
-      clearTimeout(heatmapReloadTimer);
+      destroy$.next();
+      destroy$.complete();
+      storeSubscriptions.unsubscribe();
+      runtime.dispose();
       clearInterval(fadeTicker);
       placePopup?.remove();
       placePopup = null;
       regionPopup?.remove();
       regionPopup = null;
-      placeSourceCache.clear();
-      placeSourcePending.clear();
-      geoSourceFingerprints.clear();
-      unsubRegions?.unsubscribe();
-      unsubPlaces?.unsubscribe();
-      unsubSelected?.unsubscribe();
-      unsubTheme?.unsubscribe();
-      unsubHeatmapPeriod?.unsubscribe();
-      unsubHistoricalAsOf?.unsubscribe();
-      unsubGeoMapLayers?.unsubscribe();
       map?.remove();
     };
   }, []);
 
+  /** Оверлей статистики + canvas карты (MapLibre монтируется в containerRef). */
   return (
     <Panel variant="bare" className="geo-map-panel">
+      {/* Статистика активных контуров и мест (обновляется в applyRegions / applyPlacesFadeLayers). */}
       {!geoError && (regionOutlines > 0 || placeCount > 0) && (
         <div className="geo-map-panel__stats">
           Контуров: {regionOutlines} · мест: {placeCount}
         </div>
       )}
+      {/* Ошибка загрузки regions-geojson с API. */}
       {geoError && (
         <div className="geo-map-panel__stats">Геометрия: {geoError}</div>
       )}
+      {/* Пустое состояние: нет видимых регионов/мест и нет ошибки сети. */}
       {regionOutlines === 0 && placeCount === 0 && !geoError && (
         <div className="geo-map-panel__stats">
           Нет активных регионов/мест
