@@ -2,7 +2,10 @@ import { Button } from "../../shared/ds";
 import { useObservable } from "../../shared/hooks/useObservable";
 import type { EventHeatmapPeriod } from "@radar/shared";
 import {
-  heatmapLoading$,
+  GEO_MAP_LAYER_FETCH_IDLE,
+  heatmapFetchStatus$,
+} from "../../shared/state/geoMapLayerFetchStore";
+import {
   heatmapMeta$,
   heatmapPeriod$,
   setHeatmapPeriod,
@@ -19,7 +22,8 @@ const PERIOD_OPTIONS: Array<{ id: EventHeatmapPeriod; label: string }> = [
 export function MapHeatmapControls() {
   const period = useObservable(heatmapPeriod$, "24h");
   const meta = useObservable(heatmapMeta$, null);
-  const loading = useObservable(heatmapLoading$, false);
+  const fetchStatus = useObservable(heatmapFetchStatus$, GEO_MAP_LAYER_FETCH_IDLE);
+  const loading = fetchStatus.loading;
 
   return (
     <div className="map-layers__subpanel map-layers__subpanel--heatmap">

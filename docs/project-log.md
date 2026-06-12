@@ -36,6 +36,30 @@
 
 ## Записи
 
+### 2026-06-11 — Web geo-map: декомпозиция виджета, FetchPhase, per-layer fetch-status
+
+**Сделано:**
+- `GeoMapWidget` — только canvas (~20 строк); lifecycle в `useGeoMapLifecycle`, хелперы в `geoMapEngine`
+- HUD-оверлеи вынесены в `AppShell`: `GeoMapOverlays` (stats + log), как `MapLayersPanel` / `MapTimelineBar`
+- RxJS FetchPhase: `loading$/data$/error$` → `wireLayerFetchStreams` → per-layer `*FetchStatus$`
+- SSOT: `geoMapLayerFetchStore` (regions/districts/heatmap), `geoMapStatsStore`, `geoMapLogStore`
+- Удалены дубли: `geoMapLayerStatusStore`, `geoMapDistrictsStore`, `heatmapLoading$/heatmapError$`
+
+**Оценка архитектуры:** 9/10 — согласованные слои, smart UI-оверлеи, нет prop drilling.
+
+**Рекомендации по доработкам (geo-map / web):**
+
+| Приоритет | Задача | Зачем |
+|-----------|--------|-------|
+| P1 | Разбить `useGeoMapLifecycle` на модули: `setupMapLayers`, `wireMapSubscriptions`, `wireMapHandlers` | Сейчас ~800 строк — единственный «толстый» узел |
+| P1 | Unit-тесты: `geoMapRx` (splitFetchPhase), `geoMapEffects` (triggers/debounce), `geoMapPaint` (fingerprints) | Архитектура готова к тестам, покрытия нет |
+| P2 | `geoMapStats$` → derived stream из lifecycle (или selector), если счётчики останутся единственным потребителем | Убрать ручной `setGeoMapStats` в apply-хуках |
+| P2 | Единый registry виджетов карты в `widgetRegistry` для overlays (stats, log, layers, timeline) | Симметрия с background/left/right зонами |
+| P3 | Smoke-сценарии карты: bootstrap → regions error badge → toggle heatmap → timeline scrub | Зафиксировать регрессии fetch-status + HUD |
+| P3 | `places` fetch-status — только если появится отдельный HTTP для places (сейчас не нужен) | Не плодить слоты без реального fetch |
+
+**Следующий шаг (вне geo-map):** итерация 2 trust/provenance на read-side (см. чеклист выше).
+
 ### 2026-05-25 — Ingest: ревью архитектуры, документация manifest v2
 
 - Расширена документация [ingest-providers.md](./ingest-providers.md):

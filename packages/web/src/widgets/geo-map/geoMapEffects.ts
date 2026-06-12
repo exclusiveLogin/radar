@@ -2,6 +2,7 @@ import {
   combineLatest,
   debounce,
   debounceTime,
+  merge,
   type Observable,
   switchMap,
   timer,
@@ -12,60 +13,84 @@ import { mapApi } from "../../shared/api/mapApi";
 import { heatmapPeriod$ } from "../../shared/state/heatmapStore";
 import { geoMapLayers$ } from "../../shared/state/mapLayerStore";
 import { historicalAsOf$, placesById$, regionsByCode$ } from "../../shared/state/mapStore";
-import type { FetchPhase, DistrictsFetchData, HeatmapFetchData } from "./geoMapEffectTypes";
-import { splitFetchPhase$, toFetchPhase$ } from "./geoMapRx";
+import type {
+  DistrictsFetchData,
+  FetchPhase,
+  HeatmapFetchData,
+  RegionsGeometryFetchData,
+} from "./geoMapEffectTypes";
+import {
+  type FetchStreams,
+  shareTrigger,
+  splitFetchPhase$,
+  toFetchPhase$,
+} from "./geoMapRx";
 
-/** Императивные сигналы, пробивающие reactive-слой (selection, manual refresh). */
+/** Императивные сигналы lifecycle карты. */
 export type GeoMapEffectSignals = {
+  /** Один раз на map.load — стартовые HTTP без skip/debounce. */
+  bootstrap$: Subject<void>;
   resetRegionsDebounce$: Subject<void>;
   heatmapManualRefresh$: Subject<void>;
 };
 
-/** regionsByCode$ → debounce 300 ms; skip(1) — первичная загрузка на map.load. */
-export function regionsRefresh$(signals: GeoMapEffectSignals): Observable<void> {
-  return regionsByCode$.pipe(
-    skip(1),
-    debounce(() => timer(300).pipe(takeUntil(signals.resetRegionsDebounce$))),
-    map(() => undefined),
-  );
-}
+/** Доступ к ref'ам из pipe (нужен filter «есть ли геометрия»). */
+export type GeoMapEffectHost = {
+  signals: GeoMapEffectSignals;
+  hasRegionsGeometry(): boolean;
+};
 
-/** placesById$ → debounce 120 ms — тик перерисовки маркеров (без HTTP). */
-export function placesFadeTick$(): Observable<void> {
-  return placesById$.pipe(
-    skip(1),
-    debounceTime(120),
-    map(() => undefined),
-  );
-}
-
-/** Базовый HTTP districts-active после debounce places (120 + 500 ms). */
-function districtsFetchPhase$(): Observable<FetchPhase<DistrictsFetchData>> {
-  return placesById$.pipe(
-    skip(1),
-    debounceTime(120),
-    switchMap(() =>
-      timer(500).pipe(
-        switchMap(() =>
-          toFetchPhase$(() =>
-            mapApi.activeDistrictsGeoJson().then((layer) => layer as DistrictsFetchData),
-          ),
-        ),
-      ),
+/** SSOT: placesById$ → debounce 120 ms (один раз на все производные). */
+export function placesStoreTick$(): Observable<void> {
+  return shareTrigger(
+    placesById$.pipe(
+      skip(1),
+      debounceTime(120),
+      map(() => undefined),
     ),
   );
 }
 
-/** Districts: loading / data / error — отдельные потоки. */
-export function createDistrictsFetchStreams(): {
-  loading$: Observable<boolean>;
-  data$: Observable<DistrictsFetchData>;
-  error$: Observable<unknown>;
-} {
-  return splitFetchPhase$(districtsFetchPhase$());
+/** SSOT: regionsByCode$ → debounce 300 ms. */
+export function regionsStoreTick$(signals: GeoMapEffectSignals): Observable<void> {
+  return shareTrigger(
+    regionsByCode$.pipe(
+      skip(1),
+      debounce(() => timer(300).pipe(takeUntil(signals.resetRegionsDebounce$))),
+      map(() => undefined),
+    ),
+  );
 }
 
-/** Триггер запроса теплокарты (без HTTP). */
+function fetchRegionsGeometry(): Promise<RegionsGeometryFetchData> {
+  return mapApi.regionsGeoJson().then((layer) => layer as RegionsGeometryFetchData);
+}
+
+function fetchDistrictsGeometry(): Promise<DistrictsFetchData> {
+  return mapApi.activeDistrictsGeoJson().then((layer) => layer as DistrictsFetchData);
+}
+
+/** HTTP контуров регионов: bootstrap + store tick без геометрии. */
+function regionsGeometryFetchPhase$(host: GeoMapEffectHost): Observable<FetchPhase<RegionsGeometryFetchData>> {
+  return merge(
+    host.signals.bootstrap$.pipe(switchMap(() => toFetchPhase$(fetchRegionsGeometry))),
+    regionsStoreTick$(host.signals).pipe(
+      filter(() => !host.hasRegionsGeometry()),
+      switchMap(() => toFetchPhase$(fetchRegionsGeometry)),
+    ),
+  );
+}
+
+/** HTTP districts: bootstrap сразу + places tick через 500 ms. */
+function districtsFetchPhase$(signals: GeoMapEffectSignals): Observable<FetchPhase<DistrictsFetchData>> {
+  return merge(
+    signals.bootstrap$.pipe(switchMap(() => toFetchPhase$(fetchDistrictsGeometry))),
+    placesStoreTick$().pipe(
+      switchMap(() => timer(500).pipe(switchMap(() => toFetchPhase$(fetchDistrictsGeometry)))),
+    ),
+  );
+}
+
 function heatmapFetchPhase$(signals: GeoMapEffectSignals): Observable<FetchPhase<HeatmapFetchData>> {
   return combineLatest([
     geoMapLayers$,
@@ -86,11 +111,17 @@ function heatmapFetchPhase$(signals: GeoMapEffectSignals): Observable<FetchPhase
   );
 }
 
-/** Heatmap: loading / data / error — отдельные потоки. */
-export function createHeatmapFetchStreams(signals: GeoMapEffectSignals): {
-  loading$: Observable<boolean>;
-  data$: Observable<HeatmapFetchData>;
-  error$: Observable<unknown>;
-} {
-  return splitFetchPhase$(heatmapFetchPhase$(signals));
+export type GeoMapFetchBundle = {
+  regions: FetchStreams<RegionsGeometryFetchData>;
+  districts: FetchStreams<DistrictsFetchData>;
+  heatmap: FetchStreams<HeatmapFetchData>;
+};
+
+/** Все HTTP-потоки карты: loading / data / error на слой. */
+export function createGeoMapFetchStreams(host: GeoMapEffectHost): GeoMapFetchBundle {
+  return {
+    regions: splitFetchPhase$(regionsGeometryFetchPhase$(host)),
+    districts: splitFetchPhase$(districtsFetchPhase$(host.signals)),
+    heatmap: splitFetchPhase$(heatmapFetchPhase$(host.signals)),
+  };
 }

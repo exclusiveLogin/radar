@@ -9,6 +9,7 @@ import { startTopActivityStore } from "../shared/state/topActivityStore";
 import { RegionDetailWidget } from "../widgets/region-detail/RegionDetailWidget";
 import { MapTimelineBar } from "../widgets/map-timeline/MapTimelineBar";
 import { MapLayersPanel } from "../widgets/map-layers/MapLayersPanel";
+import { GeoMapOverlays } from "../widgets/map-overlays/GeoMapOverlays";
 import { useObservable } from "../shared/hooks/useObservable";
 import { geoMapLayers$ } from "../shared/state/mapLayerStore";
 import { WIDGETS, type WidgetZone } from "./widgetRegistry";
@@ -101,6 +102,7 @@ export function AppShell() {
           ))}
         </div>
 
+        <GeoMapOverlays />
         <MapLayersPanel />
 
         <aside className="shell__rail shell__rail--left">

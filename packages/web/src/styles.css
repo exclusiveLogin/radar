@@ -188,6 +188,51 @@
   min-height: 0;
 }
 
+/** Игровая лента событий — правый нижний угол карты. */
+.geo-map-log-rail {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  max-width: min(280px, 42vw);
+  pointer-events: none;
+}
+
+.geo-map-log-rail__item {
+  font-size: 10px;
+  line-height: 1.25;
+  padding: 3px 8px;
+  background: rgba(8, 12, 18, 0.72);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  animation: geo-map-log-in 0.2s ease-out;
+}
+
+.geo-map-log-rail__item--warn {
+  color: #e6c84a;
+  border-color: rgba(230, 200, 74, 0.45);
+}
+
+.geo-map-log-rail__item--error {
+  color: #ff8f8f;
+  border-color: rgba(255, 100, 100, 0.45);
+}
+
+@keyframes geo-map-log-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 .geo-map-panel__hint {
   margin: 0;
   font-size: 11px;
@@ -320,6 +365,41 @@
 .map-layers__label {
   flex: 1;
   font-weight: 500;
+}
+
+.map-layers__status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+.map-layers__status-dot {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.map-layers__status-dot--loading {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 1.5px solid var(--accent);
+  border-top-color: transparent;
+  animation: map-layer-spin 0.7s linear infinite;
+}
+
+.map-layers__status-dot--error {
+  color: #ff6b6b;
+}
+
+@keyframes map-layer-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .map-layers__track {

@@ -7,8 +7,6 @@ export type FetchPhase<T> =
   | { phase: "success"; data: T }
   | { phase: "error"; error: unknown };
 
-/** Успешный ответ теплокарты. */
 export type HeatmapFetchData = EventHeatmapResponse;
-
-/** Успешный ответ districts-active. */
 export type DistrictsFetchData = GeoJsonCollection;
+export type RegionsGeometryFetchData = GeoJsonCollection;

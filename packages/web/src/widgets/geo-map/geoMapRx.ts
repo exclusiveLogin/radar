@@ -10,7 +10,7 @@ import {
   distinctUntilChanged,
   filter,
   map,
-  share,
+  shareReplay,
 } from "rxjs/operators";
 import type { FetchPhase } from "./geoMapEffectTypes";
 
@@ -25,13 +25,15 @@ export function toFetchPhase$<T>(request: () => Promise<T>): Observable<FetchPha
   );
 }
 
-/** Разделяет FetchPhase на три Angular-style потока (loading / data / error). */
-export function splitFetchPhase$<T>(source$: Observable<FetchPhase<T>>): {
+export type FetchStreams<T> = {
   loading$: Observable<boolean>;
   data$: Observable<T>;
   error$: Observable<unknown>;
-} {
-  const shared$ = source$.pipe(share());
+};
+
+/** Разделяет FetchPhase на loading / data / error с shareReplay + refCount. */
+export function splitFetchPhase$<T>(source$: Observable<FetchPhase<T>>): FetchStreams<T> {
+  const shared$ = source$.pipe(shareReplay({ bufferSize: 1, refCount: true }));
 
   return {
     loading$: shared$.pipe(
@@ -47,4 +49,9 @@ export function splitFetchPhase$<T>(source$: Observable<FetchPhase<T>>): {
       map((event) => event.error),
     ),
   };
+}
+
+/** shareReplay(1, refCount) для SSOT-триггеров store. */
+export function shareTrigger<T>(source$: Observable<T>): Observable<T> {
+  return source$.pipe(shareReplay({ bufferSize: 1, refCount: true }));
 }

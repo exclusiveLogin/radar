@@ -1,6 +1,11 @@
 import { useObservable } from "../../shared/hooks/useObservable";
 import { formatDateTime } from "../../shared/format/dateTime";
 import {
+  geoMapFetchStatuses$,
+  GEO_MAP_LAYER_FETCH_IDLE,
+  resolveGeoMapLayerFetchStatus,
+} from "../../shared/state/geoMapLayerFetchStore";
+import {
   GEO_MAP_LAYER_LABELS,
   GEO_MAP_LAYER_ORDER,
   geoMapLayers$,
@@ -13,9 +18,13 @@ import { MapHeatmapControls } from "../map-heatmap/MapHeatmapControls";
 function LayerSwitch({
   id,
   enabled,
+  loading,
+  error,
 }: {
   id: GeoMapLayerId;
   enabled: boolean;
+  loading: boolean;
+  error: string | null;
 }) {
   return (
     <button
@@ -25,6 +34,14 @@ function LayerSwitch({
       onClick={() => toggleGeoMapLayer(id)}
     >
       <span className="map-layers__label">{GEO_MAP_LAYER_LABELS[id]}</span>
+      <span className="map-layers__status" aria-hidden>
+        {loading && <span className="map-layers__status-dot map-layers__status-dot--loading" />}
+        {!loading && error && (
+          <span className="map-layers__status-dot map-layers__status-dot--error" title={error}>
+            !
+          </span>
+        )}
+      </span>
       <span className="map-layers__track" aria-hidden>
         <span className="map-layers__thumb" />
       </span>
@@ -52,6 +69,11 @@ function TimelineLayerHint() {
  */
 export function MapLayersPanel() {
   const layers = useObservable(geoMapLayers$, geoMapLayers$.value);
+  const fetchStatuses = useObservable(geoMapFetchStatuses$, {
+    regions: GEO_MAP_LAYER_FETCH_IDLE,
+    districts: GEO_MAP_LAYER_FETCH_IDLE,
+    heatmap: GEO_MAP_LAYER_FETCH_IDLE,
+  });
 
   return (
     <aside className="map-layers-panel" aria-label="Слои карты">
@@ -59,9 +81,15 @@ export function MapLayersPanel() {
       <div className="map-layers-panel__list">
         {GEO_MAP_LAYER_ORDER.map((id) => {
           const enabled = layers[id];
+          const status = resolveGeoMapLayerFetchStatus(id, fetchStatuses);
           return (
             <div key={id} className="map-layers-panel__item">
-              <LayerSwitch id={id} enabled={enabled} />
+              <LayerSwitch
+                id={id}
+                enabled={enabled}
+                loading={status.loading}
+                error={status.error}
+              />
               {enabled && id === "heatmap" && <MapHeatmapControls />}
               {enabled && id === "timeline" && <TimelineLayerHint />}
             </div>
