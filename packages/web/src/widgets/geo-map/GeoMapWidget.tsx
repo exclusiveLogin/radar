@@ -40,6 +40,7 @@ import {
   REGION_MAP_SELECTED_STROKE_WIDTH,
   REGION_MAP_SELECTION_HALO,
   REGION_MAP_STROKE_WIDTH,
+  regionStateLevelColorExpression,
   resolveMapBasemapStyleForTheme,
 } from "../../shared/config/mapConfig.service";
 import { formatDateTime } from "../../shared/format/dateTime";
@@ -65,6 +66,7 @@ const REGIONS_SOURCE = "regions";
 const REGIONS_OUTLINE_SOURCE = "regions-outline-inset";
 const REGIONS_FILL = "regions-fill";
 const REGIONS_OUTLINE = "regions-outline";
+/** Белый halo поверх цветного контура — только для выбранного региона (opacity + feature-state). */
 const REGIONS_SELECTION = "regions-selection";
 
 /** Слой активных place-полигонов (geo_feature) — рисуется над регионами. */
@@ -106,8 +108,8 @@ function applyEventsHeatmapPaint(map: MapLibreMap, theme: ThemeMode): void {
   }
 }
 
-/** MapLibre-слои по toggle из mapLayerStore (timeline — только UI). */
-const MAPLIBRE_LAYERS_BY_TOGGLE: Record<
+/** SSOT: toggle mapLayerStore → id слоёв MapLibre. */
+const GEO_OVERLAY_LAYERS: Record<
   Exclude<GeoMapLayerId, "timeline">,
   readonly string[]
 > = {
@@ -117,11 +119,12 @@ const MAPLIBRE_LAYERS_BY_TOGGLE: Record<
   heatmap: [EVENTS_HEATMAP_LAYER, EVENTS_HEATMAP_POINTS_LAYER],
 };
 
-function applyGeoMapLayerVisibility(
+/** Видимость оверлеев по store — без moveLayer и без побочных эффектов. */
+function syncGeoOverlayLayers(
   map: MapLibreMap,
   layers: Record<GeoMapLayerId, boolean>,
 ): void {
-  for (const [key, layerIds] of Object.entries(MAPLIBRE_LAYERS_BY_TOGGLE)) {
+  for (const [key, layerIds] of Object.entries(GEO_OVERLAY_LAYERS)) {
     const visible = layers[key as Exclude<GeoMapLayerId, "timeline">];
     for (const layerId of layerIds) {
       if (!map.getLayer(layerId)) continue;
@@ -275,7 +278,7 @@ function applyRegionSelection(
   if (next) setRegionFeatureSelected(map, next, true);
 }
 
-/** Line-слой: inset-контур (строго внутри полигона, без line-offset). */
+/** Inset-контур для line-слоя (строго внутри полигона). */
 function paintRegionInsetOutlines(
   painted: GeoJsonCollection,
 ): GeoJsonCollection {
@@ -289,6 +292,54 @@ function paintRegionInsetOutlines(
       ) as PolygonFeature["geometry"],
     })),
   };
+}
+
+/** Fill + inset-outline одним коммитом (общий fingerprint). */
+function commitRegionSources(
+  map: MapLibreMap,
+  painted: GeoJsonCollection,
+  fingerprints: Map<string, string>,
+  force: boolean,
+): boolean {
+  const outlineData = paintRegionInsetOutlines(painted);
+  const fingerprint = geoJsonFingerprint(painted);
+  if (
+    !force &&
+    fingerprints.get(REGIONS_SOURCE) === fingerprint &&
+    fingerprints.get(REGIONS_OUTLINE_SOURCE) === fingerprint
+  ) {
+    return true;
+  }
+
+  const fillSource = map.getSource(REGIONS_SOURCE) as GeoJSONSource | undefined;
+  const outlineSource = map.getSource(REGIONS_OUTLINE_SOURCE) as GeoJSONSource | undefined;
+  if (!fillSource || !outlineSource) return false;
+
+  fillSource.setData(painted as never);
+  outlineSource.setData(outlineData as never);
+  fingerprints.set(REGIONS_SOURCE, fingerprint);
+  fingerprints.set(REGIONS_OUTLINE_SOURCE, fingerprint);
+  map.triggerRepaint();
+  return true;
+}
+
+function pushRegionSources(
+  map: MapLibreMap,
+  painted: GeoJsonCollection,
+  fingerprints: Map<string, string>,
+  force: boolean,
+  onCommitted: () => void,
+): void {
+  const push = (): boolean => commitRegionSources(map, painted, fingerprints, force);
+  whenStyleReady(map, () => {
+    if (push()) {
+      onCommitted();
+      return;
+    }
+    map.once("idle", () => {
+      if (push()) onCommitted();
+    });
+  });
 }
 
 const DISTRICT_KINDS = new Set(["district", "city_district"]);
@@ -807,22 +858,19 @@ export function GeoMapWidget(_props: WidgetProps) {
           return;
         }
         lastRegionsPaintFingerprint = paintFingerprint;
+        if (force) {
+          geoSourceFingerprints.delete(REGIONS_SOURCE);
+          geoSourceFingerprints.delete(REGIONS_OUTLINE_SOURCE);
+        }
         const painted = paintRegionOutlines(
           baseRegionsRef.current,
           regionsByCode$.value,
           now,
         );
         setRegionOutlines(painted.features.length);
-        applyGeoJsonSourceData(map, REGIONS_SOURCE, painted, geoSourceFingerprints);
-        applyGeoJsonSourceData(
-          map,
-          REGIONS_OUTLINE_SOURCE,
-          paintRegionInsetOutlines(painted),
-          geoSourceFingerprints,
-        );
-        if (highlightedCode) {
-          setRegionFeatureSelected(map, highlightedCode, true);
-        }
+        pushRegionSources(map, painted, geoSourceFingerprints, force, () => {
+          if (highlightedCode) setRegionFeatureSelected(map, highlightedCode, true);
+        });
         const placeFeatures = placesToFeatures(
           placesById$.value,
           regionsByCode$.value,
@@ -984,7 +1032,7 @@ export function GeoMapWidget(_props: WidgetProps) {
               { type: "FeatureCollection", features: data.features },
               geoSourceFingerprints,
             );
-            applyGeoMapLayerVisibility(map, geoMapLayers$.value);
+            syncGeoOverlayLayers(map, geoMapLayers$.value);
           })
           .catch((error: unknown) => {
             console.error("[GeoMapWidget] events-heatmap", error);
@@ -1065,7 +1113,7 @@ export function GeoMapWidget(_props: WidgetProps) {
           source: REGIONS_SOURCE,
           filter: ["==", ["get", "kind"], "region"],
           paint: {
-            "fill-color": ["coalesce", ["get", "color"], LEVEL_COLORS.grey],
+            "fill-color": regionStateLevelColorExpression(),
             "fill-opacity": [
               "case",
               FEATURE_SELECTED,
@@ -1082,13 +1130,8 @@ export function GeoMapWidget(_props: WidgetProps) {
           source: REGIONS_OUTLINE_SOURCE,
           filter: ["==", ["get", "kind"], "region"],
           paint: {
-            "line-color": ["coalesce", ["get", "color"], LEVEL_COLORS.grey],
-            "line-width": [
-              "case",
-              FEATURE_SELECTED,
-              REGION_MAP_SELECTED_STROKE_WIDTH,
-              REGION_MAP_STROKE_WIDTH,
-            ],
+            "line-color": regionStateLevelColorExpression(),
+            "line-width": REGION_MAP_STROKE_WIDTH,
             "line-opacity": ["coalesce", ["get", "lineOpacity"], GEO_MAP_REGION_STROKE_OPACITY],
           },
         });
@@ -1102,19 +1145,9 @@ export function GeoMapWidget(_props: WidgetProps) {
           paint: {
             "line-color": REGION_MAP_SELECTION_HALO,
             "line-width": REGION_MAP_SELECTED_STROKE_WIDTH + 1.5,
-            // feature-state нельзя в filter — видимость через opacity.
             "line-opacity": ["case", FEATURE_SELECTED, 0.9, 0],
           },
         });
-      } else {
-        // HMR/повторный setup: слой мог остаться со старым filter(feature-state).
-        map.setFilter(REGIONS_SELECTION, ["==", ["get", "kind"], "region"]);
-        map.setPaintProperty(REGIONS_SELECTION, "line-opacity", [
-          "case",
-          FEATURE_SELECTED,
-          0.9,
-          0,
-        ]);
       }
 
       // --- Районы ---
@@ -1179,7 +1212,7 @@ export function GeoMapWidget(_props: WidgetProps) {
       }
 
       enforceGeoEntityLayerOrder(map);
-      applyGeoMapLayerVisibility(map, geoMapLayers$.value);
+      syncGeoOverlayLayers(map, geoMapLayers$.value);
 
       // --- Обработчики событий (переустанавливаем после смены стиля) ---
       const onPick = (event: MapLayerMouseEvent): void => {
@@ -1339,21 +1372,16 @@ export function GeoMapWidget(_props: WidgetProps) {
         loadRegionGeometry();
         loadAndApplyDistricts();
         applyPlaces();
-        applyGeoMapLayerVisibility(map, geoMapLayers$.value);
+        syncGeoOverlayLayers(map, geoMapLayers$.value);
         if (geoMapLayers$.value.heatmap) {
           loadEventsHeatmap();
         }
 
-        let prevHeatmapOn = geoMapLayers$.value.heatmap;
         unsubGeoMapLayers = geoMapLayers$.subscribe((layers) => {
           if (!map) return;
-          applyGeoMapLayerVisibility(map, layers);
-          if (!layers.heatmap) {
-            hideEventsHeatmap();
-          } else if (!prevHeatmapOn) {
-            loadEventsHeatmap();
-          }
-          prevHeatmapOn = layers.heatmap;
+          syncGeoOverlayLayers(map, layers);
+          if (layers.heatmap) loadEventsHeatmap();
+          else hideEventsHeatmap();
         });
         unsubHeatmapPeriod = heatmapPeriod$.subscribe(() => {
           if (geoMapLayers$.value.heatmap) loadEventsHeatmap();
@@ -1388,7 +1416,7 @@ export function GeoMapWidget(_props: WidgetProps) {
             }
             applyPlacesFadeLayers();
             applyEventsHeatmapPaint(map, theme);
-            applyGeoMapLayerVisibility(map, geoMapLayers$.value);
+            syncGeoOverlayLayers(map, geoMapLayers$.value);
             if (geoMapLayers$.value.heatmap) loadEventsHeatmap();
           });
         });

@@ -21,6 +21,25 @@ export const LEVEL_LABELS: Record<StateLevel, string> = {
   red: "Опасность",
 };
 
+/** MapLibre: цвет заливки/контура по stateLevel в GeoJSON (не по закешированному color). */
+export function regionStateLevelColorExpression(): unknown[] {
+  return [
+    "match",
+    ["get", "stateLevel"],
+    "red",
+    LEVEL_COLORS.red,
+    "orange",
+    LEVEL_COLORS.orange,
+    "yellow",
+    LEVEL_COLORS.yellow,
+    "green",
+    LEVEL_COLORS.green,
+    "grey",
+    LEVEL_COLORS.grey,
+    LEVEL_COLORS.grey,
+  ];
+}
+
 /** Режим подложки гео-карты (VITE_MAP_BASEMAP_STYLE). */
 export type MapBasemapMode = "openfreemap" | "carto" | "minimal";
 
