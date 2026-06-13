@@ -318,12 +318,15 @@ export type {
 } from "./admin";
 
 export {
+  EVENT_HEATMAP_FILTER_TYPES,
+  EVENT_HEATMAP_TYPE_LABELS,
   eventHeatmapPeriodSchema,
   eventHeatmapMetaSchema,
   eventHeatmapResponseSchema,
   eventHeatmapPeriodMs,
 } from "./map/event-heatmap";
 export type {
+  EventHeatmapFilterType,
   EventHeatmapPeriod,
   EventHeatmapMeta,
   EventHeatmapResponse,

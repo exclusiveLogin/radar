@@ -10,7 +10,12 @@ import {
 import type { Subject } from "rxjs";
 import { filter, map, skip, startWith, takeUntil } from "rxjs/operators";
 import { mapApi } from "../../shared/api/mapApi";
-import { heatmapPeriod$ } from "../../shared/state/heatmapStore";
+import {
+  hasActiveHeatmapEventTypesFilter,
+  heatmapEventTypesFilter$,
+  heatmapPeriod$,
+  resolveHeatmapEventTypesQuery,
+} from "../../shared/state/heatmapStore";
 import { geoMapLayers$ } from "../../shared/state/mapLayerStore";
 import { historicalAsOf$, placesById$, regionsByCode$ } from "../../shared/state/mapStore";
 import type {
@@ -96,15 +101,17 @@ function heatmapFetchPhase$(signals: GeoMapEffectSignals): Observable<FetchPhase
     geoMapLayers$,
     heatmapPeriod$,
     historicalAsOf$,
+    heatmapEventTypesFilter$,
     signals.heatmapManualRefresh$.pipe(startWith(undefined)),
   ]).pipe(
-    filter(([layers]) => layers.heatmap),
+    filter(([layers, , , filter]) => layers.heatmap && hasActiveHeatmapEventTypesFilter(filter)),
     debounceTime(400),
-    switchMap(([, period, until]) =>
+    switchMap(([, period, until, filter]) =>
       toFetchPhase$(() =>
         mapApi.eventsHeatmap({
           period,
           until: until ?? new Date().toISOString(),
+          eventTypes: resolveHeatmapEventTypesQuery(filter),
         }),
       ),
     ),

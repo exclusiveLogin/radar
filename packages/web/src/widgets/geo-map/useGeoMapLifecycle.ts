@@ -36,6 +36,8 @@ import {
 import { placesById$, regionsByCode$ } from "../../shared/state/mapStore";
 import { geoMapLayers$ } from "../../shared/state/mapLayerStore";
 import {
+  hasActiveHeatmapEventTypesFilter,
+  heatmapEventTypesFilter$,
   setHeatmapMeta,
 } from "../../shared/state/heatmapStore";
 import { clearGeoMapLogs } from "../../shared/state/geoMapLogStore";
@@ -688,6 +690,13 @@ export function useGeoMapLifecycle(containerRef: RefObject<HTMLDivElement | null
             if (!map || disposed) return;
             syncGeoOverlayLayers(map, layers);
             if (!layers.heatmap) hideEventsHeatmap();
+          }),
+        );
+
+        storeSubscriptions.add(
+          heatmapEventTypesFilter$.pipe(takeUntil(destroy$)).subscribe((filter) => {
+            if (!map || disposed || !geoMapLayers$.value.heatmap) return;
+            if (!hasActiveHeatmapEventTypesFilter(filter)) hideEventsHeatmap();
           }),
         );
 

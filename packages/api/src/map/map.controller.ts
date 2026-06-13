@@ -9,6 +9,8 @@ import {
   warningSchema,
   eventHeatmapPeriodSchema,
   eventHeatmapResponseSchema,
+  eventTypeSchema,
+  type EventType,
 } from "@radar/shared";
 import { z } from "zod";
 import {
@@ -22,6 +24,22 @@ import { MapRealtimeBroadcastService } from "./map-realtime-broadcast.service";
 function parseLimit(value: string | undefined, fallback: number): number {
   const parsed = Number(value ?? fallback);
   return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+/** Парсит comma-separated eventTypes для heatmap (пусто — без фильтра). */
+function parseHeatmapEventTypes(raw: string | undefined): EventType[] | undefined {
+  if (!raw?.trim()) return undefined;
+  const tokens = raw.split(",").map((s) => s.trim()).filter(Boolean);
+  if (tokens.length === 0) return undefined;
+  const parsed: EventType[] = [];
+  for (const token of tokens) {
+    const result = eventTypeSchema.safeParse(token);
+    if (!result.success) {
+      throw new BadRequestException(`Invalid eventType: ${token}`);
+    }
+    parsed.push(result.data);
+  }
+  return parsed;
 }
 
 /**
@@ -283,16 +301,22 @@ export class MapController {
     summary: "Теплокарта raise-событий",
     description:
       "GeoJSON Point + meta. Place-события: el.lat/lon → places.centroid → geo_feature.centroid. " +
-      "period=24h|7d|30d|all; until=ISO (replay).",
+      "period=24h|7d|30d|all; until=ISO (replay); eventTypes=fixation,pvo_work,...",
   })
   @ApiQuery({ name: "period", required: false, enum: ["24h", "7d", "30d", "all"] })
   @ApiQuery({ name: "until", required: false, description: "ISO8601 верхняя граница (default now)" })
   @ApiQuery({ name: "limit", required: false, description: "Max точек (default 8000, max 15000)" })
+  @ApiQuery({
+    name: "eventTypes",
+    required: false,
+    description: "Фильтр типов: fixation,pvo_work,intercept,...",
+  })
   @ApiResponse({ status: 200, description: "FeatureCollection + meta" })
   async eventsHeatmap(
     @Query("period") periodRaw?: string,
     @Query("until") untilRaw?: string,
     @Query("limit") limitRaw?: string,
+    @Query("eventTypes") eventTypesRaw?: string,
   ) {
     const periodParsed = eventHeatmapPeriodSchema.safeParse(periodRaw ?? "24h");
     if (!periodParsed.success) {
@@ -310,6 +334,7 @@ export class MapController {
         period: periodParsed.data,
         until,
         limit: parseLimit(limitRaw, 8000),
+        eventTypes: parseHeatmapEventTypes(eventTypesRaw),
       }),
     );
   }

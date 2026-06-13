@@ -14,6 +14,7 @@ import type {
   EventHeatmapResponse,
 } from "@radar/shared";
 import { STATE_LEVEL_RANK, eventHeatmapPeriodMs } from "@radar/shared";
+import type { EventType } from "@radar/shared";
 import { StatusDictionaryEntity } from "../events/entities";
 import { PlaceEntity, RegionEntity } from "../geo/entities";
 import { loadRegionAdjacency } from "./adjacency.loader";
@@ -753,6 +754,7 @@ export class MapQueryService {
     period: EventHeatmapPeriod;
     until?: Date;
     limit?: number;
+    eventTypes?: EventType[];
   }): Promise<EventHeatmapResponse> {
     const until = params.until ?? new Date();
     const limit = Math.min(Math.max(params.limit ?? 8000, 1), 15000);
@@ -781,9 +783,15 @@ export class MapQueryService {
          AND COALESCE(el.lat, p.centroid_lat, gf.centroid_lat) IS NOT NULL
          AND ($2::timestamptz IS NULL OR rm.posted_at >= $2::timestamptz)
          AND rm.posted_at <= $1::timestamptz
+         AND ($4::text[] IS NULL OR COALESCE(el.status_code, pe.event_type) = ANY($4::text[]))
        ORDER BY occurred_at DESC
        LIMIT $3`,
-      [until.toISOString(), since?.toISOString() ?? null, limit],
+      [
+        until.toISOString(),
+        since?.toISOString() ?? null,
+        limit,
+        params.eventTypes ?? null,
+      ],
     )) as Array<{
       id: string;
       lon: number;
@@ -817,6 +825,7 @@ export class MapQueryService {
         since: since?.toISOString() ?? null,
         until: until.toISOString(),
         count: features.length,
+        eventTypes: params.eventTypes ?? null,
       },
     };
   }

@@ -17,6 +17,7 @@ import type {
   SourceMessage,
   StatusDictionary,
   Warning,
+  EventHeatmapFilterType,
   EventHeatmapPeriod,
   EventHeatmapResponse,
 } from "@radar/shared";
@@ -160,10 +161,12 @@ export const mapApi = {
     period: EventHeatmapPeriod;
     until?: string;
     limit?: number;
+    eventTypes?: EventHeatmapFilterType[];
   }): Promise<EventHeatmapResponse> => {
     const qs = new URLSearchParams({ period: params.period });
     if (params.until) qs.set("until", params.until);
     if (params.limit !== undefined) qs.set("limit", String(params.limit));
+    if (params.eventTypes?.length) qs.set("eventTypes", params.eventTypes.join(","));
     return getJson(`/api/map/events/heatmap?${qs}`, eventHeatmapResponseSchema);
   },
 };
