@@ -1,8 +1,22 @@
 # Шпаргалка Radar (операции)
 
-Краткий справочник команд и типовых сценариев. Подробности: [getting-started.md](./getting-started.md), [ingest-providers.md](./ingest-providers.md), [backfill-v2-pipeline.md](./backfill-v2-pipeline.md).
+Краткий справочник команд и типовых сценариев. PowerShell, корень репо.
 
-**На одной странице (dev · очереди · reparse · сброс):** [shpargalka-operacii.md](./shpargalka-operacii.md)
+| Документ | Когда |
+|----------|--------|
+| [getting-started.md](./getting-started.md) | первый запуск, troubleshooting |
+| [shpargalka-operacii.md](./shpargalka-operacii.md) | **wipe/reset/clear**, geo-каталог, REST API, сценарии сброса |
+| [runbook/geo-clean-rebuild.md](./runbook/geo-clean-rebuild.md) | чистый перезапуск: wipe → catalog → backfill → reparse |
+| [ingest-providers.md](./ingest-providers.md) | Telegram session, manifest, CLI ingest |
+| [backfill-v2-pipeline.md](./backfill-v2-pipeline.md) | демон полной истории |
+
+**Минимум `.env`:**
+
+```env
+DATABASE_URL=postgresql://radar:radar@127.0.0.1:5432/radar
+RADAR_STORAGE_MODE=db
+RADAR_SESSIONS_DIR=.radar/sessions
+```
 
 ---
 
@@ -14,6 +28,7 @@
 | UI + API (без Telegram) | `npm run up` |
 | Полный стек + worker | `npm run dev` |
 | Только UI + API | `npm run dev:app` |
+| Миграции после pull | `npm run migration:run` |
 
 **Проверка:**
 
@@ -23,23 +38,18 @@
 | http://127.0.0.1:5173 | OSINT-дашборд |
 | http://127.0.0.1:3000/api/docs | Swagger |
 | http://127.0.0.1:3000/api/worker/status | probe worker |
+| http://127.0.0.1:3010/status | worker HTTP probe |
 
 ```powershell
 node scripts/ws-smoke.mjs
 curl.exe -s http://127.0.0.1:3000/api/map/snapshot | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{const j=JSON.parse(d);console.log('regions',j.regions?.length,'places',j.places?.length)})"
+curl.exe -s "http://127.0.0.1:3000/api/map/events/heatmap?period=7d" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{const j=JSON.parse(d);console.log('heatmap',j.meta?.count)})"
+curl.exe -s "http://127.0.0.1:3000/api/map/snapshot?asOf=2026-06-14T12:00:00.000Z" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>console.log('historical ok'))"
 ```
 
 ---
 
 ## Ingest: от нуля до live
-
-**Минимум `.env`:**
-
-```env
-DATABASE_URL=postgresql://radar:radar@127.0.0.1:5432/radar
-RADAR_STORAGE_MODE=db
-RADAR_SESSIONS_DIR=.radar/sessions
-```
 
 ### 1. Telegram-сессия
 
@@ -112,7 +122,7 @@ npm run worker:ingest:backfill -- `
 
 **Выход:** `Backfill chunk: { inserted, duplicates }` или `Backfill all: { bindings, inserted, duplicates }`.
 
-**Инварианты:** live-cursor не двигается; дубликаты идемпотентны; каждое новое сообщение проходит parse (LLM может занять ~20 мин на 400 msg).
+**Инварианты:** live-cursor не двигается; дубликаты идемпотентны; каждое новое сообщение проходит parse.
 
 ### Backfill V2 — демон (полная история)
 
@@ -157,7 +167,7 @@ ORDER BY rm.posted_at DESC LIMIT 10;
 
 ---
 
-## Parse engine (операции)
+## Parse engine
 
 **Высокий уровень** — сценарии «что сделать с данными»:
 
@@ -168,12 +178,12 @@ ORDER BY rm.posted_at DESC LIMIT 10;
 | Reparse + drain scheduled | `npm run parse-engine:rebuild:drain` |
 | Догнать все очереди (ingest + geo) | `npm run parse-engine:drain` |
 | Сводка очередей и активных runs | `npm run parse-engine:status` |
-| Сброс событий/карты/очередей (raw сохранить) | `npm run parse-engine:reset` |
+| Сброс parsed (raw сохранить) | `npm run parse-engine:reset` |
 | Полный сброс контента (конфиг остаётся) | `npm run parse-engine:clear` |
 | Удалить только raw | `npm run parse-engine:clear:raw` |
 | Сброс ingest (курсоры, backfill) | `npm run parse-engine:clear:ingest` |
 
-**Низкий уровень** — drain, backfill, одна фаза, диагностика:
+**Низкий уровень** — drain, backfill, одна фаза:
 
 | Задача | Команда |
 |--------|---------|
@@ -181,28 +191,63 @@ ORDER BY rm.posted_at DESC LIMIT 10;
 | Очередь geo (place_enrichment_jobs) | `npm run parse-engine:queue:geo` |
 | Активные phase_runs | `npm run parse-engine:runs:status` |
 | Drain scheduled ingest | `npm run parse-engine:ingest:drain` [`--phase=id`] |
-| Drain scheduled geo | `npm run parse-engine:geo:drain` [`--phase=id`] [`--provider=dadata`] |
+| Drain scheduled geo | `npm run parse-engine:geo:drain` [`--phase=id`] |
 | Ingest backfill | `npm run parse-engine:ingest:backfill` |
 | Ручной прогон фазы | `npm run parse-engine:phase:run -- --phase=llm` |
 | Стоп runs + очистка coverage | `npm run parse-engine:phase:stop` |
-| Импорт/экспорт манифеста | `npm run parse-engine:manifest:import` |
+| Импорт/экспорт манифеста фаз | `npm run phase:manifest:import` / `export` |
+
+**Wipe / reset / clear** (семантика, dry-run, составные команды): [shpargalka-operacii.md](./shpargalka-operacii.md).
+
+---
+
+## Geo-каталог
+
+| Задача | Команда |
+|--------|---------|
+| **Основной import** (tabular → frontline → osm → adjacency) | `npm run geo:catalog:import -w @radar/api` |
+| Dry-run шагов | `npm run geo:catalog:plan -w @radar/api` |
+| Wipe справочника | `npm run geo:catalog:reset -w @radar/api -- --confirm` |
+| Layout схемы (89 субъектов) | `npm run geo:layout:build` |
+
+**Legacy pipeline** (artifacts): `geo:vendor` → `geo:sync` → `geo:seed` → `geo:db:apply` — см. [data/geo/README.md](../data/geo/README.md).
+
+**Geo-обогащение places:** `parse-engine:geo:drain`, `geo:check`, `geo:recover`, `parse-engine:catalog:heal`.
+
+---
 
 ## Карта и parse (лаборатория)
-| TTL-sweep статусов | `npm run worker:map-state:expire` |
-| Оффлайн-тест парсера | `npm run worker:parse:report -- --input tests` |
-| Snap + LLM | `npm run worker:parse:snap:ollama -- --input tests/snap_001.txt` |
+
+| Задача | Команда |
+|--------|---------|
+| Диагностика read-line fold | `npm run map:fold:status` |
+| Оффлайн batch-отчёт | `npm run worker:parse:report -- --input tests --outdir reports` |
+| Snap одного текста | `npm run worker:parse:snap -- tests/snap_001.txt` |
+| Snap + LLM (Ollama) | `npm run worker:parse:snap:ollama -- --input tests/snap_001.txt` |
 | A/B catalog vs llm | `npm run parse:ab -- --input tests` |
 | Bootstrap golden set | `npm run parse:golden:bootstrap -- --input tests` |
 | Скоринг по golden | `npm run parse:score -- --input tests` |
 
-**TTL:** `RADAR_MAP_STATE_TTL_HOURS` (default 24), sweep по `status_event_at` / `meta.statusEventAt` (не `updated_at`); проекция **не применяет** `MessageParsed` с `postedAt` старше окна (reparse не воскрешает отбой). Daemon в worker db mode.
+**TTL карты:** `RADAR_MAP_STATE_TTL_HOURS` / `RADAR_MAP_STATE_TTL_MS` (default 24 ч) — на **read-line fold** (`foldMapState`); факты старше окна не участвуют. Legacy `worker:map-state:expire` и projection daemon **удалены**.
+
+**REST (read-side):**
+
+| Метод | Путь | Назначение |
+|-------|------|------------|
+| GET | `/api/map/snapshot` | fold snapshot (live) |
+| GET | `/api/map/snapshot?asOf=ISO` | Time Machine / REPLAY |
+| GET | `/api/map/events/heatmap` | `period=24h\|7d\|30d\|all`, `eventTypes=`, `until=` |
+| GET | `/api/map/regions-geojson` | контуры субъектов |
+| GET | `/api/map/districts-active-geojson` | активные районы |
+| WS | `/ws` | `snapshot`, `region-state`, `place-state`, `warning` |
+
+Полная REST-таблица: [shpargalka-operacii.md § REST](./shpargalka-operacii.md#rest-api--шпаргалка-base-http1270013000).
 
 ---
 
 ## Async-обогащение (фазы, ADR-003)
 
-**Phase-pipeline v2:** фазы `catalog|llm|dadata|nominatim`, очередь `phase_coverage`,
-оркестратор `PhaseRunner` + `IngestParseDaemon`. Подробно: [phase-pipeline.md](./phase-pipeline.md).
+**Phase-pipeline v2:** фазы `catalog|llm|dadata|nominatim`, очередь `phase_coverage`, оркестратор `PhaseRunner` + `IngestParseDaemon`. Подробно: [phase-pipeline.md](./phase-pipeline.md).
 
 ```powershell
 npm run migration:run
@@ -211,7 +256,6 @@ npm run phase:manifest:export
 ```
 
 **DaData:** в корневом `.env` задать `DADATA_TOKEN=` (ключ с [dadata.ru](https://dadata.ru/profile/#info)).
-Eager catalog по умолчанию: `enrichers: ["catalog"]`; DaData — фаза `geo-dadata` (`geoParse`). LLM — ingest `llm`.
 Порядок шагов: `RADAR_GEO_PIPELINE_ORDER=catalog,dadata,llm,nominatim`.
 
 | trigger | Поведение |
@@ -220,50 +264,43 @@ Eager catalog по умолчанию: `enrichers: ["catalog"]`; DaData — фа
 | `scheduled` | IngestParseDaemon, `intervalMs`, batch из coverage |
 | `manual` | `parse-engine:phase:run`, админка Run |
 
-```powershell
 После **completed** phase_run worker дергает `POST /api/map/push-snapshot` (`RADAR_MAP_SNAPSHOT_AFTER_PHASE=1`, по умолчанию вкл.).
 
 ```powershell
 npm run parse-engine:phase:run -- --phase=llm --batch=100 [--watch]
-npm run worker:enrich:run -- --stage=llm   # алиас
-npm run parse-engine:rebuild               # invalidate + ingest-поток (не прямой catalog)
+npm run parse-engine:rebuild
 ```
 
-**Прогресс:** `GET /api/admin/phases/runs/overview` (coverage per phase), виджет «Фазы».
+**Прогресс:** `GET /api/admin/phases/runs/overview`, виджет «Фазы».
 
-**Env:** `RADAR_STORAGE_MODE=db`, `RADAR_PHASE_DAEMON_ENABLED` (scheduled).
+**Env:** `RADAR_STORAGE_MODE=db`, `RADAR_PHASE_DAEMON_ENABLED` (scheduled), `RADAR_LLM_*`.
 
-**LLM:** `RADAR_LLM_PROVIDER`, `RADAR_LLM_API_KEY`, …
-
-Статус внедрения: [phase-pipeline-status.md](./phase-pipeline-status.md).
-
-### Админка фаз
-
-Виджет **«Фазы обогащения»** + REST `/api/admin/phases/*` — см.
-[api/phases-admin.md](./api/phases-admin.md).
+Статус: [phase-pipeline-status.md](./phase-pipeline-status.md) · админка: [api/phases-admin.md](./api/phases-admin.md).
 
 ---
 
 ## Web UI (OSINT shell)
 
-**Layout:** карта фоном, glass-рейлы слева/справа, header (UTC, LiveBadge, тема, ⚙ виджеты).
+**Layout:** карта фоном, glass-рейлы, header (UTC, LiveBadge, тема, ⚙ виджеты). Поверх карты — **панель «Слои»**, внизу — **таймлайн** (если слой вкл.).
 
-**Правый рейл** — панели **свёрнуты по умолчанию** (развернуть ▾ в шапке виджета).
+**Правый рейл** — панели **свёрнуты по умолчанию**.
 
 | Виджет | Зона | Данные |
 |--------|------|--------|
-| Гео-карта | фон | MapLibre + WS |
+| Гео-карта | фон | MapLibre + WS + слои |
 | Обзор (KPI + donut) | left | `regionsByCode$` |
-| Схема | left | `layout.json` — все 89 субъектов РФ (+ Крым, Севастополь, ДНР/ЛНР/Запорожье/Херсон); `npm run geo:layout:build` |
+| Схема | left | `layout.json` — `npm run geo:layout:build` |
 | Активные угрозы | right | active region/place |
-| Лента изменений | right | `region_state_history` |
-| **Сообщения** | right | `GET /api/map/messages/recent` |
-| Топ активности | right | activity |
-| Динамика | right | sparkline warnings |
-| Каналы | right | ingest providers |
-| Система | right | WS + DB + worker probe |
+| Лента изменений | right | recent events |
+| Сообщения | right | `GET /api/map/messages/recent` |
+| Сводки ПВО | right | `GET /api/map/pvo-reports` |
+| Топ активности | right | top regions |
+| Динамика | right | sparkline |
+| Каналы / Система | right | providers + health |
 
-**Realtime:** `GET /api/map/snapshot` → WS `/ws` (`region-state`, `place-state`, `warning`).
+**Слои карты:** регионы · районы · места · **теплокарта** (period, eventTypes) · **таймлайн** (LIVE/REPLAY).
+
+**Realtime:** `GET /api/map/snapshot` → WS `/ws`. В REPLAY — `?asOf=`, WS не применяется.
 
 ---
 
@@ -274,29 +311,49 @@ npm run parse-engine:rebuild               # invalidate + ingest-поток (н�
 | Ingest не в БД | `RADAR_STORAGE_MODE=db`, перезапуск worker |
 | Нет каналов | `npm run ingest:manifest:import`, provider `active` |
 | Backfill pending | worker db + `BackfillDaemon запущен` |
-| Карта пустая после ingest | `npm run parse-engine:rebuild` |
+| Карта пустая после ingest | `npm run parse-engine:rebuild:drain` |
+| Heatmap пустая | есть `event_locations` с координатами; проверить `period` / `eventTypes` |
 | API_ID_INVALID | свои `TELEGRAM_API_ID/HASH` с my.telegram.org |
-| `[api] EBUSY` при `npm run dev` | остановить все `node`/dev; удалить `packages/api/dist`; репо в OneDrive — пауза синхронизации или вынести клон из OneDrive; `nest-cli` без `deleteOutDir` |
-| CLI прогресс «листает» строки | `ParseAttemptLogger` больше не пишет в stdout при баре; подробности: `RADAR_VERBOSE_PARSE_LOG=1` → stderr |
-
-**CLI с live-progress (`cli-progress`):** `parse-engine:reset` — нет; `parse-engine:rebuild`, `parse-engine:phase:run`, `parse-engine:ingest:backfill` — да. Лаборатория `parse:snap/report` — без бара.
+| `[api] EBUSY` при `npm run dev` | stop node → удалить `packages/api/dist` → `npm run dev:app` |
+| CLI прогресс «листает» строки | `RADAR_VERBOSE_PARSE_LOG=1` → stderr |
 
 ```powershell
-# EBUSY: освободить dist перед повторным dev
 Get-Process node -ErrorAction SilentlyContinue | Stop-Process -Force
 Remove-Item -Recurse -Force packages\api\dist -ErrorAction SilentlyContinue
 npm run dev:app
-```
 
-```powershell
 node scripts/query-ingest-status.mjs
 ```
 
+**CLI с live-progress:** `parse-engine:rebuild`, `parse-engine:phase:run`, `parse-engine:ingest:backfill` — да. `parse-engine:reset` — нет.
+
 ---
 
-## Экспорт / import manifest
+## Manifest export / import
 
 ```powershell
 npm run ingest:manifest:export   # БД → .radar/ingest.manifest.json
 npm run ingest:manifest:import   # JSON → БД (upsert channels)
 ```
+
+---
+
+## Типовые сценарии
+
+```powershell
+# Чистая система (кратко — полный runbook в geo-clean-rebuild.md)
+npm run parse-engine:system:wipe -- --confirm
+npm run geo:catalog:import -w @radar/api
+npm run parse-engine:ingest:backfill -- --all-bindings --batch-size=100
+npm run parse-engine:rebuild:drain
+
+# Перепарсить raw без смены каталога
+npm run parse-engine:reset
+npm run parse:run
+
+# Сбросить только очереди
+npm run phase:all:clear -- --dry-run
+npm run phase:all:clear
+```
+
+Подробнее: [shpargalka-operacii.md § Сценарии](./shpargalka-operacii.md#сценарии).

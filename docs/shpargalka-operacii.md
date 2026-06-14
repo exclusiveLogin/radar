@@ -2,6 +2,7 @@
 
 PowerShell, корень репо. Нужны `DATABASE_URL`, `RADAR_STORAGE_MODE=db`, запущенный Postgres.
 
+> 📌 **Ingest · backfill · parse · UI · диагностика:** [cheatsheet.md](./cheatsheet.md)  
 > 📌 **Полный сброс + переливка каталога + reparse:** [runbook/geo-clean-rebuild.md](./runbook/geo-clean-rebuild.md)
 
 ---
@@ -126,7 +127,6 @@ npm run geo:catalog:import -w @radar/api
 | `npm run vendor-ingest-parse-geo:wipe [-- --dry-run]` | всё выше + places + geo_feature + regions |
 | `npm run system:reset -- --confirm` | vendor-ingest-parse-geo:wipe + geo:init (legacy); диск не трогает |
 | `npm run system:reset -- --confirm --wipe-only` | только wipe БД → дальше geo:catalog:import |
-| `npm run system:reset -- --confirm --wipe-only` | только wipe, без geo:init |
 
 ### Очистить только очереди (без удаления данных)
 
@@ -217,7 +217,8 @@ npm run dev
 
 | Метод | Путь | Параметры | Что возвращает |
 |-------|------|-----------|----------------|
-| GET | `/map/snapshot` | `?since=ISO8601` (опц.) | Полный снапшот: регионы, places, предупреждения, layout-тайлы схемы |
+| GET | `/map/snapshot` | `?asOf=ISO8601` (Time Machine), `?since=` (опц.) | Fold snapshot: регионы, places, warnings |
+| GET | `/map/events/heatmap` | `?period=24h\|7d\|30d\|all`, `?eventTypes=`, `?until=ISO`, `?limit=` | GeoJSON точек + meta (count, since/until) |
 | GET | `/map/regions-geojson` | — | GeoJSON FeatureCollection полигонов регионов (включая grey) |
 | GET | `/map/districts-active-geojson` | — | GeoJSON активных районов (только `action=raise`); лёгкий, вызывать при каждом place-state |
 | GET | `/map/districts-geojson` | `?regionId=UUID` (опц.) | GeoJSON всех районов; тяжёлый — для ленивой подгрузки по региону |

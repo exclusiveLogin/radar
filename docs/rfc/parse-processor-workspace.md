@@ -1,7 +1,7 @@
 # RFC: Parse Processor Workspace — сегментация, процессоры, персист
 
 Статус: **черновик** (обсуждение, без реализации)  
-Связано: [ADR-003](../adr-003-phase-enrichment-accumulator.md), [domain/how-it-works.md](../domain/how-it-works.md#parse-flow), [ADR-006](../adr-006-map-read-line-fold.md)
+Связано: [ADR-003](../adr-003-phase-enrichment-accumulator.md), [ADR-012](../adr-012-geo-scan-without-aliases.md), [ADR-014](../adr-014-operational-domain-profile.md), [domain/how-it-works.md](../domain/how-it-works.md#parse-flow), [ADR-006](../adr-006-map-read-line-fold.md)
 
 ---
 
@@ -12,6 +12,7 @@
 3. `extras` (repeat, mass, count…) размазаны — нет правил «кому из кандидатов клеить признак».
 4. После persist идёт **мутация** через enrich/merge — сложно ревалидировать при смене правил процессора.
 5. Повторный прогон **только по raw** не даёт стабильной обратной связи: старые `parsed_events` становятся сиротами.
+6. Geo spawn завязан на **построчный fallback** и `place_aliases` — теряются валидные топонимы (класс дефектов: Таганрог). Контракт исправления: [ADR-012](../adr-012-geo-scan-without-aliases.md).
 
 ---
 
@@ -59,7 +60,7 @@ Grooming отсекает рекламу/футеры **до** процессо�
 | Тип | Действие | Пример |
 |-----|----------|--------|
 | **Spawning** | добавляет **EventCandidate** (якорь) | GeoProcessor → `place: Балашов`, `region: Саратовская обл` |
-| **Enriching** | добавляет **Trait** + **AttachRule** | RepeatProcessor → `repeat: true`; MassProcessor → `mass: true` |
+| **Enriching** | добавляет **Trait** + **AttachRule** | RepeatProcessor → `repeat: true`; VicinityProcessor → ареал вокруг place |
 
 Процессор **не мутирует** уже финализированные events. Только append в workspace.
 
@@ -94,19 +95,25 @@ type EventCandidate = {
   id: string;                    // стабильный id внутри workspace-run
   anchor: {
     kind: "place" | "region" | "system";
-    name: string;
+    name: string;                // canonical из DB после resolve (ADR-012)
+    placeId?: string;
     regionCode?: string;
     placeFias?: string;
     lat?: number;
     lon?: number;
+    span: {                      // позиция в groomedText — SSOT для relations
+      start: number;
+      end: number;
+      matchedText: string;       // как в тексте; name может отличаться
+    };
   };
   eventType: EventType;          // тип может быть свой у каждого кандидата
   occurredAt?: string;           // time (из raw / block / default postedAt)
-  extras: Record<string, unknown>; // repeat, mass, count, direction, …
+  extras: Record<string, unknown>; // repeat, mass, count, direction, vicinity, …
   provenance: {
     eventTypeSource: string;     // processorId
     anchorSource: string;
-    contextSpan?: { blockId?: string; textSlice?: string };
+    blockId?: string;
   };
 };
 ```
@@ -172,6 +179,50 @@ type ParseWorkspace = {
 **Registry:** `processorId → ProcessorImpl` + `processorRegistryRevision` для версионирования прогонов.
 
 Новый кейс = новый processor в registry. Старые не трогаем.
+
+---
+
+## GeoProcessor и каталог (ADR-012)
+
+Детали match без `place_aliases` — в [ADR-012](../adr-012-geo-scan-without-aliases.md). Здесь — место в workspace.
+
+### Источники
+
+| Каталог | Роль |
+|---------|------|
+| DB `places` ← `03_all_cities.xlsx` | Primary scan + stem resolve |
+| DB `places(kind=region)` | Субъекты |
+| `places.json` (frontline) | Hot-set / override, **не** полнота справочника |
+| OSM artifacts | Геометрия, не spawn имён |
+
+### GeoProcessor (spawning)
+
+1. Читает **`groomedText`** (promo/footer уже вырезаны grooming).
+2. Full-text scan по индексу имён/stem из DB — **без** построчного noise-skip.
+3. На каждый hit: resolve с `regionScope` (region из текста) или `kindFloor=city` без scope (ADR-012 §2).
+4. Сырая канальная подпись — только в `matchedText`, не в `name`.
+
+### Geo-topography collapse (ADR-012 §8)
+
+Если в тексте **и** place, **и** region, и `place.regionCode === regionFromText.code` — **region-anchor из текста убираем** (дубль).  
+**Region в facts всё равно создаётся** — `deriveRegionFromPlace` при finalize (§8.1).  
+При `geoConflict` (коды не совпали) — оба anchor, collapse нет (§8.2).
+
+### VicinityProcessor (enriching)
+
+Маркеры «близлежащие / пригород» → trait на **уже найденный** place по `span` (centroid + radius в extras). Отдельный place «НП и близлежащие» не создаётся.
+
+### Relations по позиции
+
+Processors привязывают traits к candidates через `anchor.span` (offset), соседние candidates и blocks — без повторного угадывания по raw. Повторный scan текста — fallback.
+
+### Приёмочные фикстуры (регрессия)
+
+- `Таганрог\nРостовская область\nОпасность` → workspace: 1 place-anchor; facts: place + region из place.region
+- `Таганрог\nОпасность` (без области) → facts: place + region из place.region (как выше)
+- `Таганрог и близлежащие\nРостовская область\n…`
+- `Таганрог, сбитие БПЛА в море`
+- `Таганрог Ростовская область работа ПВО`
 
 ---
 
@@ -470,14 +521,17 @@ lazy:    raw → workspace (DB draft) → … → phase enrich → workspace upd
 3. `scope: system` — A / B / C.
 4. Миграция с текущего `parsePost` + `RuleBasedEventClassifier` без big-bang.
 5. Связь с `parse_attempts` и `phase_coverage` — объединить или параллельно.
-6. Точные правила block-context для привязки типа к anchor (comma / pipe / adjacent blocks).
+6. Точные правила block-context для привязки типа к anchor (comma / pipe / adjacent blocks / `span`).
 7. Default `orphanPolicy`: deactivate vs hard_delete по типу heal (refinalize vs manual purge).
-8. Stable match key для upsert, если `candidate.id` отсутствует (re-run от raw).
+8. Stable match key для upsert: `(rawMessageId, span.start, anchor.kind, eventType)` vs `candidate.id`.
+9. Индекс имён для ~128k НП: trie / Aho-Corasick, инвалидация на `parser_revision`.
+10. Миграция: DROP `place_aliases` — отдельный шаг после purge/heal (ADR-012).
 
 ---
 
 ## См. также
 
 - [ADR-003](../adr-003-phase-enrichment-accumulator.md) — accumulator, merge, phases
+- [ADR-012](../adr-012-geo-scan-without-aliases.md) — geo scan, stem resolve, deprecate aliases
 - [geo-place context](../domain/contexts/geo-place.md)
 - Текущий geo artifact: `packages/shared/src/schemas/geo/enrichment-artifact.ts`

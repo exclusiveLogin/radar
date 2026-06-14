@@ -228,27 +228,61 @@ flowchart LR
 
 ### Итерация 4 — Tracking & Forecasting (2026-06-12)
 
-Цель: автоматическая сборка траекторий из OSINT-точек, прогноз положения целей, аналитика ПВО (Kill/Pass).
+Цель: автоматическая сборка траекторий из OSINT-точек, прогноз положения целей, аналитика ПВО (Kill/Pass), flow-коридоры и path fan.
 
 Документация (фаза 0 — **выполнено**):
 
-- [roadmap-tracking-forecasting.md](./roadmap-tracking-forecasting.md) — vision, 7 идей, зависимости
-- [rfc/tracking-pipeline-phases.md](./rfc/tracking-pipeline-phases.md) — фазы 0–4
-- ADR: [007](./adr-007-trajectory-graph-kalman-worker.md) (граф + Kalman), [008](./adr-008-kinematic-vs-static-events.md) (кинематика vs статика), [009](./adr-009-osint-pre-collapse.md) (схлопывание), [010](./adr-010-pvo-kill-pass-layers.md) (Kill/Pass), [011](./adr-011-deckgl-track-rendering.md) (Deck.gl)
-- Features: [эллипсы](./features/tracking-confidence-ellipse.md), [temporal color](./features/tracking-temporal-color.md), [heatmap filter](./features/tracking-heatmap-filter.md)
+- [roadmap-tracking-forecasting.md](./roadmap-tracking-forecasting.md) — vision, идеи #1–#9
+- [rfc/tracking-pipeline-phases.md](./rfc/tracking-pipeline-phases.md) — фазы 0–4, 2b–2c
+- [sdd/tracking/plan.md](./sdd/tracking/plan.md) — **план work packages, база для SDD**
+- [sdd/](./sdd/README.md) — **индекс SDD** (Tracking, ODP, Parse)
+- [sdd/tracking/](./sdd/tracking/README.md) — SDD фаз T1–T4
+- ADR: [007](./adr-007-trajectory-graph-kalman-worker.md) … [014](./adr-014-operational-domain-profile.md) (domain decouple)
+- Features: [эллипсы](./features/tracking-confidence-ellipse.md), [flow](./features/tracking-flow-corridors.md), [path fan](./features/tracking-historical-path-fan.md), [temporal color](./features/tracking-temporal-color.md), [heatmap filter](./features/tracking-heatmap-filter.md)
 
 #### Scope MVP (фаза 1)
 
-1. OSINT pre-collapse → kinematic routing → background Kalman worker
-2. `GET /map/tracks` API
+1. DISTINCT + R(precision) + gating → kinematic routing → background Kalman worker
+2. `GET /map/tracks` API + `place_id` / `threat_profile` на nodes
 3. Heatmap filter по `eventType` / `eventCategory`
 
 #### Post-MVP
 
 - Фаза 2: эллипсы прогноза + Time Machine
+- Фаза 2b–2c: flow corridors + historical path fan ([ADR-013](./adr-013-trajectory-flow-and-path-fan.md))
 - Фаза 3: Kill/Pass слои ПВО
-- Фаза 4: Deck.gl остывающие треки
+- Фаза 4: Deck.gl (tracks + flow width + fan)
 
 #### Следующий инженерный шаг
 
-ADR-007 + ADR-009 + ADR-008 → базовый `GET /map/tracks`. Между эллипсами и Kill/Pass после этого — **сначала Kill/Pass** (ADR-010).
+Закрыть решения D1–D8 в [sdd/tracking/plan.md](./sdd/tracking/plan.md) → **SDD: Фаза 1** → domain + golden fixtures → worker rebuild.
+
+### Итерация 5 — Parse Workspace + ODP (2026-06-14)
+
+Цель: стабильный parse (workspace/heal), вынести домен БПЛА из хардкода в конфигурируемые pack-файлы.
+
+**Единая карта трёх потоков (Parse + ODP + Tracking):** [rfc/master-implementation-roadmap.md](./rfc/master-implementation-roadmap.md).
+
+#### Parse Workspace (RFC + SDD)
+
+- [rfc/parse-processor-workspace.md](./rfc/parse-processor-workspace.md) — workspace, processors, finalizer/heal
+- [sdd/parse/](./sdd/parse/README.md) — SDD по фазам P1–P4
+- Фазы: **P0** docs → **P1** таблица workspace + reconcile → P2 traits → P3 registry → P4 segmenter
+- Связь: [ADR-012](./adr-012-geo-scan-without-aliases.md) geo scan
+
+#### ODP — Operational Domain Profile
+
+- [adr-014-operational-domain-profile.md](./adr-014-operational-domain-profile.md) — архитектура
+- [rfc/operational-domain-profile-walkthrough.md](./rfc/operational-domain-profile-walkthrough.md) — шаги D0–D5, §13 карта файлов
+- [sdd/odp/](./sdd/odp/README.md) — SDD по фазам D1–D5
+- [data/domains/](../data/domains/README.md) — pack skeleton (example only, runtime не читает)
+- Фазы: **D0** docs ✅ → **D1** parser-rules YAML → D2 bootstrap → D3 UI presets → D4 enum → D5 threat rules
+
+#### Порядок относительно Tracking
+
+| Параллельно | После T1 |
+|--------------|----------|
+| T1 + D1 + (опц.) P1 | T2b, T3, D2–D3 |
+| | T2, T2c, T4, D4–D5, P2+ |
+
+ODP **D1** (parser pack) и Parse **P1** (workspace) усиливают качество facts для **Tracking T1**, но не блокируют его старт.

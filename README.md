@@ -1,12 +1,14 @@
 # Radar
 
-**OSINT-платформа оперативной обстановки** по сигналам **БПЛА** и ракетных угроз: хаотичные Telegram-каналы → структурированные события → геопроекция → **live-карта** и интерфейс принятия решений.
+**OSINT-платформа оперативной обстановки:** разрозненные текстовые источники → структурированные **геопривязанные события** → **live-карта (COP)** и интерфейс принятия решений.
 
-Не BI и не «ещё один чат-агрегатор». Это **Common Operational Picture (COP)** для текстового шума: ingest, parse, trust-aware geo, липкий автомат статусов, WebSocket-дельты и glass-дашборд поверх MapLibre. По духу — узкий slice **Palantir Gotham** / situational awareness, без enterprise-обвеса.
+Не BI и не «ещё один чат-агрегатор». Это **Common Operational Picture (COP)** / situational awareness для OSINT: ingest из разных каналов, parse pipeline с типами событий, trust-aware geo, operational fold статусов, WebSocket-дельты и glass-дашборд поверх MapLibre.
+
+Тип события **не зашит в платформу** — домен задаётся парсером и словарём (`event_type`, `stateLevel`). Сейчас в проде хорошо отработаны каналы воздушных угроз (Telegram), но та же архитектура принимает любые источники с текстом и координатами/топонимами: RSS, admin-ingest, backfill, будущие адаптеры.
 
 **Запуск локально:** [docs/getting-started.md](docs/getting-started.md) · **Шпаргалка:** [docs/cheatsheet.md](docs/cheatsheet.md) · **Доки:** [docs/README.md](docs/README.md) · **План:** [docs/plan.md](docs/plan.md) · **Домен:** [docs/domain/README.md](docs/domain/README.md) · **Trust мест:** [docs/place-trust-explained.md](docs/place-trust-explained.md)
 
-![Radar — OSINT-дашборд: гео-карта, KPI, схема, лента и системные виджеты](docs/assets/dashboard-osint-shell.png)
+![Radar — OSINT-дашборд: теплокарта, слои карты, таймлайн, KPI и схема](docs/assets/dashboard-heatmap-timeline.png)
 
 ---
 
@@ -14,13 +16,14 @@
 
 | Измерение | Radar |
 |-----------|--------|
-| **Класс продукта** | OSINT / operational awareness / СППР-lite |
-| **Вход** | Telegram (MTProto), ручной admin-ingest, backfill |
+| **Класс продукта** | OSINT COP / operational awareness / СППР-lite |
+| **Вход** | Telegram (MTProto), ручной admin-ingest, backfill; расширяемые провайдеры |
 | **Ядро** | Parse pipeline + geo enrichers + region/place state projection |
-| **Выход** | REST + WS, карта, KPI-виджеты, журнал смен, probe worker |
+| **События** | Любые типы с геопривязкой (`event_type` + `stateLevel`), не только «воздушные» |
+| **Выход** | REST + WS, карта, KPI-виджеты, журнал смен, heatmap, Time Machine |
 | **Не делает** | Не заменяет официальные оповещения; не юридическое «доказательство» |
 
-**Миссия:** сократить путь от «увидел сообщение в канале» до «понял, где риск и как менялась обстановка» — в секунды, на одном экране.
+**Миссия:** сократить путь от «увидел сигнал в источнике» до «понял, где событие и как менялась обстановка» — в секунды, на одном экране.
 
 ---
 
@@ -29,8 +32,8 @@
 | Аудитория | Ценность |
 |-----------|----------|
 | Граждане и локальные сообщества | Карта и лента по региону без ручного мониторинга десятков каналов |
-| Мониторинговые команды | Единый COP, ingest-провайдеры, heartbeat worker |
-| Аналитики | История `region_state_history`, срезы активности, batch parse reports |
+| Мониторинговые команды | Единый COP по геопривязанным событиям, ingest-провайдеры, worker probe |
+| Аналитики | История смен статусов, heatmap, Time Machine, batch parse reports |
 | Разработка | Монорепо `worker → API → web`, воспроизводимые geo-артефакты, Zod-контракты |
 
 ---
@@ -38,10 +41,10 @@
 ## Конвейер данных
 
 1. **Ingest** — GramJS live + poll fallback, backfill, dedup raw.
-2. **Parse** — классификация события (угроза / отбой / шум), извлечение локаций → `event_locations`.
+2. **Parse** — классификация и типизация события (`event_type`, `stateLevel`), извлечение локаций → `event_locations`.
 3. **Geo** — artifacts-first, enrichers (`cache → dadata → nominatim → llm`), place trust.
 4. **Read-line** — `foldMapState(facts, asOf)` → snapshot карты (live и historical).
-5. **Delivery** — REST snapshot, WS diff poller, UI таймлайн.
+5. **Delivery** — REST snapshot, WS diff poller, UI **Time Machine** (`MapTimelineBar`) и **теплокарта** (`GET /map/events/heatmap`).
 
 > Сервис повышает **наблюдаемость** и скорость понимания картины; решения пользователь принимает сам.
 
@@ -51,17 +54,70 @@
 
 ### Web — OSINT-оболочка
 
-- **Layout:** карта фоном, glass-рейлы слева/справа, ломаный header (UTC-часы, **LiveBadge** = WS + API/БД). Правый рейл — панели **свёрнуты по умолчанию**.
+- **Layout:** карта фоном, glass-рейлы слева/справа, ломаный header (UTC-часы, **LiveBadge** = WS + API/БД). Правый рейл — панели **свёрнуты по умолчанию**. Поверх карты — **панель «Слои»**, внизу — **таймлайн** (если слой включён).
 - **Виджеты** (реестр `widgetRegistry`, toggles в ⚙):
-  - **Гео-карта** — MapLibre, контуры субъектов (fill + inset outline), маркеры places.
+  - **Гео-карта** — MapLibre, контуры субъектов (fill + inset outline), маркеры places, HUD-статистика.
   - **Схема** — layout.json, heat по `stateLevel`.
   - **Обзор** — KPI по уровням + donut.
   - **Активные угрозы**, **Лента изменений** — feed из `event_locations` / recent events.
   - **Сообщения** — лента raw ingest (канал, время MSK, parse status).
+  - **Сводки ПВО** — агрегированные отчёты ПВО (`GET /api/map/pvo-reports`).
   - **Топ активности**, **Динамика событий** — sparkline + BarMini по журналу.
   - **Каналы**, **Система** — ingest providers, worker probe, WS/db health.
-- **Realtime:** `mapStore` — fold snapshot + WS diff; historical mode через `MapTimelineBar`.
+- **Слои карты** (`MapLayersPanel`, toggle + вложенные настройки):
+  - **Регионы / Районы / Места** — GeoJSON-контуры и маркеры operational fold.
+  - **Теплокарта** — raise-события из `event_locations` (MapLibre heatmap + точки на zoom). Период: **24ч / 7д / 1мес / всё**. Фильтр типов: **все**, **фикс**, **ПВО**, **сбит**, **вним**, **трев**. Счётчик точек в панели. API: `GET /api/map/events/heatmap?period=&until=&eventTypes=`.
+  - **Таймлайн** — вкл/выкл нижний док; подсказка LIVE / REPLAY в панели слоёв.
+- **Time Machine** (`MapTimelineBar`): scrub по окну TTL (24 ч), режимы **LIVE** / **REPLAY**, `GET /api/map/snapshot?asOf=`. В replay WS отключён, heatmap и fold синхронизируются с маркером `until`. Кнопка **Live** — возврат к текущей карте.
+- **Детали региона** — оверлей по клику на субъект (история событий региона).
+- **Realtime:** `mapStore` — fold snapshot + WS diff; historical mode через `historicalAsOf$`.
 - **Тема:** light/dark (`data-theme`), design-system primitives, тонкие accent-скроллбары.
+
+#### Скриншоты
+
+**Полный экран**
+
+Теплокарта (7д) + таймлайн LIVE:
+
+![dashboard-heatmap-timeline](docs/assets/dashboard-heatmap-timeline.png)
+
+Operational fold — регионы/places, без heatmap:
+
+![dashboard-live-fold](docs/assets/dashboard-live-fold.png)
+
+Time Machine REPLAY (`GET /map/snapshot?asOf=`):
+
+![dashboard-timeline-replay](docs/assets/dashboard-timeline-replay.png)
+
+**Панели**
+
+Слои карты (toggle):
+
+![panel-map-layers](docs/assets/panel-map-layers.png)
+
+Слои + фильтры теплокарты:
+
+![panel-map-layers-heatmap](docs/assets/panel-map-layers-heatmap.png)
+
+Таймлайн LIVE:
+
+![panel-map-timeline-live](docs/assets/panel-map-timeline-live.png)
+
+Таймлайн REPLAY + кнопка «Live»:
+
+![panel-map-timeline-replay](docs/assets/panel-map-timeline-replay.png)
+
+Левый рейл — KPI и схема:
+
+![panel-left-rail](docs/assets/panel-left-rail.png)
+
+Правый рейл — ленты, топ активности, динамика:
+
+![panel-right-rail-feeds](docs/assets/panel-right-rail-feeds.png)
+
+Ранний shell (до слоёв heatmap/timeline): [`dashboard-osint-shell.png`](docs/assets/dashboard-osint-shell.png)
+
+Все файлы: [`docs/assets/`](docs/assets/).
 
 ### Backend / worker
 
@@ -77,12 +133,11 @@
 
 ## Roadmap (ещё не в UI / в работе)
 
-- ⏱️ Time Machine — scrub по срезам времени (**в UI:** `MapTimelineBar`).
-- 🎯 ETA / курс / траектория подлёта.
+- 🎯 ETA / курс / траектория подлёта (Kalman, Deck.gl — см. [docs/roadmap-tracking-forecasting.md](docs/roadmap-tracking-forecasting.md)).
 - 🔔 Push / геозонные алерты.
-- 🔥 Heatmap накопительная по периодам.
 - 🧾 Архив с полнотext search и карточкой события.
 - 📊 Расширенная аналитика и экспорт срезов.
+- 🗺️ Треки, эллипсы прогноза, слои Kill/Pass ПВО (RFC tracking pipeline).
 
 ---
 
@@ -130,75 +185,113 @@ flowchart LR
 
 ### Макет UI
 
-Скриншот актуального shell — в шапке README. Схема зон:
+Скриншоты — в [§ Скриншоты](#скриншоты) и hero выше. Схема зон:
 
 ```
 header: UTC · LiveBadge · theme · widget toggles
 left rail:   Обзор (KPI + donut) · Схема          [развёрнуты]
-background:  Гео-карта (MapLibre)
-right rail:  Угрозы · Лента · Сообщения · Топ · Динамика · Каналы · Система  [свёрнуты по умолчанию]
+background:  Гео-карта (MapLibre) + HUD stats/log
+map overlay: Панель «Слои» (регионы · районы · места · теплокарта · таймлайн)
+bottom dock: MapTimelineBar (−24ч … сейчас, LIVE/REPLAY)  [если слой «Таймлайн» вкл]
+right rail:  Угрозы · Лента · Сообщения · ПВО · Топ · Динамика · Каналы · Система  [свёрнуты]
 ```
 
 ---
 
 ## Шпаргалка (операции)
 
-Полная версия: **[docs/cheatsheet.md](docs/cheatsheet.md)**.
+**Полные справочники:** [docs/cheatsheet.md](docs/cheatsheet.md) (ingest · backfill · parse · UI · диагностика) · [docs/shpargalka-operacii.md](docs/shpargalka-operacii.md) (wipe/reset · geo-каталог · REST · сценарии) · [runbook/geo-clean-rebuild.md](docs/runbook/geo-clean-rebuild.md) (чистый перезапуск).
+
+**Минимум `.env`:** `DATABASE_URL`, `RADAR_STORAGE_MODE=db`, `RADAR_SESSIONS_DIR=.radar/sessions`
 
 ### Запуск
 
-| Команда | Что |
-|---------|-----|
-| `npm run cold:up` | Docker + install + migrations (первый раз) |
-| `npm run up` | Docker + API + web |
-| `npm run dev` | API + web + worker (БД уже есть) |
+| Команда | Когда |
+|---------|--------|
+| `Copy-Item .env.example .env` → `npm run cold:up` | первый раз (Docker + install + миграции) |
+| `npm run up` | каждый день: Docker + API + web |
+| `npm run dev:app` | UI/API без worker (БД уже есть) |
+| `npm run dev` | полный стек: API + web + worker |
+
+| URL | Ожидание |
+|-----|----------|
+| http://127.0.0.1:3000/api/ready | `"status":"ready"` |
+| http://127.0.0.1:5173 | OSINT-дашборд |
+| http://127.0.0.1:3000/api/docs | Swagger |
+| http://127.0.0.1:3000/api/worker/status | probe worker |
+
+```powershell
+node scripts/ws-smoke.mjs
+curl.exe -s "http://127.0.0.1:3000/api/map/snapshot" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{const j=JSON.parse(d);console.log('regions',j.regions?.length,'places',j.places?.length)})"
+curl.exe -s "http://127.0.0.1:3000/api/map/events/heatmap?period=7d" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{const j=JSON.parse(d);console.log('heatmap',j.meta?.count,'points')})"
+```
 
 ### Ingest (Telegram → БД)
 
 ```powershell
 npm run worker:session:deploy
 npm run worker:session:probe
-npm run ingest:manifest:import    # bootstrap manifest если нет .radar/ingest.manifest.json
-npm run worker:dev                # RADAR_STORAGE_MODE=db в .env
+npm run ingest:manifest:import    # bootstrap → docs/examples/ingest.manifest.radar-channels-mtproxy.json
+npm run worker:dev                # live ingest + phase daemons
 ```
 
-**Каналы по умолчанию:** `@Radarpf`, `@radarrussiia`, `@radar_rvk`, `@RRPFO` — шаблон `docs/examples/ingest.manifest.radar-channels-mtproxy.json`.
-
-### Backfill (архив, CLI)
+**Backfill (CLI, разовая пачка):**
 
 ```powershell
-# все enabled каналы, по 100 сообщений
 npm run worker:ingest:backfill -- --all-bindings --batch-size=100
-
-# один канал
 npm run worker:ingest:backfill -- --provider-id=<uuid> --binding-id=<uuid> --batch-size=100
 ```
 
-UUID bindings: SQL в [cheatsheet § SQL](docs/cheatsheet.md#полезный-sql). Полная история — Backfill V2: [backfill-v2-pipeline.md](docs/backfill-v2-pipeline.md).
+Каналы по умолчанию: `@Radarpf`, `@radarrussiia`, `@radar_rvk`, `@RRPFO`. UUID bindings — SQL в [cheatsheet § SQL](docs/cheatsheet.md#полезный-sql).
 
-### Phase-pipeline v2 (обогащение)
+### Parse-engine (данные → карта)
 
-| Команда | Назначение |
-|---------|------------|
-| `npm run migration:run` | миграции БД (в т.ч. `phase_coverage`, `phase_runs`) |
-| `npm run phase:manifest:import` | манифест фаз → `phase_definitions` |
-| `npm run worker:dev` | ingest + IngestParseDaemon + GeoParseDaemon (scheduled) |
-| `npm run parse-engine:phase:run -- --phase=llm` | ручной прогон фазы |
-| `npm run parse-engine:rebuild` | invalidate parsed + coverage, ingest-поток (eager) |
+| Задача | Команда |
+|--------|---------|
+| Первый прогон (манифест + reparse) | `npm run parse-engine:init` |
+| Пересчёт из raw | `npm run parse-engine:rebuild` |
+| Rebuild + drain очередей | `npm run parse-engine:rebuild:drain` |
+| Догнать ingest + geo | `npm run parse-engine:drain` |
+| Сводка очередей | `npm run parse-engine:status` |
+| Ручная фаза | `npm run parse-engine:phase:run -- --phase=llm` |
+| Сброс parsed (raw остаётся) | `npm run parse-engine:reset` |
 
-Документация: [docs/phase-pipeline.md](./docs/phase-pipeline.md) · [cheatsheet](./docs/cheatsheet.md) · [статус внедрения](./docs/phase-pipeline-status.md).
+Подробно: [phase-pipeline.md](docs/phase-pipeline.md) · wipe/reset/clear — [shpargalka-operacii.md](docs/shpargalka-operacii.md).
 
-### Карта / parse (лаборатория)
+### Geo-каталог
 
-| Команда | Назначение |
-|---------|------------|
-| `npm run worker:map-state:expire` | TTL-sweep статусов |
-| `npm run parse:snap` / `parse:report` | офлайн-проверка парсера (вне phase pipeline) |
-| `npm run parse:ab -- --input tests` | A/B catalog vs llm |
-| `node scripts/ws-smoke.mjs` | WebSocket |
-| `node scripts/query-ingest-status.mjs` | ingest status |
+```powershell
+npm run geo:catalog:import -w @radar/api    # основной: tabular → frontline → osm → adjacency
+npm run geo:layout:build                    # layout.json для схемы
+```
 
-ADR: [docs/adr-003-phase-enrichment-accumulator.md](./docs/adr-003-phase-enrichment-accumulator.md).
+Legacy: `geo:vendor` → `geo:sync` → `geo:seed` → `geo:db:apply` — см. [data/geo/README.md](data/geo/README.md).
+
+### Карта (read-side)
+
+| Задача | Команда / API |
+|--------|----------------|
+| Fold snapshot | `GET /api/map/snapshot` |
+| Time Machine | `GET /api/map/snapshot?asOf=ISO8601` |
+| Теплокарта | `GET /api/map/events/heatmap?period=24h\|7d\|30d\|all&eventTypes=...&until=` |
+| Диагностика fold | `npm run map:fold:status` |
+| Оффлайн parse | `npm run worker:parse:snap -- tests/snap_001.txt` |
+| A/B catalog vs llm | `npm run parse:ab -- --input tests` |
+
+**TTL карты:** `RADAR_MAP_STATE_TTL_HOURS` (default 24) — на read-line fold; legacy `worker:map-state:expire` удалён.
+
+### Диагностика
+
+| Симптом | Действие |
+|---------|----------|
+| Карта пустая после ingest | `npm run parse-engine:rebuild:drain` |
+| Ingest не в БД | `RADAR_STORAGE_MODE=db`, перезапуск worker |
+| Нет каналов | `npm run ingest:manifest:import`, provider `active` |
+| `[api] EBUSY` при dev | stop node → удалить `packages/api/dist` → `npm run dev:app` |
+
+```powershell
+node scripts/query-ingest-status.mjs
+```
 
 ---
 
@@ -234,8 +327,8 @@ ADR: [docs/adr-003-phase-enrichment-accumulator.md](./docs/adr-003-phase-enrichm
 ## ⚙️ Статус репозитория
 
 - **Монорепо:** `api`, `worker`, `web`, `shared` — cold start, dev-стек, TypeScript strict.
-- **Web:** OSINT glass-shell, 9 виджетов, dual-theme DS, LiveBadge (WS + health).
-- **Карта:** MapLibre + schematic layout; read-line fold (`event_locations` → snapshot); inset contours.
+- **Web:** OSINT glass-shell, 10 виджетов, dual-theme DS, LiveBadge (WS + health).
+- **Карта:** MapLibre + schematic layout; read-line fold (`event_locations` → snapshot); inset contours; **слои** (регионы/районы/места/теплокарта/таймлайн); **Time Machine** + **heatmap** с фильтром типов.
 - **Realtime:** WS `/ws` — `snapshot`, `region-state`, `place-state`, `warning`; GeoJSON — `GET /api/map/regions-geojson`.
 - **Worker:** live MTProto + poll, probe `:3010`, fold read-line (без projection daemon).
 - **Geo:** `vendor → artifacts → manifest → geo:seed → geo:db:apply`.
@@ -310,18 +403,22 @@ node scripts/ws-smoke.mjs
 
 ```text
 Старт UI:  GET /api/map/snapshot  →  mapStore (регионы, places)
+Replay:    GET /api/map/snapshot?asOf=ISO  →  fold на маркере; WS не применяется
 Подключение:  WS /ws  →  snapshot (повтор) + дельты
 Live:  region-state | place-state | warning  →  патч store (не refetch snapshot)
 Гео-контуры:  GET /api/map/regions-geojson  →  только активные субъекты (≠ grey)
+Теплокарта:  GET /api/map/events/heatmap?period=24h|7d|30d|all&until=&eventTypes=
 ```
 
 | Слой UI | Источник данных |
 |---------|-----------------|
 | **Гео-карта / схема** | `regionsByCode$`, `placesById$` (snapshot + WS) |
+| **Теплокарта** | `GET /api/map/events/heatmap` + `heatmapStore` (period, eventTypes, `until=asOf`) |
+| **Time Machine** | `historicalAsOf$` → snapshot `?asOf=`; ползунок TTL 24 ч |
 | **KPI / donut / топ** | `regionsByCode$` (derivations) |
-| **Лента / динамика / сообщения** | `stateChanges$`, `messagesFeed$` (REST + WS / poll) |
+| **Лента / динамика / сообщения / ПВО** | `stateChanges$`, `messagesFeed$`, `pvoReports$` (REST + WS / poll) |
 | **Каналы / система** | `providersStore` (REST poll 30s) + `connectionStatus$` (WS) |
-| **LiveBadge** | WS open + `/api/health` + `/api/ready` |
+| **LiveBadge** | WS open + `/api/health` + `/api/ready`; в REPLAY — «исторический срез» |
 
 Поллер WS читает diff fold snapshot(now). События **до перезапуска API** по WS не переигрываются — только snapshot при connect.
 
@@ -441,35 +538,15 @@ npm run migration:run
 
 ## Полезные скрипты (корень)
 
-| Скрипт            | Назначение                          |
-|-------------------|-------------------------------------|
-| `npm run cold:up` | холодный старт: Docker, `npm install`, build shared, миграции (без `dev`) |
-| `npm run up`      | **Docker + dev:app** (API + web, без worker) |
-| `npm run dev`     | shared + API + web + worker (**без** Docker) |
-| `npm run dev:app` | shared + API + web (**без** worker) |
-| `npm run parse-engine:rebuild` | перепарсить `raw_messages` и обновить проекции карты |
-| `npm run worker:map-state:expire` | одноразовый TTL-sweep регионов/places (без полного worker) |
-| `npm run ingest:manifest:import` | import провайдеров/каналов из `.radar/ingest.manifest.json` (auto-bootstrap из examples) |
-| `npm run worker:ingest:backfill -- --all-bindings --batch-size=100` | backfill по всем enabled каналам (CLI chunk) |
-| `npm run bot:dev` | запуск HLD-каркаса admin-bot |
-| `npm run start:api` | прод: `node dist/main.js` у API (**нужен** предварительный `npm run build`) |
-| `npm run db:up`   | `docker compose up -d` (Postgres + **Adminer** + **pgAdmin**) |
-| `npm run db:down` | `docker compose down`               |
-| `docker compose --profile llm up -d` | поднять `ollama` вместе с базовыми сервисами |
-| `docker compose --profile llm-ui up -d` | поднять `ollama` + `open-webui` для чат-интерфейса |
-| `docker compose --profile llm exec ollama ollama pull qwen2.5:3b` | pre-pull модели в локальный runtime |
-| `npm run geo:vendor` | shallow clone в `data/geo/vendor` (игнор git) |
-| `npm run geo:vendor:pull` | обновить клоны в `vendor/` |
-| `npm run geo:sync` | копия в **`data/geo/artifacts`** + `manifest.json` (**коммитим**) |
-| `npm run geo:verify` | пересчитать sha256 артефактов и сверить с `manifest.json` |
-| `npm run geo:seed` | заполнить **`geo_dataset_file`** из манифеста |
-| `npm run geo:db:plan` | dry-run diff для синка справочников в БД |
-| `npm run geo:db:apply` | применить diff-синк справочников в БД + аудит |
-| `npm run worker:parse:snap -- tests/snap_001.txt` | прогон parser CLI без БД на снапшотах |
-| `npm run worker:parse:snap:ollama -- --input tests/snap_001.txt` | snap-прогон с обязательным Ollama probe и LLM-enricher |
-| `npm run worker:parse:report -- --input tests --outdir reports --format json --div file` | batch-отчет ParsePipelineService по raw-сообщениям |
-| `GET /api/places/status` | активные статус-теги по place (для карты) |
-| `GET /api/places/status/history` | история статус-тегов для time-machine |
-| `npm run build`   | сборка всех пакетов, где есть build |
-| `npm run lint`    | ESLint по исходникам                 |
-| `npm run typecheck` | `tsc --noEmit` в пакетах         |
+Полный список — **[docs/cheatsheet.md](docs/cheatsheet.md)** и **[docs/shpargalka-operacii.md](docs/shpargalka-operacii.md)**. Частые:
+
+| Скрипт | Назначение |
+|--------|------------|
+| `npm run cold:up` / `up` / `dev` / `dev:app` | см. [§ Шпаргалка](#шпаргалка-операции) |
+| `npm run parse-engine:rebuild:drain` | reparse raw + drain очередей → карта |
+| `npm run geo:catalog:import -w @radar/api` | geo-каталог в БД |
+| `npm run map:fold:status` | диагностика read-line fold |
+| `npm run migration:run` | миграции TypeORM |
+| `npm run build` / `lint` / `typecheck` | CI-локально |
+| `npm run db:up` / `db:down` | Docker Postgres + Adminer + pgAdmin |
+| `docker compose --profile llm up -d` | Ollama (опционально) |

@@ -1,5 +1,7 @@
 # ADR-004: region-place и единые place_aliases
 
+> **Parse-match:** стратегия `place_aliases` для ingest/parse **deprecated** — см. [ADR-012](./adr-012-geo-scan-without-aliases.md) (stem resolve по DB). Модель region-as-place ниже остаётся в силе.
+
 ## Контекст
 
 Субъект РФ и населённый пункт — оба `places`. Таблица `regions` — словарь (ISO, флаги, геометрия). Алиасы только на `place_id`.

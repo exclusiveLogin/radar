@@ -36,8 +36,11 @@
 | 5 | Анализ эффективности ПВО (Kill / Pass) | Очень высокая | [ADR-010](./adr-010-pvo-kill-pass-layers.md) | 3 | Предложено |
 | 6 | Временное цветовое кодирование (остывающие треки) | Средняя | [features/tracking-temporal-color.md](./features/tracking-temporal-color.md) | 4 | Предложено |
 | 7 | Фильтрация тепловой карты по типу событий | Базовая | [features/tracking-heatmap-filter.md](./features/tracking-heatmap-filter.md) | 1 | Предложено |
+| 8 | Flow-коридоры (P2P rollup, частотность) | Высокая | [ADR-013](./adr-013-trajectory-flow-and-path-fan.md), [features/tracking-flow-corridors.md](./features/tracking-flow-corridors.md) | 2b | Предложено |
+| 9 | Historical path fan (вероятностные хвосты) | Высокая | [ADR-013](./adr-013-trajectory-flow-and-path-fan.md), [features/tracking-historical-path-fan.md](./features/tracking-historical-path-fan.md) | 2c | Предложено |
 
-Фазы реализации: [rfc/tracking-pipeline-phases.md](./rfc/tracking-pipeline-phases.md).
+Фазы реализации: [rfc/tracking-pipeline-phases.md](./rfc/tracking-pipeline-phases.md).  
+План / база SDD: [sdd/tracking/plan.md](./sdd/tracking/plan.md).
 
 ---
 
@@ -48,12 +51,15 @@ flowchart TB
   P0[Фаза 0: Документация]
   P1[Фаза 1: MVP пайплайн]
   P2[Фаза 2: Прогноз + эллипсы]
+  P2b[Фаза 2b–2c: Flow + path fan]
   P3[Фаза 3: Kill/Pass ПВО]
   P4[Фаза 4: Deck.gl + temporal color]
   P0 --> P1
   P1 --> P2
+  P1 --> P2b
   P1 --> P3
   P2 --> P4
+  P2b --> P4
   P3 --> P4
 ```
 
@@ -125,8 +131,9 @@ flowchart LR
 |-------|------|-----------|
 | **MVP** | 0 + 1 | Треки в БД, API `GET /map/tracks`, heatmap с фильтром по типу |
 | **Прогноз** | 2 | Эллипсы доверия при `asOf > lastObservation` |
+| **Коридоры и fan** | 2b–2c | P2P flow rollup, historical path fan (без fork в Kalman) |
 | **ПВО-аналитика** | 3 | Слои Kill / Pass / heatmap ПВО |
-| **UX треков** | 4 | Deck.gl, остывающие линии, GPU при 150k точек |
+| **UX треков** | 4 | Deck.gl, остывающие линии, flow width, path fan |
 
 ---
 
@@ -147,6 +154,11 @@ flowchart LR
 ```
 docs/
 ├── roadmap-tracking-forecasting.md   ← вы здесь
+├── sdd/
+│   ├── README.md                     ← индекс SDD
+│   └── tracking/
+│       ├── plan.md
+│       └── phase-*.md                ← SDD фаз T1–T4
 ├── rfc/
 │   └── tracking-pipeline-phases.md
 ├── adr-007-trajectory-graph-kalman-worker.md
@@ -154,10 +166,13 @@ docs/
 ├── adr-009-osint-pre-collapse.md
 ├── adr-010-pvo-kill-pass-layers.md
 ├── adr-011-deckgl-track-rendering.md
+├── adr-013-trajectory-flow-and-path-fan.md
 └── features/
     ├── tracking-confidence-ellipse.md
     ├── tracking-temporal-color.md
-    └── tracking-heatmap-filter.md
+    ├── tracking-heatmap-filter.md
+    ├── tracking-flow-corridors.md
+    └── tracking-historical-path-fan.md
 ```
 
 ### Принцип ADR vs Feature

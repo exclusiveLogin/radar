@@ -1,6 +1,8 @@
 # Tracking pipeline: фазы реализации (ToBe)
 
-См. [roadmap-tracking-forecasting.md](../roadmap-tracking-forecasting.md).
+См. [roadmap-tracking-forecasting.md](../roadmap-tracking-forecasting.md).  
+**План / база SDD:** [sdd/tracking/plan.md](../sdd/tracking/plan.md).  
+**SDD по фазам:** [sdd/tracking/README.md](../sdd/tracking/README.md).
 
 ---
 
@@ -20,11 +22,11 @@
 
 **Цель:** из хаотичных `event_locations` получить материализованные треки и фильтруемую теплокарту.
 
-**Порядок внутри фазы строгий:**
+**Порядок внутри фазы строгий** (см. [sdd/tracking/plan.md](../sdd/tracking/plan.md) §1.2):
 
-1. [ADR-009](../adr-009-osint-pre-collapse.md) — OSINT pre-collapse (10-min window, hierarchy `accuracyLevel`)
-2. [ADR-008](../adr-008-kinematic-vs-static-events.md) — kinematic vs static routing
-3. [ADR-007](../adr-007-trajectory-graph-kalman-worker.md) — background worker: link → Kalman → persist
+1. [ADR-008](../adr-008-kinematic-vs-static-events.md) — kinematic vs static routing
+2. **DISTINCT + R(precision) + gating** — вместо heavy [ADR-009](../adr-009-osint-pre-collapse.md) pre-collapse (ADR-009 partial supersede)
+3. [ADR-007](../adr-007-trajectory-graph-kalman-worker.md) — background worker: link → Kalman → persist (`place_id`, `threat_profile` на nodes)
 4. [Feature-007](../features/tracking-heatmap-filter.md) — `?eventType=` / `?eventCategory=` на heatmap
 
 | Задача | Пакет |
@@ -62,7 +64,46 @@
 - Пауза до 9h — контролируемое расширение зоны ожидания
 - Unit-тесты на eig(P) → polygon ring
 
-**Не делаем:** Kill/Pass, TripsLayer.
+**Не делаем:** Kill/Pass, TripsLayer, flow/path fan.
+
+---
+
+## Фаза 2b — Flow-коридоры (P2P rollup)
+
+**Критерий входа:** фаза 1 в проде, `trajectory_nodes.place_id` заполнен на kinematic nodes.
+
+- [ADR-013](../adr-013-trajectory-flow-and-path-fan.md) — L2 read projection
+- [Feature-008](../features/tracking-flow-corridors.md) — UI width encoding
+- `trajectory_edges` + `trajectory_segment_rollup`
+- `GET /map/tracks/flow`
+
+**Definition of Done:**
+
+- Worker materialize edges + rollup после rebuild L1
+- API отдаёт GeoJSON с `count`/`weight`
+- Golden fixture: общий отрезок A→B → count ≥ 2
+- Unit-тесты `buildTrackEdges` + `rollupSegmentCounts`
+
+**Не делаем:** path fan, Deck.gl (можно MapLibre line-width v0).
+
+---
+
+## Фаза 2c — Historical path fan
+
+**Критерий входа:** фаза 2b в проде или параллельно после фазы 1 (если есть place_id index).
+
+- [ADR-013](../adr-013-trajectory-flow-and-path-fan.md) § L2b
+- [Feature-009](../features/tracking-historical-path-fan.md)
+- `trajectory_place_index` (v2 materialized) или on-read v1
+- `GET /map/tracks/:id/path-fan`
+
+**Definition of Done:**
+
+- Active track + `asOf > lastNode` → ranked paths с count
+- `asOf` в прошлом уменьшает counts
+- UI: fan + ellipse одновременно, разная легенда
+
+**Коммит:** отдельный от 2b.
 
 ---
 

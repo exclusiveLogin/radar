@@ -26,7 +26,7 @@ export const EVENT_HEATMAP_TYPE_LABELS: Record<
   EventHeatmapFilterType,
   { short: string; title: string }
 > = {
-  fixation: { short: "фикс", title: "Фиксация БПЛА" },
+  fixation: { short: "фикс", title: "Фиксация объекта / события" },
   pvo_work: { short: "ПВО", title: "Работа ПВО" },
   intercept: { short: "сбит", title: "Сбитие" },
   attention: { short: "вним", title: "Внимание" },

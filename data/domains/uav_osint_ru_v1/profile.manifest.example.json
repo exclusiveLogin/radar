@@ -1,0 +1,38 @@
+{
+  "_notice": "ЧЕРНОВИК-ПРИМЕР. Runtime не читает этот файл до реализации ADR-014 (фаза D2). Целевое имя после внедрения: profile.manifest.json",
+  "schemaVersion": 1,
+  "id": "uav_osint_ru_v1",
+  "title": "БПЛА OSINT (РФ)",
+  "locale": "ru",
+  "isDefault": true,
+  "activeEventTypes": [
+    "fixation",
+    "attention",
+    "danger",
+    "pvo_work",
+    "impact",
+    "cleared",
+    "safety_measures",
+    "rocket_threat",
+    "airspace_restriction",
+    "mass_warning",
+    "intercept",
+    "pvo_report"
+  ],
+  "uiPresets": [
+    {
+      "id": "heatmap_operational",
+      "surface": "heatmap",
+      "label": "Оперативные (теплокарта)",
+      "eventTypes": ["fixation", "pvo_work", "intercept", "attention", "mass_warning"],
+      "defaultEnabled": true
+    }
+  ],
+  "threatProfileRules": [
+    { "threatProfile": "rocket", "when": { "eventTypes": ["rocket_threat"], "eventSubjects": ["rocket", "mws"] } },
+    { "threatProfile": "balloon", "when": { "eventSubjects": ["mws"] } },
+    { "threatProfile": "uav", "when": { "eventSubjects": ["drone"], "eventCategories": ["movement", "threat"] } }
+  ],
+  "parserRulePackIds": ["parser-rules.v1"],
+  "geoGroomingPackId": "geo-grooming.v1"
+}
