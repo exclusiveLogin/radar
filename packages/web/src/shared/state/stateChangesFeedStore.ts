@@ -2,6 +2,7 @@ import { BehaviorSubject } from "rxjs";
 import { stateChangeEventsResponseSchema } from "@radar/shared";
 import type { StateChangeEventItem } from "@radar/shared";
 import { mapApi } from "../api/mapApi";
+import { reportAppError } from "./appLogStore";
 
 /** Лента разобранных событий с привязкой к регионам (REST poll). */
 export const stateChangesFeed$ = new BehaviorSubject<StateChangeEventItem[]>([]);
@@ -23,6 +24,6 @@ async function refreshStateChangesFeed(): Promise<void> {
     const data = await mapApi.recentStateChangeEvents();
     stateChangesFeed$.next(stateChangeEventsResponseSchema.parse(data).items);
   } catch (error) {
-    console.error("[stateChangesFeedStore]", error);
+    reportAppError("Лента изменений", error);
   }
 }

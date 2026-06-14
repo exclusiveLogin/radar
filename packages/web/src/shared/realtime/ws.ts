@@ -1,6 +1,7 @@
 import { BehaviorSubject, Observable } from "rxjs";
 import { wsServerMessageSchema } from "@radar/shared";
 import type { WsServerMessage } from "@radar/shared";
+import { pushAppLog } from "../state/appLogStore";
 
 export type WsConnectionStatus = "connecting" | "open" | "closed";
 
@@ -16,6 +17,8 @@ export function connectMapWs(): Observable<WsServerMessage> {
     let retryMs = 3000;
     const url = `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws`;
 
+    let wasOpen = false;
+
     const open = (): void => {
       connectionStatus$.next("connecting");
       socket = new WebSocket(url);
@@ -29,9 +32,14 @@ export function connectMapWs(): Observable<WsServerMessage> {
       };
       socket.onopen = () => {
         retryMs = 3000;
+        wasOpen = true;
         connectionStatus$.next("open");
       };
       socket.onclose = () => {
+        if (wasOpen && !closedByClient) {
+          pushAppLog("warn", "Соединение потеряно, переподключение…", { source: "Realtime" });
+        }
+        wasOpen = false;
         connectionStatus$.next(closedByClient ? "closed" : "connecting");
         if (!closedByClient) {
           retryTimer = setTimeout(open, retryMs);

@@ -10,6 +10,7 @@ import {
 } from "@radar/shared";
 import { mapApi } from "../api/mapApi";
 import { connectMapWs } from "../realtime/ws";
+import { reportAppError } from "./appLogStore";
 import { deriveNeighborLevels, isRegionVisibleOnMap } from "./derivations";
 
 /** Состояние регионов по regionCode (ISO) — источник для всех карт-виджетов. */
@@ -345,6 +346,6 @@ function applyPlaceState(event: PlaceStateEvent): void {
 }
 
 function reportError(error: unknown): void {
-  console.error("[mapStore]", error);
+  reportAppError("Карта", error);
 }
 

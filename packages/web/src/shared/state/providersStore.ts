@@ -6,6 +6,7 @@ import {
   workerStatusResponseSchema,
   type WorkerStatusResponse,
 } from "@radar/shared";
+import { reportAppError } from "./appLogStore";
 
 /** Список ingest-провайдеров (каналы). */
 export const providers$ = new BehaviorSubject<IngestProvider[]>([]);
@@ -47,7 +48,7 @@ async function refreshProviders(): Promise<void> {
     const list = await mapApi.providers();
     providers$.next(list);
   } catch (error) {
-    console.error("[providersStore]", error);
+    reportAppError("Каналы", error);
     providers$.next([]);
   }
 }
@@ -84,7 +85,7 @@ async function refreshWorkerStatus(): Promise<void> {
     const status = await mapApi.workerStatus();
     workerStatus$.next(workerStatusResponseSchema.parse(status));
   } catch (error) {
-    console.error("[providersStore] worker status", error);
+    reportAppError("Worker", error, "Статус worker недоступен");
     workerStatus$.next(null);
   }
 }

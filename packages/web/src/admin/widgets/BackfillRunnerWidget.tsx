@@ -9,6 +9,7 @@ import {
 } from "../../shared/state/adminStore";
 import { selectedChannelKey$ } from "../../shared/state/channelSelectionStore";
 import { adminApi } from "../../shared/api/adminApi";
+import { reportAppError } from "../../shared/state/appLogStore";
 import { formatDateTime } from "../format";
 
 const STRATEGY_OPTIONS = [
@@ -75,7 +76,9 @@ export function BackfillRunnerWidget() {
       });
       await refreshBackfill();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Не удалось создать задачу");
+      const msg = err instanceof Error ? err.message : "Не удалось создать задачу";
+      setError(msg);
+      reportAppError("Backfill", err, msg);
     } finally {
       setBusy(false);
     }
@@ -86,7 +89,9 @@ export function BackfillRunnerWidget() {
       await adminApi.cancelBackfillJob(id);
       await refreshBackfill();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Не удалось отменить");
+      const msg = err instanceof Error ? err.message : "Не удалось отменить";
+      setError(msg);
+      reportAppError("Backfill", err, msg);
     }
   };
 

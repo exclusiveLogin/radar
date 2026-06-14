@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import type { StateChangeEventItem } from "@radar/shared";
 import { LEVEL_COLORS, LEVEL_LABELS } from "../../shared/config/mapConfig.service";
 import { mapApi } from "../../shared/api/mapApi";
+import { reportAppError } from "../../shared/state/appLogStore";
 import { formatDateTime } from "../../shared/format/dateTime";
 import { derivedRegionCodes$, regionsByCode$ } from "../../shared/state/mapStore";
 import { selectRegion, selectedRegion$ } from "../../shared/state/selectionStore";
@@ -47,7 +48,7 @@ export function RegionDetailWidget() {
         setEvents(eventsResp.items);
         setSourceText(sourceResp.message?.rawText ?? null);
       })
-      .catch(console.error)
+      .catch((error) => reportAppError("Регион", error))
       .finally(() => setLoading(false));
   }, [code]);
 

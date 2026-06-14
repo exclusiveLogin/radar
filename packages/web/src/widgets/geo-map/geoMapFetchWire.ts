@@ -1,7 +1,7 @@
 import type { Subscription } from "rxjs";
 import { takeUntil } from "rxjs/operators";
 import type { Subject } from "rxjs";
-import { pushGeoMapLog } from "../../shared/state/geoMapLogStore";
+import { pushAppLog, reportAppError } from "../../shared/state/appLogStore";
 import {
   patchGeoMapLayerFetchStatus,
   type GeoMapFetchLayerId,
@@ -33,6 +33,9 @@ export function wireLayerFetchStreams<T>(options: {
   sub.add(
     streams.loading$.pipe(takeUntil(destroy$)).subscribe((loading) => {
       patchGeoMapLayerFetchStatus(layerId, { loading });
+      if (loading) {
+        pushAppLog("info", "Загрузка…", { source: label });
+      }
     }),
   );
 
@@ -40,14 +43,14 @@ export function wireLayerFetchStreams<T>(options: {
     streams.error$.pipe(takeUntil(destroy$)).subscribe((error) => {
       const message = formatFetchError(error, fallbackError);
       patchGeoMapLayerFetchStatus(layerId, { error: message });
-      pushGeoMapLog("error", `${label}: ${message}`);
-      console.error(`[GeoMapWidget] ${layerId}`, error);
+      reportAppError(label, error, fallbackError);
     }),
   );
 
   sub.add(
     streams.data$.pipe(takeUntil(destroy$)).subscribe((data) => {
-      patchGeoMapLayerFetchStatus(layerId, { error: null });
+      patchGeoMapLayerFetchStatus(layerId, { error: null, loading: false });
+      pushAppLog("info", "Загружено", { source: label });
       onData(data);
     }),
   );

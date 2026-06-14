@@ -1,6 +1,7 @@
 import { BehaviorSubject } from "rxjs";
 import { mapApi } from "../api/mapApi";
 import type { TopActivityRow } from "../api/mapApi";
+import { reportAppError } from "./appLogStore";
 
 /** Топ регионов по danger-событиям за 7 дней. */
 export const topActivity$ = new BehaviorSubject<TopActivityRow[]>([]);
@@ -21,6 +22,6 @@ async function refresh(): Promise<void> {
     const { items } = await mapApi.topActivity(10);
     topActivity$.next(items);
   } catch (error) {
-    console.error("[topActivityStore]", error);
+    reportAppError("Топ активности", error);
   }
 }

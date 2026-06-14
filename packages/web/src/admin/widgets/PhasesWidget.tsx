@@ -3,6 +3,7 @@ import { useObservable } from "../../shared/hooks/useObservable";
 import type { PhaseDefinition } from "@radar/shared";
 import { Button, Panel } from "../../shared/ds";
 import { adminApi } from "../../shared/api/adminApi";
+import { reportAppError } from "../../shared/state/appLogStore";
 import { phasesOverview$, phaseRuns$ } from "../../shared/state/adminStore";
 import { formatDateTime } from "../format";
 import { PhaseRunProgressBar } from "./PhaseRunProgressBar";
@@ -95,7 +96,9 @@ export function PhasesWidget() {
       setPhases(await adminApi.phasesList());
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Не удалось загрузить фазы");
+      const msg = err instanceof Error ? err.message : "Не удалось загрузить фазы";
+      setError(msg);
+      reportAppError("Фазы", err, msg);
     }
   }, []);
 
@@ -147,7 +150,9 @@ export function PhasesWidget() {
       );
       await refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Не удалось остановить runs");
+      const msg = err instanceof Error ? err.message : "Не удалось остановить runs";
+      setError(msg);
+      reportAppError("Фазы", err, msg);
     } finally {
       setStopAllBusy(false);
     }

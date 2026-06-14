@@ -1,6 +1,7 @@
 import { BehaviorSubject, Observable } from "rxjs";
 import { adminWsServerMessageSchema } from "@radar/shared";
 import type { AdminWsServerMessage } from "@radar/shared";
+import { pushAppLog } from "../state/appLogStore";
 
 export type AdminWsStatus = "connecting" | "open" | "closed";
 
@@ -16,6 +17,8 @@ export function connectAdminWs(): Observable<AdminWsServerMessage> {
     let retryMs = 3000;
     const url = `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws/admin`;
 
+    let wasOpen = false;
+
     const open = (): void => {
       adminWsStatus$.next("connecting");
       socket = new WebSocket(url);
@@ -29,9 +32,14 @@ export function connectAdminWs(): Observable<AdminWsServerMessage> {
       };
       socket.onopen = () => {
         retryMs = 3000;
+        wasOpen = true;
         adminWsStatus$.next("open");
       };
       socket.onclose = () => {
+        if (wasOpen && !closedByClient) {
+          pushAppLog("warn", "Соединение потеряно, переподключение…", { source: "Admin WS" });
+        }
+        wasOpen = false;
         adminWsStatus$.next(closedByClient ? "closed" : "connecting");
         if (!closedByClient) {
           retryTimer = setTimeout(open, retryMs);

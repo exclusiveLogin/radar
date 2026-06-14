@@ -1,6 +1,7 @@
 import { BehaviorSubject } from "rxjs";
 import { messageFeedResponseSchema, type MessageFeedItem } from "@radar/shared";
 import { mapApi } from "../api/mapApi";
+import { reportAppError } from "./appLogStore";
 
 /** Лента сырых сообщений (REST poll). */
 export const messagesFeed$ = new BehaviorSubject<MessageFeedItem[]>([]);
@@ -22,6 +23,6 @@ async function refreshMessages(): Promise<void> {
     const data = await mapApi.recentMessages();
     messagesFeed$.next(messageFeedResponseSchema.parse(data).items);
   } catch (error) {
-    console.error("[messagesStore]", error);
+    reportAppError("Сообщения", error);
   }
 }

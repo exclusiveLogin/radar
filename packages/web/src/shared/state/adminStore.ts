@@ -12,6 +12,7 @@ import type {
 } from "@radar/shared";
 import { adminApi } from "../api/adminApi";
 import { connectAdminWs } from "../realtime/adminWs";
+import { reportAppError } from "./appLogStore";
 import { selectedChannelKey$ } from "./channelSelectionStore";
 
 /** Каналы со статусом «слушается». */
@@ -75,7 +76,7 @@ export async function refreshBackfill(): Promise<void> {
   try {
     backfillJobs$.next(await adminApi.backfillJobs({ limit: 50 }));
   } catch (error) {
-    console.error("[adminStore] backfill", error);
+    reportAppError("Backfill", error);
   }
 }
 
@@ -84,7 +85,7 @@ export async function refreshChannels(): Promise<void> {
   try {
     channels$.next(await adminApi.channels());
   } catch (error) {
-    console.error("[adminStore] channels", error);
+    reportAppError("Каналы", error);
   }
 }
 
@@ -92,7 +93,7 @@ async function refreshStats(): Promise<void> {
   try {
     statsOverview$.next(await adminApi.statsOverview());
   } catch (error) {
-    console.error("[adminStore] stats", error);
+    reportAppError("Сводка", error);
   }
 }
 
@@ -100,7 +101,7 @@ async function refreshTelemetry(): Promise<void> {
   try {
     telemetry$.next(await adminApi.telemetry());
   } catch (error) {
-    console.error("[adminStore] telemetry", error);
+    reportAppError("Телеметрия", error);
   }
 }
 
@@ -108,7 +109,7 @@ async function seedParseLog(): Promise<void> {
   try {
     parseLog$.next(await adminApi.parseAttempts({ limit: 100 }));
   } catch (error) {
-    console.error("[adminStore] parse-log seed", error);
+    reportAppError("Лог парсинга", error);
   }
 }
 
@@ -120,7 +121,7 @@ async function refreshChannelStats(channelKey: string | null): Promise<void> {
   try {
     selectedChannelStats$.next(await adminApi.channelStats(channelKey));
   } catch (error) {
-    console.error("[adminStore] channel stats", error);
+    reportAppError("Статистика канала", error);
     selectedChannelStats$.next(null);
   }
 }

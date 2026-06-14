@@ -40,7 +40,6 @@ import {
   heatmapEventTypesFilter$,
   setHeatmapMeta,
 } from "../../shared/state/heatmapStore";
-import { clearGeoMapLogs } from "../../shared/state/geoMapLogStore";
 import { resetAllGeoMapLayerFetchStatus } from "../../shared/state/geoMapLayerFetchStore";
 import { resetGeoMapStats, setGeoMapStats } from "../../shared/state/geoMapStatsStore";
 import { selectRegion, selectedRegion$ } from "../../shared/state/selectionStore";
@@ -781,7 +780,6 @@ export function useGeoMapLifecycle(containerRef: RefObject<HTMLDivElement | null
       destroy$.next();
       destroy$.complete();
       storeSubscriptions.unsubscribe();
-      clearGeoMapLogs();
       resetAllGeoMapLayerFetchStatus();
       resetGeoMapStats();
       runtime.dispose();

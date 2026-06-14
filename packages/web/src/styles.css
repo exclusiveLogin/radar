@@ -188,41 +188,48 @@
   min-height: 0;
 }
 
-/** Игровая лента событий — правый нижний угол карты. */
-.geo-map-log-rail {
-  position: absolute;
+/** Глобальная лента событий/ошибок — правый нижний угол viewport. */
+.app-log-rail {
+  position: fixed;
   right: 10px;
   bottom: 10px;
-  z-index: 6;
+  z-index: 1000;
   display: flex;
   flex-direction: column;
   align-items: flex-end;
   gap: 4px;
-  max-width: min(280px, 42vw);
+  max-width: min(320px, 42vw);
+  max-height: min(40vh, 420px);
+  overflow-y: auto;
   pointer-events: none;
 }
 
-.geo-map-log-rail__item {
+.app-log-rail__item {
   font-size: 10px;
   line-height: 1.25;
   padding: 3px 8px;
   background: rgba(8, 12, 18, 0.72);
   border: 1px solid var(--border);
   color: var(--text-muted);
-  animation: geo-map-log-in 0.2s ease-out;
+  animation: app-log-in 0.2s ease-out;
 }
 
-.geo-map-log-rail__item--warn {
+.app-log-rail__item--info {
+  color: #8eb4d9;
+  border-color: rgba(142, 180, 217, 0.35);
+}
+
+.app-log-rail__item--warn {
   color: #e6c84a;
   border-color: rgba(230, 200, 74, 0.45);
 }
 
-.geo-map-log-rail__item--error {
+.app-log-rail__item--error {
   color: #ff8f8f;
   border-color: rgba(255, 100, 100, 0.45);
 }
 
-@keyframes geo-map-log-in {
+@keyframes app-log-in {
   from {
     opacity: 0;
     transform: translateY(6px);

@@ -1,5 +1,6 @@
 import { BehaviorSubject } from "rxjs";
 import { mapApi, type PvoReportItem } from "../api/mapApi";
+import { reportAppError } from "./appLogStore";
 
 /** Информационная лента сводок ПВО (REST poll, не влияет на карту). */
 export const pvoReports$ = new BehaviorSubject<PvoReportItem[]>([]);
@@ -20,6 +21,6 @@ async function refreshPvoReports(): Promise<void> {
     const data = await mapApi.pvoReports(50);
     pvoReports$.next(data.items);
   } catch (error) {
-    console.error("[pvoReportsStore]", error);
+    reportAppError("Сводки ПВО", error);
   }
 }
