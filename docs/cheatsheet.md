@@ -300,6 +300,8 @@ npm run parse-engine:rebuild
 
 **Слои карты:** регионы · районы · места · **теплокарта** (period, eventTypes) · **таймлайн** (LIVE/REPLAY).
 
+**Лента системных событий** (`AppLogOverlay`, `appLogStore`): правый нижний угол, toast-стек info/warn/error — загрузка и ошибки fetch по карте/виджетам, reconnect WS. Env: `VITE_APP_LOG_LEVEL=info|warn|error` (default `warn`).
+
 **Realtime:** `GET /api/map/snapshot` → WS `/ws`. В REPLAY — `?asOf=`, WS не применяется.
 
 ---

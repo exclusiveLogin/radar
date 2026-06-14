@@ -20,7 +20,7 @@
 | **Вход** | Telegram (MTProto), ручной admin-ingest, backfill; расширяемые провайдеры |
 | **Ядро** | Parse pipeline + geo enrichers + region/place state projection |
 | **События** | Любые типы с геопривязкой (`event_type` + `stateLevel`), не только «воздушные» |
-| **Выход** | REST + WS, карта, KPI-виджеты, журнал смен, heatmap, Time Machine |
+| **Выход** | REST + WS, карта, KPI-виджеты, журнал смен, heatmap, Time Machine, лента системных событий |
 | **Не делает** | Не заменяет официальные оповещения; не юридическое «доказательство» |
 
 **Миссия:** сократить путь от «увидел сигнал в источнике» до «понял, где событие и как менялась обстановка» — в секунды, на одном экране.
@@ -54,7 +54,7 @@
 
 ### Web — OSINT-оболочка
 
-- **Layout:** карта фоном, glass-рейлы слева/справа, ломаный header (UTC-часы, **LiveBadge** = WS + API/БД). Правый рейл — панели **свёрнуты по умолчанию**. Поверх карты — **панель «Слои»**, внизу — **таймлайн** (если слой включён).
+- **Layout:** карта фоном, glass-рейлы слева/справа, ломаный header (UTC-часы, **LiveBadge** = WS + API/БД). Правый рейл — панели **свёрнуты по умолчанию**. Поверх карты — **панель «Слои»**, внизу — **таймлайн** (если слой включён), **лента системных событий** — правый нижний угол.
 - **Виджеты** (реестр `widgetRegistry`, toggles в ⚙):
   - **Гео-карта** — MapLibre, контуры субъектов (fill + inset outline), маркеры places, HUD-статистика.
   - **Схема** — layout.json, heat по `stateLevel`.
@@ -69,6 +69,7 @@
   - **Теплокарта** — raise-события из `event_locations` (MapLibre heatmap + точки на zoom). Период: **24ч / 7д / 1мес / всё**. Фильтр типов: **все**, **фикс**, **ПВО**, **сбит**, **вним**, **трев**. Счётчик точек в панели. API: `GET /api/map/events/heatmap?period=&until=&eventTypes=`.
   - **Таймлайн** — вкл/выкл нижний док; подсказка LIVE / REPLAY в панели слоёв.
 - **Time Machine** (`MapTimelineBar`): scrub по окну TTL (24 ч), режимы **LIVE** / **REPLAY**, `GET /api/map/snapshot?asOf=`. В replay WS отключён, heatmap и fold синхронизируются с маркером `until`. Кнопка **Live** — возврат к текущей карте.
+- **Лента системных событий** (`AppLogOverlay`, `appLogStore`) — toast-стек в правом нижнем углу viewport: загрузка/ошибки REST по виджетам и слоям карты, reconnect WS, catch admin/store. Уровни **info · warn · error**, dedup 15 с, TTL 60 с, буфер до 30 записей. Порог: `VITE_APP_LOG_LEVEL` (default `warn`).
 - **Детали региона** — оверлей по клику на субъект (история событий региона).
 - **Realtime:** `mapStore` — fold snapshot + WS diff; historical mode через `historicalAsOf$`.
 - **Тема:** light/dark (`data-theme`), design-system primitives, тонкие accent-скроллбары.
@@ -114,6 +115,10 @@ Time Machine REPLAY (`GET /map/snapshot?asOf=`):
 Правый рейл — ленты, топ активности, динамика:
 
 ![panel-right-rail-feeds](docs/assets/panel-right-rail-feeds.png)
+
+Лента системных событий (правый нижний угол — загрузка/ошибки API, WS):
+
+![panel-app-log-rail](docs/assets/panel-app-log-rail.png)
 
 Ранний shell (до слоёв heatmap/timeline): [`dashboard-osint-shell.png`](docs/assets/dashboard-osint-shell.png)
 
@@ -193,6 +198,7 @@ left rail:   Обзор (KPI + donut) · Схема          [развёрнут
 background:  Гео-карта (MapLibre) + HUD stats/log
 map overlay: Панель «Слои» (регионы · районы · места · теплокарта · таймлайн)
 bottom dock: MapTimelineBar (−24ч … сейчас, LIVE/REPLAY)  [если слой «Таймлайн» вкл]
+log rail:    AppLogOverlay — toast info/warn/error (правый нижний угол)
 right rail:  Угрозы · Лента · Сообщения · ПВО · Топ · Динамика · Каналы · Система  [свёрнуты]
 ```
 
@@ -327,7 +333,7 @@ node scripts/query-ingest-status.mjs
 ## ⚙️ Статус репозитория
 
 - **Монорепо:** `api`, `worker`, `web`, `shared` — cold start, dev-стек, TypeScript strict.
-- **Web:** OSINT glass-shell, 10 виджетов, dual-theme DS, LiveBadge (WS + health).
+- **Web:** OSINT glass-shell, 10 виджетов, dual-theme DS, LiveBadge (WS + health), **AppLogOverlay**.
 - **Карта:** MapLibre + schematic layout; read-line fold (`event_locations` → snapshot); inset contours; **слои** (регионы/районы/места/теплокарта/таймлайн); **Time Machine** + **heatmap** с фильтром типов.
 - **Realtime:** WS `/ws` — `snapshot`, `region-state`, `place-state`, `warning`; GeoJSON — `GET /api/map/regions-geojson`.
 - **Worker:** live MTProto + poll, probe `:3010`, fold read-line (без projection daemon).
