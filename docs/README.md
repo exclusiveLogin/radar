@@ -22,6 +22,7 @@
 | Ingest / Telegram | [ingest-providers.md](./ingest-providers.md), [domain/contexts/ingest.md](./domain/contexts/ingest.md), [backfill-v2-pipeline.md](./backfill-v2-pipeline.md) |
 | Слои и wiring | [architecture-layers-and-wiring.md](./architecture-layers-and-wiring.md) |
 | Потоки в коде | [domain/how-it-works.md](./domain/how-it-works.md) |
+| Parse processors (RFC) | [rfc/parse-processor-workspace.md](./rfc/parse-processor-workspace.md) |
 | Geo-артефакты / каталог | [runbook/geo-clean-rebuild.md](./runbook/geo-clean-rebuild.md), [data/geo/README.md](../data/geo/README.md) |
 | LLM / Ollama | [ollama-sampling-and-model-tuning.md](./ollama-sampling-and-model-tuning.md) |
 | Доверие к местам | [place-trust-explained.md](./place-trust-explained.md), [adr-002-place-trust-provenance.md](./adr-002-place-trust-provenance.md) |
