@@ -12,7 +12,7 @@
 | Поток | SDD | База (RFC / ADR) | Фазы |
 |-------|-----|------------------|------|
 | **Tracking** | [tracking/](./tracking/README.md) | [plan.md](./tracking/plan.md), ADR 007–013 | T1, T2, T2b, T2c, T3, T4 |
-| **ODP** | [odp/](./odp/README.md) | [ADR-014](../adr-014-operational-domain-profile.md), [walkthrough](../rfc/operational-domain-profile-walkthrough.md) | D1–D5 |
+| **ODP** | [odp/](./odp/README.md) | [ADR-014](../adr-014-operational-domain-profile.md), [walkthrough](../rfc/operational-domain-profile-walkthrough.md) | D1–D6 |
 | **Parse** | [parse/](./parse/README.md) | [parse-processor-workspace](../rfc/parse-processor-workspace.md) | P1–P4 |
 
 ---

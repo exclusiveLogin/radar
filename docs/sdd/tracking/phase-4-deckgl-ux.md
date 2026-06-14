@@ -173,7 +173,7 @@ Lifecycle: mount on map load, unmount on destroy, sync viewState.
 | `tracks_flow` | Коридоры (частотность) |
 | `tracks_path_fan` | Вероятностные пути |
 | `tracks_prediction` | Зона прогноза |
-| `tracks_kill` | Сбития (ПВО) |
+| `tracks_kill` | Сбития (Kill layer) |
 
 Defaults: trips off, flow off, fan on when track selected.
 

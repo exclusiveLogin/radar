@@ -15,6 +15,9 @@
 | **D3** | [phase-d3-ui-presets.md](./phase-d3-ui-presets.md) | D2 API active profile | 1–2 |
 | **D4** | [phase-d4-event-type-dictionary.md](./phase-d4-event-type-dictionary.md) | D3 UI на presets | 2 |
 | **D5** | [phase-d5-threat-profile-rules.md](./phase-d5-threat-profile-rules.md) | Tracking T1 или parallel | 1 |
+| **D6** | [phase-d6-api-read-decoupling.md](./phase-d6-api-read-decoupling.md) | D4 dictionary validate | 2–3 |
+
+Порядок: **D1 параллельно Tracking T1** → D2–D3 → D4 → D5 → **D6** (read API).
 
 ---
 
@@ -48,7 +51,9 @@ data/domains/uav_osint_ru_v1/
 | D3 uiPresets | Tracking T1 heatmap filter |
 | D5 threatProfileRules | Tracking T1 `resolveThreatProfile` |
 
-Порядок: **D1 параллельно Tracking T1** → D2–D3 → D4 → D5.
+| D6 API read decouple | Generic `/map/event-feed`, no SQL literals |
+
+Порядок: **D1 параллельно Tracking T1** → D2–D3 → D4 → D5 → D6.
 
 ---
 

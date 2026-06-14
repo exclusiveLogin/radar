@@ -165,6 +165,7 @@ flowchart LR
 | D3 | [phase-d3](../sdd/odp/phase-d3-ui-presets.md) | heatmap из presets, dictionary titles |
 | D4 | [phase-d4](../sdd/odp/phase-d4-event-type-dictionary.md) | event_type string + runtime validate |
 | D5 | [phase-d5](../sdd/odp/phase-d5-threat-profile-rules.md) | `threatProfileRules` → tracking worker |
+| D6 | [phase-d6](../sdd/odp/phase-d6-api-read-decoupling.md) | generic read API, no domain routes |
 
 Bundled vs on-prem: [ADR-014 § deployment](../adr-014-operational-domain-profile.md#где-живёт-odp-bundled-vs-on-premise).
 

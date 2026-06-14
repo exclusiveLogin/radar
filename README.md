@@ -61,12 +61,12 @@
   - **Обзор** — KPI по уровням + donut.
   - **Активные угрозы**, **Лента изменений** — feed из `event_locations` / recent events.
   - **Сообщения** — лента raw ingest (канал, время MSK, parse status).
-  - **Сводки ПВО** — агрегированные отчёты ПВО (`GET /api/map/pvo-reports`).
+  - **Macro-сводки** — агрегированные отчёты (`GET /api/map/pvo-reports`, → D6: `/map/event-feed`).
   - **Топ активности**, **Динамика событий** — sparkline + BarMini по журналу.
   - **Каналы**, **Система** — ingest providers, worker probe, WS/db health.
 - **Слои карты** (`MapLayersPanel`, toggle + вложенные настройки):
   - **Регионы / Районы / Места** — GeoJSON-контуры и маркеры operational fold.
-  - **Теплокарта** — raise-события из `event_locations` (MapLibre heatmap + точки на zoom). Период: **24ч / 7д / 1мес / всё**. Фильтр типов: **все**, **фикс**, **ПВО**, **сбит**, **вним**, **трев**. Счётчик точек в панели. API: `GET /api/map/events/heatmap?period=&until=&eventTypes=`.
+  - **Теплокарта** — raise-события из `event_locations` (MapLibre heatmap + точки на zoom). Период: **24ч / 7д / 1мес / всё**. Фильтр типов: **все**, **фикс**, **перех**, **сбит**, **вним**, **трев**. Счётчик точек в панели. API: `GET /api/map/events/heatmap?period=&until=&eventTypes=`.
   - **Таймлайн** — вкл/выкл нижний док; подсказка LIVE / REPLAY в панели слоёв.
 - **Time Machine** (`MapTimelineBar`): scrub по окну TTL (24 ч), режимы **LIVE** / **REPLAY**, `GET /api/map/snapshot?asOf=`. В replay WS отключён, heatmap и fold синхронизируются с маркером `until`. Кнопка **Live** — возврат к текущей карте.
 - **Лента системных событий** (`AppLogOverlay`, `appLogStore`) — toast-стек в правом нижнем углу viewport: загрузка/ошибки REST по виджетам и слоям карты, reconnect WS, catch admin/store. Уровни **info · warn · error**, dedup 15 с, TTL 60 с, буфер до 30 записей. Порог: `VITE_APP_LOG_LEVEL` (default `warn`).
@@ -142,7 +142,7 @@ Time Machine REPLAY (`GET /map/snapshot?asOf=`):
 - 🔔 Push / геозонные алерты.
 - 🧾 Архив с полнотext search и карточкой события.
 - 📊 Расширенная аналитика и экспорт срезов.
-- 🗺️ Треки, эллипсы прогноза, слои Kill/Pass ПВО (RFC tracking pipeline).
+- 🗺️ Треки, эллипсы прогноза, слои Kill/Pass (RFC tracking pipeline).
 
 ---
 
@@ -199,7 +199,7 @@ background:  Гео-карта (MapLibre) + HUD stats/log
 map overlay: Панель «Слои» (регионы · районы · места · теплокарта · таймлайн)
 bottom dock: MapTimelineBar (−24ч … сейчас, LIVE/REPLAY)  [если слой «Таймлайн» вкл]
 log rail:    AppLogOverlay — toast info/warn/error (правый нижний угол)
-right rail:  Угрозы · Лента · Сообщения · ПВО · Топ · Динамика · Каналы · Система  [свёрнуты]
+right rail:  Угрозы · Лента · Сообщения · Macro · Топ · Динамика · Каналы · Система  [свёрнуты]
 ```
 
 ---
@@ -422,7 +422,7 @@ Live:  region-state | place-state | warning  →  патч store (не refetch s
 | **Теплокарта** | `GET /api/map/events/heatmap` + `heatmapStore` (period, eventTypes, `until=asOf`) |
 | **Time Machine** | `historicalAsOf$` → snapshot `?asOf=`; ползунок TTL 24 ч |
 | **KPI / donut / топ** | `regionsByCode$` (derivations) |
-| **Лента / динамика / сообщения / ПВО** | `stateChanges$`, `messagesFeed$`, `pvoReports$` (REST + WS / poll) |
+| **Лента / динамика / сообщения / macro-сводки** | `stateChanges$`, `messagesFeed$`, `pvoReports$` (REST + WS / poll) |
 | **Каналы / система** | `providersStore` (REST poll 30s) + `connectionStatus$` (WS) |
 | **LiveBadge** | WS open + `/api/health` + `/api/ready`; в REPLAY — «исторический срез» |
 

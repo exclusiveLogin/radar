@@ -170,7 +170,7 @@ Processors строят связи через `anchor.span` и список `can
 - `locality` / `settlement` без `regionScope` и без явного имени в тексте;
 - фрагменты, вырезанные grooming (promo/footer).
 
-Grooming **не** вырезает operational-слова («сбитие», «ПВО», «опасность») — geo-scan идёт по словарю имён, не по построчному skip.
+Grooming **не** вырезает operational-слова («сбитие», «перехват», «опасность») — geo-scan идёт по словарю имён, не по построчному skip.
 
 ### 7. Масштаб (~128k НП)
 
@@ -277,7 +277,7 @@ deriveRegionFromPlace(placeCandidate) → region event_location / region facet
 
 - Полный **reparse raw** после смены GeoProcessor + purge aliases/heal — восстанавливает привязки к canonical places.
 - RFC [parse-processor-workspace](./rfc/parse-processor-workspace.md) — носитель контракта processors/finalizer; этот ADR — SSOT geo-match.
-- Тесты-приёмки: фикстуры Таганрог (multiline, «и близлежащие», one-liner с «сбитие»/«ПВО»).
+- Тесты-приёмки: фикстуры Таганрог (multiline, «и близлежащие», one-liner с «сбитие»/«перехват»).
 - Collapse: `Таганрог + Ростовская область` → один place-anchor в workspace; в facts — place + region из `place.region`.
 - `Таганрог` без области → тот же итог в facts: region из `place.region`.
 

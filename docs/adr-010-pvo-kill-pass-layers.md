@@ -1,15 +1,15 @@
-# ADR-010: Анализ эффективности ПВО (слои Kill / Pass)
+# ADR-010: Kill / Pass — эффективность перехвата (read-side слои)
 
 Дата: 2026-06-12  
 Статус: **Предложено**
 
-Связано: [ADR-007](./adr-007-trajectory-graph-kalman-worker.md), [roadmap](./roadmap-tracking-forecasting.md)
+Связано: [ADR-007](./adr-007-trajectory-graph-kalman-worker.md), [roadmap](./roadmap-tracking-forecasting.md), [ADR-014 § D6](./adr-014-operational-domain-profile.md#api-read-side-decoupling-фаза-d6)
 
 ---
 
 ## Контекст
 
-Operational карта показывает факты и ленту `pvo_report`, но не отвечает на вопрос: **где ПВО реально останавливает цели, а где пропускает?** Бумажный радиус поражения комплекса часто не совпадает с OSINT-наблюдениями.
+Operational карта показывает факты и ленту macro-отчётов (`pvo_report`), но не отвечает на вопрос: **где перехват реально останавливает цели, а где пропускает?** Бумажный радиус поражения комплекса часто не совпадает с OSINT-наблюдениями.
 
 **Принципы:** Kill Chain Analysis, Spatio-Temporal Interference.
 
@@ -23,20 +23,20 @@ Operational карта показывает факты и ленту `pvo_report
 
 | Слой | ID | Содержание |
 |------|-----|------------|
-| Тепловая карта ПВО | `pvo_heatmap` | Плотность `pvo_report` / air_defense событий |
-| Kill | `kill` | Terminal nodes треков в зоне ПВО (подтверждённые сбития) |
-| Pass | `pass` | Сегменты треков, прошедшие зону ПВО и продолжившие движение |
+| Report density heatmap | `pvo_heatmap` | Плотность `pvo_report` / air_defense событий (→ D6: generic filter) |
+| Kill | `kill` | Terminal nodes треков в зоне перехвата (подтверждённые сбития) |
+| Pass | `pass` | Сегменты треков, прошедшие зону и продолжившие движение |
 
 ### Классификация сегментов
 
 Вход:
 
 - `trajectory_tracks` + `trajectory_nodes` ([ADR-007](./adr-007-trajectory-graph-kalman-worker.md))
-- Зоны ПВО: buffer вокруг `pvo_report` точек + опционально полигоны покрытия (v2)
+- Зоны перехвата: buffer вокруг report-точек + опционально полигоны покрытия (v2)
 
 Правила v1:
 
-1. **Kill:** последний kinematic node трека (`correct`) попадает в зону ПВО и трек `closed` без выхода из зоны в течение `KILL_CONFIRM_WINDOW` (default 30 min).
+1. **Kill:** последний kinematic node трека (`correct`) попадает в зону и трек `closed` без выхода из зоны в течение `KILL_CONFIRM_WINDOW` (default 30 min).
 2. **Pass:** существует сегмент `[node_i → node_{i+1}]`, где `node_i` внутри зоны, `node_{i+1}` снаружи, и трек продолжается ≥ 2 nodes после выхода.
 3. **Body:** остальные сегменты трека.
 
@@ -74,11 +74,11 @@ Query: `since`, `until`, `asOf`, `bbox`, `limit`.
 }
 ```
 
-### pvo_heatmap
+### Report density heatmap
 
 Расширение существующего heatmap-паттерна ([event-heatmap.ts](../packages/shared/src/schemas/map/event-heatmap.ts)):
 
-- Фильтр: `event_type IN ('pvo_report', ...)` или `eventCategory` + dictionary
+- Фильтр: через `status_dictionary.feed_kind` / `eventCategory` (не hardcode в SQL — ADR-014 D6)
 - Отдельный endpoint или `layer=pvo_heatmap` на unified layers API
 
 ### Вычисление
@@ -91,14 +91,14 @@ Query: `since`, `until`, `asOf`, `bbox`, `limit`.
 ## Зависимости
 
 - ADR-007 — готовые треки
-- Существующий `GET /map/pvo-reports` — источник фактов, не дублировать write-path
+- Macro feed (`GET /map/event-feed` после D6) — источник фактов, не дублировать write-path
 
 ---
 
 ## Не делаем
 
-- Оценку типа БПЛА / ракеты на первом этапе
-- 3D зоны ПВО — только 2D buffer v1
+- Оценку типа цели на первом этапе
+- 3D зоны — только 2D buffer v1
 
 ---
 
@@ -106,7 +106,7 @@ Query: `since`, `until`, `asOf`, `bbox`, `limit`.
 
 | Плюс | Минус |
 |------|-------|
-| Реальная, а не бумажная картина ПВО | Качество зависит от полноты pvo_report |
+| Реальная, а не бумажная картина перехвата | Качество зависит от полноты macro-отчётов |
 | Автоматические коридоры прорыва | False kill при грубой геолокации |
 
 ---
@@ -114,5 +114,5 @@ Query: `since`, `until`, `asOf`, `bbox`, `limit`.
 ## Критерии принятия
 
 - API отдаёт три слоя, валидируемые Zod
-- Golden fixture: трек через зону ПВО → segment `pass`
+- Golden fixture: трек через зону → segment `pass`
 - Golden fixture: трек обрывается в зоне → node `kill`

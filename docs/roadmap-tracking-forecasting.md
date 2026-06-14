@@ -7,7 +7,7 @@
 
 ## Vision
 
-Платформа «Радар» накапливает разрозненные OSINT-точки (радар, визуально, ПВО, взрывы) без жёстких ID объектов. Цель домена **tracking** — автоматически связать их в направленные траектории, оценить кинематику (скорость, курс) через фильтр Калмана и дать аналитику прогноза: где цель с вероятностью 95% находится прямо сейчас, пока радары молчат, и как эффективно работает ПВО (сбития vs прорывы).
+Платформа «Радар» накапливает разрозненные OSINT-точки (радар, визуально, перехват, взрывы) без жёстких ID объектов. Цель домена **tracking** — автоматически связать их в направленные траектории, оценить кинематику (скорость, курс) через фильтр Калмана и дать аналитику прогноза: где цель с вероятностью 95% находится прямо сейчас, пока радары молчат, и насколько эффективен перехват (сбития vs прорывы).
 
 Домен **не расширяет** operational fold ([ADR-006](./adr-006-map-read-line-fold.md)); он строится поверх write-line facts (`event_locations`, `parsed_events`) и read-line Time Machine (`asOf`).
 
@@ -20,7 +20,7 @@
 | Map read-line + Time Machine | **Готово** — [ADR-006](./adr-006-map-read-line-fold.md), `MapTimelineBar`, `GET /map/snapshot?asOf=` |
 | Теплокарта событий | **Частично** — `GET /map/events/heatmap`, [event-heatmap.ts](../packages/shared/src/schemas/map/event-heatmap.ts); **нет** фильтра по `event_type` |
 | Типы событий / категории | **Есть** — `parsed_events.event_type`, `extras.eventCategory` |
-| ПВО-отчёты | **Отдельная лента** — `GET /map/pvo-reports`, не связаны с траекториями |
+| Macro-отчёты | **Отдельная лента** — `GET /map/pvo-reports`, не связаны с траекториями |
 | Kalman / треки / Deck.gl | **Отсутствуют** |
 
 ---
@@ -33,7 +33,7 @@
 | 2 | Мультимодальная селекция (кинематика vs статика) | Высокая | [ADR-008](./adr-008-kinematic-vs-static-events.md) | 1 | Предложено |
 | 3 | Предварительное OSINT-схлопывание | Средняя / **критично для MVP** | [ADR-009](./adr-009-osint-pre-collapse.md) | 1 | Предложено |
 | 4 | Визуализация эллипсов «Золушки» (ковариация P) | Высокая | [features/tracking-confidence-ellipse.md](./features/tracking-confidence-ellipse.md) | 2 | Предложено |
-| 5 | Анализ эффективности ПВО (Kill / Pass) | Очень высокая | [ADR-010](./adr-010-pvo-kill-pass-layers.md) | 3 | Предложено |
+| 5 | Анализ эффективности перехвата (Kill / Pass) | Очень высокая | [ADR-010](./adr-010-pvo-kill-pass-layers.md) | 3 | Предложено |
 | 6 | Временное цветовое кодирование (остывающие треки) | Средняя | [features/tracking-temporal-color.md](./features/tracking-temporal-color.md) | 4 | Предложено |
 | 7 | Фильтрация тепловой карты по типу событий | Базовая | [features/tracking-heatmap-filter.md](./features/tracking-heatmap-filter.md) | 1 | Предложено |
 | 8 | Flow-коридоры (P2P rollup, частотность) | Высокая | [ADR-013](./adr-013-trajectory-flow-and-path-fan.md), [features/tracking-flow-corridors.md](./features/tracking-flow-corridors.md) | 2b | Предложено |
@@ -52,7 +52,7 @@ flowchart TB
   P1[Фаза 1: MVP пайплайн]
   P2[Фаза 2: Прогноз + эллипсы]
   P2b[Фаза 2b–2c: Flow + path fan]
-  P3[Фаза 3: Kill/Pass ПВО]
+  P3[Фаза 3: Kill/Pass]
   P4[Фаза 4: Deck.gl + temporal color]
   P0 --> P1
   P1 --> P2
@@ -132,7 +132,7 @@ flowchart LR
 | **MVP** | 0 + 1 | Треки в БД, API `GET /map/tracks`, heatmap с фильтром по типу |
 | **Прогноз** | 2 | Эллипсы доверия при `asOf > lastObservation` |
 | **Коридоры и fan** | 2b–2c | P2P flow rollup, historical path fan (без fork в Kalman) |
-| **ПВО-аналитика** | 3 | Слои Kill / Pass / heatmap ПВО |
+| **Kill/Pass аналитика** | 3 | Слои Kill / Pass / report density heatmap |
 | **UX треков** | 4 | Deck.gl, остывающие линии, flow width, path fan |
 
 ---

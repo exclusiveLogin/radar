@@ -215,7 +215,7 @@ Zod: `TrajectoryTrack`, `TrajectoryNode`.
 
 - [ ] Worker rebuild идемпотентен
 - [ ] DISTINCT режет cross-channel same-place дубли
-- [ ] ПВО-точка посередине трека не обнуляет velocity
+- [ ] Статичная точка (`attach_only`) посередине трека не обнуляет velocity
 - [ ] `place_id` пишется на node где есть в event_locations
 - [ ] typecheck + lint green
 - [ ] **Без** Deck.gl, flow, fan, Kill/Pass UI

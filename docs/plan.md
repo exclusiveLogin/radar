@@ -228,7 +228,7 @@ flowchart LR
 
 ### Итерация 4 — Tracking & Forecasting (2026-06-12)
 
-Цель: автоматическая сборка траекторий из OSINT-точек, прогноз положения целей, аналитика ПВО (Kill/Pass), flow-коридоры и path fan.
+Цель: автоматическая сборка траекторий из OSINT-точек, прогноз положения целей, аналитика Kill/Pass, flow-коридоры и path fan.
 
 Документация (фаза 0 — **выполнено**):
 
@@ -250,7 +250,7 @@ flowchart LR
 
 - Фаза 2: эллипсы прогноза + Time Machine
 - Фаза 2b–2c: flow corridors + historical path fan ([ADR-013](./adr-013-trajectory-flow-and-path-fan.md))
-- Фаза 3: Kill/Pass слои ПВО
+- Фаза 3: Kill/Pass слои
 - Фаза 4: Deck.gl (tracks + flow width + fan)
 
 #### Следующий инженерный шаг
@@ -273,16 +273,16 @@ flowchart LR
 #### ODP — Operational Domain Profile
 
 - [adr-014-operational-domain-profile.md](./adr-014-operational-domain-profile.md) — архитектура
-- [rfc/operational-domain-profile-walkthrough.md](./rfc/operational-domain-profile-walkthrough.md) — шаги D0–D5, §13 карта файлов
-- [sdd/odp/](./sdd/odp/README.md) — SDD по фазам D1–D5
+- [rfc/operational-domain-profile-walkthrough.md](./rfc/operational-domain-profile-walkthrough.md) — шаги D0–D6, §13–§14 карта файлов
+- [sdd/odp/](./sdd/odp/README.md) — SDD по фазам D1–D6
 - [data/domains/](../data/domains/README.md) — pack skeleton (example only, runtime не читает)
-- Фазы: **D0** docs ✅ → **D1** parser-rules YAML → D2 bootstrap → D3 UI presets → D4 enum → D5 threat rules
+- Фазы: **D0** docs ✅ → **D1** parser-rules YAML → D2 bootstrap → D3 UI presets → D4 enum → D5 threat rules → **D6** API read decouple
 
 #### Порядок относительно Tracking
 
 | Параллельно | После T1 |
 |--------------|----------|
 | T1 + D1 + (опц.) P1 | T2b, T3, D2–D3 |
-| | T2, T2c, T4, D4–D5, P2+ |
+| | T2, T2c, T4, D4–D6, P2+ |
 
 ODP **D1** (parser pack) и Parse **P1** (workspace) усиливают качество facts для **Tracking T1**, но не блокируют его старт.

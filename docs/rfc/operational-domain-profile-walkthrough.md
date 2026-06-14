@@ -7,7 +7,7 @@
 
 ## 1. В чём проблема простыми словами
 
-Сейчас «Радар» по сути заточен под **одну задачу**: Telegram-сообщения про БПЛА, ПВО, опасность, фиксации по регионам РФ.
+Сейчас «Радар» по сути заточен под **одну OSINT-задачу**: Telegram-сообщения про БПЛА, перехват, опасность, фиксации по регионам РФ.
 
 Это не плохо для MVP — но **правила зашиты в TypeScript**:
 
@@ -141,7 +141,7 @@ Golden tests те же: «этот текст → этот тип» — толь
 
 ### Шаг 3 (D3) — UI фильтры из конфига, не из const
 
-**Сейчас:** кнопки теплокарты «фикс / ПВО / сбит …» зашиты в `EVENT_HEATMAP_FILTER_TYPES`.
+**Сейчас:** кнопки теплокарты «фикс / перех / сбит …» зашиты в `EVENT_HEATMAP_FILTER_TYPES`.
 
 **Будет:**
 
@@ -374,6 +374,7 @@ On-prem **не означает** fork репозитория: меняется 
 | `map/map.controller.ts` | validate token via `eventTypeSchema` enum | **refactor** → dictionary lookup | D4 |
 | `events/entities/status-dictionary.entity.ts` | schema | **dictionary** + cols: `domain_profile_id`, `affects_kinematics`, `threat_profile` | D2 |
 | *(new)* `domain-profile.controller.ts` | — | **loader** exposes **manifest** | D2 |
+| *(new)* `event-feed` controller | — | **generic** `GET /map/event-feed` | D6 |
 
 ### 13.5 Web — `packages/web/`
 
@@ -419,6 +420,24 @@ profile.manifest.json     ████░░░░░░  ~35% coupling
 | 5. Уровень на карте | `status_dictionary.state_level` | dictionary (уже) |
 | 6. Кнопка heatmap | `EVENT_HEATMAP_FILTER_TYPES` | manifest preset |
 | 7. Threat profile трека | (planned) hardcode | manifest rules |
+
+---
+
+## 14. API read-side (фаза D6)
+
+**Задача:** read HTTP не должен знать домен — иначе ODP неполный (endpoint pack в коде API).
+
+| Шаг | Действие |
+|-----|----------|
+| 1 | Колонки `feed_kind`, `map_surface` в `status_dictionary` |
+| 2 | `GET /map/event-feed?feedKind=…` вместо domain-маршрутов |
+| 3 | SQL только через JOIN dictionary, без `'pvo_report'` |
+| 4 | Swagger: `eventTypes` validate ⊆ active ODP |
+| 5 | Deprecated alias старых URL на 1 release |
+
+Подробно: [ADR-014 § D6](../adr-014-operational-domain-profile.md#как-api-замыкается-на-odp-без-автоэндпоинтов), [phase-d6 SDD](../sdd/odp/phase-d6-api-read-decoupling.md).
+
+**Ключевое:** shared `DomainProfileContext` в API + generic handlers + `assertQueryableEventTypes` — **не** codegen routes из manifest.
 
 ---
 

@@ -293,7 +293,7 @@ npm run parse-engine:rebuild
 | Активные угрозы | right | active region/place |
 | Лента изменений | right | recent events |
 | Сообщения | right | `GET /api/map/messages/recent` |
-| Сводки ПВО | right | `GET /api/map/pvo-reports` |
+| Macro-сводки | right | `GET /api/map/pvo-reports` (→ D6: `/map/event-feed`) |
 | Топ активности | right | top regions |
 | Динамика | right | sparkline |
 | Каналы / Система | right | providers + health |

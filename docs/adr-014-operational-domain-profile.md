@@ -9,7 +9,7 @@
 
 ## Контекст
 
-Продукт исторически заточен под **OSINT по БПЛА** (радар, Telegram-каналы, ПВО, фиксации). Это проявилось в коде как **жёсткая привязка к одному домену**, хотя архитектурно уже есть задел под конфигурацию (`status_dictionary`, phase manifest, parse workspace RFC).
+Продукт исторически заточен под **один OSINT-домен** (радар, Telegram-каналы, перехват, фиксации). Это проявилось в коде как **жёсткая привязка к одному домену**, хотя архитектурно уже есть задел под конфигурацию (`status_dictionary`, phase manifest, parse workspace RFC).
 
 **Цель:** UI, парсеры и tracking настраиваются **фильтрами и манифестами**, без правки TypeScript при добавлении типа события, смене лексики или запуске второго домена (ракеты-only, другой регион, другой язык).
 
@@ -362,7 +362,7 @@ Web читает ODP **только через API** (`GET /map/domain-profile/a
 | `eventTypeSchema` z.enum | тип системы + API validation | D4 |
 | Loader: read pack → inject classifier | инфраструктура | D1–D2 |
 | Web: читать presets из API | UI wiring | D3 |
-| `map-query` `event_type = 'pvo_report'` | generic filter by dictionary flag | small refactor |
+| `map-query` literal `event_type = '…'` | generic filter by `feed_kind` / dictionary | D6 |
 | `PROFILE_KINEMATICS` (max velocity…) | **физика**, не лексика — **остаётся в core** | — |
 | fold / Time Machine | уже через `status_dictionary` | OK |
 
@@ -376,7 +376,8 @@ Threat mapping         ✅           ✅              ✅ D5
 Geo grooming           —            ✅              ✅ loader
 Event type enum        —            —               ✅ D4
 Content kind / noise   —            partial v2      ✅
-PVO stats parse        —            v2              ✅
+Macro stats parse        —            v2              ✅
+API read routes          —            —               ✅ D6
 Kinematics physics     —            —               stays in core
 ```
 
@@ -446,8 +447,168 @@ operational_domain_profiles (
 | **D3** | UI heatmap/layers from presets + dictionary | UI const |
 | **D4** | `eventType` runtime validation; deprecate z.enum | Shared enum |
 | **D5** | Threat profile rules in ODP | Tracking resolve |
+| **D6** | [API read-side decoupling](#api-read-side-decoupling-фаза-d6) | Domain routes, SQL literals, Swagger enum |
 
-**Параллельно с Tracking P1:** D1 можно начать сразу (parser pack); D3–D5 — после или вместе с tracking.
+**Параллельно с Tracking P1:** D1 можно начать сразу (parser pack); D3–D6 — после или вместе с tracking.
+
+---
+
+## API read-side decoupling (фаза D6)
+
+**Проблема:** ODP (D1–D5) снимает coupling в parse/UI/tracking, но **HTTP read-layer остаётся domain-hardcoded**: отдельные маршруты под один домен, SQL с литералами типов, Swagger с `z.enum`, DTO с domain-полями. Это **второй полноценный endpoint pack** — без D6 смена домена потребует правки API.
+
+### Анти-patterns (запрещено после D6)
+
+| Anti-pattern | Пример сейчас | Почему плохо |
+|--------------|---------------|--------------|
+| Domain-named route | `GET /map/pvo-reports` | новый домен → новый URL |
+| Literal в SQL | `event_type = 'pvo_report'` | обходит dictionary |
+| Closed enum в query | `eventTypeSchema` z.enum | деплой на новый код |
+| Swagger examples | `fixation,pvo_work,...` | документация ≠ active ODP |
+| Widget title hardcode | название feed в UI | не из preset/dictionary |
+
+### Целевая модель
+
+```text
+Client
+  → GET /map/domain-profile/active
+  → GET /map/status-dictionary
+  → GET /map/events/heatmap?eventTypes=…
+  → GET /map/event-feed?feedKind=macro_report
+```
+
+**SSOT:** `status_dictionary` + ODP. API — тонкий query layer.
+
+| v0 | v1 |
+|----|-----|
+| `GET /map/pvo-reports` | `GET /map/event-feed?feedKind=macro_report` (+ deprecated alias) |
+| Heatmap enum | validate ⊆ active ODP + dictionary (D4) |
+
+Dictionary: `feed_kind`, `map_surface`, optional `extras_schema` (v2).
+
+### Как API «замыкается» на ODP (без автоэндпоинтов)
+
+**Ответ одной фразой:** через **общий loader в `packages/shared`** + **inject `DomainProfileContext` в API/worker** + **generic read-handlers с валидацией query** — **не** через генерацию маршрутов из `profile.manifest.json`.
+
+#### Non-goals (явно не делаем)
+
+| Подход | Почему отвергнут |
+|--------|------------------|
+| Auto-endpoint на каждый `uiPresets[]` | снова endpoint pack, только codegen; N presets → N controllers |
+| Auto-endpoint на каждый `activeEventTypes` | explosion URL; типы меняются через dictionary, не через router |
+| Web читает pack с диска | утечка deployment path; web = API client only |
+| Domain concept в path (`/map/<lexicon>/…`) | новый домен = новые routes |
+| Дублировать ODP loader в `packages/api` | два SSOT, drift worker vs API |
+
+#### SSOT и bootstrap (D2)
+
+```text
+packages/shared/src/domain/domain-profile/
+  resolveDomainPacksPath(env)
+  loadOperationalDomainProfile(profileId, basePath)
+  → DomainProfileContext   // singleton на процесс Nest/worker
+
+Worker Module.onModuleInit / worker bootstrap:
+  ctx = load…(OPERATIONAL_DOMAIN_PROFILE_ID, DOMAIN_PACKS_PATH)
+  inject → RuleBasedEventClassifier, TrackingRebuild, …
+
+API Module (Nest):
+  DomainProfileModule provides DOMAIN_PROFILE_CONTEXT
+  MapController / MapQueryService inject ctx
+```
+
+Web **не** импортирует loader — только HTTP:
+
+```text
+GET /map/domain-profile/active   → uiPresets, activeEventTypes (public subset)
+GET /map/status-dictionary       → titles, feed_kind, map_surface, kinematics
+```
+
+#### Generic endpoints vs manifest-driven routes
+
+Manifest **не порождает** URL. Он задаёт **политику**, которую **существующие** handlers применяют:
+
+| Handler (фиксированный URL) | Что берёт из ODP / dictionary |
+|-----------------------------|-------------------------------|
+| `GET /map/events/heatmap` | `eventTypes` query ⊆ `activeEventTypes` + dictionary validate |
+| `GET /map/event-feed` | `feedKind` → JOIN `status_dictionary.feed_kind` |
+| `GET /map/tracks` | threat filter опционально из preset; kinematics из dictionary |
+| `GET /map/domain-profile/active` | явная выдача manifest subset клиенту |
+
+Новый тип события или feed = **строка в dictionary** (+ опционально preset в manifest), **без** нового `@Get()` в controller.
+
+#### Validation layer (D4 + D6)
+
+Единая точка перед SQL — не размазанная по controller:
+
+```typescript
+// packages/shared или packages/api/src/map/domain-profile/
+assertQueryableEventTypes(codes: string[], ctx: DomainProfileContext): void;
+assertFeedKind(feedKind: string, ctx: DomainProfileContext): void;
+
+// Nest: guard или MapQueryService private method
+// Reject 400 если code ∉ activeEventTypes или нет в dictionary для profile
+```
+
+SQL **только** через dictionary flags:
+
+```sql
+-- ✅ после D6
+JOIN status_dictionary sd ON sd.code = pe.event_type
+WHERE sd.feed_kind = $1
+  AND (sd.domain_profile_id IS NULL OR sd.domain_profile_id = $profileId)
+
+-- ❌ запрещено
+WHERE pe.event_type = 'pvo_report'
+```
+
+#### Поток read-request (сквозной)
+
+```mermaid
+sequenceDiagram
+  participant Web
+  participant API
+  participant Ctx as DomainProfileContext
+  participant DB as status_dictionary + facts
+
+  Web->>API: GET /domain-profile/active
+  API->>Ctx: read cached ctx
+  API-->>Web: uiPresets, activeEventTypes
+
+  Web->>API: GET /events/heatmap?eventTypes=fixation,pvo_work
+  API->>Ctx: assertQueryableEventTypes
+  API->>DB: heatmap query JOIN dictionary
+  API-->>Web: GeoJSON points
+
+  Web->>API: GET /event-feed?feedKind=macro_report
+  API->>Ctx: assertFeedKind
+  API->>DB: feed query WHERE feed_kind
+  API-->>Web: feed items
+```
+
+#### Расширение домена (checklist без деплоя API)
+
+1. Добавить код в `status_dictionary` (+ `feed_kind` / `map_surface` при необходимости).
+2. Добавить код в `activeEventTypes` и preset в manifest pack.
+3. `domain:manifest:import` или reload mount (v2).
+4. Клиент подхватывает preset через `/domain-profile/active`.
+
+**Не требуется:** новый controller method, правка `z.enum`, правка Swagger enum list в TS.
+
+#### Deprecated alias (переходный)
+
+`GET /map/pvo-reports` → thin delegate на `listEventFeed({ feedKind: 'macro_report' })` + `@ApiDeprecated` одна версия. Удаление — отдельный gate (см. открытые вопросы §6).
+
+#### Где живёт код (ориентир)
+
+| Слой | Путь |
+|------|------|
+| Loader + types | `packages/shared/src/domain/domain-profile/` |
+| Nest provider | `packages/api/src/map/domain-profile/domain-profile.module.ts` |
+| Query validate | `packages/api/src/map/domain-profile/assert-queryable.ts` |
+| Generic feeds | `packages/api/src/map/event-feed/` |
+
+SDD детали: [phase-d6-api-read-decoupling.md](./sdd/odp/phase-d6-api-read-decoupling.md).
 
 ---
 
@@ -457,6 +618,7 @@ operational_domain_profiles (
 - Admin UI редактор правил (только manifest в git v1)
 - Несколько active ODP на один deployment в v1
 - Удаление `status_dictionary` в пользу только YAML (БД остаётся SSOT для runtime edits)
+- Auto-generation HTTP routes из ODP manifest (см. [§ D6 Non-goals](#non-goals-явно-не-делаем))
 
 ---
 
@@ -477,7 +639,7 @@ operational_domain_profiles (
 - [ ] Heatmap UI строится из ODP preset + dictionary (нет `EVENT_HEATMAP_FILTER_TYPES` hardcode)
 - [ ] `GET /map/status-dictionary` фильтрует по active domain profile
 - [ ] Golden tests parse проходят на pack `uav_osint_ru_v1` (parity с текущим behavior)
-- [ ] Документирован env `OPERATIONAL_DOMAIN_PROFILE_ID`
+- [ ] `GET /map/event-feed` без domain literals; deprecated aliases документированы (D6)
 
 ---
 
@@ -499,6 +661,7 @@ operational_domain_profiles (
 3. Channel-level ODP override — нужен ли в v1?
 4. Когда удалять `z.enum` event types полностью (D4 gate)?
 5. Bundled-only vs customer pack licensing (отдельный npm domain package)?
+6. D6: срок удаления `/map/pvo-reports` alias?
 
 ---
 
