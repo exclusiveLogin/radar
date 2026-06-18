@@ -92,7 +92,7 @@ let cachedRegistry: ProcessorRegistry | null = null;
 export function loadProcessorRegistry(): ProcessorRegistry {
   if (cachedRegistry) return cachedRegistry;
   const here = dirname(fileURLToPath(import.meta.url));
-  const path = join(here, "../../../../data/parse/parse-processors.v1.yaml");
+  const path = join(here, "../../../../../data/parse/parse-processors.v1.yaml");
   try {
     cachedRegistry = parseRegistryYaml(readFileSync(path, "utf8"));
   } catch {

@@ -106,7 +106,6 @@ npm run parse-engine:rebuild -w @radar/worker
 - [ ] GF-P1-01: фикстура `packages/shared/src/domain/parse/__fixtures__/gf-p1-01-taganrog.txt` — place candidate + `danger`
 - [ ] GF-P1-03: orphan sweep (unit test)
 - [ ] GF-P1-04: orchestrator даёт ≥1 materializable candidate
-- [ ] `parse:score` / `parse:ab` — geo через `execute()`, метрики не расходятся с prod path
 
 ### Enrich-фаза
 

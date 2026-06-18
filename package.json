@@ -93,9 +93,6 @@
     "parse-engine:phase:stop": "npm run parse-engine:phase:stop -w @radar/worker",
     "parse-engine:manifest:import": "npm run parse-engine:manifest:import -w @radar/worker",
     "parse-engine:manifest:export": "npm run parse-engine:manifest:export -w @radar/worker",
-    "parse:ab": "npm run parse:ab -w @radar/worker --",
-    "parse:score": "npm run parse:score -w @radar/worker --",
-    "parse:golden:bootstrap": "npm run parse:golden:bootstrap -w @radar/worker --",
     "map:fold:status": "npm run map:fold:status -w @radar/worker"
   },
   "devDependencies": {

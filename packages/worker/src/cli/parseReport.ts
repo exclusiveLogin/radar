@@ -1,5 +1,6 @@
 ﻿import * as fs from "node:fs";
 import * as path from "node:path";
+import type { ParseReport } from "@radar/shared";
 import { MONOREPO_ROOT } from "@repo/root";
 import { createWorkerCompositionRoot } from "../application/createWorkerCompositionRoot.js";
 import type { PipelineStepId } from "../infrastructure/enrichers/enricherChainFactory.js";
@@ -122,10 +123,15 @@ function buildEnricherFlags(options: CliOptions):
 async function parseFileBlocks(options: {
   filePath: string;
   parse: Awaited<ReturnType<typeof createWorkerCompositionRoot>>["parsePipelineService"]["execute"];
-}): Promise<{ payload: Array<Record<string, unknown>>; blocksCount: number }> {
+}): Promise<{
+  payload: Array<Record<string, unknown>>;
+  blocksCount: number;
+  kinds: Array<"event" | "noise" | "meta">;
+}> {
   const source = fs.readFileSync(options.filePath, "utf8");
   const blocks = splitMessageBlocks(source);
   const payload: Array<Record<string, unknown>> = [];
+  const kinds: Array<"event" | "noise" | "meta"> = [];
 
   for (let index = 0; index < blocks.length; index += 1) {
     const block = blocks[index];
@@ -136,10 +142,12 @@ async function parseFileBlocks(options: {
       file: path.basename(options.filePath),
       index,
     });
-    payload.push(result.report as unknown as Record<string, unknown>);
+    const report = result.report as ParseReport;
+    kinds.push(report.classification.kind);
+    payload.push(report as unknown as Record<string, unknown>);
   }
 
-  return { payload, blocksCount: blocks.length };
+  return { payload, blocksCount: blocks.length, kinds };
 }
 async function main(): Promise<void> {
   loadRootEnv(MONOREPO_ROOT);
@@ -170,13 +178,15 @@ async function main(): Promise<void> {
 
   const allRecords: FlatRecord[] = [];
   let totalBlocks = 0;
+  const allKinds: Array<"event" | "noise" | "meta"> = [];
 
   for (const file of files) {
-    const { payload, blocksCount } = await parseFileBlocks({
+    const { payload, blocksCount, kinds } = await parseFileBlocks({
       filePath: file,
       parse: runtime.parsePipelineService.execute.bind(runtime.parsePipelineService),
     });
     totalBlocks += blocksCount;
+    allKinds.push(...kinds);
 
     if (options.div === "file") {
       const ext = options.format === "yaml" ? "yaml" : options.format;
@@ -211,6 +221,10 @@ async function main(): Promise<void> {
     writePayload(path.join(outdir, "records.csv"), "csv", allRecords);
   }
 
+  const events = allKinds.filter((kind) => kind === "event").length;
+  const noise = allKinds.filter((kind) => kind === "noise").length;
+  const meta = allKinds.filter((kind) => kind === "meta").length;
+
   console.log(
     JSON.stringify(
       {
@@ -221,6 +235,12 @@ async function main(): Promise<void> {
         storageMode: options.storageMode,
         files: files.length,
         totalBlocks,
+        summary: {
+          events,
+          noise,
+          meta,
+          eventShare: totalBlocks > 0 ? Number((events / totalBlocks).toFixed(4)) : 0,
+        },
         csvRecords: allRecords.length,
       },
       null,

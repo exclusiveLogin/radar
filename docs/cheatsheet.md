@@ -224,9 +224,7 @@ ORDER BY rm.posted_at DESC LIMIT 10;
 | Оффлайн batch-отчёт | `npm run worker:parse:report -- --input tests --outdir reports` |
 | Snap одного текста | `npm run worker:parse:snap -- tests/snap_001.txt` |
 | Snap + LLM (Ollama) | `npm run worker:parse:snap:ollama -- --input tests/snap_001.txt` |
-| A/B catalog vs llm | `npm run parse:ab -- --input tests` |
-| Bootstrap golden set | `npm run parse:golden:bootstrap -- --input tests` |
-| Скоринг по golden | `npm run parse:score -- --input tests` |
+| Batch-отчёт + сводка | `npm run worker:parse:report -- --input tests --outdir reports` |
 
 **TTL карты:** `RADAR_MAP_STATE_TTL_HOURS` / `RADAR_MAP_STATE_TTL_MS` (default 24 ч) — на **read-line fold** (`foldMapState`); факты старше окна не участвуют. Legacy `worker:map-state:expire` и projection daemon **удалены**.
 

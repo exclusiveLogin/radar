@@ -282,7 +282,7 @@ Legacy: `geo:vendor` → `geo:sync` → `geo:seed` → `geo:db:apply` — см. 
 | Теплокарта | `GET /api/map/events/heatmap?period=24h\|7d\|30d\|all&eventTypes=...&until=` |
 | Диагностика fold | `npm run map:fold:status` |
 | Оффлайн parse | `npm run worker:parse:snap -- tests/snap_001.txt` |
-| A/B catalog vs llm | `npm run parse:ab -- --input tests` |
+| Batch-отчёт | `npm run worker:parse:report -- --input tests --outdir reports` |
 
 **TTL карты:** `RADAR_MAP_STATE_TTL_HOURS` (default 24) — на read-line fold; legacy `worker:map-state:expire` удалён.
 
