@@ -1,12 +1,11 @@
 import type { IPlaceCacheRepository } from "@radar/shared";
-import { RuleBasedEventClassifier } from "../../infrastructure/classifiers/ruleBasedEventClassifier.js";
-import { DadataEnricher } from "../../infrastructure/enrichers/dadataEnricher.js";
-import { loadDadataToken } from "../../infrastructure/enrichers/dadataConfig.js";
 import {
   DEFAULT_PIPELINE_ORDER,
   type PipelineStepId,
   type ResolvedEnricherFlags,
 } from "../../infrastructure/enrichers/enricherChainFactory.js";
+import { DadataEnricher } from "../../infrastructure/enrichers/dadataEnricher.js";
+import { loadDadataToken } from "../../infrastructure/enrichers/dadataConfig.js";
 import { LlmEnricher } from "../../infrastructure/enrichers/llmEnricher.js";
 import type { LlmRuntimeConfig } from "../../infrastructure/enrichers/llmRuntimeConfig.js";
 import { NominatimEnricher } from "../../infrastructure/enrichers/nominatimEnricher.js";
@@ -56,7 +55,6 @@ export function createParsePipeline(
   geoCatalog?: GeoCatalog,
 ): { pipeline: ParsePipelineService; resolution: LocationResolutionService } {
   const catalog = geoCatalog ?? GeoCatalog.loadFromArtifacts();
-  const classifier = new RuleBasedEventClassifier(catalog.getRegionCatalog());
   const cache = placeCache ?? new InMemoryPlaceCacheRepository();
   const stepFactories = createStepFactories({
     geoCatalog: catalog,
@@ -70,6 +68,6 @@ export function createParsePipeline(
     .filter((s): s is GeoPipelineStep => s !== null);
 
   const resolution = new LocationResolutionService(steps);
-  const pipeline = new ParsePipelineService(classifier, resolution);
+  const pipeline = new ParsePipelineService(resolution, catalog);
   return { pipeline, resolution };
 }

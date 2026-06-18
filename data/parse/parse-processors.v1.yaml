@@ -1,0 +1,18 @@
+schemaVersion: 1
+revision: "2026-06-16.1"
+processors:
+  - id: geo-processor
+    enabled: true
+    order: 10
+  - id: event-type-processor
+    enabled: true
+    order: 20
+  - id: repeat-processor
+    enabled: true
+    order: 30
+  - id: mass-processor
+    enabled: true
+    order: 40
+  - id: count-processor
+    enabled: true
+    order: 50

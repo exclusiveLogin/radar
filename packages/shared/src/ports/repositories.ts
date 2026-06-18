@@ -226,9 +226,40 @@ export interface IRawMessageRepository {
 
 export type ParsedEventRecord = ParsedEvent & { id: string };
 
+export type MessageParseWorkspaceRecord = {
+  id: string;
+  rawMessageId: string;
+  parserRevision: string;
+  status: "draft" | "finalized" | "superseded" | "invalid";
+  groomedText: string;
+  workspace: import("../schemas/parse/parse-workspace.js").ParseWorkspace;
+  spawnedEventIds: string[];
+  candidateEventMap: Record<string, string>;
+  finalizedAt?: string;
+  createdAt: string;
+};
+
 export interface IParsedEventRepository {
   upsert(parsed: ParsedEvent): Promise<{ id: string }>;
+  /** Legacy: первый event по raw (DESC parsed_at). */
   findByRawMessageId(rawMessageId: string): Promise<ParsedEventRecord | null>;
+  findAllByRawMessageId(rawMessageId: string): Promise<ParsedEventRecord[]>;
+  upsertById(id: string | undefined, parsed: ParsedEvent): Promise<{ id: string }>;
+  deactivateById(id: string, inactiveReason?: string): Promise<void>;
+  hardDeleteById(id: string): Promise<void>;
+}
+
+export interface IMessageParseWorkspaceRepository {
+  findActiveByRawMessageId(rawMessageId: string): Promise<MessageParseWorkspaceRecord | null>;
+  supersedeActiveForRaw(rawMessageId: string): Promise<void>;
+  saveFinalized(input: {
+    rawMessageId: string;
+    parserRevision: string;
+    groomedText: string;
+    workspace: MessageParseWorkspaceRecord["workspace"];
+    spawnedEventIds: string[];
+    candidateEventMap: Record<string, string>;
+  }): Promise<MessageParseWorkspaceRecord>;
 }
 
 export interface IEventLocationRepository {

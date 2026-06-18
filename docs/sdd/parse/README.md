@@ -1,19 +1,22 @@
 # Parse Workspace — SDD
 
-Статус: **ready for implementation** (2026-06-14)  
+Статус: **P1–P4 реализовано в коде** (2026-06-16) · [план приёмки](./implementation-plan.md)  
 База: [parse-processor-workspace.md](../../rfc/parse-processor-workspace.md) · Индекс SDD: [../README.md](../README.md)
 
 ---
 
 ## Индекс фаз
 
-| Фаза | SDD | Критерий входа | Коммиты |
-|------|-----|----------------|---------|
-| **P0** | — (RFC ✅) | — | — |
-| **P1** | [phase-p1-workspace-finalizer.md](./phase-p1-workspace-finalizer.md) | RFC контракт согласован | 3–4 |
-| **P2** | [phase-p2-trait-processors.md](./phase-p2-trait-processors.md) | P1 heal stable | 2 |
-| **P3** | [phase-p3-processor-registry.md](./phase-p3-processor-registry.md) | P2 traits | 2 |
-| **P4** | [phase-p4-semantic-segmenter.md](./phase-p4-semantic-segmenter.md) | P3 registry | 2+ |
+| Фаза | SDD | Статус | Коммиты |
+|------|-----|--------|---------|
+| **P0** | — (RFC ✅) | ✅ | — |
+| **P1** | [phase-p1-workspace-finalizer.md](./phase-p1-workspace-finalizer.md) | ✅ код | 3–4 |
+| **P2** | [phase-p2-trait-processors.md](./phase-p2-trait-processors.md) | ✅ код | 2 |
+| **P3** | [phase-p3-processor-registry.md](./phase-p3-processor-registry.md) | ✅ код | 2 |
+| **P4** | [phase-p4-semantic-segmenter.md](./phase-p4-semantic-segmenter.md) | ✅ код | 2+ |
+| **P5** | — (legacy removal) | 🔶 частично | 1 |
+
+**Приёмка:** [implementation-plan.md](./implementation-plan.md) — чеклист проверки.
 
 ---
 

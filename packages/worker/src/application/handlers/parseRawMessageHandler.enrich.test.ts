@@ -8,9 +8,11 @@ import {
 } from "../../application/geo-pipeline/geoEnrichmentState.js";
 import {
   InMemoryEventLocationRepository,
+  InMemoryMessageParseWorkspaceRepository,
   InMemoryParsedEventRepository,
 } from "../../application/handlers/inMemoryRepositories.js";
 import { ParseRawMessageHandler } from "../../application/handlers/parseRawMessageHandler.js";
+import { createParseWorkspaceStack } from "../../application/parse/createParseWorkspaceStack.js";
 import { GeoValidationService } from "../../application/parsing/geoValidationService.js";
 import { createParsePipeline } from "../../application/parsing/createParsePipeline.js";
 import { GeoCatalog } from "../../infrastructure/geo-catalog/index.js";
@@ -29,10 +31,11 @@ function buildHandler(input: {
   regions: typeof regionRecord[];
   parsedEvents: InMemoryParsedEventRepository;
   eventLocations: InMemoryEventLocationRepository;
+  workspaces: InMemoryMessageParseWorkspaceRepository;
   phaseMode: "baseline" | "enrich";
 }) {
   const geoCatalog = GeoCatalog.loadFromArtifacts();
-  const { pipeline } = createParsePipeline(
+  const { resolution } = createParsePipeline(
     {
       enricherFlags: {
         llm: input.enrichers.includes("llm"),
@@ -68,15 +71,20 @@ function buildHandler(input: {
     { upsertMany: async () => {}, findById: async () => null, findByFias: async () => null, findByStemInRegion: async () => null, findByNameInRegion: async () => null, mergeContribution: async () => ({ updated: {} as never, appliedFields: [] }) },
     { upsertAlias: async () => {}, findByAlias: async () => [] },
   );
+  const { workspaceService } = createParseWorkspaceStack({
+    geoCatalog,
+    resolution,
+    validation,
+    parsedEvents: input.parsedEvents,
+    eventLocations: input.eventLocations,
+    messageParseWorkspaces: input.workspaces,
+  });
   return new ParseRawMessageHandler(
-    pipeline,
+    workspaceService,
     input.parsedEvents,
     input.eventLocations,
     { append: async () => {} },
-    { upsertMany: async () => {}, findById: async () => null, findByFias: async () => null, findByStemInRegion: async () => null, findByNameInRegion: async () => null, mergeContribution: async () => ({ updated: {} as never, appliedFields: [] }) },
-    validation,
     { publish: async () => {} },
-    undefined,
     { phaseId: input.phaseMode === "baseline" ? "catalog" : "llm", phaseMode: input.phaseMode },
   );
 }
@@ -87,6 +95,7 @@ const rawText =
 test("enrich после catalog не затирает evloc при пустом llm delta", async () => {
   const parsedEvents = new InMemoryParsedEventRepository();
   const eventLocations = new InMemoryEventLocationRepository();
+  const workspaces = new InMemoryMessageParseWorkspaceRepository();
   const raw = {
     id: "11111111-1111-1111-1111-111111111111",
     hash: "hash",
@@ -103,13 +112,18 @@ test("enrich после catalog не затирает evloc при пустом 
     regions: [regionRecord],
     parsedEvents,
     eventLocations,
+    workspaces,
     phaseMode: "baseline",
   });
   await baselineHandler.handle(raw);
 
-  const afterBaseline = await parsedEvents.findByRawMessageId(raw.id!);
-  assert.ok(afterBaseline);
-  const baselineLocs = await eventLocations.listForParsedEvent(afterBaseline!.id);
+  const afterBaselineAll = await parsedEvents.findAllByRawMessageId(raw.id!);
+  assert.ok(afterBaselineAll.length > 0);
+  let baselineLocs: EventLocation[] = [];
+  for (const row of afterBaselineAll) {
+    const locs = await eventLocations.listForParsedEvent(row.id);
+    if (locs.length > baselineLocs.length) baselineLocs = locs;
+  }
   assert.ok(baselineLocs.length > 0);
 
   const enrichHandler = buildHandler({
@@ -117,12 +131,17 @@ test("enrich после catalog не затирает evloc при пустом 
     regions: [regionRecord],
     parsedEvents,
     eventLocations,
+    workspaces,
     phaseMode: "enrich",
   });
   await enrichHandler.handle(raw);
 
-  const afterEnrich = await parsedEvents.findByRawMessageId(raw.id!);
-  const enrichLocs = await eventLocations.listForParsedEvent(afterEnrich!.id);
+  const afterEnrichAll = await parsedEvents.findAllByRawMessageId(raw.id!);
+  let enrichLocs: EventLocation[] = [];
+  for (const row of afterEnrichAll) {
+    const locs = await eventLocations.listForParsedEvent(row.id);
+    if (locs.length > enrichLocs.length) enrichLocs = locs;
+  }
   assert.ok(enrichLocs.length > 0);
   assert.equal(enrichLocs[0]?.regionCode, "RU-BRY");
 });

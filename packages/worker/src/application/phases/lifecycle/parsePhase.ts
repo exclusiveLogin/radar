@@ -21,7 +21,7 @@ export async function wipeParsePhase(input: {
       dryRun: true,
       counts: {},
       notes: [
-        "TRUNCATE parsed_events (+ event_locations), parse_attempts, event_evidence, place_enrichment_jobs.",
+        "TRUNCATE message_parse_workspace, parsed_events (+ event_locations), parse_attempts, event_evidence, place_enrichment_jobs.",
         "raw_messages не трогает.",
       ],
     };

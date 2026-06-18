@@ -142,6 +142,19 @@ export {
   wsServerMessageSchema,
 } from "./realtime";
 export {
+  attachRuleSchema,
+  eventCandidateAnchorSchema,
+  eventCandidateSchema,
+  finalizeContextSchema,
+  finalizeModeSchema,
+  finalizeResultSchema,
+  messageBlockKindSchema,
+  messageBlockSchema,
+  messageParseWorkspaceStatusSchema,
+  parseWorkspaceSchema,
+  traitAttachmentSchema,
+} from "./parse";
+export {
   parseReportClassificationSchema,
   parseReportEnrichSchema,
   parseReportEventSchema,
@@ -292,6 +305,17 @@ export type {
   WsClientMessage,
   WsServerMessage,
 } from "./realtime";
+export type {
+  AttachRule,
+  EventCandidate,
+  FinalizeContext,
+  FinalizeMode,
+  FinalizeResult,
+  MessageBlock,
+  MessageParseWorkspaceStatus,
+  ParseWorkspace,
+  TraitAttachment,
+} from "./parse";
 export type {
   ParseReport,
   ParseReportClassification,

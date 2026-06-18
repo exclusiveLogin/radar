@@ -11,7 +11,7 @@ export { TypeOrmIngestBindingRepository } from "./typeorm-ingest-binding.reposit
 export { TypeOrmIngestBackfillJobRepository } from "./typeorm-ingest-backfill-job.repository";
 export { TypeOrmChannelRepository } from "./typeorm-channel.repository";
 export { TypeOrmRawMessageTelegramExtensionRepository } from "./typeorm-raw-message-telegram.repository";
-export { TypeOrmParsedEventRepository } from "./typeorm-parsed-event.repository";
+export { TypeOrmParsedEventRepository, TypeOrmMessageParseWorkspaceRepository } from "./typeorm-parsed-event.repository";
 export { TypeOrmPhaseDefinitionRepository } from "./typeorm-phase-definition.repository";
 export { TypeOrmParseAttemptRepository } from "./typeorm-parse-attempt.repository";
 export { TypeOrmPlaceAliasRepository } from "./typeorm-place-alias.repository";

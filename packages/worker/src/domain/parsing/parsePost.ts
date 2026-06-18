@@ -4,22 +4,10 @@ import { extractDirection } from "./extractDirection.js";
 import { extractEventSubject, extractEventType } from "./extractEventType.js";
 import { extractMacroZone } from "./extractMacroZone.js";
 import { extractRepeatFlag } from "./extractRepeatFlag.js";
+import { inferSeverity } from "./inferSeverity.js";
 import { PARSER_VERSION } from "./version.js";
 
 const UNKNOWN_RAW_MESSAGE_ID = "00000000-0000-0000-0000-000000000000";
-
-/** Грубая оценка остроты для UI и фильтров: от спокойного «инфо» до «критично» по маркерам в тексте. */
-function inferSeverity(
-  raw: string,
-  eventType: EventType,
-): "info" | "attention" | "danger" | "critical" {
-  if (eventType === "cleared") return "info";
-  if (eventType === "rocket_threat") return "critical";
-  if (/сбит|реактив/i.test(raw)) return "critical";
-  if (/опасност|тревог/i.test(raw)) return "danger";
-  if (/внимани/i.test(raw)) return "attention";
-  return "info";
-}
 
 /** Собирает DTO события для пайплайна, если текст классифицирован как тревога/сигнал. Иначе — «шум». */
 export function parsePost(rawPost: string): ClassifiedPost {

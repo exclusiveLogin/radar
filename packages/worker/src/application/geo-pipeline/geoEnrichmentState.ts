@@ -66,7 +66,8 @@ export async function loadGeoEnrichmentState(input: {
   parsedEvents: IParsedEventRepository;
   eventLocations: IEventLocationRepository;
 }): Promise<GeoEnrichmentStateLoadResult | null> {
-  const record = await input.parsedEvents.findByRawMessageId(input.rawMessageId);
+  const all = await input.parsedEvents.findAllByRawMessageId(input.rawMessageId);
+  const record = all.find((row) => row.isActive !== false) ?? all[0];
   if (!record) {
     return null;
   }

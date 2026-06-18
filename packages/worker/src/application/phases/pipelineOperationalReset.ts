@@ -7,9 +7,22 @@ import { stopAllActivePhaseRuns } from "./stopAllActivePhaseRuns.js";
 
 export const PIPELINE_RESET_REASON = "pipeline:operational-reset";
 
-/** TRUNCATE parsed_events (+ event_locations CASCADE). */
+/** TRUNCATE message_parse_workspace + parsed_events (+ CASCADE). */
+export async function clearParseLayerArtifacts(dataSource: DataSource): Promise<{
+  workspacesDeleted: number;
+  parsedEventsDeleted: number;
+}> {
+  const workspacesDeleted = await truncateTableCounted(dataSource, "message_parse_workspace");
+  const parsedEventsDeleted = await truncateTableCounted(dataSource, "parsed_events", {
+    cascade: true,
+  });
+  return { workspacesDeleted, parsedEventsDeleted };
+}
+
+/** @deprecated Используйте clearParseLayerArtifacts */
 export async function clearParsedArtifacts(dataSource: DataSource): Promise<number> {
-  return truncateTableCounted(dataSource, "parsed_events", { cascade: true });
+  const result = await clearParseLayerArtifacts(dataSource);
+  return result.parsedEventsDeleted;
 }
 
 export type PipelineOperationalResetInput = {
@@ -44,7 +57,7 @@ export async function runPipelineOperationalReset(
   });
   const map = await mapReset.run(new Date(), PIPELINE_RESET_REASON);
 
-  const parsedEventsDeleted = await clearParsedArtifacts(dataSource);
+  const { parsedEventsDeleted } = await clearParseLayerArtifacts(dataSource);
   const parseAttemptsDeleted = await truncateTableCounted(dataSource, "parse_attempts");
 
   const allPhaseIds = (await repos.phaseDefinitions.listAll()).map((p) => p.id);

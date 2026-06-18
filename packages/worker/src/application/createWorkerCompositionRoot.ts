@@ -14,6 +14,7 @@ import type {
   IIngestBindingRepository,
   IIngestCursorRepository,
   IIngestProviderRepository,
+  IMessageParseWorkspaceRepository,
   IParsedEventRepository,
   IPlaceAliasRepository,
   IPlaceCacheRepository,
@@ -46,6 +47,7 @@ import {
   InMemoryPlaceEnrichmentJobRepository,
   InMemoryPlaceRepository,
   InMemoryParsedEventRepository,
+  InMemoryMessageParseWorkspaceRepository,
   InMemoryRegionRepository,
   InMemoryRawMessageRepository,
 } from "./handlers/inMemoryRepositories.js";
@@ -59,6 +61,7 @@ import type {
 } from "../infrastructure/enrichers/enricherChainFactory.js";
 import { GeoCatalog } from "../infrastructure/geo-catalog/index.js";
 import { GeoValidationService } from "./parsing/geoValidationService.js";
+import { createParseWorkspaceStack } from "./parse/createParseWorkspaceStack.js";
 import { createParsePipeline } from "./parsing/createParsePipeline.js";
 import { isParseWorkerPoolEnabled, ParseWorkerPool } from "./parsing/parseWorkerPool.js";
 import {
@@ -163,6 +166,8 @@ export async function createWorkerCompositionRoot(
 
   let rawMessages: IRawMessageRepository = new InMemoryRawMessageRepository();
   let parsedEvents: IParsedEventRepository = new InMemoryParsedEventRepository();
+  let messageParseWorkspaces: IMessageParseWorkspaceRepository =
+    new InMemoryMessageParseWorkspaceRepository();
   let eventLocations: IEventLocationRepository = new InMemoryEventLocationRepository();
   let eventEvidence: IEventEvidenceRepository = new InMemoryEventEvidenceRepository();
   let regions: IRegionRepository = new InMemoryRegionRepository();
@@ -189,6 +194,7 @@ export async function createWorkerCompositionRoot(
 
     rawMessages = repos.rawMessages;
     parsedEvents = repos.parsedEvents;
+    messageParseWorkspaces = repos.messageParseWorkspaces;
     eventLocations = repos.eventLocations;
     eventEvidence = repos.eventEvidence;
     regions = repos.regions;
@@ -248,15 +254,20 @@ export async function createWorkerCompositionRoot(
     bus,
     cursors,
   );
+  const { workspaceService } = createParseWorkspaceStack({
+    geoCatalog,
+    resolution,
+    validation,
+    parsedEvents,
+    eventLocations,
+    messageParseWorkspaces,
+  });
   const parseRawMessageHandler = new ParseRawMessageHandler(
-    pipeline,
+    workspaceService,
     parsedEvents,
     eventLocations,
     eventEvidence,
-    places,
-    validation,
     bus,
-    parseWorkerPool,
   );
 
   if (workerRepos) {
@@ -272,11 +283,13 @@ export async function createWorkerCompositionRoot(
       phaseDefinitions: workerRepos.phaseDefinitions,
       phaseRuns: workerRepos.phaseRuns,
       parsedEvents: workerRepos.parsedEvents,
+      messageParseWorkspaces: workerRepos.messageParseWorkspaces,
       eventLocations: workerRepos.eventLocations,
       eventEvidence: workerRepos.eventEvidence,
       placeEnrichmentJobs: workerRepos.placeEnrichmentJobs,
       places: workerRepos.places,
       validation,
+      geoCatalog,
       placeCache,
       events: bus,
       placeEnrichmentRunner,
@@ -370,6 +383,7 @@ export async function createWorkerCompositionRoot(
     locationResolutionService: resolution,
     parsePipelineService: pipeline,
     parseWorkerPool,
+    workspaceService,
     ingestRawMessageHandler,
     parseRawMessageHandler,
     ingestOrchestrator,

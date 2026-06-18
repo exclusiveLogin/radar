@@ -15,7 +15,8 @@ PowerShell, корень репозитория. Нужны `DATABASE_URL`, `RAD
   raw_messages              ← ingest
         │
         ▼
-  parsed_events             ← parse (матч к places в БД)
+  message_parse_workspace   ← parse workspace (lineage)
+  parsed_events             ← finalize (матч к places в БД)
   event_locations
         │
         ▼
@@ -45,12 +46,13 @@ data/geo/catalog/  →  geo:catalog:import
 | # | Команда | Импакт | Удаляет | Оставляет |
 |---|---------|--------|---------|-----------|
 | 1 | `parse-engine:system:wipe -- --confirm` | 🔴 max | raw + parsed + карта + places + regions + geo_feature | конфиг ingest/фаз, схема БД |
-| 2 | `parse-engine:clear` | 🟠 | raw + parsed + карта + cursors | **places, regions, geo_feature** |
+| 2 | `parse-engine:clear` | 🟠 | raw + parsed + workspace + карта + cursors | **places, regions, geo_feature** |
 | 3 | `geo:catalog:reset -- --confirm` | 🟠 | гео-справочник целиком | raw, parsed (`event_locations.place_id` → NULL) |
 | 4 | `parse-engine:catalog:wipe` | 🟡 | places, aliases, parsed, read-model | regions, geo_feature, raw |
 | 5 | `geo-catalog:wipe` | 🟡 | regions, geo_feature, place_geo_link | places должны быть пусты |
 | 6 | `ingest-parse:wipe` | 🟡 | = ingest:wipe (raw + parsed + карта) | places, regions |
-| 7 | `parse-engine:reset` | 🟢 | parsed + карта + очереди; **raw остаётся** | raw, places, regions |
+| 7 | `parse-engine:reset` | 🟢 | parsed + workspace + карта + очереди; **raw остаётся** | raw, places, regions |
+| 7b | `parse-engine:workspace:heal` | 🟢 | reconcile без wipe: re-finalize по каналу/raw | raw, workspace row UPDATE |
 | 8 | `geo:wipe` | 🟢 | places, aliases | regions, geo_feature, raw |
 | 9 | `geo:reset` | 🟢 | trust/coords/bbox на places, jobs | строки places |
 | 10 | `parse-engine:catalog:purge-garbage` | ⚪ | деактивирует мусорные ingest-places | остальное |

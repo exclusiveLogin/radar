@@ -86,6 +86,8 @@ export const parseReportSchema = z.object({
     .optional(),
   geoPipeline: geoPipelineReportSchema.optional(),
   geoArtifact: geoEnrichmentArtifactSchema.optional(),
+  candidates: z.array(z.record(z.unknown())).optional(),
+  workspace: z.record(z.unknown()).optional(),
 });
 
 export type ParseReport = z.infer<typeof parseReportSchema>;

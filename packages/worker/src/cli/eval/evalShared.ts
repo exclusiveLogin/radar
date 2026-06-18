@@ -13,9 +13,10 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import type { EventLocation } from "@radar/shared";
 import { splitMessageBlocks } from "../../domain/parsing/index.js";
+import { resolveInputPath } from "../cliPaths.js";
 import { RuleBasedEventClassifier } from "../../infrastructure/classifiers/ruleBasedEventClassifier.js";
 import { createParsePipeline } from "../../application/parsing/createParsePipeline.js";
-import type { LocationResolutionService } from "../../application/parsing/locationResolutionService.js";
+import type { ParsePipelineService } from "../../application/parsing/parsePipelineService.js";
 import { loadLlmRuntimeConfig } from "../../infrastructure/enrichers/llmRuntimeConfig.js";
 import {
   GeoCatalog,
@@ -130,26 +131,19 @@ export function createModeResolvers(
     llmRuntimeConfig,
   });
 
-  const wrap = (mode: EvalMode, resolution: LocationResolutionService): ModeResolver => ({
+  const wrap = (mode: EvalMode, pipeline: ParsePipelineService): ModeResolver => ({
     mode,
     async resolve(text: string) {
-      const result = await resolution.resolve(text);
+      const result = await pipeline.execute({ rawText: text });
       return result.locations.map((loc) => toNormalized(catalogIndex, loc));
     },
   });
 
   return {
-    catalog: wrap("catalog", catalogPipeline.resolution),
-    llm: wrap("llm", llmPipeline.resolution),
+    catalog: wrap("catalog", catalogPipeline.pipeline),
+    llm: wrap("llm", llmPipeline.pipeline),
     catalogIndex,
   };
-}
-
-function resolveInputPath(arg: string): string {
-  if (path.isAbsolute(arg)) return arg;
-  const local = path.resolve(process.cwd(), arg);
-  if (fs.existsSync(local)) return local;
-  return path.resolve(process.cwd(), "../../", arg);
 }
 
 /** Возвращает список .txt фикстур из файла или каталога. */

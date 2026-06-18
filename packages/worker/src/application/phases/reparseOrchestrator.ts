@@ -4,7 +4,7 @@ import type { WorkerDbRepositories } from "../../infrastructure/persistence/work
 import type { PhaseIngestFlowDeps } from "./phaseIngestFlow.js";
 import { runPostIngestPhaseFlow } from "./phaseIngestFlow.js";
 import { MapStateFullReset } from "../map-state/mapStateFullReset.js";
-import { clearParsedArtifacts } from "./pipelineOperationalReset.js";
+import { clearParseLayerArtifacts, clearParsedArtifacts } from "./pipelineOperationalReset.js";
 import { sortPhasesByOrder } from "./phaseOrder.js";
 
 export { clearParsedArtifacts } from "./pipelineOperationalReset.js";
@@ -36,7 +36,7 @@ export async function runFullReparseLikeIngest(input: FullReparseInput): Promise
   });
   await mapReset.run(new Date(), "reparse:invalidate");
 
-  await clearParsedArtifacts(input.dataSource);
+  await clearParseLayerArtifacts(input.dataSource);
   const phasesInvalidated =
     phaseIds.length > 0
       ? await input.repos.phaseCoverage.invalidateForPhases(phaseIds)

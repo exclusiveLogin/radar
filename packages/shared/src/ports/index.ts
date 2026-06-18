@@ -45,6 +45,8 @@ export type {
   IChannelRepository,
   IParsedEventRepository,
   ParsedEventRecord,
+  IMessageParseWorkspaceRepository,
+  MessageParseWorkspaceRecord,
   IPlaceAliasRepository,
   IPlaceCacheRepository,
   IPlaceRepository,

@@ -13,8 +13,8 @@ import {
   InMemoryPlaceRepository,
   InMemoryRegionRepository,
 } from "../application/handlers/inMemoryRepositories.js";
-import { RuleBasedEventClassifier } from "../infrastructure/classifiers/ruleBasedEventClassifier.js";
 import { loadRootEnv } from "../infrastructure/config/loadRootEnv.js";
+import { resolveInputPath } from "./cliPaths.js";
 import { splitMessageBlocks } from "../domain/parsing/index.js";
 import {
   hasAnyFlag,
@@ -70,13 +70,6 @@ function parseParseSnapCli(argv: string[]): ParsedCli {
         : undefined,
     ),
   };
-}
-
-function resolveInputPath(arg: string): string {
-  if (path.isAbsolute(arg)) return arg;
-  const local = path.resolve(process.cwd(), arg);
-  if (fs.existsSync(local)) return local;
-  return path.resolve(process.cwd(), "../../", arg);
 }
 
 function buildSummary(kinds: Array<"event" | "noise" | "meta">): ParseSummary {
@@ -152,13 +145,22 @@ export async function runParseSnap(
   const runtime = await createWorkerCompositionRoot(buildRuntimeOptions(cli));
   const source = fs.readFileSync(filePath, "utf8");
   const blocks = splitMessageBlocks(source);
-  const classifier = new RuleBasedEventClassifier();
-  const results = blocks.map((block, index) => ({
-    index,
-    block,
-    result: classifier.classify(block),
-  }));
-  const summary = buildSummary(results.map((row) => row.result.kind));
+  const results = [];
+  for (const [index, block] of blocks.entries()) {
+    const executed = await runtime.parsePipelineService.execute({
+      rawText: block,
+      index,
+      file: path.basename(filePath),
+    });
+    results.push({
+      index,
+      block,
+      kind: executed.report.classification.kind,
+      report: executed.report,
+      locations: executed.locations,
+    });
+  }
+  const summary = buildSummary(results.map((row) => row.kind));
 
   if (cli.withGeoReport) {
     summary.geoEnrichers = {
@@ -176,8 +178,8 @@ export async function runParseSnap(
     let rejected = 0;
 
     for (const row of results) {
-      if (row.result.kind !== "event") continue;
-      const resolved = await runtime.locationResolutionService.resolve(row.block);
+      if (row.kind !== "event") continue;
+      const resolved = { locations: row.locations };
       if (resolved.locations.length === 0) {
         rejected += 1;
         continue;
@@ -219,9 +221,13 @@ export async function runParseSnap(
         summary,
         results: results.map((row) => ({
           index: row.index,
-          kind: row.result.kind,
-          reason: "reason" in row.result ? row.result.reason : undefined,
-          event: "event" in row.result ? row.result.event : undefined,
+          kind: row.kind,
+          reason:
+            row.report.classification.kind !== "event"
+              ? row.report.classification.reason
+              : undefined,
+          event: row.report.event,
+          candidates: row.report.candidates,
         })),
       },
         null,

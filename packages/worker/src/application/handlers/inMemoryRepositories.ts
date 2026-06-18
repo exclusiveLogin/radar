@@ -16,6 +16,8 @@ import type {
   IRegionRepository,
   IEventLocationRepository,
   IParsedEventRepository,
+  IMessageParseWorkspaceRepository,
+  MessageParseWorkspaceRecord,
   IRawMessageRepository,
   PlaceAliasRecord,
   PlaceRecord,
@@ -65,26 +67,97 @@ export class InMemoryRawMessageRepository implements IRawMessageRepository {
 
 export class InMemoryParsedEventRepository implements IParsedEventRepository {
   private readonly byId = new Map<string, ParsedEvent & { id: string }>();
-  private readonly idByRawMessage = new Map<string, string>();
 
   async upsert(parsed: ParsedEvent): Promise<{ id: string }> {
-    const existingId = this.idByRawMessage.get(parsed.rawMessageId);
-    if (existingId) {
-      this.byId.set(existingId, { ...parsed, id: existingId });
-      return { id: existingId };
-    }
-    const id = randomUUID();
-    this.idByRawMessage.set(parsed.rawMessageId, id);
-    this.byId.set(id, { ...parsed, id });
-    return { id };
+    const existing = [...this.byId.values()].find(
+      (row) =>
+        row.rawMessageId === parsed.rawMessageId
+        && row.parserVersion === parsed.parserVersion,
+    );
+    return this.upsertById(existing?.id, parsed);
   }
 
   async findByRawMessageId(rawMessageId: string): Promise<(ParsedEvent & { id: string }) | null> {
-    const id = this.idByRawMessage.get(rawMessageId);
-    if (!id) {
-      return null;
+    const all = await this.findAllByRawMessageId(rawMessageId);
+    return all[0] ?? null;
+  }
+
+  async findAllByRawMessageId(rawMessageId: string): Promise<(ParsedEvent & { id: string })[]> {
+    return [...this.byId.values()]
+      .filter((row) => row.rawMessageId === rawMessageId)
+      .sort((a, b) => b.postedAt.localeCompare(a.postedAt));
+  }
+
+  async upsertById(id: string | undefined, parsed: ParsedEvent): Promise<{ id: string }> {
+    if (id && this.byId.has(id)) {
+      this.byId.set(id, { ...parsed, id });
+      return { id };
     }
-    return this.byId.get(id) ?? null;
+    const newId = id ?? randomUUID();
+    this.byId.set(newId, { ...parsed, id: newId });
+    return { id: newId };
+  }
+
+  async deactivateById(id: string, inactiveReason?: string): Promise<void> {
+    const row = this.byId.get(id);
+    if (!row) return;
+    this.byId.set(id, {
+      ...row,
+      isActive: false,
+      inactiveReason: inactiveReason ?? "workspace:orphan_sweep",
+    });
+  }
+
+  async hardDeleteById(id: string): Promise<void> {
+    this.byId.delete(id);
+  }
+}
+
+export class InMemoryMessageParseWorkspaceRepository implements IMessageParseWorkspaceRepository {
+  private readonly rows = new Map<string, MessageParseWorkspaceRecord>();
+
+  async findActiveByRawMessageId(
+    rawMessageId: string,
+  ): Promise<MessageParseWorkspaceRecord | null> {
+    const rows = [...this.rows.values()]
+      .filter((row) => row.rawMessageId === rawMessageId && row.status === "finalized")
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    return rows[0] ?? null;
+  }
+
+  async supersedeActiveForRaw(rawMessageId: string): Promise<void> {
+    for (const [id, row] of this.rows) {
+      if (row.rawMessageId === rawMessageId && row.status === "finalized") {
+        this.rows.set(id, { ...row, status: "superseded" });
+      }
+    }
+  }
+
+  async saveFinalized(input: {
+    rawMessageId: string;
+    parserRevision: string;
+    groomedText: string;
+    workspace: MessageParseWorkspaceRecord["workspace"];
+    spawnedEventIds: string[];
+    candidateEventMap: Record<string, string>;
+  }): Promise<MessageParseWorkspaceRecord> {
+    await this.supersedeActiveForRaw(input.rawMessageId);
+    const id = randomUUID();
+    const now = new Date().toISOString();
+    const record: MessageParseWorkspaceRecord = {
+      id,
+      rawMessageId: input.rawMessageId,
+      parserRevision: input.parserRevision,
+      status: "finalized",
+      groomedText: input.groomedText,
+      workspace: input.workspace,
+      spawnedEventIds: input.spawnedEventIds,
+      candidateEventMap: input.candidateEventMap,
+      finalizedAt: now,
+      createdAt: now,
+    };
+    this.rows.set(id, record);
+    return record;
   }
 }
 

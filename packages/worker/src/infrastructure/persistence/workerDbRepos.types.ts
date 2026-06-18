@@ -12,6 +12,7 @@ import type {
   IIngestBindingRepository,
   IIngestCursorRepository,
   IIngestProviderRepository,
+  IMessageParseWorkspaceRepository,
   IParseAttemptRepository,
   IParsedEventRepository,
   IPhaseDefinitionRepository,
@@ -26,6 +27,7 @@ import type {
 export type WorkerDbRepositories = {
   rawMessages: IRawMessageRepository;
   parsedEvents: IParsedEventRepository;
+  messageParseWorkspaces: IMessageParseWorkspaceRepository;
   eventLocations: IEventLocationRepository;
   eventEvidence: IEventEvidenceRepository;
   regions: IRegionRepository;
@@ -51,6 +53,9 @@ export type WorkerDbRepositories = {
 export type ApiPersistenceModule = {
   TypeOrmRawMessageRepository: new (dataSource: DataSource) => IRawMessageRepository;
   TypeOrmParsedEventRepository: new (dataSource: DataSource) => IParsedEventRepository;
+  TypeOrmMessageParseWorkspaceRepository: new (
+    dataSource: DataSource,
+  ) => IMessageParseWorkspaceRepository;
   TypeOrmEventLocationRepository: new (dataSource: DataSource) => IEventLocationRepository;
   TypeOrmRegionRepository: new (dataSource: DataSource) => IRegionRepository;
   TypeOrmPlaceRepository: new (dataSource: DataSource) => IPlaceRepository;

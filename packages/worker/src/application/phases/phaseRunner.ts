@@ -2,6 +2,7 @@ import type {
   IEventEvidenceRepository,
   IEventLocationRepository,
   IEventPublisher,
+  IMessageParseWorkspaceRepository,
   IParsedEventRepository,
   IPhaseCoverageRepository,
   IPhaseDefinitionRepository,
@@ -18,7 +19,10 @@ import type {
 import { resolveGeoEnrichmentProvider } from "@radar/shared";
 import type { PlaceEnrichmentRunner } from "../geo-parse/placeEnrichmentRunner.js";
 import { loadLlmRuntimeConfig } from "../../infrastructure/enrichers/llmRuntimeConfig.js";
-import { ParseRawMessageHandler, type ParsePhaseContext } from "../handlers/parseRawMessageHandler.js";
+import { ParseRawMessageHandler } from "../handlers/parseRawMessageHandler.js";
+import { createParseWorkspaceStack } from "../parse/createParseWorkspaceStack.js";
+import type { ParsePhaseContext } from "../parse/parsePhaseContext.js";
+import { GeoCatalog } from "../../infrastructure/geo-catalog/index.js";
 import { createParsePipeline } from "../parsing/createParsePipeline.js";
 import type { GeoValidationService } from "../parsing/geoValidationService.js";
 import { pipelineConfigFromEnrichers } from "./phasePipelineConfig.js";
@@ -31,11 +35,13 @@ export type PhaseRunnerDeps = {
   phaseDefinitions: IPhaseDefinitionRepository;
   phaseRuns: IPhaseRunRepository;
   parsedEvents: IParsedEventRepository;
+  messageParseWorkspaces: IMessageParseWorkspaceRepository;
   eventLocations: IEventLocationRepository;
   eventEvidence: IEventEvidenceRepository;
   placeEnrichmentJobs: IPlaceEnrichmentJobRepository;
   places: IPlaceRepository;
   validation: GeoValidationService;
+  geoCatalog: GeoCatalog;
   placeCache: IPlaceCacheRepository;
   events: IEventPublisher;
   /** geoParse drain (place_enrichment_jobs). */
@@ -54,23 +60,29 @@ export class PhaseRunner {
       ...loadLlmRuntimeConfig(),
       ...(flags.llm ? { enabled: true } : {}),
     };
-    const { pipeline } = createParsePipeline(
+    const { resolution } = createParsePipeline(
       { enricherFlags: flags, pipelineOrder: order, llmRuntimeConfig },
       this.deps.placeCache,
+      this.deps.geoCatalog,
     );
     const phaseContext: ParsePhaseContext = {
       phaseId: phase.id,
       phaseMode: phase.enrichers.includes("catalog") ? "baseline" : "enrich",
     };
+    const { workspaceService } = createParseWorkspaceStack({
+      geoCatalog: this.deps.geoCatalog,
+      resolution,
+      validation: this.deps.validation,
+      parsedEvents: this.deps.parsedEvents,
+      eventLocations: this.deps.eventLocations,
+      messageParseWorkspaces: this.deps.messageParseWorkspaces,
+    });
     return new ParseRawMessageHandler(
-      pipeline,
+      workspaceService,
       this.deps.parsedEvents,
       this.deps.eventLocations,
       this.deps.eventEvidence,
-      this.deps.places,
-      this.deps.validation,
       this.deps.events,
-      undefined,
       phaseContext,
     );
   }

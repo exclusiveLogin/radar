@@ -15,6 +15,7 @@ export async function createWorkerDbRepositories(
   return {
     rawMessages: new persistence.TypeOrmRawMessageRepository(dataSource),
     parsedEvents: new persistence.TypeOrmParsedEventRepository(dataSource),
+    messageParseWorkspaces: new persistence.TypeOrmMessageParseWorkspaceRepository(dataSource),
     eventLocations: new persistence.TypeOrmEventLocationRepository(dataSource),
     eventEvidence: new persistence.TypeOrmEventEvidenceRepository(dataSource),
     regions: new persistence.TypeOrmRegionRepository(dataSource),
