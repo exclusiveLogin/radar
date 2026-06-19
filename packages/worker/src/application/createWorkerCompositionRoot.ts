@@ -51,18 +51,17 @@ import {
   InMemoryRegionRepository,
   InMemoryRawMessageRepository,
 } from "./handlers/inMemoryRepositories.js";
-import {
-  loadLlmRuntimeConfig,
-  type LlmRuntimeConfig,
-} from "../infrastructure/enrichers/llmRuntimeConfig.js";
-import type {
-  PipelineStepId,
-  ResolvedEnricherFlags,
-} from "../infrastructure/enrichers/enricherChainFactory.js";
+import { MONOREPO_ROOT } from "@repo/root";
 import { GeoCatalog } from "../infrastructure/geo-catalog/index.js";
 import { GeoValidationService } from "./parsing/geoValidationService.js";
 import { createParseWorkspaceStack } from "./parse/createParseWorkspaceStack.js";
-import { createParsePipeline } from "./parsing/createParsePipeline.js";
+import {
+  loadAllIngestParsePhases,
+  loadIngestParsePhases,
+  selectIngestParsePhases,
+  type IngestParsePhaseSelection,
+} from "./parse/loadIngestParsePhases.js";
+import { createParsePipeline, type ParsePipelineWorkerConfig } from "./parsing/createParsePipeline.js";
 import { isParseWorkerPoolEnabled, ParseWorkerPool } from "./parsing/parseWorkerPool.js";
 import {
   BackfillDaemonService,
@@ -91,53 +90,22 @@ export type WorkerCompositionOptions = {
   placeCacheRepository?: IPlaceCacheRepository;
   geoCatalog?: GeoCatalog;
   /**
-   * Явные флаги enrichers (например parse:snap/report задают три булева из CLI).
-   * Не задано или false → catalog-only синхронный путь (SSOT для ingest/reparse).
-   * Внешние провайдеры (llm/dadata/nominatim) выполняются в фоновом worker:enrich:run.
+   * Override ingestParse-фаз для offline CLI (snap/report).
+   * Default / `{ kind: "manifest" }` — enabled фазы из phase.manifest (prod parity).
    */
-  explicitEnricherFlags?: ResolvedEnricherFlags | false;
-  /**
-   * Явный порядок шагов пайплайна (CLI override).
-   * Если не задан — синхронный путь ограничен ["catalog"].
-   * Терминальный `MergeStep` всегда добавляется последним в runGeoPipeline автоматически.
-   */
-  pipelineOrder?: PipelineStepId[];
-  /** Поверх `loadLlmRuntimeConfig()` (например `enabled: true` при `--enrich-llm`). */
-  llmRuntimeOverride?: Partial<LlmRuntimeConfig>;
+  ingestParsePhaseSelection?: IngestParsePhaseSelection;
+  /** @deprecated Используй ingestParsePhaseSelection / CLI --phases. */
+  explicitEnricherFlags?: false;
+  /** @deprecated Используй ingestParsePhaseSelection / CLI --phases. */
+  pipelineOrder?: never;
+  /** @deprecated Используй ingestParsePhaseSelection / CLI --phases. */
+  llmRuntimeOverride?: never;
   /**
    * IngestParseDaemon (scheduled ingestParse). Для one-shot CLI — false;
    * догон — в `worker:dev` / `parse-engine:ingest:drain`.
    */
   startIngestParseDaemon?: boolean;
 };
-
-/** Дешёвый детерминированный синхронный путь: только каталог, без внешних провайдеров. */
-const SYNC_ONLY_FLAGS: ResolvedEnricherFlags = {
-  dadata: false,
-  nominatim: false,
-  llm: false,
-};
-const SYNC_ONLY_ORDER: PipelineStepId[] = ["catalog"];
-
-/**
- * Флаги энричеров для инлайн-пайплайна.
- * По умолчанию (ingest/reparse) — catalog-only; llm/dadata/nominatim живут
- * в фоновом обогащении (worker:enrich:run). Явные флаги (parse:snap/report) уважаются.
- */
-function resolveEnricherFlags(
-  explicit: WorkerCompositionOptions["explicitEnricherFlags"],
-): ResolvedEnricherFlags {
-  if (explicit === false || explicit === undefined) {
-    return SYNC_ONLY_FLAGS;
-  }
-  return explicit;
-}
-
-function resolvePipelineOrder(
-  override: WorkerCompositionOptions["pipelineOrder"],
-): PipelineStepId[] {
-  return override ?? SYNC_ONLY_ORDER;
-}
 
 export async function createWorkerCompositionRoot(
   options: WorkerCompositionOptions = {},
@@ -231,22 +199,31 @@ export async function createWorkerCompositionRoot(
   const placeCache = options.placeCacheRepository ?? new InMemoryPlaceCacheRepository();
   const geoCatalog = options.geoCatalog ?? GeoCatalog.loadFromArtifacts();
 
-  const llmRuntimeConfig = {
-    ...loadLlmRuntimeConfig(),
-    ...(options.llmRuntimeOverride ?? {}),
-  };
-  const flags = resolveEnricherFlags(options.explicitEnricherFlags);
-  const order = resolvePipelineOrder(options.pipelineOrder);
-  const pipelineConfig = {
-    enricherFlags: flags,
-    pipelineOrder: order,
-    llmRuntimeConfig,
-  };
-  const { pipeline, resolution } = createParsePipeline(pipelineConfig, placeCache, geoCatalog);
+  const phaseDefinitions = workerRepos?.phaseDefinitions;
+  const phaseSelection = options.ingestParsePhaseSelection ?? { kind: "manifest" };
+  const ingestParsePhases =
+    phaseSelection.kind === "manifest"
+      ? await loadIngestParsePhases({
+          repoRoot: MONOREPO_ROOT,
+          phaseDefinitions,
+        })
+      : selectIngestParsePhases(
+          await loadAllIngestParsePhases({
+            repoRoot: MONOREPO_ROOT,
+            phaseDefinitions,
+          }),
+          phaseSelection,
+        );
+  const parsePipelineWorkerConfig: ParsePipelineWorkerConfig = { ingestParsePhases };
+  const { pipeline } = createParsePipeline({
+    geoCatalog,
+    regions,
+    ingestParsePhases,
+  });
   const validation = new GeoValidationService(regions, places, aliases);
 
   if (storageMode === WorkerStorageMode.Db && isParseWorkerPoolEnabled()) {
-    parseWorkerPool = new ParseWorkerPool(pipelineConfig);
+    parseWorkerPool = new ParseWorkerPool(parsePipelineWorkerConfig);
   }
 
   const ingestRawMessageHandler = new IngestRawMessageHandler(
@@ -256,6 +233,7 @@ export async function createWorkerCompositionRoot(
   );
   const { workspaceService } = createParseWorkspaceStack({
     geoCatalog,
+    regions,
     parsedEvents,
     eventLocations,
     messageParseWorkspaces,
@@ -286,6 +264,7 @@ export async function createWorkerCompositionRoot(
       eventEvidence: workerRepos.eventEvidence,
       placeEnrichmentJobs: workerRepos.placeEnrichmentJobs,
       places: workerRepos.places,
+      regions: workerRepos.regions,
       validation,
       geoCatalog,
       placeCache,
@@ -378,8 +357,8 @@ export async function createWorkerCompositionRoot(
     bus,
     metricsAggregator,
     geoCatalog,
-    locationResolutionService: resolution,
     parsePipelineService: pipeline,
+    ingestParsePhases,
     parseWorkerPool,
     workspaceService,
     ingestRawMessageHandler,

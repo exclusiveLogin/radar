@@ -10,6 +10,7 @@ import type {
 } from "@radar/shared";
 import type { GeoPipelinePhaseMode } from "../geo-pipeline/GeoPipelineContext.js";
 import type { ParsePhaseContext } from "../parse/parsePhaseContext.js";
+import type { ParseEnricherId } from "../../domain/parse/parseEnricherRegistry.js";
 import { loadGeoEnrichmentState } from "../geo-pipeline/geoEnrichmentState.js";
 import { resolveParsedEventActivation } from "../../domain/parsing/resolveParsedEventActivation.js";
 import { PARSER_VERSION } from "../../domain/parsing/version.js";
@@ -57,11 +58,19 @@ export class ParseRawMessageHandler {
         rawMessageId,
         rawText: raw.rawText,
         postedAt: raw.postedAt,
+        runKind: this.phaseContext.runKind ?? "rebuild",
         geoContext: {
           initialArtifact: priorState?.artifact,
-          enrichers: this.phaseMode === "enrich" ? ["catalog", "llm"] : ["catalog"],
+          enrichers: (this.phaseContext.enrichers ?? ["catalog"]) as ParseEnricherId[],
         },
-        mode: priorState ? "refinalize" : "initial",
+        mode:
+          this.phaseContext.runKind === "heal"
+            ? "heal"
+            : this.phaseContext.runKind === "phase_enrich"
+              ? "refinalize"
+              : priorState
+                ? "refinalize"
+                : "initial",
       });
 
       if (result.kind !== "event") {

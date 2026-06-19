@@ -17,8 +17,9 @@ export type FullReparseInput = {
 };
 
 /**
- * Полный reparse: инвалидация coverage + parsed_events, затем ingest-поток по каждому raw.
- * Scheduled ingestParse догоняет IngestParseDaemon (после done всех eager по order).
+ * Полный reparse (контур rebuild): wipe parsed+workspace уже сделан снаружи,
+ * затем ingest-flow по каждому raw с нуля.
+ * @see ../parse/parseWorkspaceRunModes.ts
  */
 export async function runFullReparseLikeIngest(input: FullReparseInput): Promise<{
   messages: number;

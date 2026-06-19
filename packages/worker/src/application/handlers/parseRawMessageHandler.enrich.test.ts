@@ -10,6 +10,7 @@ import {
   InMemoryEventLocationRepository,
   InMemoryMessageParseWorkspaceRepository,
   InMemoryParsedEventRepository,
+  InMemoryRegionRepository,
 } from "../../application/handlers/inMemoryRepositories.js";
 import { ParseRawMessageHandler } from "../../application/handlers/parseRawMessageHandler.js";
 import { createParseWorkspaceStack } from "../../application/parse/createParseWorkspaceStack.js";
@@ -24,7 +25,7 @@ const regionRecord = {
   isActive: true,
 };
 
-function buildHandler(input: {
+async function buildHandler(input: {
   enrichers: ("catalog" | "llm")[];
   regions: typeof regionRecord[];
   parsedEvents: InMemoryParsedEventRepository;
@@ -33,8 +34,13 @@ function buildHandler(input: {
   phaseMode: "baseline" | "enrich";
 }) {
   const geoCatalog = GeoCatalog.loadFromArtifacts();
+  const regionRepo = new InMemoryRegionRepository();
+  for (const region of input.regions) {
+    await regionRepo.upsertMany([region]);
+  }
   const { workspaceService } = createParseWorkspaceStack({
     geoCatalog,
+    regions: regionRepo,
     parsedEvents: input.parsedEvents,
     eventLocations: input.eventLocations,
     messageParseWorkspaces: input.workspaces,
@@ -45,7 +51,7 @@ function buildHandler(input: {
     input.eventLocations,
     { append: async () => {} },
     { publish: async () => {} },
-    { phaseId: input.phaseMode === "baseline" ? "catalog" : "llm", phaseMode: input.phaseMode },
+    { phaseId: input.phaseMode === "baseline" ? "catalog" : "llm", phaseMode: input.phaseMode, enrichers: input.enrichers, runKind: input.phaseMode === "baseline" ? "rebuild" : "phase_enrich" },
   );
 }
 
@@ -67,7 +73,7 @@ test("enrich после catalog не затирает evloc при пустом 
     externalMessageId: "1",
   };
 
-  const baselineHandler = buildHandler({
+  const baselineHandler = await buildHandler({
     enrichers: ["catalog"],
     regions: [regionRecord],
     parsedEvents,
@@ -86,7 +92,7 @@ test("enrich после catalog не затирает evloc при пустом 
   }
   assert.ok(baselineLocs.length > 0);
 
-  const enrichHandler = buildHandler({
+  const enrichHandler = await buildHandler({
     enrichers: ["llm"],
     regions: [regionRecord],
     parsedEvents,

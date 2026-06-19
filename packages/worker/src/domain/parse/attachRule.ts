@@ -27,20 +27,6 @@ export function resolveAttachTargets(
   }
 }
 
-/** Применяет trait к extras выбранных candidates. */
-export function applyTraitToCandidates(input: {
-  workspace: ParseWorkspace;
-  attachment: TraitAttachment;
-}): void {
-  const targets = resolveAttachTargets(input.workspace, input.attachment.attachRule);
-  for (const candidate of targets) {
-    candidate.extras = {
-      ...candidate.extras,
-      [input.attachment.traitKey]: input.attachment.value,
-    };
-  }
-}
-
 export function createTraitAttachment(input: {
   processorId: string;
   traitKey: string;

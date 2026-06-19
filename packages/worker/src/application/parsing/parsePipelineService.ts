@@ -5,21 +5,22 @@
   ParseReport,
   ParsedEvent,
   ParseWorkspace,
+  PhaseDefinitionRecord,
 } from "@radar/shared";
 import { randomUUID } from "node:crypto";
 import type { GeoCatalog } from "../../infrastructure/geo-catalog/index.js";
+import type { IRegionRepository } from "@radar/shared";
 import { candidateToParsedEvent } from "../../domain/parse/candidateToParsedEvent.js";
+import { buildLocationsByCandidateId } from "../../domain/parse/deriveEventLocationsFromCandidate.js";
 import { createEmptyParseWorkspace } from "../../domain/parse/parseWorkspaceFactory.js";
-import { runParseWorkspaceOrchestrator } from "../../domain/parse/ParseWorkspaceOrchestrator.js";
-import type { GeoPipelinePhaseMode } from "../geo-pipeline/GeoPipelineContext.js";
-import type { LocationResolutionService } from "./locationResolutionService.js";
+import { listActiveCandidates } from "../../domain/parse/parseProcessorContract.js";
+import type { ParseWorkspaceMessageService } from "../parse/ParseWorkspaceMessageService.js";
+import {
+  lastEventPass,
+  runIngestParsePasses,
+  type IngestParsePassRecord,
+} from "../parse/runIngestParsePasses.js";
 import { buildParseReportFromWorkspace } from "./buildParseReportFromWorkspace.js";
-
-export type ParsePipelineGeoContext = {
-  initialArtifact?: GeoEnrichmentArtifact;
-  priorValidatedLocations?: EventLocation[];
-  phaseMode?: GeoPipelinePhaseMode;
-};
 
 export type ParsePipelineResult = {
   report: ParseReport;
@@ -27,8 +28,10 @@ export type ParsePipelineResult = {
   parsedEvents?: ParsedEvent[];
   parsedEvent?: ParsedEvent;
   locations: EventLocation[];
-  geoPipeline?: GeoPipelineReport;
+  /** Прогон фаз манифеста (prod-parity). */
+  passes: IngestParsePassRecord[];
   artifact?: GeoEnrichmentArtifact;
+  geoPipeline?: GeoPipelineReport;
 };
 
 export type ParsePipelineInput = {
@@ -38,68 +41,119 @@ export type ParsePipelineInput = {
   rawMessageId?: string;
   file?: string;
   index?: number;
-  geoContext?: ParsePipelineGeoContext;
 };
 
+export type ParsePipelineServiceDeps = {
+  workspaceService: ParseWorkspaceMessageService;
+  regions: IRegionRepository;
+  geoCatalog: GeoCatalog;
+  ingestParsePhases: PhaseDefinitionRecord[];
+};
+
+function enricherRunLogToGeoPipeline(workspace: ParseWorkspace): GeoPipelineReport {
+  return {
+    steps: workspace.enricherRunLog.map((entry) => ({
+      id: entry.enricherId,
+      ok: entry.ok,
+      durationMs: entry.durationMs,
+    })),
+  };
+}
+
+function pickPrimaryCandidate(workspace: ParseWorkspace): ParseWorkspace["candidates"][number] | undefined {
+  return (
+    listActiveCandidates(workspace).find((c) => c.eventType !== "unknown")
+    ?? listActiveCandidates(workspace)[0]
+  );
+}
+
+async function collectMaterializedLocations(
+  workspace: ParseWorkspace,
+  candidateEventMap: Record<string, string>,
+  regions: IRegionRepository,
+  geoCatalog: GeoCatalog,
+): Promise<EventLocation[]> {
+  const byCandidate = await buildLocationsByCandidateId(workspace, regions, geoCatalog);
+  const locations: EventLocation[] = [];
+  for (const candidateId of Object.keys(candidateEventMap)) {
+    locations.push(...(byCandidate[candidateId] ?? []));
+  }
+  return locations;
+}
+
+/** Offline parse: те же ingestParse-проходки, что prod (манифест → workspaceService.run). */
 export class ParsePipelineService {
-  constructor(
-    private readonly resolution: LocationResolutionService,
-    private readonly geoCatalog: GeoCatalog,
-  ) {}
+  constructor(private readonly deps: ParsePipelineServiceDeps) {}
 
   async execute(input: ParsePipelineInput): Promise<ParsePipelineResult> {
     const rawMessageId = input.rawMessageId ?? randomUUID();
-    const orchestrated = runParseWorkspaceOrchestrator({
+    const postedAt = input.postedAt ?? new Date().toISOString();
+
+    const passes = await runIngestParsePasses({
+      workspaceService: this.deps.workspaceService,
+      phases: this.deps.ingestParsePhases,
       rawMessageId,
       rawText: input.rawText,
-      geoCatalog: this.geoCatalog,
+      postedAt,
     });
 
-    if (orchestrated.kind !== "event") {
+    const eventPass = lastEventPass(passes);
+    if (!eventPass) {
       return {
         report: buildParseReportFromWorkspace({
           workspace: createEmptyParseWorkspace(rawMessageId, input.rawText),
           rawText: input.rawText,
-          postedAt: input.postedAt,
+          postedAt,
           channelKey: input.channelKey,
           file: input.file,
           index: input.index,
         }),
         locations: [],
+        passes,
       };
     }
 
-    const resolved = await this.resolution.resolve(input.rawText, input.geoContext ?? {});
+    const { workspace, finalize } = eventPass;
+    const artifact = workspace.namespaces.geoArtifact as GeoEnrichmentArtifact | undefined;
+    const locations = await collectMaterializedLocations(
+      workspace,
+      finalize.candidateEventMap,
+      this.deps.regions,
+      this.deps.geoCatalog,
+    );
+    const geoPipeline = enricherRunLogToGeoPipeline(workspace);
+
     const report = buildParseReportFromWorkspace({
-      workspace: orchestrated.workspace,
+      workspace,
       rawText: input.rawText,
-      postedAt: input.postedAt,
+      postedAt,
       channelKey: input.channelKey,
       file: input.file,
       index: input.index,
-      geoPipeline: resolved.geoPipeline,
-      geoArtifact: resolved.artifact,
+      geoPipeline,
+      geoArtifact: artifact,
     });
 
-    const primary = orchestrated.workspace.candidates[0];
+    const primary = pickPrimaryCandidate(workspace);
     const parsedEvent = primary
       ? candidateToParsedEvent({
-          workspace: orchestrated.workspace,
+          workspace,
           candidate: primary,
-          postedAt: input.postedAt ?? new Date().toISOString(),
+          postedAt,
           parserVersion: "workspace",
-          locations: resolved.locations,
+          locations,
         })
       : undefined;
 
     return {
       report,
-      workspace: orchestrated.workspace,
+      workspace,
       parsedEvent,
       parsedEvents: parsedEvent ? [parsedEvent] : [],
-      locations: resolved.locations,
-      geoPipeline: resolved.geoPipeline,
-      artifact: resolved.artifact,
+      locations,
+      passes,
+      artifact,
+      geoPipeline,
     };
   }
 }

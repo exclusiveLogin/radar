@@ -10,16 +10,17 @@ import * as path from "node:path";
 import { MONOREPO_ROOT } from "@repo/root";
 import type { ClassifiedPost } from "@radar/shared";
 import { createParsePipeline } from "../application/parsing/createParsePipeline.js";
+import { loadIngestParsePhases } from "../application/parse/loadIngestParsePhases.js";
+import { InMemoryRegionRepository } from "../application/handlers/inMemoryRepositories.js";
 import { classifyContentKind } from "../domain/parsing/classifyContentKind.js";
 import { RuleBasedEventClassifier } from "../infrastructure/classifiers/ruleBasedEventClassifier.js";
 import { loadRootEnv } from "../infrastructure/config/loadRootEnv.js";
 import { GeoCatalog } from "../infrastructure/geo-catalog/index.js";
-import { loadLlmRuntimeConfig } from "../infrastructure/enrichers/llmRuntimeConfig.js";
 import { createWorkerDataSource } from "../infrastructure/persistence/createWorkerDataSource.js";
 import {
   canonicalRegionCode,
   type NormalizedLocation,
-} from "./eval/evalShared.js";
+} from "./geoLocationNormalize.js";
 import { parseLongFlagsMap, readStringFlag } from "./workerCliArgs.js";
 
 /** Коды gap между фактом в БД и replay каталога. */
@@ -336,11 +337,12 @@ async function runChannelAudit(options: AuditRunOptions): Promise<void> {
   const dataSource = await createWorkerDataSource();
   const catalog = GeoCatalog.loadFromArtifacts();
   const classifier = new RuleBasedEventClassifier(catalog.getRegionCatalog());
+  const ingestParsePhases = await loadIngestParsePhases({ repoRoot: MONOREPO_ROOT });
   const { pipeline } = createParsePipeline({
-    enricherFlags: { dadata: false, nominatim: false, llm: false },
-    pipelineOrder: ["catalog"],
-    llmRuntimeConfig: { ...loadLlmRuntimeConfig(), enabled: false },
-  }, undefined, catalog);
+    geoCatalog: catalog,
+    regions: new InMemoryRegionRepository(),
+    ingestParsePhases,
+  });
 
   const orderClause = randomOrder ? "ORDER BY random()" : "ORDER BY rm.posted_at DESC NULLS LAST";
   const sinceClause = since ? "AND rm.posted_at >= $3::timestamptz" : "";

@@ -5,7 +5,6 @@ import {
   createWorkerCompositionRoot,
   type WorkerCompositionOptions,
 } from "../application/createWorkerCompositionRoot.js";
-import type { PipelineStepId } from "../infrastructure/enrichers/enricherChainFactory.js";
 import { WorkerStorageMode } from "../infrastructure/persistence/storageMode.js";
 import { GeoValidationService } from "../application/parsing/geoValidationService.js";
 import {
@@ -17,12 +16,15 @@ import { loadRootEnv } from "../infrastructure/config/loadRootEnv.js";
 import { resolveInputPath } from "./cliPaths.js";
 import { splitMessageBlocks } from "../domain/parsing/index.js";
 import {
-  hasAnyFlag,
   parseLongFlagsMap,
-  parsePipelineOrder,
   parsePositionalArgs,
   parseStorageModeFromMap,
 } from "./workerCliArgs.js";
+import {
+  applyForceLlmPhaseSelection,
+  parseIngestPhaseCli,
+} from "./parseIngestPhaseCli.js";
+import type { IngestParsePhaseSelection } from "../application/parse/loadIngestParsePhases.js";
 
 type ParseSummary = {
   totalBlocks: number;
@@ -30,6 +32,7 @@ type ParseSummary = {
   noise: number;
   meta: number;
   eventShare: number;
+  ingestParsePhases: string[];
   geoValidation?: {
     known: number;
     created: number;
@@ -46,10 +49,7 @@ type ParsedCli = {
   filePathArg: string;
   withGeoReport: boolean;
   storageMode: WorkerStorageMode;
-  enrichDadata: boolean;
-  enrichNominatim: boolean;
-  enrichLlm: boolean;
-  pipelineOrder: PipelineStepId[] | undefined;
+  ingestParsePhaseSelection: IngestParsePhaseSelection;
 };
 
 function parseParseSnapCli(argv: string[]): ParsedCli {
@@ -61,18 +61,11 @@ function parseParseSnapCli(argv: string[]): ParsedCli {
     filePathArg,
     withGeoReport: map.has("geo-report"),
     storageMode: parseStorageModeFromMap(map, WorkerStorageMode.Memory),
-    enrichDadata: hasAnyFlag(map, ["dadataEnrich", "enrich-dadata"]),
-    enrichNominatim: hasAnyFlag(map, ["nominatimEnrich", "enrich-nominatim"]),
-    enrichLlm: hasAnyFlag(map, ["llmEnrich", "enrich-llm"]),
-    pipelineOrder: parsePipelineOrder(
-      typeof map.get("pipeline-order") === "string"
-        ? String(map.get("pipeline-order"))
-        : undefined,
-    ),
+    ingestParsePhaseSelection: parseIngestPhaseCli(map),
   };
 }
 
-function buildSummary(kinds: Array<"event" | "noise" | "meta">): ParseSummary {
+function buildSummary(kinds: Array<"event" | "noise" | "meta">): Omit<ParseSummary, "ingestParsePhases"> {
   const totalBlocks = kinds.length;
   const events = kinds.filter((kind) => kind === "event").length;
   const noise = kinds.filter((kind) => kind === "noise").length;
@@ -87,19 +80,10 @@ function buildSummary(kinds: Array<"event" | "noise" | "meta">): ParseSummary {
 }
 
 function buildRuntimeOptions(cli: ParsedCli): WorkerCompositionOptions {
-  if (!cli.withGeoReport) {
-    return { storageMode: cli.storageMode, explicitEnricherFlags: false };
-  }
-
   return {
     storageMode: cli.storageMode,
-    explicitEnricherFlags: {
-      dadata: cli.enrichDadata,
-      nominatim: cli.enrichNominatim,
-      llm: cli.enrichLlm,
-    },
-    pipelineOrder: cli.pipelineOrder,
-    llmRuntimeOverride: cli.enrichLlm ? { enabled: true } : undefined,
+    startIngestParseDaemon: false,
+    ingestParsePhaseSelection: cli.ingestParsePhaseSelection,
   };
 }
 
@@ -119,21 +103,16 @@ export async function runParseSnap(
 ): Promise<void> {
   const cli = parseParseSnapCli(argv);
   if (options.forceLlm) {
-    cli.enrichLlm = true;
     cli.withGeoReport = true;
+    cli.ingestParsePhaseSelection = applyForceLlmPhaseSelection(
+      cli.ingestParsePhaseSelection,
+    );
   }
   if (!cli.filePathArg) {
     console.error(
-      "Usage: npm run parse:snap -- <path-to-snap.txt> [--geo-report] [--storage-mode=memory|db|fs] [--enrich-dadata] [--enrich-nominatim] [--enrich-llm] [--pipeline-order=catalog,llm,dadata,nominatim]",
+      "Usage: npm run parse:snap -- <path-to-snap.txt> [--geo-report] [--storage-mode=memory|db|fs] [--phases=llm,dadata]",
     );
     process.exit(1);
-  }
-
-  const wantsEnrichers = cli.enrichDadata || cli.enrichNominatim || cli.enrichLlm;
-  if (wantsEnrichers && !cli.withGeoReport) {
-    console.warn(
-      "parse:snap: флаги enrichers действуют только вместе с --geo-report, игнорируются.",
-    );
   }
 
   const filePath = resolveInputPath(cli.filePathArg);
@@ -157,16 +136,21 @@ export async function runParseSnap(
       block,
       kind: executed.report.classification.kind,
       report: executed.report,
+      workspace: executed.workspace,
+      passes: executed.passes,
       locations: executed.locations,
     });
   }
-  const summary = buildSummary(results.map((row) => row.kind));
+  const summary: ParseSummary = {
+    ...buildSummary(results.map((row) => row.kind)),
+    ingestParsePhases: runtime.ingestParsePhases.map((phase) => phase.id),
+  };
 
   if (cli.withGeoReport) {
     summary.geoEnrichers = {
-      dadata: cli.enrichDadata,
-      nominatim: cli.enrichNominatim,
-      llm: cli.enrichLlm,
+      dadata: runtime.ingestParsePhases.some((p) => p.enrichers.includes("dadata")),
+      nominatim: runtime.ingestParsePhases.some((p) => p.enrichers.includes("nominatim")),
+      llm: runtime.ingestParsePhases.some((p) => p.enrichers.includes("llm")),
     };
     const validation = new GeoValidationService(
       new InMemoryRegionRepository(),
@@ -228,6 +212,14 @@ export async function runParseSnap(
               : undefined,
           event: row.report.event,
           candidates: row.report.candidates,
+          workspace: row.workspace,
+          passes: row.passes.map((pass) => ({
+            phaseId: pass.phaseId,
+            runKind: pass.runKind,
+            enrichers: pass.enrichers,
+            outcome: pass.result.kind,
+            reason: pass.result.kind !== "event" ? pass.result.reason : undefined,
+          })),
         })),
       },
         null,

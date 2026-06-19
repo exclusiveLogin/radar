@@ -42,7 +42,10 @@ async function listRawRows(
   )) as RawHealRow[];
 }
 
-/** Heal: re-run workspace + finalize без wipe parsed layer. */
+/**
+ * Heal CLI — контур heal: finalizer + sync candidateEventMap/spawnedEventIds.
+ * Не wipe parsed/workspace. @see ../parse/parseWorkspaceRunModes.ts
+ */
 async function main(): Promise<void> {
   loadRootEnv(MONOREPO_ROOT);
   const flags = parseLongFlagsMap(process.argv);
@@ -104,6 +107,7 @@ async function main(): Promise<void> {
         rawMessageId: row.id,
         rawText: row.raw_text,
         postedAt: row.posted_at.toISOString(),
+        runKind: "heal",
         mode: "heal",
         orphanPolicy: purge ? "hard_delete" : "deactivate",
       });

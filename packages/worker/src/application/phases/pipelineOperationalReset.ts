@@ -7,7 +7,7 @@ import { stopAllActivePhaseRuns } from "./stopAllActivePhaseRuns.js";
 
 export const PIPELINE_RESET_REASON = "pipeline:operational-reset";
 
-/** TRUNCATE message_parse_workspace + parsed_events (+ CASCADE). */
+/** TRUNCATE message_parse_workspace + parsed_events (+ CASCADE). Контур rebuild/reparse. @see ../parse/parseWorkspaceRunModes.ts */
 export async function clearParseLayerArtifacts(dataSource: DataSource): Promise<{
   workspacesDeleted: number;
   parsedEventsDeleted: number;

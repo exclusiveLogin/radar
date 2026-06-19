@@ -3,6 +3,7 @@ import { parseReportSchema } from "@radar/shared";
 import { createHash } from "node:crypto";
 import { PARSER_VERSION } from "../../domain/parsing/version.js";
 import { inferSeverity } from "../../domain/parsing/inferSeverity.js";
+import { materializeCandidateExtras } from "../../domain/parse/resolveTraitsForCandidate.js";
 
 type BuildReportInput = {
   workspace: ParseWorkspace;
@@ -35,12 +36,15 @@ export function buildParseReportFromWorkspace(input: BuildReportInput): ParseRep
       ? { kind: "event" as const }
       : { kind: "noise" as const, reason: "event_type_not_detected" },
     event: primary
-      ? {
-          eventType: primary.eventType as EventType,
-          severity: inferSeverity(input.workspace.groomedText, primary.eventType),
-          repeat: Boolean(primary.extras.repeat),
-          count: typeof primary.extras.count === "number" ? primary.extras.count : undefined,
-        }
+      ? (() => {
+          const extras = materializeCandidateExtras(primary, input.workspace);
+          return {
+            eventType: primary.eventType as EventType,
+            severity: inferSeverity(input.workspace.groomedText, primary.eventType),
+            repeat: Boolean(extras.repeat),
+            count: typeof extras.count === "number" ? extras.count : undefined,
+          };
+        })()
       : undefined,
     geo: {
       regions: [],

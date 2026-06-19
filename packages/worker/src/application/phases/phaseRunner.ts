@@ -11,6 +11,7 @@ import type {
   IPlaceEnrichmentJobRepository,
   IPlaceRepository,
   IRawMessageRepository,
+  IRegionRepository,
   PhaseCoverageTask,
   PhaseDefinitionRecord,
   PhaseRunStats,
@@ -22,6 +23,7 @@ import { GeoCatalog } from "../../infrastructure/geo-catalog/index.js";
 import { ParseRawMessageHandler } from "../handlers/parseRawMessageHandler.js";
 import { createParseWorkspaceStack } from "../parse/createParseWorkspaceStack.js";
 import type { ParsePhaseContext } from "../parse/parsePhaseContext.js";
+import { resolvePhaseRunKind } from "../parse/parseWorkspaceRunModes.js";
 import type { GeoValidationService } from "../parsing/geoValidationService.js";
 import { notifyMapPushSnapshotAfterPhase } from "../../infrastructure/notifyMapPushSnapshot.js";
 import { prerequisitePhaseIds } from "./phaseOrder.js";
@@ -37,6 +39,7 @@ export type PhaseRunnerDeps = {
   eventEvidence: IEventEvidenceRepository;
   placeEnrichmentJobs: IPlaceEnrichmentJobRepository;
   places: IPlaceRepository;
+  regions: IRegionRepository;
   validation: GeoValidationService;
   geoCatalog: GeoCatalog;
   placeCache: IPlaceCacheRepository;
@@ -46,7 +49,11 @@ export type PhaseRunnerDeps = {
 };
 
 /**
- * Единое ядро исполнения фазы: загрузка накопителя, enrichers[] фазы, merge, coverage.
+ * Единое ядро исполнения фазы: coverage claim → handler.
+ *
+ * Целевой контур phase job (lazy enrich): load workspace → enricher фазы → finalize.
+ * Сейчас handler всё ещё rebuild-like через ParseWorkspaceMessageService.run().
+ * @see ../parse/parseWorkspaceRunModes.ts
  */
 export class PhaseRunner {
   constructor(private readonly deps: PhaseRunnerDeps) {}
@@ -55,9 +62,12 @@ export class PhaseRunner {
     const phaseContext: ParsePhaseContext = {
       phaseId: phase.id,
       phaseMode: phase.enrichers.includes("llm") ? "enrich" : "baseline",
+      enrichers: phase.enrichers,
+      runKind: resolvePhaseRunKind(phase),
     };
     const { workspaceService } = createParseWorkspaceStack({
       geoCatalog: this.deps.geoCatalog,
+      regions: this.deps.regions,
       parsedEvents: this.deps.parsedEvents,
       eventLocations: this.deps.eventLocations,
       messageParseWorkspaces: this.deps.messageParseWorkspaces,

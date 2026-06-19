@@ -3,7 +3,6 @@ import * as path from "node:path";
 import type { ParseReport } from "@radar/shared";
 import { MONOREPO_ROOT } from "@repo/root";
 import { createWorkerCompositionRoot } from "../application/createWorkerCompositionRoot.js";
-import type { PipelineStepId } from "../infrastructure/enrichers/enricherChainFactory.js";
 import { splitMessageBlocks } from "../domain/parsing/index.js";
 import {
   JsonPlaceCacheRepository,
@@ -13,9 +12,9 @@ import {
 import { loadRootEnv } from "../infrastructure/config/loadRootEnv.js";
 import {
   parseLongFlagsMap,
-  parsePipelineOrder,
   parseStorageModeFromMap,
 } from "./workerCliArgs.js";
+import { parseIngestPhaseCli } from "./parseIngestPhaseCli.js";
 import {
   type FlatRecord,
   toFlatRecords,
@@ -28,13 +27,8 @@ type CliOptions = {
   format: "json" | "yaml" | "csv";
   div: "file" | "record";
   storageMode: WorkerStorageMode;
-  enrichDadata: boolean;
-  enrichNominatim: boolean;
-  enrichLlm: boolean;
-  pipelineOrder: PipelineStepId[] | undefined;
+  ingestParsePhaseSelection: ReturnType<typeof parseIngestPhaseCli>;
 };
-
-type EnricherFlags = { dadata: boolean; nominatim: boolean; llm: boolean };
 
 function parseEnum<T extends string>(raw: string, values: readonly T[], fallback: T): T {
   return values.includes(raw as T) ? (raw as T) : fallback;
@@ -54,22 +48,13 @@ function parseArgs(argv: string[]): CliOptions {
     "file",
   );
 
-  const pipelineOrder = parsePipelineOrder(
-    typeof map.get("pipeline-order") === "string"
-      ? String(map.get("pipeline-order"))
-      : undefined,
-  );
-
   return {
     input: String(map.get("input") ?? "tests"),
     outdir: String(map.get("outdir") ?? "reports"),
     format,
     div,
     storageMode: parseStorageModeFromMap(map, WorkerStorageMode.Fs),
-    enrichDadata: map.has("enrich-dadata") || map.has("use-providers"),
-    enrichNominatim: map.has("enrich-nominatim") || map.has("use-providers"),
-    enrichLlm: map.has("enrich-llm"),
-    pipelineOrder,
+    ingestParsePhaseSelection: parseIngestPhaseCli(map),
   };
 }
 function resolvePath(input: string): string {
@@ -104,20 +89,6 @@ function ensureCleanOutdir(outdir: string): void {
     fs.rmSync(outdir, { recursive: true, force: true });
   }
   fs.mkdirSync(outdir, { recursive: true });
-}
-function buildEnricherFlags(options: CliOptions):
-  | EnricherFlags
-  | false {
-  const anyProvider =
-    options.enrichDadata || options.enrichNominatim || options.enrichLlm;
-  if (!anyProvider) {
-    return false;
-  }
-  return {
-    dadata: options.enrichDadata,
-    nominatim: options.enrichNominatim,
-    llm: options.enrichLlm,
-  };
 }
 
 async function parseFileBlocks(options: {
@@ -166,14 +137,12 @@ async function main(): Promise<void> {
 
   ensureCleanOutdir(outdir);
 
-  const explicitEnricherFlags = buildEnricherFlags(options);
   const placeCache = new JsonPlaceCacheRepository(resolveJsonPlaceCachePath());
   const runtime = await createWorkerCompositionRoot({
     storageMode: options.storageMode,
     placeCacheRepository: placeCache,
-    explicitEnricherFlags,
-    pipelineOrder: options.pipelineOrder,
-    llmRuntimeOverride: options.enrichLlm ? { enabled: true } : undefined,
+    startIngestParseDaemon: false,
+    ingestParsePhaseSelection: options.ingestParsePhaseSelection,
   });
 
   const allRecords: FlatRecord[] = [];
@@ -233,6 +202,7 @@ async function main(): Promise<void> {
         format: options.format,
         div: options.div,
         storageMode: options.storageMode,
+        ingestParsePhases: runtime.ingestParsePhases.map((phase) => phase.id),
         files: files.length,
         totalBlocks,
         summary: {
@@ -253,4 +223,3 @@ main().catch((error) => {
   console.error(error);
   process.exit(1);
 });
-

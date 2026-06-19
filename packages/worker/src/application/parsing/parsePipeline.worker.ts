@@ -1,7 +1,11 @@
 import { parentPort, workerData } from "node:worker_threads";
 import type { ParsePipelineInput } from "./parsePipelineService.js";
 import type { ParsePipelineResult } from "./parsePipelineService.js";
-import { createParsePipeline, type ParsePipelineWorkerConfig } from "./createParsePipeline.js";
+import {
+  createParsePipelineInWorker,
+  type ParsePipelineWorkerConfig,
+} from "./createParsePipeline.js";
+import { GeoCatalog } from "../../infrastructure/geo-catalog/index.js";
 
 type WorkerRequest = {
   type: "parse";
@@ -14,7 +18,7 @@ type WorkerResponse =
   | { id: string; error: string };
 
 const config = workerData as { config: ParsePipelineWorkerConfig };
-const { pipeline } = createParsePipeline(config.config);
+const pipeline = createParsePipelineInWorker(config.config, GeoCatalog.loadFromArtifacts());
 
 parentPort?.on("message", (msg: WorkerRequest) => {
   if (msg.type !== "parse") return;

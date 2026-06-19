@@ -34,6 +34,8 @@ async function main(): Promise<void> {
     rawMessageId: raw.id,
     rawText: raw.rawText,
     postedAt: raw.postedAt,
+    runKind: "phase_enrich",
+    geoContext: { enrichers: [] },
     mode: "refinalize",
   });
 

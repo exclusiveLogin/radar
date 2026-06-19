@@ -1,73 +1,65 @@
-import type { IPlaceCacheRepository } from "@radar/shared";
+import type { IRegionRepository, PhaseDefinitionRecord } from "@radar/shared";
+import type { GeoCatalog } from "../../infrastructure/geo-catalog/index.js";
 import {
-  DEFAULT_PIPELINE_ORDER,
-  type PipelineStepId,
-  type ResolvedEnricherFlags,
-} from "../../infrastructure/enrichers/enricherChainFactory.js";
-import { DadataEnricher } from "../../infrastructure/enrichers/dadataEnricher.js";
-import { loadDadataToken } from "../../infrastructure/enrichers/dadataConfig.js";
-import { LlmEnricher } from "../../infrastructure/enrichers/llmEnricher.js";
-import type { LlmRuntimeConfig } from "../../infrastructure/enrichers/llmRuntimeConfig.js";
-import { NominatimEnricher } from "../../infrastructure/enrichers/nominatimEnricher.js";
-import { GeoCatalog } from "../../infrastructure/geo-catalog/index.js";
-import type { GeoPipelineStep } from "../geo-pipeline/GeoPipelineContext.js";
-import { CatalogStep } from "../geo-pipeline/steps/CatalogStep.js";
-import { DadataStep } from "../geo-pipeline/steps/DadataStep.js";
-import { LlmStep } from "../geo-pipeline/steps/LlmStep.js";
-import { NominatimStep } from "../geo-pipeline/steps/NominatimStep.js";
-import { LocationResolutionService } from "./locationResolutionService.js";
+  InMemoryEventLocationRepository,
+  InMemoryMessageParseWorkspaceRepository,
+  InMemoryParsedEventRepository,
+  InMemoryRegionRepository,
+} from "../handlers/inMemoryRepositories.js";
+import { createParseWorkspaceStack } from "../parse/createParseWorkspaceStack.js";
 import { ParsePipelineService } from "./parsePipelineService.js";
-import { InMemoryPlaceCacheRepository } from "../handlers/inMemoryRepositories.js";
 
-/** Конфиг пайплайна, сериализуемый в worker_threads. */
+/** Конфиг worker_threads: сериализуемые ingestParse-фазы манифеста. */
 export type ParsePipelineWorkerConfig = {
-  enricherFlags: ResolvedEnricherFlags;
-  pipelineOrder: PipelineStepId[];
-  llmRuntimeConfig: LlmRuntimeConfig;
+  ingestParsePhases: PhaseDefinitionRecord[];
 };
 
-function createStepFactories(params: {
+export type CreateParsePipelineDeps = {
+  regions: IRegionRepository;
   geoCatalog: GeoCatalog;
-  flags: ResolvedEnricherFlags;
-  llmRuntimeConfig: LlmRuntimeConfig;
-  placeCache: IPlaceCacheRepository;
-}): Record<PipelineStepId, () => GeoPipelineStep | null> {
-  const { geoCatalog, flags, llmRuntimeConfig, placeCache } = params;
-  return {
-    catalog: () => new CatalogStep(geoCatalog),
-    llm: () =>
-      flags.llm ? new LlmStep(new LlmEnricher(llmRuntimeConfig), geoCatalog) : null,
-    dadata: () =>
-      flags.dadata
-        ? new DadataStep(new DadataEnricher(loadDadataToken()), placeCache)
-        : null,
-    nominatim: () =>
-      flags.nominatim ? new NominatimStep(new NominatimEnricher(), placeCache) : null,
-  };
-}
+  ingestParsePhases: PhaseDefinitionRecord[];
+  parsedEvents?: InMemoryParsedEventRepository;
+  eventLocations?: InMemoryEventLocationRepository;
+  messageParseWorkspaces?: InMemoryMessageParseWorkspaceRepository;
+};
 
 /**
- * SSOT сборки ParsePipelineService (main thread и worker_threads).
+ * Offline parse service — prod-parity через ParseWorkspaceMessageService + манифест фаз.
  */
-export function createParsePipeline(
-  config: ParsePipelineWorkerConfig,
-  placeCache?: IPlaceCacheRepository,
-  geoCatalog?: GeoCatalog,
-): { pipeline: ParsePipelineService; resolution: LocationResolutionService } {
-  const catalog = geoCatalog ?? GeoCatalog.loadFromArtifacts();
-  const cache = placeCache ?? new InMemoryPlaceCacheRepository();
-  const stepFactories = createStepFactories({
-    geoCatalog: catalog,
-    flags: config.enricherFlags,
-    llmRuntimeConfig: config.llmRuntimeConfig,
-    placeCache: cache,
+export function createParsePipeline(deps: CreateParsePipelineDeps): {
+  pipeline: ParsePipelineService;
+} {
+  const parsedEvents = deps.parsedEvents ?? new InMemoryParsedEventRepository();
+  const eventLocations = deps.eventLocations ?? new InMemoryEventLocationRepository();
+  const messageParseWorkspaces =
+    deps.messageParseWorkspaces ?? new InMemoryMessageParseWorkspaceRepository();
+
+  const { workspaceService } = createParseWorkspaceStack({
+    geoCatalog: deps.geoCatalog,
+    regions: deps.regions,
+    parsedEvents,
+    eventLocations,
+    messageParseWorkspaces,
   });
 
-  const steps: GeoPipelineStep[] = (config.pipelineOrder ?? DEFAULT_PIPELINE_ORDER)
-    .map((id) => stepFactories[id]())
-    .filter((s): s is GeoPipelineStep => s !== null);
+  const pipeline = new ParsePipelineService({
+    workspaceService,
+    regions: deps.regions,
+    geoCatalog: deps.geoCatalog,
+    ingestParsePhases: deps.ingestParsePhases,
+  });
 
-  const resolution = new LocationResolutionService(steps);
-  const pipeline = new ParsePipelineService(resolution, catalog);
-  return { pipeline, resolution };
+  return { pipeline };
+}
+
+/** Сборка в worker_thread (in-memory stack). */
+export function createParsePipelineInWorker(
+  config: ParsePipelineWorkerConfig,
+  geoCatalog: GeoCatalog,
+): ParsePipelineService {
+  return createParsePipeline({
+    geoCatalog,
+    regions: new InMemoryRegionRepository(),
+    ingestParsePhases: config.ingestParsePhases,
+  }).pipeline;
 }
