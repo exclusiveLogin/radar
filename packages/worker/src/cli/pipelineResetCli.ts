@@ -8,6 +8,7 @@ import { WorkerStorageMode } from "../infrastructure/persistence/storageMode.js"
 import { loadRootEnv } from "../infrastructure/config/loadRootEnv.js";
 import { notifyMapPushSnapshot } from "../infrastructure/notifyMapPushSnapshot.js";
 import { hasAnyFlag, parseLongFlagsMap } from "./workerCliArgs.js";
+import { warnDeprecatedNpmScript } from "./deprecatedNpmScript.js";
 
 function printPlan(): void {
   console.log(`
@@ -21,7 +22,7 @@ function printPlan(): void {
 
 Не трогает: raw_messages, ingest_*, channels, places/regions (справочник), phase_definitions.
 
-После сброса: npm run worker:dev  или  npm run parse-engine:rebuild
+После сброса: npm run radar -- stack dev --full  или  npm run radar -- parse run
 `);
 }
 
@@ -29,13 +30,14 @@ function printPlan(): void {
  * CLI: сброс карты, parse-результатов и очередей фаз без удаления raw_messages.
  */
 async function main(): Promise<void> {
+  warnDeprecatedNpmScript("parse-engine:pipeline:reset");
   loadRootEnv(MONOREPO_ROOT);
   const flags = parseLongFlagsMap(process.argv);
   const dryRun = hasAnyFlag(flags, ["dry-run", "dryRun"]);
   const noCatchUp = hasAnyFlag(flags, ["no-catch-up", "noCatchUp"]);
 
   if (hasAnyFlag(flags, ["help", "h"])) {
-    console.log("Usage: npm run parse-engine:reset [--dry-run] [--no-catch-up]");
+    console.log("Usage: npm run parse-engine:pipeline:reset [--dry-run] [--no-catch-up]");
     printPlan();
     process.exit(0);
   }

@@ -5,10 +5,11 @@ import { loadRootEnv } from "../infrastructure/config/loadRootEnv.js";
 import { notifyMapPushSnapshot } from "../infrastructure/notifyMapPushSnapshot.js";
 import { WorkerStorageMode } from "../infrastructure/persistence/storageMode.js";
 import { hasAnyFlag, parseLongFlagsMap } from "./workerCliArgs.js";
+import { warnDeprecatedNpmScript } from "./deprecatedNpmScript.js";
 
 function printPlan(): void {
   console.log(`
-parse-engine:clear — полный сброс операционного контента (конфиг сохраняется):
+parse-engine:archive:clear — полный сброс операционного контента (конфиг сохраняется):
 
   • phase_runs, phase_coverage, domain_events
   • parsed_events, parse_attempts, event_locations
@@ -23,12 +24,13 @@ parse-engine:clear — полный сброс операционного кон
 }
 
 async function main(): Promise<void> {
+  warnDeprecatedNpmScript("parse-engine:archive:clear");
   loadRootEnv(MONOREPO_ROOT);
   const flags = parseLongFlagsMap(process.argv);
   const dryRun = hasAnyFlag(flags, ["dry-run", "dryRun"]);
 
   if (hasAnyFlag(flags, ["help", "h"])) {
-    console.log("Usage: npm run parse-engine:clear [--dry-run]");
+    console.log("Usage: npm run parse-engine:archive:clear [--dry-run]");
     printPlan();
     process.exit(0);
   }
@@ -53,7 +55,7 @@ async function main(): Promise<void> {
     repos: runtime.workerRepos,
   });
 
-  console.log("\nРезультат parse-engine:clear:");
+  console.log("\nРезультат parse-engine:archive:clear:");
   console.log(`  raw_messages: ${result.rawMessagesDeleted}`);
   console.log(`  parsed_events: ${result.parsedEventsDeleted}`);
   console.log(`  parse_attempts: ${result.parseAttemptsDeleted}`);

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { interval } from "rxjs";
 import { useObservable } from "../hooks/useObservable";
 import { connectionStatus$ } from "../realtime/ws";
 import { historicalAsOf$ } from "../state/mapStore";
@@ -15,8 +16,8 @@ export function LiveClock({ timeZone }: LiveClockProps) {
   const [now, setNow] = useState(() => new Date());
 
   useEffect(() => {
-    const id = setInterval(() => setNow(new Date()), 1000);
-    return () => clearInterval(id);
+    const sub = interval(1000).subscribe(() => setNow(new Date()));
+    return () => sub.unsubscribe();
   }, []);
 
   const timeOpts: Intl.DateTimeFormatOptions = {

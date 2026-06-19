@@ -1,4 +1,5 @@
-import { BehaviorSubject, Observable } from "rxjs";
+import { BehaviorSubject, Observable, timer, type Subscription } from "rxjs";
+import { take } from "rxjs/operators";
 import { adminWsServerMessageSchema } from "@radar/shared";
 import type { AdminWsServerMessage } from "@radar/shared";
 import { pushAppLog } from "../state/appLogStore";
@@ -13,7 +14,7 @@ export function connectAdminWs(): Observable<AdminWsServerMessage> {
   return new Observable<AdminWsServerMessage>((subscriber) => {
     let socket: WebSocket | null = null;
     let closedByClient = false;
-    let retryTimer: ReturnType<typeof setTimeout> | undefined;
+    let retrySub: Subscription | undefined;
     let retryMs = 3000;
     const url = `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws/admin`;
 
@@ -42,7 +43,7 @@ export function connectAdminWs(): Observable<AdminWsServerMessage> {
         wasOpen = false;
         adminWsStatus$.next(closedByClient ? "closed" : "connecting");
         if (!closedByClient) {
-          retryTimer = setTimeout(open, retryMs);
+          retrySub = timer(retryMs).pipe(take(1)).subscribe(() => open());
           retryMs = Math.min(retryMs * 2, 30_000);
         }
       };
@@ -52,7 +53,7 @@ export function connectAdminWs(): Observable<AdminWsServerMessage> {
     open();
     return () => {
       closedByClient = true;
-      if (retryTimer) clearTimeout(retryTimer);
+      retrySub?.unsubscribe();
       socket?.close();
       adminWsStatus$.next("closed");
     };

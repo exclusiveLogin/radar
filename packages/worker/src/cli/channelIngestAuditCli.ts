@@ -2,7 +2,8 @@
  * Аудит ingest/parse/geo по каналу: последние N raw из БД vs offline catalog replay.
  *
  * Usage:
- *   npm run parse-engine:channel:audit -w @radar/worker -- --channel=radar-rvk --limit=100
+ *   npm run parse-engine:channel:audit -w @radar/worker -- --channel=radar-rvk --limit=100 --random
+ *   npm run parse-engine:channel:audit -w @radar/worker -- --all-channels --limit=150 --random
  */
 import * as fs from "node:fs";
 import * as path from "node:path";
@@ -263,15 +264,73 @@ function buildMarkdownReport(input: {
 async function main(): Promise<void> {
   loadRootEnv(MONOREPO_ROOT);
   const flags = parseLongFlagsMap(process.argv);
+  const allChannels = flags.has("all-channels");
+  const randomOrder = flags.has("random");
+  const sinceRaw = readStringFlag(flags, ["since"]);
+  const since = sinceRaw ? new Date(sinceRaw) : null;
+  if (sinceRaw && since && !Number.isFinite(since.getTime())) {
+    throw new Error("--since должен быть валидным ISO datetime");
+  }
+
+  if (allChannels) {
+    const dataSource = await createWorkerDataSource();
+    const channels = (await dataSource.query(
+      `SELECT key FROM channels WHERE enabled = true ORDER BY key`,
+    )) as Array<{ key: string }>;
+    await dataSource.destroy();
+    if (channels.length === 0) {
+      console.error("Нет enabled channels");
+      process.exit(1);
+    }
+    const limitRaw = readStringFlag(flags, ["limit"]);
+    const totalLimit = limitRaw ? Number(limitRaw) : 150;
+    const perChannel = Math.max(1, Math.floor(totalLimit / channels.length));
+    for (const { key } of channels) {
+      await runChannelAudit({
+        channelKey: key,
+        limit: perChannel,
+        randomOrder,
+        since,
+        outOverride: readStringFlag(flags, ["out"]),
+      });
+    }
+    return;
+  }
+
   const channelKey = readStringFlag(flags, ["channel"]) ?? "radar-rvk";
   const limitRaw = readStringFlag(flags, ["limit"]);
   const limit = limitRaw ? Number(limitRaw) : 100;
   if (!Number.isFinite(limit) || limit < 1) {
     throw new Error("--limit должен быть положительным числом");
   }
+
+  await runChannelAudit({
+    channelKey,
+    limit,
+    randomOrder,
+    since,
+    outOverride: readStringFlag(flags, ["out"]),
+  });
+}
+
+type AuditRunOptions = {
+  channelKey: string;
+  limit: number;
+  randomOrder: boolean;
+  since: Date | null;
+  outOverride?: string;
+};
+
+async function runChannelAudit(options: AuditRunOptions): Promise<void> {
+  const { channelKey, limit, randomOrder, since, outOverride } = options;
+  const suffix = randomOrder ? "random" : "recent";
   const outMd =
-    readStringFlag(flags, ["out"])
-    ?? path.join(MONOREPO_ROOT, "reports", `${channelKey.replace(/[^a-z0-9-]/gi, "_")}_audit_${limit}.md`);
+    outOverride
+    ?? path.join(
+      MONOREPO_ROOT,
+      "reports",
+      `${channelKey.replace(/[^a-z0-9-]/gi, "_")}_audit_${suffix}_${limit}.md`,
+    );
   const outJson = outMd.replace(/\.md$/i, ".json");
 
   const dataSource = await createWorkerDataSource();
@@ -282,6 +341,12 @@ async function main(): Promise<void> {
     pipelineOrder: ["catalog"],
     llmRuntimeConfig: { ...loadLlmRuntimeConfig(), enabled: false },
   }, undefined, catalog);
+
+  const orderClause = randomOrder ? "ORDER BY random()" : "ORDER BY rm.posted_at DESC NULLS LAST";
+  const sinceClause = since ? "AND rm.posted_at >= $3::timestamptz" : "";
+  const params: unknown[] = since
+    ? [channelKey, limit, since.toISOString()]
+    : [channelKey, limit];
 
   const rawRows = (await dataSource.query(
     `
@@ -301,15 +366,17 @@ async function main(): Promise<void> {
       ORDER BY parsed_at DESC NULLS LAST
       LIMIT 1
     ) pe ON true
-    ORDER BY rm.posted_at DESC NULLS LAST
+    WHERE true ${sinceClause}
+    ${orderClause}
     LIMIT $2
     `,
-    [channelKey, limit],
+    params,
   )) as RawRow[];
 
   if (rawRows.length === 0) {
-    console.error(`Канал '${channelKey}': raw_messages не найдены`);
-    process.exit(1);
+    console.warn(`Канал '${channelKey}': raw_messages не найдены — skip`);
+    await dataSource.destroy();
+    return;
   }
 
   const rawIds = rawRows.map((row) => row.id);
