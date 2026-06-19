@@ -1,4 +1,6 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Subject, interval, merge } from "rxjs";
+import { debounceTime } from "rxjs/operators";
 import { Button } from "../../shared/ds";
 import { formatDateTime } from "../../shared/format/dateTime";
 import { useObservable } from "../../shared/hooks/useObservable";
@@ -6,6 +8,7 @@ import {
   clearHistoricalView,
   historicalAsOf$,
   isHistoricalMapView,
+  mapHistoricalLoading$,
   setHistoricalAsOf,
 } from "../../shared/state/mapStore";
 
@@ -13,6 +16,7 @@ import {
 const MAP_TTL_MS = 24 * 60 * 60 * 1000;
 
 const SLIDER_STEPS = 1000;
+const SCRUB_DEBOUNCE_MS = 350;
 
 /** ISO из позиции ползунка: 0 — начало окна TTL, max — live (now). */
 function isoFromSliderStep(step: number, windowStartMs: number, windowEndMs: number): string {
@@ -37,11 +41,13 @@ function sliderStepFromIso(iso: string, windowStartMs: number, windowEndMs: numb
  */
 export function MapTimelineBar() {
   const historicalAsOf = useObservable(historicalAsOf$, null);
+  const loading = useObservable(mapHistoricalLoading$, false);
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [sliderStep, setSliderStep] = useState(SLIDER_STEPS);
-  const [loading, setLoading] = useState(false);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pendingRef = useRef<string | null>(null);
+  const { scrub$, flush$ } = useMemo(
+    () => ({ scrub$: new Subject<number>(), flush$: new Subject<number>() }),
+    [],
+  );
 
   const windowEndMs = nowMs;
   const windowStartMs = windowEndMs - MAP_TTL_MS;
@@ -56,8 +62,8 @@ export function MapTimelineBar() {
   // Тик «now» только в live mode — в replay маркер не уплывает.
   useEffect(() => {
     if (historicalAsOf !== null) return;
-    const id = setInterval(() => setNowMs(Date.now()), 1000);
-    return () => clearInterval(id);
+    const sub = interval(1000).subscribe(() => setNowMs(Date.now()));
+    return () => sub.unsubscribe();
   }, [historicalAsOf]);
 
   // Синхронизация ползунка с store (клик из ленты событий и т.п.).
@@ -70,49 +76,30 @@ export function MapTimelineBar() {
   }, [historicalAsOf, windowStartMs, windowEndMs]);
 
   const applyStep = useCallback(
-    async (step: number) => {
+    (step: number) => {
       if (step >= SLIDER_STEPS) {
-        setLoading(true);
-        try {
-          await clearHistoricalView();
-        } finally {
-          setLoading(false);
-        }
+        clearHistoricalView();
         return;
       }
 
       const iso = isoFromSliderStep(step, windowStartMs, windowEndMs);
       if (iso === historicalAsOf$.value) return;
-
-      setLoading(true);
-      pendingRef.current = iso;
-      try {
-        await setHistoricalAsOf(iso);
-      } finally {
-        if (pendingRef.current === iso) {
-          pendingRef.current = null;
-          setLoading(false);
-        }
-      }
+      setHistoricalAsOf(iso);
     },
     [windowStartMs, windowEndMs],
   );
 
+  useEffect(() => {
+    const sub = merge(scrub$.pipe(debounceTime(SCRUB_DEBOUNCE_MS)), flush$).subscribe((step) =>
+      void applyStep(step),
+    );
+    return () => sub.unsubscribe();
+  }, [applyStep, flush$, scrub$]);
+
   const onSliderInput = (step: number): void => {
     setSliderStep(step);
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      debounceRef.current = null;
-      void applyStep(step);
-    }, 350);
+    scrub$.next(step);
   };
-
-  useEffect(
-    () => () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    },
-    [],
-  );
 
   const modeLabel = historicalAsOf !== null ? "REPLAY" : "LIVE";
 
@@ -140,20 +127,8 @@ export function MapTimelineBar() {
           disabled={loading}
           aria-valuetext={formatDateTime(markerIso)}
           onChange={(event) => onSliderInput(Number(event.target.value))}
-          onMouseUp={(event) => {
-            if (debounceRef.current) {
-              clearTimeout(debounceRef.current);
-              debounceRef.current = null;
-            }
-            void applyStep(Number((event.target as HTMLInputElement).value));
-          }}
-          onTouchEnd={(event) => {
-            if (debounceRef.current) {
-              clearTimeout(debounceRef.current);
-              debounceRef.current = null;
-            }
-            void applyStep(Number((event.target as HTMLInputElement).value));
-          }}
+          onMouseUp={(event) => flush$.next(Number((event.target as HTMLInputElement).value))}
+          onTouchEnd={(event) => flush$.next(Number((event.target as HTMLInputElement).value))}
         />
         <span className="map-timeline__edge">сейчас</span>
       </div>

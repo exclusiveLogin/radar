@@ -59,8 +59,7 @@ export class ParseRawMessageHandler {
         postedAt: raw.postedAt,
         geoContext: {
           initialArtifact: priorState?.artifact,
-          priorValidatedLocations: priorState?.priorLocations,
-          phaseMode: this.phaseMode,
+          enrichers: this.phaseMode === "enrich" ? ["catalog", "llm"] : ["catalog"],
         },
         mode: priorState ? "refinalize" : "initial",
       });

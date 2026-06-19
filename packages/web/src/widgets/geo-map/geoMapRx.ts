@@ -50,8 +50,3 @@ export function splitFetchPhase$<T>(source$: Observable<FetchPhase<T>>): FetchSt
     ),
   };
 }
-
-/** shareReplay(1, refCount) для SSOT-триггеров store. */
-export function shareTrigger<T>(source$: Observable<T>): Observable<T> {
-  return source$.pipe(shareReplay({ bufferSize: 1, refCount: true }));
-}

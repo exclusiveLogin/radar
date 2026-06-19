@@ -1,12 +1,12 @@
 import type { ParseWorkspace } from "@radar/shared";
 
-/** Пустой workspace для noise-path и offline report. */
+/** Пустой workspace v2 для noise-path и offline report. */
 export function createEmptyParseWorkspace(
   rawMessageId: string,
   groomedText: string,
 ): ParseWorkspace {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     rawMessageId,
     groomedText,
     blocks: [],
@@ -14,5 +14,6 @@ export function createEmptyParseWorkspace(
     traitAttachments: [],
     namespaces: {},
     processorLog: [],
+    enricherRunLog: [],
   };
 }

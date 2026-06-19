@@ -1,6 +1,7 @@
 import { BehaviorSubject } from "rxjs";
 import { mapApi } from "../api/mapApi";
 import type { TopActivityRow } from "../api/mapApi";
+import { startIntervalPoll } from "../rx/startIntervalPoll";
 import { reportAppError } from "./appLogStore";
 
 /** Топ регионов по danger-событиям за 7 дней. */
@@ -13,8 +14,7 @@ export function startTopActivityStore(): void {
   if (started) return;
   started = true;
 
-  void refresh();
-  setInterval(() => void refresh(), POLL_MS);
+  startIntervalPoll(POLL_MS, refresh);
 }
 
 async function refresh(): Promise<void> {

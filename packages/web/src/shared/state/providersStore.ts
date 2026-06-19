@@ -1,5 +1,6 @@
 import { BehaviorSubject } from "rxjs";
 import { mapApi, type IngestProvider } from "../api/mapApi";
+import { startIntervalPoll } from "../rx/startIntervalPoll";
 import {
   healthResponseSchema,
   readyResponseSchema,
@@ -35,8 +36,7 @@ export function startProvidersStore(): void {
   if (started) return;
   started = true;
 
-  void refreshAll();
-  setInterval(() => void refreshAll(), POLL_MS);
+  startIntervalPoll(POLL_MS, refreshAll);
 }
 
 async function refreshAll(): Promise<void> {

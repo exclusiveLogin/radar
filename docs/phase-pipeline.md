@@ -5,13 +5,8 @@
 ## Быстрый старт
 
 ```powershell
-# 1. Миграции (один раз)
-npm run migration:run
-
-# 2. Манифест фаз → БД (upsert, в т.ч. `enabled` + catch-up для включённых фаз)
-npm run phase:manifest:import
-
-# 3. Worker в db-режиме
+npm run radar -- stack migrate
+npm run radar -- phase manifest:import
 # .env: RADAR_STORAGE_MODE=db, DATABASE_URL=...
 npm run worker:dev
 ```
@@ -35,7 +30,7 @@ flowchart LR
 |---------|------------|
 | `eager` | Сразу после ingest/reparse (`runPostIngestPhaseFlow`) |
 | `scheduled` | `IngestParseDaemonService`, `RADAR_INGEST_PARSE_DAEMON_ENABLED` (legacy: `RADAR_PHASE_DAEMON_ENABLED`) |
-| `manual` | `worker:phase:run`, админка Run → enqueue; исполняет worker |
+| `manual` | `radar pipeline phase:run`, админка Run |
 
 **Порядок фаз:** `order` в манифесте. Scheduled не claim'ит сообщение, пока все фазы с меньшим `order` не `done` для этого raw.
 
@@ -52,11 +47,11 @@ flowchart LR
 ## CLI
 
 ```powershell
-npm run worker:phase:run -- --phase=llm --batch=100 [--watch]
-npm run worker:enrich:run -- --stage=llm          # алиас
+npm run radar -- pipeline phase:run -- --phase=llm --batch=100 [--watch]
+npm run worker:enrich:run -- --stage=llm          # алиас (legacy)
 
-# Полный reparse = invalidate + ingest-поток (не прямой catalog)
-npm run worker:reparse:raw
+# Полный reparse после ingest
+npm run radar -- parse run
 ```
 
 ## Env
@@ -72,7 +67,7 @@ npm run worker:reparse:raw
 ingest/backfill → RawMessageIngested → phaseIngestFlow (eager)
                                       → phase_coverage (pending)
 IngestParseDaemon (scheduled) → PhaseRunner → parsed_events
-manual: worker:phase:run / админка Run
+manual: radar pipeline phase:run / админка Run
 ```
 
 Таблицы `job_definitions` / `job_runs` и JobDaemon **удалены** (миграция `1748600000000`).

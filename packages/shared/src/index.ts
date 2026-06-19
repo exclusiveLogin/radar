@@ -70,6 +70,8 @@ export {
   mapPlaceSnapshotSchema,
   placeStateEventSchema,
   mapSnapshotSchema,
+  mapRegionsStateResponseSchema,
+  mapPlacesStateResponseSchema,
   regionAdjacencySchema,
   warningSchema,
   sourceMessageSchema,
@@ -173,6 +175,9 @@ export {
 } from "./domain/region-state/mapStateTtl";
 export {
   foldMapState,
+  foldRegionMapState,
+  foldPlaceMapState,
+  filterRegionScopedFacts,
   shouldIncomingBeatWinner,
   isRegionVisibleInSnapshot,
 } from "./domain/region-state/mapStateFold";
@@ -181,6 +186,7 @@ export type {
   MapEntityWinner,
   MapStateFoldInput,
   MapStateFoldResult,
+  FoldPlaceMapStateInput,
 } from "./domain/region-state/mapStateFold";
 export {
   isMassClearTextEligible,
@@ -191,9 +197,20 @@ export type { MassClearRegionRef } from "./domain/region-state/massClearTargets"
 export {
   buildAuthorPlaceClearFacts,
   loadMapFacts,
+  loadRegionMapFacts,
+  loadPlaceMapFacts,
   loadMapFoldFacts,
 } from "./domain/region-state/mapFactsLoader";
+export { isPgDeadlockError, isPgContendedReadError, isPgStatementTimeoutError, withPgContendedReadRetry, withPgDeadlockRetry } from "./infrastructure/pgDeadlockRetry";
 export type { MapFactsDbQuery, MapFoldDbQuery } from "./domain/region-state/mapFactsLoader";
+export {
+  buildCandidateId,
+  buildCandidateMergeKey,
+} from "./domain/parse/candidateKeys";
+export {
+  migrateParseWorkspaceV1ToV2,
+  normalizeParseWorkspace,
+} from "./domain/parse/workspaceMigrate";
 export { ingestMessageHash } from "./domain/ingestMessageHash";
 export type { RawMessageHashInput } from "./domain/ingestMessageHash";
 export {
@@ -313,6 +330,8 @@ export type {
   MapPlaceSnapshot,
   PlaceStateEvent,
   MapSnapshot,
+  MapRegionsStateResponse,
+  MapPlacesStateResponse,
   RegionAdjacency,
   Warning,
   SourceMessage,

@@ -5,7 +5,7 @@ import { Panel } from "../../shared/ds";
 import { LEVEL_COLORS, LEVEL_LABELS } from "../../shared/config/mapConfig.service";
 import { formatDateTime } from "../../shared/format/dateTime";
 import { isRegionVisibleOnMap } from "../../shared/state/derivations";
-import { derivedRegionCodes$, regionsByCode$ } from "../../shared/state/mapStore";
+import { derivedRegionCodes$, historicalAsOf$, mapViewAnchor$, regionsByCode$ } from "../../shared/state/mapStore";
 import { selectRegion, selectedRegion$ } from "../../shared/state/selectionStore";
 import { stateChangesFeed$ } from "../../shared/state/stateChangesFeedStore";
 import { regionFadeFactor } from "../../shared/utils/regionFade";
@@ -77,12 +77,21 @@ export function SchematicMapWidget(_props: WidgetProps) {
   const [hoverTip, setHoverTip] = useState<HoverTip | null>(null);
   const [derivedCodes, setDerivedCodes] = useState(() => derivedRegionCodes$.getValue());
   const [feedItems, setFeedItems] = useState(() => stateChangesFeed$.getValue());
-  // Тик каждые 60с для пересчёта затухания яркости заливки.
-  const [now, setNow] = useState(() => Date.now());
+  const [historicalAsOf, setHistoricalAsOf] = useState(() => historicalAsOf$.getValue());
+  // SSOT fade-якоря — mapViewAnchor$ (live-тик 60с в startMapStore).
+  const [now, setNow] = useState(() => mapViewAnchor$.getValue());
 
   useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 60_000);
-    return () => clearInterval(id);
+    const sub = mapViewAnchor$.subscribe(setNow);
+    return () => sub.unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    setHistoricalAsOf(historicalAsOf$.getValue());
+    const sub = historicalAsOf$.subscribe((asOf) => {
+      setHistoricalAsOf(asOf);
+    });
+    return () => sub.unsubscribe();
   }, []);
 
   useEffect(() => {
@@ -131,16 +140,16 @@ export function SchematicMapWidget(_props: WidgetProps) {
   );
 
   const activeRegions = useMemo(
-    () => layoutRegions.filter(isRegionVisibleOnMap),
-    [layoutRegions],
+    () => layoutRegions.filter((region) => isRegionVisibleOnMap(region, now)),
+    [layoutRegions, now],
   );
 
   const tiles = useMemo(
     () =>
       [...layoutRegions]
-        .filter(isRegionVisibleOnMap)
+        .filter((region) => isRegionVisibleOnMap(region, now))
         .sort((a, b) => LEVEL_Z[a.stateLevel] - LEVEL_Z[b.stateLevel]),
-    [layoutRegions],
+    [layoutRegions, now],
   );
 
   const fullWidth =

@@ -57,12 +57,17 @@ export class MapQueryService {
       geometry: Record<string, unknown>;
     }>;
   }> {
-    const snapshot = await this.mapSnapshotQuery.getSnapshotAt(new Date());
-    const placeIds = snapshot.places.map((place) => place.placeId);
-    if (placeIds.length === 0) {
+    try {
+      const snapshot = await this.mapSnapshotQuery.getSnapshotAt(new Date());
+      const placeIds = snapshot.places.map((place) => place.placeId);
+      if (placeIds.length === 0) {
+        return { type: "FeatureCollection", features: [] };
+      }
+      return this.loadActiveDistrictsGeoJsonByPlaceIds(placeIds);
+    } catch (error) {
+      console.warn("[map] districts-active: fold недоступен (rebuild/heal), пустой слой", error);
       return { type: "FeatureCollection", features: [] };
     }
-    return this.loadActiveDistrictsGeoJsonByPlaceIds(placeIds);
   }
 
   /** Активные полигоны районов по списку placeId (fold read-line). */
@@ -153,7 +158,10 @@ export class MapQueryService {
    * Контуры районов и городских округов из geo_feature (layer=district/city_district).
    * Используется для детализированной подсветки карты.
    */
-  async getDistrictsGeoJsonLayer(regionId?: string): Promise<{
+  async getDistrictsGeoJsonLayer(input?: {
+    regionId?: string;
+    geoFeatureIds?: string[];
+  }): Promise<{
     type: "FeatureCollection";
     features: Array<{
       type: "Feature";
@@ -162,8 +170,21 @@ export class MapQueryService {
       geometry: Record<string, unknown>;
     }>;
   }> {
+    const regionId = input?.regionId;
+    const geoFeatureIds = input?.geoFeatureIds?.filter(Boolean) ?? [];
     const params: unknown[] = [["district", "city_district"]];
-    const regionFilter = regionId ? `AND gf.region_id = $${params.push(regionId)}` : "";
+    let regionFilter = "";
+    let idsFilter = "";
+
+    if (regionId) {
+      regionFilter = `AND gf.region_id = $${params.push(regionId)}`;
+    }
+    if (geoFeatureIds.length > 0) {
+      idsFilter = `AND gf.id = ANY($${params.push(geoFeatureIds)}::uuid[])`;
+    }
+    if (!regionId && geoFeatureIds.length === 0) {
+      return { type: "FeatureCollection", features: [] };
+    }
 
     const rows = (await this.dataSource.query(
       `SELECT gf.id,
@@ -181,6 +202,7 @@ export class MapQueryService {
          AND gf.is_active = true
          AND gf.geometry IS NOT NULL
          ${regionFilter}
+         ${idsFilter}
        ORDER BY r.iso, gf.name`,
       params,
     )) as Array<{
@@ -214,19 +236,18 @@ export class MapQueryService {
     };
   }
 
-  /** Полигоны активных регионов (OSM GeoJSON) + stateLevel из fold snapshot. */
-  async getRegionsGeoJsonLayer(): Promise<RegionsGeoJsonLayer> {
+  /** Полигоны субъектов по ISO-кодам (без stateLevel). */
+  async getRegionsGeoJsonLayer(regionCodes: string[]): Promise<RegionsGeoJsonLayer> {
     await this.ensureCatalogBound();
+    return RegionGeometryCatalog.getInstance().buildLayerByCodes(regionCodes);
+  }
 
-    const snapshot = await this.mapSnapshotQuery.getSnapshotAt(new Date());
-    const stateByIso = new Map<string, StateLevel>(
-      snapshot.regions.map((region) => [region.regionCode, region.stateLevel as StateLevel]),
-    );
+  async getRegionsStateAt(asOf: Date) {
+    return this.mapSnapshotQuery.getRegionsStateAt(asOf);
+  }
 
-    // Полный набор контуров: цвет/видимость задаёт клиент по WS snapshot (не режем геометрию).
-    return RegionGeometryCatalog.getInstance().buildLayer(stateByIso, {
-      includeGrey: true,
-    });
+  async getPlacesStateAt(asOf: Date, regionId?: string) {
+    return this.mapSnapshotQuery.getPlacesStateAt(asOf, regionId);
   }
 
   /** Привязка файлов OSM к ISO регионов БД (один раз за процесс). */

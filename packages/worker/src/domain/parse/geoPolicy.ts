@@ -18,9 +18,14 @@ const REGION_ONLY_TYPES = new Set<EventType>(["cleared", "mass_warning"]);
 export function isCandidateGeoValid(input: {
   eventType: string;
   anchorKind: "place" | "region" | "system";
+  /** Канальный отбой «по всем …» — system-якорь без перечня регионов. */
+  massClearChannel?: boolean;
 }): boolean {
   const type = input.eventType as EventType;
   if (REGION_ONLY_TYPES.has(type)) {
+    if (input.massClearChannel && input.anchorKind === "system") {
+      return true;
+    }
     return input.anchorKind === "region" || input.anchorKind === "place";
   }
   if (STRICT_TYPES.has(type)) {

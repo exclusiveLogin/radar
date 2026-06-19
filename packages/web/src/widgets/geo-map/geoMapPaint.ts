@@ -49,7 +49,7 @@ export function paintRegionOutlines(
   for (const feature of base.features) {
     const code = String(feature.properties.regionCode ?? "");
     const region = regions.get(code);
-    if (!region || !isRegionVisibleOnMap(region)) continue;
+    if (!region || !isRegionVisibleOnMap(region, now)) continue;
 
     const stateLevel = region.stateLevel as StateLevel;
     features.push({
@@ -98,7 +98,7 @@ export function placesToFeatures(
   now: number,
 ): PointFeature[] {
   return [...places.values()]
-    .filter((place) => isPlaceVisibleOnMap(place, regions))
+    .filter((place) => isPlaceVisibleOnMap(place, regions, now))
     .map((place) => {
       const regionLevel = regions.get(place.regionCode)?.stateLevel ?? "grey";
       const level = effectivePlaceLevel(place.stateLevel, regionLevel);
@@ -156,7 +156,7 @@ export function paintActiveDistricts(
 ): GeoJsonCollection {
   const byGeoFeatureId = new Map<string, MapPlaceSnapshot>();
   for (const place of places.values()) {
-    if (place.geoFeatureId && isPlaceVisibleOnMap(place, regions)) {
+    if (place.geoFeatureId && isPlaceVisibleOnMap(place, regions, now)) {
       byGeoFeatureId.set(place.geoFeatureId, place);
     }
   }

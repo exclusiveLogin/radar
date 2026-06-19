@@ -102,6 +102,18 @@ export const mapSnapshotSchema = z.object({
   places: z.array(mapPlaceSnapshotSchema).default([]),
 });
 
+/** Ответ GET /map/regions-state — только fold регионов. */
+export const mapRegionsStateResponseSchema = z.object({
+  generatedAt: z.string().datetime(),
+  regions: z.array(mapRegionSnapshotSchema),
+});
+
+/** Ответ GET /map/places-state — только fold places. */
+export const mapPlacesStateResponseSchema = z.object({
+  generatedAt: z.string().datetime(),
+  places: z.array(mapPlaceSnapshotSchema),
+});
+
 /** Смежность регионов: code -> список соседних code (ненаправленная, симметричная). */
 export const regionAdjacencySchema = z.object({
   version: z.literal(1).default(1),
@@ -140,6 +152,8 @@ export type MapRegionSnapshot = z.infer<typeof mapRegionSnapshotSchema>;
 export type MapPlaceSnapshot = z.infer<typeof mapPlaceSnapshotSchema>;
 export type PlaceStateEvent = z.infer<typeof placeStateEventSchema>;
 export type MapSnapshot = z.infer<typeof mapSnapshotSchema>;
+export type MapRegionsStateResponse = z.infer<typeof mapRegionsStateResponseSchema>;
+export type MapPlacesStateResponse = z.infer<typeof mapPlacesStateResponseSchema>;
 export type RegionAdjacency = z.infer<typeof regionAdjacencySchema>;
 export type Warning = z.infer<typeof warningSchema>;
 export type SourceMessage = z.infer<typeof sourceMessageSchema>;

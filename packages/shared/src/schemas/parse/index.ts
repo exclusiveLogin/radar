@@ -3,6 +3,8 @@ export {
   type AttachRule,
 } from "./trait-attachment.js";
 export {
+  candidateStatusSchema,
+  enricherRunLogEntrySchema,
   eventCandidateAnchorSchema,
   eventCandidateSchema,
   finalizeContextSchema,
@@ -12,7 +14,9 @@ export {
   messageBlockSchema,
   messageParseWorkspaceStatusSchema,
   parseWorkspaceSchema,
+  parseWorkspaceSchemaV1,
   traitAttachmentSchema,
+  type EnricherRunLogEntry,
   type EventCandidate,
   type FinalizeContext,
   type FinalizeMode,
@@ -20,5 +24,6 @@ export {
   type MessageBlock,
   type MessageParseWorkspaceStatus,
   type ParseWorkspace,
+  type ParseWorkspaceV1,
   type TraitAttachment,
 } from "./parse-workspace.js";

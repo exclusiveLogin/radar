@@ -12,6 +12,7 @@ import type {
 } from "@radar/shared";
 import { adminApi } from "../api/adminApi";
 import { connectAdminWs } from "../realtime/adminWs";
+import { startIntervalPoll } from "../rx/startIntervalPoll";
 import { reportAppError } from "./appLogStore";
 import { selectedChannelKey$ } from "./channelSelectionStore";
 
@@ -45,16 +46,12 @@ export function startAdminStore(): void {
   if (started) return;
   started = true;
 
-  void refreshChannels();
-  void refreshStats();
-  void refreshTelemetry();
-  void refreshBackfill();
   void seedParseLog();
 
-  setInterval(() => void refreshChannels(), CHANNELS_POLL_MS);
-  setInterval(() => void refreshStats(), STATS_POLL_MS);
-  setInterval(() => void refreshTelemetry(), TELEMETRY_POLL_MS);
-  setInterval(() => void refreshBackfill(), BACKFILL_POLL_MS);
+  startIntervalPoll(CHANNELS_POLL_MS, refreshChannels);
+  startIntervalPoll(STATS_POLL_MS, refreshStats);
+  startIntervalPoll(TELEMETRY_POLL_MS, refreshTelemetry);
+  startIntervalPoll(BACKFILL_POLL_MS, refreshBackfill);
 
   selectedChannelKey$.subscribe((key) => void refreshChannelStats(key));
 

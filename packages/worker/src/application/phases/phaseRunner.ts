@@ -18,14 +18,11 @@ import type {
 } from "@radar/shared";
 import { resolveGeoEnrichmentProvider } from "@radar/shared";
 import type { PlaceEnrichmentRunner } from "../geo-parse/placeEnrichmentRunner.js";
-import { loadLlmRuntimeConfig } from "../../infrastructure/enrichers/llmRuntimeConfig.js";
+import { GeoCatalog } from "../../infrastructure/geo-catalog/index.js";
 import { ParseRawMessageHandler } from "../handlers/parseRawMessageHandler.js";
 import { createParseWorkspaceStack } from "../parse/createParseWorkspaceStack.js";
 import type { ParsePhaseContext } from "../parse/parsePhaseContext.js";
-import { GeoCatalog } from "../../infrastructure/geo-catalog/index.js";
-import { createParsePipeline } from "../parsing/createParsePipeline.js";
 import type { GeoValidationService } from "../parsing/geoValidationService.js";
-import { pipelineConfigFromEnrichers } from "./phasePipelineConfig.js";
 import { notifyMapPushSnapshotAfterPhase } from "../../infrastructure/notifyMapPushSnapshot.js";
 import { prerequisitePhaseIds } from "./phaseOrder.js";
 
@@ -55,24 +52,12 @@ export class PhaseRunner {
   constructor(private readonly deps: PhaseRunnerDeps) {}
 
   private createHandler(phase: PhaseDefinitionRecord): ParseRawMessageHandler {
-    const { flags, order } = pipelineConfigFromEnrichers(phase.enrichers);
-    const llmRuntimeConfig = {
-      ...loadLlmRuntimeConfig(),
-      ...(flags.llm ? { enabled: true } : {}),
-    };
-    const { resolution } = createParsePipeline(
-      { enricherFlags: flags, pipelineOrder: order, llmRuntimeConfig },
-      this.deps.placeCache,
-      this.deps.geoCatalog,
-    );
     const phaseContext: ParsePhaseContext = {
       phaseId: phase.id,
-      phaseMode: phase.enrichers.includes("catalog") ? "baseline" : "enrich",
+      phaseMode: phase.enrichers.includes("llm") ? "enrich" : "baseline",
     };
     const { workspaceService } = createParseWorkspaceStack({
       geoCatalog: this.deps.geoCatalog,
-      resolution,
-      validation: this.deps.validation,
       parsedEvents: this.deps.parsedEvents,
       eventLocations: this.deps.eventLocations,
       messageParseWorkspaces: this.deps.messageParseWorkspaces,

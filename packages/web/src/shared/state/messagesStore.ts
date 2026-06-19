@@ -1,6 +1,7 @@
 import { BehaviorSubject } from "rxjs";
 import { messageFeedResponseSchema, type MessageFeedItem } from "@radar/shared";
 import { mapApi } from "../api/mapApi";
+import { startIntervalPoll } from "../rx/startIntervalPoll";
 import { reportAppError } from "./appLogStore";
 
 /** Лента сырых сообщений (REST poll). */
@@ -14,8 +15,7 @@ export function startMessagesStore(): void {
   if (started) return;
   started = true;
 
-  void refreshMessages();
-  setInterval(() => void refreshMessages(), POLL_MS);
+  startIntervalPoll(POLL_MS, refreshMessages);
 }
 
 async function refreshMessages(): Promise<void> {

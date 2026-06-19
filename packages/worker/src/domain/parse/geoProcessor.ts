@@ -1,11 +1,14 @@
 import type { EventCandidate, ParseWorkspace } from "@radar/shared";
 import type { GeoCatalog } from "../../infrastructure/geo-catalog/index.js";
-import { buildCandidateId } from "./candidateId.js";
+import type { RegionCatalogEntry } from "../../infrastructure/geo-catalog/regionCatalog.js";
+import { appendCandidate, rejectOwnCandidates } from "./parseProcessorContract.js";
 
-function findSpan(
-  text: string,
-  needle: string,
-): { start: number; end: number; matchedText: string } | null {
+const AUTHOR = "geo-processor";
+const ENRICHER = "catalog";
+
+type TextSpan = { start: number; end: number; matchedText: string };
+
+function findSpan(text: string, needle: string): TextSpan | null {
   const lower = text.toLowerCase();
   const idx = lower.indexOf(needle.toLowerCase());
   if (idx < 0) return null;
@@ -16,7 +19,18 @@ function findSpan(
   };
 }
 
-/** GeoProcessor: spawn place/region candidates (ADR-012 wrap GeoCatalog). */
+function findRegionSpan(text: string, region: RegionCatalogEntry): TextSpan | null {
+  const needles = [region.name, ...region.aliases].filter((value) => value.length >= 4);
+  let best: TextSpan | null = null;
+  for (const needle of needles) {
+    const span = findSpan(text, needle);
+    if (!span) continue;
+    if (!best || span.start < best.start) best = span;
+  }
+  return best;
+}
+
+/** GeoProcessor: append place/region candidates (ADR-012 wrap GeoCatalog). */
 export function runGeoProcessor(input: {
   workspace: ParseWorkspace;
   geoCatalog: GeoCatalog;
@@ -28,31 +42,27 @@ export function runGeoProcessor(input: {
 
   const regionCandidates: EventCandidate[] = [];
   for (const region of regions) {
-    const span = findSpan(text, region.name);
+    const span = findRegionSpan(text, region);
     if (!span) continue;
-    const id = buildCandidateId({
-      rawMessageId: workspace.rawMessageId,
-      spanStart: span.start,
-      spanEnd: span.end,
-      anchorKind: "region",
-      anchorName: region.name,
-    });
-    regionCandidates.push({
-      id,
-      anchor: {
-        kind: "region",
-        name: region.name,
-        regionCode: region.code,
-        placeFias: region.fiasId,
-        span,
-      },
-      eventType: "unknown",
-      extras: {},
-      provenance: {
-        eventTypeSource: "pending",
-        anchorSource: "geo-processor",
-      },
-    });
+    regionCandidates.push(
+      appendCandidate({
+        workspace,
+        authorProcessorId: AUTHOR,
+        authorEnricherId: ENRICHER,
+        anchor: {
+          kind: "region",
+          name: region.name,
+          regionCode: region.code,
+          placeFias: region.fiasId,
+          span,
+        },
+        eventType: "unknown",
+        provenance: {
+          eventTypeSource: "pending",
+          anchorSource: "geo-processor",
+        },
+      }),
+    );
   }
 
   const placeCandidates: EventCandidate[] = [];
@@ -60,40 +70,40 @@ export function runGeoProcessor(input: {
     const span = findSpan(text, place.name);
     if (!span) continue;
     const regionCode = geoCatalog.lookupRegionForPlaceName(place.name) ?? undefined;
-    const id = buildCandidateId({
-      rawMessageId: workspace.rawMessageId,
-      spanStart: span.start,
-      spanEnd: span.end,
-      anchorKind: "place",
-      anchorName: place.name,
-    });
-    placeCandidates.push({
-      id,
-      anchor: {
-        kind: "place",
-        name: place.name,
-        regionCode,
-        lat: place.lat,
-        lon: place.lon,
-        span,
-      },
-      eventType: "unknown",
-      extras: place.alias ? { geoImprecise: true } : {},
-      provenance: {
-        eventTypeSource: "pending",
-        anchorSource: "geo-processor",
-      },
-    });
+    placeCandidates.push(
+      appendCandidate({
+        workspace,
+        authorProcessorId: AUTHOR,
+        authorEnricherId: ENRICHER,
+        anchor: {
+          kind: "place",
+          name: place.name,
+          regionCode,
+          lat: place.lat,
+          lon: place.lon,
+          span,
+        },
+        eventType: "unknown",
+        extras: place.alias ? { geoImprecise: true } : {},
+        provenance: {
+          eventTypeSource: "pending",
+          anchorSource: "geo-processor",
+        },
+      }),
+    );
   }
 
   const regionCodesFromPlaces = new Set(
     placeCandidates.map((c) => c.anchor.regionCode).filter(Boolean),
   );
-  const collapsedRegions = regionCandidates.filter((regionCandidate) => {
-    const code = regionCandidate.anchor.regionCode;
-    if (!code) return true;
-    return !regionCodesFromPlaces.has(code);
-  });
-
-  workspace.candidates.push(...placeCandidates, ...collapsedRegions);
+  if (regionCodesFromPlaces.size > 0) {
+    rejectOwnCandidates({
+      workspace,
+      authorProcessorId: AUTHOR,
+      predicate: (candidate) =>
+        candidate.anchor.kind === "region"
+        && Boolean(candidate.anchor.regionCode)
+        && regionCodesFromPlaces.has(candidate.anchor.regionCode!),
+    });
+  }
 }

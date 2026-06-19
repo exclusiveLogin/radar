@@ -6,14 +6,24 @@ import type { ParseWorkspace } from "@radar/shared";
 import type { GeoCatalog } from "../../infrastructure/geo-catalog/index.js";
 import { runGeoProcessor } from "./geoProcessor.js";
 import { runEventTypeProcessor } from "./eventTypeProcessor.js";
+import { runMassClearExcludeProcessor } from "./massClearExcludeProcessor.js";
+import { runMassClearScopeProcessor } from "./massClearScopeProcessor.js";
 import { runRepeatProcessor, runMassProcessor, runCountProcessor } from "./traitProcessors.js";
+import { runLlmProcessor } from "./llmProcessor.js";
+import { runDadataProcessor } from "./dadataProcessor.js";
+import { runNominatimProcessor } from "./nominatimProcessor.js";
 
 export type ParseProcessorId =
   | "geo-processor"
   | "event-type-processor"
+  | "mass-clear-exclude-processor"
+  | "mass-clear-scope-processor"
   | "repeat-processor"
   | "mass-processor"
-  | "count-processor";
+  | "count-processor"
+  | "llm-processor"
+  | "dadata-processor"
+  | "nominatim-processor";
 
 export type ProcessorRegistryEntry = {
   id: ParseProcessorId;
@@ -33,15 +43,23 @@ export type ParseProcessorContext = {
 
 export type ParseProcessorFn = (ctx: ParseProcessorContext) => void;
 
-const PROCESSOR_IMPL = {
+const PROCESSOR_IMPL: Record<ParseProcessorId, ParseProcessorFn> = {
   "geo-processor": ({ workspace, geoCatalog }) => runGeoProcessor({ workspace, geoCatalog }),
   "event-type-processor": ({ workspace }) => {
     runEventTypeProcessor(workspace);
   },
+  "mass-clear-exclude-processor": ({ workspace, geoCatalog }) =>
+    runMassClearExcludeProcessor({ workspace, geoCatalog }),
+  "mass-clear-scope-processor": ({ workspace }) => {
+    runMassClearScopeProcessor(workspace);
+  },
   "repeat-processor": ({ workspace }) => runRepeatProcessor(workspace),
   "mass-processor": ({ workspace }) => runMassProcessor(workspace),
   "count-processor": ({ workspace }) => runCountProcessor(workspace),
-} as const satisfies Record<string, ParseProcessorFn>;
+  "llm-processor": ({ workspace }) => runLlmProcessor(workspace),
+  "dadata-processor": ({ workspace }) => runDadataProcessor(workspace),
+  "nominatim-processor": ({ workspace }) => runNominatimProcessor(workspace),
+};
 
 export const PARSE_PROCESSOR_IDS = Object.keys(PROCESSOR_IMPL) as ParseProcessorId[];
 
@@ -55,9 +73,11 @@ function defaultRegistry(): ProcessorRegistry {
     processors: [
       { id: "geo-processor", enabled: true, order: 10 },
       { id: "event-type-processor", enabled: true, order: 20 },
-      { id: "repeat-processor", enabled: true, order: 30 },
-      { id: "mass-processor", enabled: true, order: 40 },
-      { id: "count-processor", enabled: true, order: 50 },
+      { id: "mass-clear-exclude-processor", enabled: true, order: 25 },
+      { id: "mass-clear-scope-processor", enabled: true, order: 30 },
+      { id: "repeat-processor", enabled: true, order: 40 },
+      { id: "mass-processor", enabled: true, order: 50 },
+      { id: "count-processor", enabled: true, order: 60 },
     ],
   };
 }
@@ -105,27 +125,38 @@ export function registryRevisionHash(registry: ProcessorRegistry): string {
   return createHash("sha256").update(JSON.stringify(registry), "utf8").digest("hex").slice(0, 12);
 }
 
-/** Запуск enabled processors по registry. */
+/** Запуск одного processor по id (enricher sub-step). */
+export function runProcessorById(
+  id: ParseProcessorId,
+  ctx: ParseProcessorContext,
+): boolean {
+  const impl = PROCESSOR_IMPL[id];
+  if (!impl) return false;
+  const t0 = performance.now();
+  try {
+    impl(ctx);
+    ctx.workspace.processorLog.push({
+      id,
+      ok: true,
+      durationMs: Math.round(performance.now() - t0),
+    });
+    return true;
+  } catch {
+    ctx.workspace.processorLog.push({
+      id,
+      ok: false,
+      durationMs: Math.round(performance.now() - t0),
+    });
+    return false;
+  }
+}
+
+/** @deprecated Используйте runCatalogEnricher / runParseEnricher */
 export function runProcessorPipeline(ctx: ParseProcessorContext): void {
   const registry = loadProcessorRegistry();
   for (const entry of registry.processors) {
     if (!entry.enabled) continue;
-    const impl = isKnownProcessorId(entry.id) ? PROCESSOR_IMPL[entry.id] : undefined;
-    if (!impl) continue;
-    const t0 = performance.now();
-    try {
-      impl(ctx);
-      ctx.workspace.processorLog.push({
-        id: entry.id,
-        ok: true,
-        durationMs: Math.round(performance.now() - t0),
-      });
-    } catch {
-      ctx.workspace.processorLog.push({
-        id: entry.id,
-        ok: false,
-        durationMs: Math.round(performance.now() - t0),
-      });
-    }
+    if (!isKnownProcessorId(entry.id)) continue;
+    runProcessorById(entry.id, ctx);
   }
 }

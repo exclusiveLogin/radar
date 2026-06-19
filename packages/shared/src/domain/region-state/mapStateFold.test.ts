@@ -4,6 +4,8 @@ import type { EventLocationFact } from "./mapStateFold";
 import { buildAuthorPlaceClearFacts } from "./mapFactsLoader";
 import {
   foldMapState,
+  foldPlaceMapState,
+  foldRegionMapState,
   isRegionVisibleInSnapshot,
   shouldIncomingBeatWinner,
 } from "./mapStateFold";
@@ -198,4 +200,49 @@ test("isRegionVisibleInSnapshot: green старше 3ч скрыт", () => {
     occurredAt: "2026-06-11T10:00:00.000Z",
   };
   assert.equal(isRegionVisibleInSnapshot(winner, asOf.getTime()), false);
+});
+
+test("foldRegionMapState: игнорирует place-scoped facts", () => {
+  const regions = foldRegionMapState({
+    asOf,
+    ttlMs: DAY_MS,
+    facts: [
+      fact({ factId: "r1", entityKind: "region", placeId: null }),
+      fact({ factId: "p1", entityKind: "place", placeId: "place-1" }),
+    ],
+  });
+  assert.equal(regions.length, 1);
+  assert.equal(regions[0]?.regionCode, "RU-MOS");
+});
+
+test("foldPlaceMapState: region clear подавляет place raise", () => {
+  const regionWinners = foldRegionMapState({
+    asOf,
+    ttlMs: DAY_MS,
+    facts: [
+      fact({
+        factId: "c1",
+        entityKind: "region",
+        placeId: null,
+        occurredAt: "2026-06-11T13:00:00.000Z",
+        action: "clear",
+        stateLevel: "green",
+        statusCode: "cleared",
+      }),
+    ],
+  });
+  const places = foldPlaceMapState({
+    asOf,
+    ttlMs: DAY_MS,
+    facts: [
+      fact({
+        factId: "p1",
+        entityKind: "place",
+        placeId: "place-1",
+        occurredAt: "2026-06-11T10:00:00.000Z",
+      }),
+    ],
+    regionWinners,
+  });
+  assert.equal(places.length, 0);
 });

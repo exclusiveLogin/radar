@@ -46,9 +46,10 @@ Swagger: `/api/docs` → tag `admin-ingest`.
 
 ## CLI — справочник команд (с примерами)
 
-Команды запускаются **из корня репозитория**. Всё после `--` уходит в worker.
+Команды — **из корня репозитория**. Предпочтительно: `npm run radar -- <domain> <action> [-- флаги…]`.  
+SSOT: [radar-cli.md](./radar-cli.md). Legacy `worker:*` / `ingest:*` — алиасы.
 
-**Синтаксис флагов:** `--имя=значение` или `--имя значение`. Одинаково: `--provider-id` и `--providerId`.
+**Синтаксис флагов:** `--имя=значение` или `--имя значение`. Всё после `--` уходит в worker.
 
 ### Сначала — три понятия
 
@@ -83,7 +84,9 @@ session deploy  →  manifest import (или admin API)  →  provider start  �
 
 Секреты **не в git и не в БД** — только в `.radar/sessions/{slot}/`.
 
-### `npm run worker:session:deploy`
+### `npm run radar -- ingest session:deploy`
+
+**Legacy:** `npm run worker:session:deploy`
 
 **Что делает:** один раз логинится в Telegram (телефон + код + 2FA) или принимает bot token, сохраняет сессию на диск.
 
@@ -109,10 +112,10 @@ session deploy  →  manifest import (или admin API)  →  provider start  �
 ```bash
 # 1. В .env: TELEGRAM_API_ID, TELEGRAM_API_HASH
 # 2. Деплой — в консоли спросят телефон и код
-npm run worker:session:deploy -- --slot tg-user-1 --kind mtproto_user
+npm run radar -- ingest session:deploy -- --slot tg-user-1 --kind mtproto_user
 
 # 3. Проверка
-npm run worker:session:probe -- --slot tg-user-1
+npm run radar -- ingest session:probe -- --slot tg-user-1
 # → {"ok":true,"accountHint":"@myusername"}
 ```
 
@@ -120,7 +123,9 @@ npm run worker:session:probe -- --slot tg-user-1
 
 ---
 
-### `npm run worker:session:probe`
+### `npm run radar -- ingest session:probe`
+
+**Legacy:** `worker:session:probe`
 
 **Что делает:** подключается к Telegram **без записи** — «жива ли сессия».
 
@@ -135,12 +140,14 @@ npm run worker:session:probe -- --slot tg-user-1
 **Пример:**
 
 ```bash
-npm run worker:session:probe -- --slot tg-user-1
+npm run radar -- ingest session:probe -- --slot tg-user-1
 ```
 
 ---
 
-### `npm run worker:session:invalidate`
+### `npm run radar -- ingest session:invalidate`
+
+**Legacy:** `worker:session:invalidate`
 
 **Что делает:** удаляет артефакты слота (сессия «забыта»).
 
@@ -155,8 +162,8 @@ npm run worker:session:probe -- --slot tg-user-1
 **Пример:**
 
 ```bash
-npm run worker:session:invalidate -- --slot tg-user-1
-npm run worker:session:deploy -- --slot tg-user-1 --kind mtproto_user
+npm run radar -- ingest session:invalidate -- --slot tg-user-1
+npm run radar -- ingest session:deploy -- --slot tg-user-1 --kind mtproto_user
 ```
 
 ---
@@ -169,7 +176,9 @@ npm run worker:session:deploy -- --slot tg-user-1 --kind mtproto_user
 
 **Важно:** worker в runtime читает **только БД**. Manifest — черновик для import/export.
 
-### `npm run ingest:manifest:import`
+### `npm run radar -- ingest manifest:import`
+
+**Legacy:** `ingest:manifest:import`
 
 **Что делает:** читает JSON и **upsert** в PostgreSQL: provider, channel, binding.
 
@@ -537,7 +546,7 @@ entry
 ### Import
 
 ```bash
-npm run ingest:manifest:import
+npm run radar -- ingest manifest:import
 # → Import OK: { providers: 1, channels: 1, bindings: 1 }
 ```
 
@@ -545,7 +554,9 @@ npm run ingest:manifest:import
 
 ---
 
-### `npm run ingest:manifest:export`
+### `npm run radar -- ingest manifest:export`
+
+**Legacy:** `ingest:manifest:export`
 
 **Что делает:** выгружает **всё** из БД (providers + bindings) обратно в JSON.
 
@@ -558,7 +569,7 @@ npm run ingest:manifest:import
 **Пример:**
 
 ```bash
-npm run ingest:manifest:export
+npm run radar -- ingest manifest:export
 # → Export OK: ...\.radar\ingest.manifest.json (3 entries)
 ```
 
@@ -581,7 +592,9 @@ npm run ingest:manifest:export
 
 **Стратегия «вся история»:** `{ "bindingId": "<uuid>", "strategy": "all", "params": {} }`.
 
-### `npm run worker:ingest:backfill` — разовый chunk (CLI)
+### `npm run radar -- ingest backfill` — разовый chunk (CLI)
+
+**Legacy:** `worker:ingest:backfill`, `parse-engine:ingest:backfill`
 
 **Что делает:** за **один запуск** выкачивает **одну пачку** старых сообщений (`fetchHistoryBatch`) и кладёт в `raw_messages` с `ingest_mode=backfill`.
 
@@ -620,7 +633,7 @@ LEFT JOIN channels c ON c.id = b.channel_id;
 **Пример (PowerShell) — один binding:**
 
 ```powershell
-npm run worker:ingest:backfill -- `
+npm run radar -- ingest backfill -- `
   --provider-id="aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee" `
   --binding-id="11111111-2222-3333-4444-555555555555" `
   --batch-size=100 `
@@ -630,7 +643,7 @@ npm run worker:ingest:backfill -- `
 **Пример — все enabled bindings (по 100 сообщений на канал):**
 
 ```powershell
-npm run worker:ingest:backfill -- --all-bindings --batch-size=100
+npm run radar -- ingest backfill -- --all-bindings --batch-size=100
 ```
 
 **Выход:** `Backfill chunk: { inserted: 42, duplicates: 3 }` — вставлено 42 новых, 3 уже были.
@@ -639,7 +652,9 @@ npm run worker:ingest:backfill -- --all-bindings --batch-size=100
 
 ---
 
-## 4. `npm run worker:parse:report` (не ingest)
+## 4. `npm run radar -- parse report` (не ingest)
+
+**Legacy:** `worker:parse:report`
 
 **Что делает:** гоняет **текстовые файлы** через parse pipeline и пишет отчёты — для отладки парсера, не для Telegram.
 
@@ -659,7 +674,7 @@ npm run worker:ingest:backfill -- --all-bindings --batch-size=100
 **Пример:**
 
 ```bash
-npm run worker:parse:report -- --input=tests/snap_001.txt --enrich-dadata
+npm run radar -- parse report -- --input=tests/snap_001.txt --enrich-dadata
 ```
 
 ---
@@ -698,9 +713,9 @@ RADAR_STORAGE_MODE=db npm run worker:dev
 
 ### Типичный сценарий (чистый стенд)
 
-1. `npm run migration:run`
-2. `npm run worker:session:deploy -- --slot tg-user-1 --kind mtproto_user`
-3. `npm run ingest:manifest:import` **или** admin API
+1. `npm run radar -- stack migrate`
+2. `npm run radar -- ingest session:deploy -- --slot tg-user-1 --kind mtproto_user`
+3. `npm run radar -- ingest manifest:import` **или** admin API
 4. `POST /api/admin/ingest/providers/:id/start`
 5. `RADAR_STORAGE_MODE=db npm run worker:dev`
 
@@ -708,7 +723,7 @@ RADAR_STORAGE_MODE=db npm run worker:dev
 
 ## Smoke
 
-1. `npm run migration:run`
+1. `npm run radar -- stack migrate`
 2. `POST /api/admin/ingest/messages` с `channelKey` + `rawText`
 3. Проверить `raw_messages` и `domain_events` → parse_attempts
 

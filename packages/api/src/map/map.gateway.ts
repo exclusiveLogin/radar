@@ -54,8 +54,23 @@ export class MapGateway
     client.on("message", (raw) => this.onClientMessage(client, raw));
     client.on("close", () => this.subscriptions.delete(client));
 
-    const snapshot = await this.map.getSnapshot();
-    this.send(client, { type: "snapshot", payload: snapshot });
+    try {
+      const regionsState = await this.map.getRegionsStateAt(new Date());
+      this.send(client, {
+        type: "snapshot",
+        payload: {
+          generatedAt: regionsState.generatedAt,
+          regions: regionsState.regions,
+          places: [],
+        },
+      });
+    } catch (error) {
+      console.warn("[MapGateway] snapshot on connect failed — empty payload", error);
+      this.send(client, {
+        type: "snapshot",
+        payload: { generatedAt: new Date().toISOString(), regions: [], places: [] },
+      });
+    }
   }
 
   private onClientMessage(client: WebSocket, raw: RawData): void {

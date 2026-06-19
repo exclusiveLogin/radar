@@ -1,7 +1,8 @@
 /**
- * Контракт Parse Workspace — промежуточная интерпретация raw до finalize в facts.
+ * Контракт Parse Workspace v2 — промежуточная интерпретация raw до finalize в facts.
  */
 import { z } from "zod";
+import { enricherIdSchema } from "../enrichment/phase.js";
 import { attachRuleSchema } from "./trait-attachment.js";
 
 export const messageBlockKindSchema = z.enum([
@@ -35,6 +36,8 @@ export const eventCandidateAnchorSchema = z.object({
   }),
 });
 
+export const candidateStatusSchema = z.enum(["active", "rejected"]);
+
 export const eventCandidateSchema = z.object({
   id: z.string(),
   anchor: eventCandidateAnchorSchema,
@@ -46,6 +49,11 @@ export const eventCandidateSchema = z.object({
     anchorSource: z.string(),
     blockId: z.string().optional(),
   }),
+  authorProcessorId: z.string().min(1),
+  authorEnricherId: enricherIdSchema,
+  status: candidateStatusSchema.default("active"),
+  mergeKey: z.string().min(1),
+  trust: z.number().min(0).max(100),
 });
 
 export const traitAttachmentSchema = z.object({
@@ -62,12 +70,52 @@ export const traitAttachmentSchema = z.object({
     .optional(),
 });
 
+export const enricherRunLogEntrySchema = z.object({
+  enricherId: enricherIdSchema,
+  startedAt: z.string().datetime(),
+  processorIds: z.array(z.string()),
+  ok: z.boolean(),
+  durationMs: z.number().int().nonnegative(),
+});
+
 export const parseWorkspaceSchema = z.object({
-  schemaVersion: z.literal(1),
+  schemaVersion: z.literal(2),
   rawMessageId: z.string().uuid(),
   groomedText: z.string(),
   blocks: z.array(messageBlockSchema),
   candidates: z.array(eventCandidateSchema),
+  traitAttachments: z.array(traitAttachmentSchema).default([]),
+  namespaces: z.record(z.unknown()).default({}),
+  processorLog: z.array(
+    z.object({
+      id: z.string(),
+      ok: z.boolean(),
+      durationMs: z.number(),
+    }),
+  ),
+  enricherRunLog: z.array(enricherRunLogEntrySchema).default([]),
+});
+
+/** Legacy v1 для миграции JSONB из БД. */
+export const parseWorkspaceSchemaV1 = z.object({
+  schemaVersion: z.literal(1),
+  rawMessageId: z.string().uuid(),
+  groomedText: z.string(),
+  blocks: z.array(messageBlockSchema),
+  candidates: z.array(
+    z.object({
+      id: z.string(),
+      anchor: eventCandidateAnchorSchema,
+      eventType: z.string(),
+      occurredAt: z.string().datetime().optional(),
+      extras: z.record(z.unknown()).default({}),
+      provenance: z.object({
+        eventTypeSource: z.string(),
+        anchorSource: z.string(),
+        blockId: z.string().optional(),
+      }),
+    }),
+  ),
   traitAttachments: z.array(traitAttachmentSchema).default([]),
   namespaces: z.record(z.unknown()).default({}),
   processorLog: z.array(
@@ -108,6 +156,8 @@ export type MessageBlock = z.infer<typeof messageBlockSchema>;
 export type EventCandidate = z.infer<typeof eventCandidateSchema>;
 export type TraitAttachment = z.infer<typeof traitAttachmentSchema>;
 export type ParseWorkspace = z.infer<typeof parseWorkspaceSchema>;
+export type ParseWorkspaceV1 = z.infer<typeof parseWorkspaceSchemaV1>;
+export type EnricherRunLogEntry = z.infer<typeof enricherRunLogEntrySchema>;
 export type MessageParseWorkspaceStatus = z.infer<typeof messageParseWorkspaceStatusSchema>;
 export type FinalizeMode = z.infer<typeof finalizeModeSchema>;
 export type FinalizeContext = z.infer<typeof finalizeContextSchema>;

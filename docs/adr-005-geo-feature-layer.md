@@ -121,8 +121,12 @@ matchPlace("Авиастроительный район", region_id=RU-TA)
 
 ## Map-слой
 
-- `GET /api/map/regions-geojson` — контуры субъектов (из OSM-файлов, читает `RegionGeometryCatalog`).
-- **Новый** `GET /api/map/districts-geojson?regionId=<uuid>` — контуры районов из `geo_feature`.
+- `GET /api/map/regions-geojson?regionCodes=RU-MOS,RU-SPE` — lazy контуры субъектов по ISO-кодам (OSM `RegionGeometryCatalog.buildLayerByCodes`). Без `regionCodes` → **400** (не отдаём 44MB целиком).
+- `GET /api/map/districts-geojson?geoFeatureIds=<uuid>` — lazy полигон одного/нескольких районов из `geo_feature`.
+- `GET /api/map/districts-geojson?regionId=<uuid>` — все районы региона (admin/debug; фронт bootstrap не использует).
+- `GET /api/map/districts-active-geojson` — **deprecated** (bulk fold+geo); заменён per-id fetch на фронте.
+
+Фронт: `geoGeometryStore` кеширует `{ regionCode → Feature }` и `{ geoFeatureId → Feature }`; fetch по visible codes / place events, display districts при `minzoom ≥ 6`.
 
 ---
 

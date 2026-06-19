@@ -13,8 +13,6 @@ import {
 } from "../../application/handlers/inMemoryRepositories.js";
 import { ParseRawMessageHandler } from "../../application/handlers/parseRawMessageHandler.js";
 import { createParseWorkspaceStack } from "../../application/parse/createParseWorkspaceStack.js";
-import { GeoValidationService } from "../../application/parsing/geoValidationService.js";
-import { createParsePipeline } from "../../application/parsing/createParsePipeline.js";
 import { GeoCatalog } from "../../infrastructure/geo-catalog/index.js";
 
 const regionRecord = {
@@ -35,46 +33,8 @@ function buildHandler(input: {
   phaseMode: "baseline" | "enrich";
 }) {
   const geoCatalog = GeoCatalog.loadFromArtifacts();
-  const { resolution } = createParsePipeline(
-    {
-      enricherFlags: {
-        llm: input.enrichers.includes("llm"),
-        dadata: false,
-        nominatim: false,
-      },
-      pipelineOrder: input.enrichers,
-      llmRuntimeConfig: {
-        enabled: false,
-        provider: "ollama",
-        model: "test",
-        timeoutMs: 1000,
-        retryCount: 0,
-        temperature: 0,
-        maxTokens: 100,
-        jsonMode: true,
-        baseUrl: "http://127.0.0.1:11434",
-        headers: {},
-      },
-    },
-    undefined,
-    geoCatalog,
-  );
-  const validation = new GeoValidationService(
-    {
-      listActive: async () => input.regions,
-      findByCode: async (code: string) =>
-        input.regions.find((r) => r.iso === code || r.code === code) ?? null,
-      findById: async (id: string) =>
-        input.regions.find((r) => r.id === id) ?? null,
-      upsertMany: async () => {},
-    },
-    { upsertMany: async () => {}, findById: async () => null, findByFias: async () => null, findByStemInRegion: async () => null, findByNameInRegion: async () => null, mergeContribution: async () => ({ updated: {} as never, appliedFields: [] }) },
-    { upsertAlias: async () => {}, findByAlias: async () => [] },
-  );
   const { workspaceService } = createParseWorkspaceStack({
     geoCatalog,
-    resolution,
-    validation,
     parsedEvents: input.parsedEvents,
     eventLocations: input.eventLocations,
     messageParseWorkspaces: input.workspaces,

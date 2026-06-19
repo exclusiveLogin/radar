@@ -135,35 +135,40 @@ export class AdminGateway
   }
 
   private async pollParseLog(): Promise<void> {
-    const rows = await this.dataSource.query<ParseAttemptRow[]>(
-      `SELECT id, raw_message_id, channel_key, parser_version, status, errors, created_at
-       FROM parse_attempts
-       WHERE created_at > $1
-       ORDER BY created_at ASC
-       LIMIT 200`,
-      [this.parseLogCursor],
-    );
-    if (rows.length === 0) return;
+    try {
+      const rows = await this.dataSource.query<ParseAttemptRow[]>(
+        `SELECT id, raw_message_id, channel_key, parser_version, status, errors, created_at
+         FROM parse_attempts
+         WHERE created_at > $1
+         ORDER BY created_at ASC
+         LIMIT 200`,
+        [this.parseLogCursor],
+      );
+      if (rows.length === 0) return;
 
-    for (const row of rows) {
-      this.broadcast({
-        type: "parse-log",
-        payload: parseAttemptItemSchema.parse({
-          id: row.id,
-          rawMessageId: row.raw_message_id,
-          channelKey: row.channel_key,
-          parserVersion: row.parser_version,
-          status: row.status,
-          errors: row.errors,
-          createdAt: row.created_at.toISOString(),
-        }),
-      });
+      for (const row of rows) {
+        this.broadcast({
+          type: "parse-log",
+          payload: parseAttemptItemSchema.parse({
+            id: row.id,
+            rawMessageId: row.raw_message_id,
+            channelKey: row.channel_key,
+            parserVersion: row.parser_version,
+            status: row.status,
+            errors: row.errors,
+            createdAt: row.created_at.toISOString(),
+          }),
+        });
+      }
+      this.parseLogCursor = rows[rows.length - 1].created_at;
+    } catch {
+      // poisoned pool / lock — пропуск тика
     }
-    this.parseLogCursor = rows[rows.length - 1].created_at;
   }
 
   private async pollBackfill(): Promise<void> {
-    const rows = await this.dataSource.query<BackfillRow[]>(
+    try {
+      const rows = await this.dataSource.query<BackfillRow[]>(
       `SELECT j.id, j.binding_id, j.provider_id, j.strategy, j.params, j.status,
               j.stats, j.created_at, j.updated_at, c.key AS channel_key
        FROM ingest_backfill_jobs j
@@ -198,6 +203,9 @@ export class AdminGateway
           },
         }),
       });
+    }
+    } catch {
+      // poisoned pool / lock — пропуск тика
     }
   }
 

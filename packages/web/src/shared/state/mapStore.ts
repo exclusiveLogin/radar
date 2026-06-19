@@ -1,4 +1,5 @@
-import { BehaviorSubject } from "rxjs";
+import { BehaviorSubject, timer } from "rxjs";
+import { filter } from "rxjs/operators";
 import {
   isPlaceSuppressedByRegionClear,
   type MapPlaceSnapshot,
@@ -32,6 +33,15 @@ export const lastSnapshotAt$ = new BehaviorSubject<string | null>(null);
 /** Маркер исторического просмотра; live WS игнорируется пока !== null. */
 export const historicalAsOf$ = new BehaviorSubject<string | null>(null);
 
+/** true пока mapStateEffects грузит fold-state (scrub / live-return). */
+export const mapHistoricalLoading$ = new BehaviorSubject(false);
+
+/**
+ * SSOT якоря времени для fade/visibility (мс).
+ * replay → asOf; live → Date.now(), обновляется тиком в startMapStore.
+ */
+export const mapViewAnchor$ = new BehaviorSubject<number>(Date.now());
+
 export function isHistoricalMapView(): boolean {
   return historicalAsOf$.value !== null;
 }
@@ -43,50 +53,47 @@ export function isHistoricalMapView(): boolean {
  */
 export const derivedRegionCodes$ = new BehaviorSubject<Set<string>>(new Set());
 
-/** @deprecated используй stateChanges$ */
-export const warnings$ = stateChanges$;
-
 /** Смежность регионов — загружается однократно, используется для производного yellow. */
 let adjacency: Record<string, string[]> = {};
 
 let started = false;
+let liveAnchorSub: { unsubscribe(): void } | undefined;
 
-/** Повторно загрузить live snapshot с API (не в historical mode). */
-export function refetchMapSnapshot(): Promise<void> {
-  if (historicalAsOf$.value !== null) {
-    return Promise.resolve();
-  }
-  return mapApi
-    .snapshot()
-    .then((snap) => {
-      seedSnapshot(snap.regions, snap.places ?? []);
-    })
-    .catch((err) => {
-      reportError(err);
-      throw err;
-    });
+/** Якорь времени для visibility/fade: replay → asOf, иначе now. */
+export function resolveMapViewAnchorMs(): number {
+  const asOf = historicalAsOf$.value;
+  if (!asOf) return Date.now();
+  const ms = Date.parse(asOf);
+  return Number.isFinite(ms) ? ms : Date.now();
 }
 
-/** Загрузить карту на маркере asOf; live WS не применяется до clearHistoricalView. */
-export async function setHistoricalAsOf(iso: string | null): Promise<void> {
-  if (iso === null) {
-    historicalAsOf$.next(null);
-    await refetchMapSnapshot();
-    return;
-  }
-  const snap = await mapApi.snapshot({ asOf: iso });
+function refreshMapViewAnchor(): void {
+  mapViewAnchor$.next(resolveMapViewAnchorMs());
+}
+
+/** Установить asOf — REST загрузка в mapStateEffects (switchMap). */
+export function setHistoricalAsOf(iso: string | null): void {
+  if (iso === historicalAsOf$.value) return;
   historicalAsOf$.next(iso);
-  seedSnapshot(snap.regions, snap.places ?? [], snap.generatedAt);
 }
 
 /** @deprecated используй setHistoricalAsOf */
-export async function loadHistoricalSnapshot(asOf: string): Promise<void> {
-  await setHistoricalAsOf(asOf);
+export function loadHistoricalSnapshot(asOf: string): void {
+  setHistoricalAsOf(asOf);
 }
 
 /** Вернуться к live-карте. */
-export function clearHistoricalView(): Promise<void> {
-  return setHistoricalAsOf(null);
+export function clearHistoricalView(): void {
+  setHistoricalAsOf(null);
+}
+
+/** Применить REST-снапшот (mapStateEffects / ручной refetch). */
+export function applyMapSnapshot(
+  regions: MapRegionSnapshot[],
+  places: MapPlaceSnapshot[],
+  generatedAt?: string,
+): void {
+  seedSnapshot(regions, places, generatedAt);
 }
 
 /** Однократная инициализация: REST-снапшот + подписка на WS-дельты. */
@@ -94,29 +101,42 @@ export function startMapStore(): void {
   if (started) return;
   started = true;
 
+  historicalAsOf$.subscribe(() => refreshMapViewAnchor());
+  liveAnchorSub = timer(60_000, 60_000)
+    .pipe(filter(() => historicalAsOf$.value === null))
+    .subscribe(() => refreshMapViewAnchor());
+
   // Загружаем смежность однократно — нужна для производного yellow у соседей red-регионов
   void mapApi.regionAdjacency()
-    .then((adj) => {
+    .then(async (adj) => {
       adjacency = adj;
-      // Пересчитать соседей если снапшот уже пришёл
-      if (regionsByCode$.value.size > 0) {
-        const derived = deriveNeighborLevels(regionsByCode$.value, adjacency);
-        if (derived !== regionsByCode$.value) regionsByCode$.next(derived);
+      if (regionsByCode$.value.size === 0) return;
+
+      const rawRegions = regionsByCode$.value;
+      const derived = deriveNeighborLevels(rawRegions, adjacency);
+      const regionsChanged = !isSameRegionSnapshotMap(derived, regionsByCode$.value);
+      if (regionsChanged) {
+        derivedRegionCodes$.next(extractDerivedCodes(rawRegions, derived));
+        regionsByCode$.next(derived);
+      }
+
+      // derive раскрыл соседей — пересинхронизируем places (prune при seed мог отрезать точки)
+      if (!regionsChanged || historicalAsOf$.value !== null) return;
+      try {
+        const placesResp = await mapApi.placesState();
+        const rawPlaces = new Map(placesResp.places.map((place) => [place.placeId, place]));
+        placesById$.next(prunePlacesForRegions(rawPlaces, derived));
+      } catch (error) {
+        reportError(error);
       }
     })
     .catch(reportError);
 
-  void mapApi
-    .snapshot()
-    .then((snap) => {
-      seedSnapshot(snap.regions, snap.places ?? []);
-      connectMapWs().subscribe({
-        next: applyMessage,
-        // Не даём подписке прерваться на ошибке одного сообщения
-        error: reportError,
-      });
-    })
-    .catch(reportError);
+  connectMapWs().subscribe({
+    next: applyMessage,
+    error: reportError,
+  });
+
   void mapApi.warnings().then((items) => stateChanges$.next(items)).catch(reportError);
 }
 
@@ -139,10 +159,11 @@ function prunePlacesForRegions(
   places: Map<string, MapPlaceSnapshot>,
   regions: Map<string, MapRegionSnapshot>,
 ): Map<string, MapPlaceSnapshot> {
+  const viewNow = resolveMapViewAnchorMs();
   const next = new Map<string, MapPlaceSnapshot>();
   for (const place of places.values()) {
     const region = regions.get(place.regionCode);
-    if (!region || !isRegionVisibleOnMap(region) || place.stateLevel === "grey") continue;
+    if (!region || !isRegionVisibleOnMap(region, viewNow) || place.stateLevel === "grey") continue;
     if (
       isPlaceSuppressedByRegionClear({
         placeStatusEventAt: place.statusEventAt,
@@ -213,10 +234,34 @@ function seedSnapshot(
   lastSnapshotAt$.next(generatedAt ?? new Date().toISOString());
 }
 
+/** WS seed regions-only (layered transport): не затираем places из REST / place-state. */
+function applyRegionsSnapshotOnly(
+  regions: MapRegionSnapshot[],
+  generatedAt?: string,
+): void {
+  const rawRegions = new Map<string, MapRegionSnapshot>();
+  for (const region of regions) rawRegions.set(region.regionCode, region);
+  const nextRegions = deriveNeighborLevels(rawRegions, adjacency);
+  derivedRegionCodes$.next(extractDerivedCodes(rawRegions, nextRegions));
+  regionsByCode$.next(nextRegions);
+
+  const pruned = prunePlacesForRegions(placesById$.value, nextRegions);
+  if (pruned !== placesById$.value) {
+    placesById$.next(pruned);
+  }
+
+  lastSnapshotAt$.next(generatedAt ?? new Date().toISOString());
+}
+
 function applyMessage(message: WsServerMessage): void {
   if (historicalAsOf$.value !== null) return;
   if (message.type === "snapshot") {
-    seedSnapshot(message.payload.regions, message.payload.places ?? []);
+    const places = message.payload.places ?? [];
+    if (places.length > 0) {
+      seedSnapshot(message.payload.regions, places, message.payload.generatedAt);
+    } else {
+      applyRegionsSnapshotOnly(message.payload.regions, message.payload.generatedAt);
+    }
     return;
   }
   if (message.type === "region-state") {
@@ -274,21 +319,6 @@ function applyRegionState(event: RegionStateEvent): void {
   if (pruned !== placesById$.value) {
     placesById$.next(pruned);
   }
-
-  // Новый регион без layout → нужен полный snapshot чтобы получить тайл-координаты
-  if (!layout) {
-    scheduleSnapshotRefetch();
-  }
-}
-
-/** Дебаунс-таймер для дозагрузки snapshot при появлении регионов без layout. */
-let refetchTimer: ReturnType<typeof setTimeout> | null = null;
-function scheduleSnapshotRefetch(): void {
-  if (refetchTimer) return;
-  refetchTimer = setTimeout(() => {
-    refetchTimer = null;
-    void refetchMapSnapshot();
-  }, 800);
 }
 
 /** Добавляет/обновляет/снимает место на гео-карте по WS place-state. */
@@ -304,7 +334,8 @@ function applyPlaceState(event: PlaceStateEvent): void {
   if (event.lat === undefined || event.lon === undefined) return;
 
   const region = regionsByCode$.value.get(event.regionCode);
-  if (!region || !isRegionVisibleOnMap(region)) {
+  const viewNow = resolveMapViewAnchorMs();
+  if (!region || !isRegionVisibleOnMap(region, viewNow)) {
     next.delete(event.placeId);
     placesById$.next(next);
     return;

@@ -1,5 +1,7 @@
 # Backfill V2 — автоматическая докачка истории
 
+**CLI:** [`radar-cli.md`](./radar-cli.md) — `npm run radar -- ingest backfill`, `ingest session:*`, `stack migrate`.
+
 Документ для **бизнеса** (что получаем в продукте) и **разработки** (как устроено в коде).  
 Связанные материалы: [ingest-providers.md](./ingest-providers.md), [domain/how-it-works.md](./domain/how-it-works.md#ingest-flow), [domain/contexts/ingest.md](./domain/contexts/ingest.md).
 
@@ -14,9 +16,9 @@
 | # | Что нужно | Зачем |
 |---|-----------|--------|
 | 1 | PostgreSQL, `DATABASE_URL` в `.env` | Задачи, `raw_messages`, parse |
-| 2 | `npm run migration:run` (из корня репо) | Таблица `ingest_backfill_jobs` и остальное |
+| 2 | `npm run radar -- stack migrate` | Таблица `ingest_backfill_jobs` и остальное |
 | 3 | `TELEGRAM_API_ID`, `TELEGRAM_API_HASH` | MTProto (история **не** через bot token) |
-| 4 | User-сессия на диске | `npm run worker:session:deploy` → слот совпадает с `credentialRefs.mtprotoSessionSlot` |
+| 4 | User-сессия на диске | `npm run radar -- ingest session:deploy` → слот = `credentialRefs.mtprotoSessionSlot` |
 | 5 | Provider + binding в БД | Manifest import или Admin API; binding с **user MTProto** (`user_mtproto_channel` / `group`) |
 | 6 | Provider `status = active` (для live; backfill job — отдельно) | Live опционален; backfill идёт по job |
 
@@ -40,8 +42,8 @@ TELEGRAM_API_HASH=...
 Из **корня репозитория** (PowerShell):
 
 ```powershell
-npm run worker:session:deploy -- --slot tg-user-1 --kind mtproto_user
-npm run worker:session:probe -- --slot tg-user-1
+npm run radar -- ingest session:deploy -- --slot tg-user-1 --kind mtproto_user
+npm run radar -- ingest session:probe -- --slot tg-user-1
 ```
 
 В provider в БД должно быть: `"credentialRefs": { "mtprotoSessionSlot": "tg-user-1" }`.
@@ -140,13 +142,13 @@ SELECT count(*) FROM raw_messages WHERE ingest_mode = 'backfill';
 
 ```powershell
 # один binding
-npm run worker:ingest:backfill -- `
+npm run radar -- ingest backfill -- `
   --provider-id="<uuid>" `
   --binding-id="<uuid>" `
   --batch-size=100
 
-# все enabled bindings (по N сообщений на канал)
-npm run worker:ingest:backfill -- --all-bindings --batch-size=100
+# все enabled bindings
+npm run radar -- ingest backfill -- --all-bindings --batch-size=100
 ```
 
 См. [ingest-providers.md § CLI backfill](./ingest-providers.md#3-backfill--докачка-истории) и [cheatsheet.md § Backfill](./cheatsheet.md#backfill-архив-сообщений).
@@ -179,7 +181,7 @@ npm run worker:ingest:backfill -- --all-bindings --batch-size=100
 ┌─────────────────────────────────────┬──────────────────────────────────────┐
 │ Backfill V2 (рекомендуется)         │ CLI chunk (разовый ручной проход)    │
 ├─────────────────────────────────────┼──────────────────────────────────────┤
-│ Задача в БД → демон worker          │ npm run worker:ingest:backfill       │
+│ Задача в БД → демон worker          │ `npm run radar -- ingest backfill`   │
 │ Поток iterMessages + чекпоинты      │ Одна пачка getMessages (batch)       │
 │ До конца истории / по стратегии     │ `--all-bindings` — все каналы сразу  │
 └─────────────────────────────────────┴──────────────────────────────────────┘
@@ -403,7 +405,7 @@ flowchart TD
 
 - **Память:** сообщения не накапливаются в массиве — обрабатываются по одному в sink.  
 - **FloodWait:** из RPC (`FLOOD_WAIT_N` или `seconds`) → пауза → **повтор** итератора.  
-- **Legacy:** `fetchHistoryBatch` (пачка `getMessages`) остаётся для CLI `worker:ingest:backfill`.
+- **Legacy:** `fetchHistoryBatch` (пачка `getMessages`) остаётся для `radar ingest backfill`.
 
 ---
 
@@ -552,7 +554,7 @@ erDiagram
 | Симптом | Вероятная причина | Действие |
 |---------|-------------------|----------|
 | Задача долго `pending` | Worker не в `db` mode / демон выключен | `RADAR_STORAGE_MODE=db`, проверить лог «BackfillDaemon запущен». |
-| `failed` сразу | Нет session / неверный binding | `worker:session:deploy`, проверить `credentialRefs` и UUID. |
+| `failed` сразу | Нет session / неверный binding | `radar ingest session:deploy`, проверить `credentialRefs` |
 | Долго `running`, мало `inserted` | Много дубликатов или FloodWait | Смотреть `duplicates` в stats; в логах `Telegram FloodWait: sleep`. |
 | После рестарта дубли в логе ingest | Нормально у границы offset | Dedup в БД; checkpoint смещается вперёд. |
 | Live «тормозит» при backfill | Пул выключен, тяжёлый parse в main | Включить `RADAR_PARSE_USE_WORKER_THREADS`, увеличить `POOL_SIZE`. |

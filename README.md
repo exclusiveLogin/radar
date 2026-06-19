@@ -206,18 +206,27 @@ right rail:  Угрозы · Лента · Сообщения · Macro · Топ
 
 ## Шпаргалка (операции)
 
-**Полные справочники:** [docs/cheatsheet.md](docs/cheatsheet.md) (ingest · backfill · parse · UI · диагностика) · [docs/shpargalka-operacii.md](docs/shpargalka-operacii.md) (wipe/reset · geo-каталог · REST · сценарии) · [runbook/geo-clean-rebuild.md](docs/runbook/geo-clean-rebuild.md) (чистый перезапуск).
+**SSOT команд:** [docs/radar-cli.md](docs/radar-cli.md) · ingest/SQL/UI: [docs/cheatsheet.md](docs/cheatsheet.md) · REST: [docs/shpargalka-operacii.md](docs/shpargalka-operacii.md)
+
+```powershell
+npm run radar -- <domain> <action>   # корень репо, PowerShell
+```
 
 **Минимум `.env`:** `DATABASE_URL`, `RADAR_STORAGE_MODE=db`, `RADAR_SESSIONS_DIR=.radar/sessions`
 
-### Запуск
+### Частые команды
 
-| Команда | Когда |
-|---------|--------|
-| `Copy-Item .env.example .env` → `npm run cold:up` | первый раз (Docker + install + миграции) |
-| `npm run up` | каждый день: Docker + API + web |
-| `npm run dev:app` | UI/API без worker (БД уже есть) |
-| `npm run dev` | полный стек: API + web + worker |
+| Задача | Команда |
+|--------|---------|
+| Первый запуск | `npm run radar -- stack cold-up` |
+| Dev + worker | `npm run radar -- stack dev --full` |
+| Миграции | `npm run radar -- stack migrate` |
+| Geo-каталог | `npm run radar -- geo catalog:import` |
+| Backfill | `npm run radar -- ingest backfill -- --all-bindings --batch-size=100` |
+| **Reparse / карта** | `npm run radar -- parse run` |
+| Статус очередей | `npm run radar -- pipeline status` |
+
+Таблицы **radar ↔ legacy** по всем доменам — только в [radar-cli.md](docs/radar-cli.md).
 
 | URL | Ожидание |
 |-----|----------|
@@ -227,7 +236,7 @@ right rail:  Угрозы · Лента · Сообщения · Macro · Топ
 | http://127.0.0.1:3000/api/worker/status | probe worker |
 
 ```powershell
-node scripts/ws-smoke.mjs
+node scripts/ws-smoke.mjs   # или: npm run radar -- dev ws-smoke
 curl.exe -s "http://127.0.0.1:3000/api/map/snapshot" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{const j=JSON.parse(d);console.log('regions',j.regions?.length,'places',j.places?.length)})"
 curl.exe -s "http://127.0.0.1:3000/api/map/events/heatmap?period=7d" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{const j=JSON.parse(d);console.log('heatmap',j.meta?.count,'points')})"
 ```
@@ -235,65 +244,26 @@ curl.exe -s "http://127.0.0.1:3000/api/map/events/heatmap?period=7d" | node -e "
 ### Ingest (Telegram → БД)
 
 ```powershell
-npm run worker:session:deploy
-npm run worker:session:probe
-npm run ingest:manifest:import    # bootstrap → docs/examples/ingest.manifest.radar-channels-mtproxy.json
-npm run worker:dev                # live ingest + phase daemons
+npm run radar -- ingest session:deploy
+npm run radar -- ingest manifest:import
+npm run radar -- ingest backfill -- --all-bindings --batch-size=100
+npm run worker:dev
 ```
 
-**Backfill (CLI, разовая пачка):**
+Подробно: [cheatsheet § Ingest](docs/cheatsheet.md#ingest-от-нуля-до-live) · [ingest-providers.md](docs/ingest-providers.md).
 
-```powershell
-npm run worker:ingest:backfill -- --all-bindings --batch-size=100
-npm run worker:ingest:backfill -- --provider-id=<uuid> --binding-id=<uuid> --batch-size=100
-```
+### Parse / geo
 
-Каналы по умолчанию: `@Radarpf`, `@radarrussiia`, `@radar_rvk`, `@RRPFO`. UUID bindings — SQL в [cheatsheet § SQL](docs/cheatsheet.md#полезный-sql).
-
-### Parse-engine (данные → карта)
-
-| Задача | Команда |
-|--------|---------|
-| Первый прогон (манифест + reparse) | `npm run parse-engine:init` |
-| Пересчёт из raw | `npm run parse-engine:rebuild` |
-| Rebuild + drain очередей | `npm run parse-engine:rebuild:drain` |
-| Догнать ingest + geo | `npm run parse-engine:drain` |
-| Сводка очередей | `npm run parse-engine:status` |
-| Ручная фаза | `npm run parse-engine:phase:run -- --phase=llm` |
-| Сброс parsed (raw остаётся) | `npm run parse-engine:reset` |
-
-Подробно: [phase-pipeline.md](docs/phase-pipeline.md) · wipe/reset/clear — [shpargalka-operacii.md](docs/shpargalka-operacii.md).
-
-### Geo-каталог
-
-```powershell
-npm run geo:catalog:import -w @radar/api    # основной: tabular → frontline → osm → adjacency
-npm run geo:layout:build                    # layout.json для схемы
-```
-
-Legacy: `geo:vendor` → `geo:sync` → `geo:seed` → `geo:db:apply` — см. [data/geo/README.md](data/geo/README.md).
-
-### Карта (read-side)
-
-| Задача | Команда / API |
-|--------|----------------|
-| Fold snapshot | `GET /api/map/snapshot` |
-| Time Machine | `GET /api/map/snapshot?asOf=ISO8601` |
-| Теплокарта | `GET /api/map/events/heatmap?period=24h\|7d\|30d\|all&eventTypes=...&until=` |
-| Диагностика fold | `npm run map:fold:status` |
-| Оффлайн parse | `npm run worker:parse:snap -- tests/snap_001.txt` |
-| Batch-отчёт | `npm run worker:parse:report -- --input tests --outdir reports` |
-
-**TTL карты:** `RADAR_MAP_STATE_TTL_HOURS` (default 24) — на read-line fold; legacy `worker:map-state:expire` удалён.
+См. [radar-cli.md § Частые](docs/radar-cli.md#частые-команды) и [§ pipeline / geo](docs/radar-cli.md#pipeline--parse-очереди-сбросы).
 
 ### Диагностика
 
 | Симптом | Действие |
 |---------|----------|
-| Карта пустая после ingest | `npm run parse-engine:rebuild:drain` |
+| Карта пустая после ingest | `npm run radar -- parse run` |
 | Ingest не в БД | `RADAR_STORAGE_MODE=db`, перезапуск worker |
-| Нет каналов | `npm run ingest:manifest:import`, provider `active` |
-| `[api] EBUSY` при dev | stop node → удалить `packages/api/dist` → `npm run dev:app` |
+| Нет каналов | `radar ingest manifest:import`, provider `active` |
+| `[api] EBUSY` при dev | stop node → удалить `packages/api/dist` → `radar stack dev` |
 
 ```powershell
 node scripts/query-ingest-status.mjs
@@ -355,12 +325,12 @@ node scripts/query-ingest-status.mjs
 
 ### Режимы одной строкой
 
-| Команда | Docker (Postgres) | Процессы | Когда |
-|---------|-------------------|----------|--------|
-| **`npm run cold:up`** | да | install + build shared + **миграции** | первый раз на машине |
-| **`npm run up`** | да | **shared + API + web** (`dev:app`) | каждый день, UI без Telegram |
-| **`npm run dev`** | нет | shared + API + web + **worker** | БД уже поднята, полный стек |
-| **`npm run dev:app`** | нет | shared + API + web | отладка карты/API без worker |
+| radar | Legacy | Процессы | Когда |
+|-------|--------|----------|--------|
+| **`stack cold-up`** | `cold:up` | install + build shared + **миграции** | первый раз |
+| **`stack up`** | `up` | shared + API + web | UI без Telegram |
+| **`stack dev --full`** | `dev` | + worker | полный стек |
+| **`stack dev`** | `dev:app` | без worker | отладка карты/API |
 
 Перед `dev` / `dev:app` скрипты **`predev`** собирают `@radar/shared` и `@radar/api`. Web стартует **после** `http://127.0.0.1:3000/api/ready` (`scripts/dev-stack.mjs`).
 
@@ -369,13 +339,12 @@ node scripts/query-ingest-status.mjs
 ```powershell
 cd C:\path\to\radar
 Copy-Item .env.example .env
-# Минимум: DATABASE_URL=postgresql://radar:radar@127.0.0.1:5432/radar
-npm run cold:up
-npm run dev:app
-# или с worker и Telegram: npm run dev
+npm run radar -- stack cold-up
+npm run radar -- stack dev
+# или с worker: npm run radar -- stack dev --full
 ```
 
-Опции `cold:up` (можно комбинировать):
+Опции `stack cold-up` (legacy `cold:up`, можно комбинировать):
 
 | Флаг | Эффект |
 |------|--------|
@@ -384,7 +353,7 @@ npm run dev:app
 | **`-Llm`** | Docker profile `llm` + `ollama pull` |
 | **`-LlmUi`** | + Open WebUI |
 
-Пример: `npm run cold:up -- -Geo -Dev`
+Пример: `npm run radar -- stack cold-up -- -Geo -Dev`
 
 ### Проверка после старта
 
@@ -428,7 +397,7 @@ Live:  region-state | place-state | warning  →  патч store (не refetch s
 
 Поллер WS читает diff fold snapshot(now). События **до перезапуска API** по WS не переигрываются — только snapshot при connect.
 
-Данные на карте после ingest: reparse raw (`parse-engine:rebuild` или phase pipeline).
+Данные на карте после ingest: `npm run radar -- parse run` (или phase pipeline).
 
 **TTL карты (24 ч по умолчанию):** на read-line — факты старше окна не участвуют в fold. Env: `RADAR_MAP_STATE_TTL_HOURS` / `RADAR_MAP_STATE_TTL_MS`. Legacy `MapStateExpiryDaemon` и `*_status_read_model` удалены.
 
@@ -448,8 +417,8 @@ docker compose --profile llm-ui up -d
 
 1. **`.env.example` → `.env`** в корне (`DATABASE_URL` обязателен).
 2. `docker compose up -d`
-3. `npm install` → `npm run migration:run`
-4. `npm run dev` или `npm run dev:app` (см. таблицу режимов выше).
+3. `npm install` → `npm run radar -- stack migrate`
+4. `npm run radar -- stack dev --full` или `stack dev` (см. таблицу режимов выше).
 
 Подробности transpile/watch: Nest + `shared/dist` для API; Vite тянет схемы из `packages/shared/src`.
 
@@ -506,8 +475,8 @@ docker compose --profile llm-ui up -d
 - Первый вход — интерактивный deploy (TTY):
 
   ```bash
-  npm run worker:session:deploy -- --slot tg-user-1 --kind mtproto_user
-  npm run worker:session:probe -- --slot tg-user-1
+  npm run radar -- ingest session:deploy -- --slot tg-user-1 --kind mtproto_user
+  npm run radar -- ingest session:probe -- --slot tg-user-1
   ```
 
 ### Raw Ingest Providers (db mode)
@@ -517,7 +486,7 @@ docker compose --profile llm-ui up -d
 - Admin: **`POST /api/admin/ingest/messages`** — ручной ingest; Swagger: `/api/docs` → `admin-ingest`.
 - CLI (все параметры): **[docs/ingest-providers.md](./docs/ingest-providers.md#cli--справочник-команд)** — session, manifest, backfill.
 - Backfill V2 (демон, схемы, эксплуатация): **[docs/backfill-v2-pipeline.md](./docs/backfill-v2-pipeline.md)**.
-- CLI: `npm run worker:session:deploy`, `npm run ingest:manifest:import`, `npm run worker:ingest:backfill -- --all-bindings --batch-size=100`.
+- CLI: `npm run radar -- ingest session:deploy`, `radar ingest manifest:import`, `radar ingest backfill -- --all-bindings --batch-size=100`.
 - Docker worker (profile): `docker compose --profile worker up -d worker`.
 
 ## Секреты и dotenv-vault
@@ -537,7 +506,7 @@ npm run migration:generate -- src/migrations/RenameMe
 Применение:
 
 ```bash
-npm run migration:run
+npm run radar -- stack migrate
 ```
 
 Команды выполняются в пакете `@radar/api` через корневые npm-скрипты.
@@ -546,13 +515,13 @@ npm run migration:run
 
 Полный список — **[docs/cheatsheet.md](docs/cheatsheet.md)** и **[docs/shpargalka-operacii.md](docs/shpargalka-operacii.md)**. Частые:
 
-| Скрипт | Назначение |
-|--------|------------|
-| `npm run cold:up` / `up` / `dev` / `dev:app` | см. [§ Шпаргалка](#шпаргалка-операции) |
-| `npm run parse-engine:rebuild:drain` | reparse raw + drain очередей → карта |
-| `npm run geo:catalog:import -w @radar/api` | geo-каталог в БД |
-| `npm run map:fold:status` | диагностика read-line fold |
-| `npm run migration:run` | миграции TypeORM |
-| `npm run build` / `lint` / `typecheck` | CI-локально |
-| `npm run db:up` / `db:down` | Docker Postgres + Adminer + pgAdmin |
+| radar | Legacy | Назначение |
+|-------|--------|------------|
+| `stack cold-up` / `up` / `dev` / `dev --full` | `cold:up`, `up`, `dev:app`, `dev` | см. [§ Шпаргалка](#шпаргалка-операции) |
+| `parse run` | `parse-engine:rebuild:drain` | reparse + drain → карта |
+| `geo catalog:import` | `geo:catalog:import -w @radar/api` | geo-каталог в БД |
+| `map fold` | `map:fold:status` | диагностика fold |
+| `stack migrate` | `migration:run` | миграции TypeORM |
+| `npm run build` / `lint` / `typecheck` | — | CI-локально |
+| `stack db:up` / `db:down` | `db:up` / `db:down` | Docker Postgres |
 | `docker compose --profile llm up -d` | Ollama (опционально) |

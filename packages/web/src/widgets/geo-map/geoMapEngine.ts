@@ -1,4 +1,6 @@
 import type { Map as MapLibreMap } from "maplibre-gl";
+import { timer, type Subscription } from "rxjs";
+import { take } from "rxjs/operators";
 import type { SourceMessage } from "@radar/shared";
 import {
   EVENTS_HEATMAP_LAYER,
@@ -10,7 +12,7 @@ import {
 } from "../../shared/config/mapConfig.service";
 import { formatDateTime } from "../../shared/format/dateTime";
 import { effectivePlaceLevel } from "../../shared/state/derivations";
-import { derivedRegionCodes$, placesById$, regionsByCode$ } from "../../shared/state/mapStore";
+import { derivedRegionCodes$, placesById$, regionsByCode$, resolveMapViewAnchorMs } from "../../shared/state/mapStore";
 import type { GeoMapLayerId } from "../../shared/state/mapLayerStore";
 import { stateChangesFeed$ } from "../../shared/state/stateChangesFeedStore";
 import type { ThemeMode } from "../../shared/state/themeStore";
@@ -113,15 +115,49 @@ export function buildPlacePopupLines(
 
 /**
  * Ждёт полной загрузки нового стиля после map.setStyle().
- * Используем постоянный listener на "styledata" — вызывает fn() после isStyleLoaded().
+ * При недоступности CDN — fallback на inline minimal style (без внешних тайлов).
  */
-export function afterStyleChange(map: MapLibreMap, fn: () => void): void {
-  const onStyleData = (): void => {
-    if (!map.isStyleLoaded()) return;
+export function afterStyleChange(
+  map: MapLibreMap,
+  fn: () => void,
+  options?: { fallbackStyle?: unknown; timeoutMs?: number },
+): void {
+  let done = false;
+  const timeoutMs = options?.timeoutMs ?? 5_000;
+  let timeoutSub: Subscription | undefined;
+
+  const run = (): void => {
+    if (done) return;
+    done = true;
     map.off("styledata", onStyleData);
+    map.off("load", onStyleData);
+    timeoutSub?.unsubscribe();
     fn();
   };
+
+  const onStyleData = (): void => {
+    if (!map.isStyleLoaded()) return;
+    run();
+  };
+
   map.on("styledata", onStyleData);
+  map.on("load", onStyleData);
+  if (map.isStyleLoaded()) run();
+
+  timeoutSub = timer(timeoutMs).pipe(take(1)).subscribe(() => {
+    if (done) return;
+    if (map.isStyleLoaded()) {
+      run();
+      return;
+    }
+    if (options?.fallbackStyle) {
+      map.setStyle(options.fallbackStyle as never, {
+        transformStyle: preserveUserLayers,
+      } as never);
+      return;
+    }
+    run();
+  });
 }
 
 /**
@@ -203,8 +239,8 @@ export function fitOperationalOverview(
   base: GeoJsonCollection,
   duration: number,
 ): void {
-  const painted = paintRegionOutlines(base, regionsByCode$.value, Date.now());
-  const now = Date.now();
+  const now = resolveMapViewAnchorMs();
+  const painted = paintRegionOutlines(base, regionsByCode$.value, now);
   const placeFeatures = placesToFeatures(
     placesById$.value,
     regionsByCode$.value,

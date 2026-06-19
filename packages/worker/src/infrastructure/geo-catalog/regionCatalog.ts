@@ -50,8 +50,56 @@ function expandRegionalAdjectiveForms(alias: string): string[] {
     out.add(`${stem}ские`);
     out.add(`${stem}ских`);
   }
+  const masc = alias.match(/^(.+)(ский)$/);
+  if (masc?.[1]) {
+    const stem = masc[1];
+    out.add(`${stem}ского`);
+    out.add(`${stem}скому`);
+    out.add(`${stem}ским`);
+  }
+  const neut = alias.match(/^(.+)(ское)$/);
+  if (neut?.[1]) {
+    const stem = neut[1];
+    out.add(`${stem}ского`);
+  }
   return [...out];
 }
+
+/** Падежи типа субъекта: область → области, областей … */
+function expandSubjectTypeToken(typeToken: string): string[] {
+  const normalized = normalize(typeToken);
+  const forms: Record<string, string[]> = {
+    область: ["области", "областей", "обл"],
+    обл: ["области", "областей", "область"],
+    край: ["края", "краю", "краем", "краёв"],
+    республика: ["республики", "республик", "респ"],
+    респ: ["республики", "республик", "республика"],
+    округ: ["округа", "округов"],
+    ао: ["ао", "округа", "округов"],
+  };
+  return forms[normalized] ?? [];
+}
+
+/** Полные фразы «прилагательное + тип» в типичных падежах. */
+function expandRegionalPhraseForms(nameWithType: string): string[] {
+  const normalized = normalize(nameWithType);
+  const match = normalized.match(/^(.+?)\s+(область|обл|край|республика|респ|округ|ао)$/);
+  if (!match?.[1] || !match[2]) return [];
+
+  const adjective = match[1].trim();
+  const typeToken = match[2].trim();
+  const adjectiveForms = expandRegionalAdjectiveForms(adjective);
+  const typeForms = [typeToken, ...expandSubjectTypeToken(typeToken)];
+  const phrases = new Set<string>();
+
+  for (const adj of adjectiveForms) {
+    for (const type of typeForms) {
+      phrases.add(`${adj} ${type}`.trim());
+    }
+  }
+  return [...phrases];
+}
+
 function buildAliases(name: string, nameWithType?: string): string[] {
   const values = [name, nameWithType].filter(Boolean) as string[];
   const aliases = new Set<string>();
@@ -79,6 +127,14 @@ function buildAliases(name: string, nameWithType?: string): string[] {
   for (const a of aliases) {
     for (const e of expandRegionalAdjectiveForms(a)) {
       expanded.add(e);
+    }
+    for (const typeForm of expandSubjectTypeToken(a)) {
+      expanded.add(typeForm);
+    }
+  }
+  if (nameWithType) {
+    for (const phrase of expandRegionalPhraseForms(nameWithType)) {
+      expanded.add(phrase);
     }
   }
   return [...expanded].filter(Boolean);

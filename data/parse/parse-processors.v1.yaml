@@ -1,5 +1,5 @@
 schemaVersion: 1
-revision: "2026-06-16.1"
+revision: "2026-06-19.1"
 processors:
   - id: geo-processor
     enabled: true
@@ -7,12 +7,18 @@ processors:
   - id: event-type-processor
     enabled: true
     order: 20
-  - id: repeat-processor
+  - id: mass-clear-exclude-processor
+    enabled: true
+    order: 25
+  - id: mass-clear-scope-processor
     enabled: true
     order: 30
-  - id: mass-processor
+  - id: repeat-processor
     enabled: true
     order: 40
-  - id: count-processor
+  - id: mass-processor
     enabled: true
     order: 50
+  - id: count-processor
+    enabled: true
+    order: 60

@@ -1,12 +1,34 @@
 import type {
+  EventLocation,
   FinalizeContext,
   FinalizeResult,
   IEventLocationRepository,
   IMessageParseWorkspaceRepository,
   IParsedEventRepository,
+  ParsedEvent,
   ParseWorkspace,
 } from "@radar/shared";
 import { planFinalize } from "../../domain/parse/ParseFinalizerService.js";
+
+/**
+ * Проставляет occurredAt/action/statusCode для fold и fade на карте.
+ * Без occurredAt репозиторий пишет now() — все угрозы выглядят «свежими».
+ */
+function stampLocationFacts(
+  locations: EventLocation[],
+  parsedEvent: ParsedEvent,
+): EventLocation[] {
+  const action =
+    parsedEvent.eventType === "cleared" || parsedEvent.isActive === false
+      ? "clear"
+      : "raise";
+  return locations.map((loc) => ({
+    ...loc,
+    occurredAt: loc.occurredAt ?? parsedEvent.postedAt,
+    action: loc.action ?? action,
+    statusCode: loc.statusCode ?? parsedEvent.eventType,
+  }));
+}
 
 /** Persist finalize plan в facts + workspace row. */
 export class ParseWorkspacePersistService {
@@ -35,7 +57,10 @@ export class ParseWorkspacePersistService {
     const candidateEventMap: Record<string, string> = { ...input.context.candidateEventMap };
 
     for (const item of plan.materialized) {
-      const locations = input.locationsByCandidateId?.[item.candidateId] ?? [];
+      const locations = stampLocationFacts(
+        input.locationsByCandidateId?.[item.candidateId] ?? [],
+        item.parsedEvent,
+      );
       const persisted = await this.parsedEvents.upsertById(item.parsedEventId, {
         ...item.parsedEvent,
         locations,

@@ -1,6 +1,10 @@
-# Фазовые команды (wipe / reset / clear / run)
+# Фазовые команды (wipe / reset / clear)
 
 Пайплайн: **vendor → ingest → parse → geo** (+ structural **geo-catalog** в БД).
+
+**Таблицы radar ↔ legacy:** единый справочник — [`radar-cli.md § phase / pipeline`](./radar-cli.md#phase--wipe--reset--clear).
+
+---
 
 ## Семантика
 
@@ -15,9 +19,9 @@
 
 ---
 
-## По фазам
+## Заметки по фазам
 
-### vendor (диск)
+### vendor (диск, не radar domain)
 
 | Команда | Эффект |
 |---------|--------|
@@ -26,74 +30,21 @@
 
 ### ingest
 
-| Команда | Эффект |
-|---------|--------|
-| `ingest:run` | backfill всех каналов (= `parse-engine:ingest:backfill`) |
-| `ingest:reset` | **noop** |
-| `ingest:wipe` | `raw_messages` + parsed, evloc, parse_attempts, ingest cursors/backfill |
-
-**Не трогает:** places, regions, geo_feature.
+- `phase wipe ingest` — raw + parsed, evloc, cursors/backfill.
+- **Не трогает:** places, regions, geo_feature.
 
 ### parse
 
-| Команда | Эффект |
-|---------|--------|
-| `parse:run` | `parse-engine:rebuild:drain` |
-| `parse:reset` | **noop** |
-| `parse:wipe` | parsed + evloc; **raw остаётся** |
+- `phase wipe parse` — parsed + evloc; **raw остаётся**.
+- Операционный reparse без wipe: `pipeline reset` → `parse run` (см. radar-cli).
 
-### geo (places как актив)
+### geo (places)
 
-| Команда | Эффект |
-|---------|--------|
-| `geo:catalog:import` | tabular → frontline → osm_geometry → adjacency ([runbook](./runbook/geo-clean-rebuild.md)) |
-| `geo:catalog:reset -- --confirm` | wipe гео-справочника (без raw/parsed) |
-| `geo:run` | legacy → предпочтительно `geo:catalog:import` |
-| `geo:reset` | Обнулить centroid/bbox/trust на places; jobs/evidence |
-| `geo:wipe` | DELETE places + aliases; **каталог** (regions, geo_feature) **остаётся** |
-
-> ⚠️ `geo:wipe` обнуляет `event_locations.place_id` перед удалением (FK RESTRICT). Данные evloc остаются.
+> ⚠️ `phase wipe geo` обнуляет `event_locations.place_id` перед удалением (FK RESTRICT). Строки evloc остаются.
 
 ### geo-catalog (structural БД)
 
-| Команда | Эффект |
-|---------|--------|
-| `geo-catalog:wipe` | regions, geo_feature, place_geo_link, geo_dataset_file |
-
-Перед `geo-catalog:wipe` обычно нужен `geo:wipe` (пустые places).
-
----
-
-## Составные
-
-| Команда | Эффект |
-|---------|--------|
-| `ingest-parse:wipe` | = `ingest:wipe` |
-| `vendor-ingest-parse-geo:wipe` | ingest-parse + geo:wipe + geo-catalog:wipe (БД) |
-| `system:reset -- --confirm` | wipe БД + legacy `geo:init`; диск не трогает |
-| `system:reset -- --confirm --wipe-only` | только wipe БД → `geo:catalog:import` |
-
----
-
-## Очереди
-
-| Команда | Эффект |
-|---------|--------|
-| `phase:ingest:clear` | phase_coverage + cancel runs (ingest) |
-| `phase:geo:clear` | place_enrichment_jobs + cancel runs (geo) |
-| `phase:all:clear` | обе очереди |
-
----
-
-## Legacy-алиасы
-
-| Старое | Новое |
-|--------|-------|
-| `parse-engine:clear` | `ingest-parse:wipe` |
-| `parse-engine:reset` | `parse:wipe` |
-| `parse-engine:clear:raw` | только raw — оставлено |
-| `parse-engine:system:wipe` | `vendor-ingest-parse-geo:wipe` |
-| `parse-engine:catalog:wipe` | `geo:wipe` (+ при необходимости `parse:wipe`) |
+Перед `phase wipe geo-catalog` обычно нужен `phase wipe geo` (пустые places).
 
 ---
 

@@ -1,10 +1,11 @@
 import { Injectable } from "@nestjs/common";
-import type {
-  MapPlaceSnapshot,
-  MapRegionSnapshot,
-  PlaceStateEvent,
-  StateLevel,
-  WsServerMessage,
+import {
+  isPgContendedReadError,
+  type MapPlaceSnapshot,
+  type MapRegionSnapshot,
+  type PlaceStateEvent,
+  type StateLevel,
+  type WsServerMessage,
 } from "@radar/shared";
 import { loadLayout } from "./layout.loader";
 import { MapSnapshotQueryService } from "./map-snapshot-query.service";
@@ -20,13 +21,15 @@ const WARNING_TITLES: Record<string, string> = {
 };
 
 /**
- * WS realtime: diff fold snapshot(now) раз в pollMs.
- * Клиент при connect получает полный snapshot; poller шлёт только дельты.
+ * WS realtime: layered diff — regions каждый tick, places реже.
  */
 @Injectable()
 export class MapFoldRealtimePoller {
   private timer: NodeJS.Timeout | null = null;
   private readonly pollMs = 1000;
+  private readonly placePollEvery = 3;
+  private tickCount = 0;
+  private tickInProgress = false;
   private primed = false;
   private lastRegions = new Map<string, MapRegionSnapshot>();
   private lastPlaces = new Map<string, MapPlaceSnapshot>();
@@ -36,6 +39,7 @@ export class MapFoldRealtimePoller {
   start(emit: Emit): void {
     if (this.timer) return;
     this.primed = false;
+    this.tickCount = 0;
     this.lastRegions = new Map();
     this.lastPlaces = new Map();
     this.timer = setInterval(() => void this.tick(emit), this.pollMs);
@@ -48,9 +52,34 @@ export class MapFoldRealtimePoller {
   }
 
   private async tick(emit: Emit): Promise<void> {
-    const snapshot = await this.mapSnapshotQuery.getSnapshotAt(new Date());
-    const nextRegions = new Map(snapshot.regions.map((region) => [region.regionId, region]));
-    const nextPlaces = new Map(snapshot.places.map((place) => [place.placeId, place]));
+    if (this.tickInProgress) return;
+    this.tickInProgress = true;
+    try {
+      await this.tickOnce(emit);
+    } catch (error) {
+      if (isPgContendedReadError(error)) {
+        console.warn("[MapFoldRealtimePoller] read contention — пропуск тика (rebuild/heal)");
+        return;
+      }
+      console.error("[MapFoldRealtimePoller] tick failed:", error);
+    } finally {
+      this.tickInProgress = false;
+    }
+  }
+
+  private async tickOnce(emit: Emit): Promise<void> {
+    this.tickCount += 1;
+    const now = new Date();
+    const regionsState = await this.mapSnapshotQuery.getRegionsStateAt(now);
+    const nextRegions = new Map(
+      regionsState.regions.map((region) => [region.regionId, region]),
+    );
+
+    let nextPlaces = this.lastPlaces;
+    if (this.tickCount % this.placePollEvery === 0) {
+      const placesState = await this.mapSnapshotQuery.getPlacesStateAt(now);
+      nextPlaces = new Map(placesState.places.map((place) => [place.placeId, place]));
+    }
 
     if (!this.primed) {
       this.lastRegions = nextRegions;
@@ -60,7 +89,7 @@ export class MapFoldRealtimePoller {
     }
 
     const layoutTiles = loadLayout().tiles;
-    const atIso = snapshot.generatedAt;
+    const atIso = regionsState.generatedAt;
 
     for (const [regionId, region] of nextRegions) {
       const prev = this.lastRegions.get(regionId);
@@ -127,32 +156,34 @@ export class MapFoldRealtimePoller {
       });
     }
 
-    for (const [placeId, place] of nextPlaces) {
-      const prev = this.lastPlaces.get(placeId);
-      if (
-        prev
-        && prev.stateLevel === place.stateLevel
-        && prev.statusEventAt === place.statusEventAt
-        && prev.statusCode === place.statusCode
-      ) {
-        continue;
+    if (this.tickCount % this.placePollEvery === 0) {
+      for (const [placeId, place] of nextPlaces) {
+        const prev = this.lastPlaces.get(placeId);
+        if (
+          prev
+          && prev.stateLevel === place.stateLevel
+          && prev.statusEventAt === place.statusEventAt
+          && prev.statusCode === place.statusCode
+        ) {
+          continue;
+        }
+        emit({
+          type: "place-state",
+          payload: this.toPlaceStateEvent(place, "activate"),
+        });
       }
-      emit({
-        type: "place-state",
-        payload: this.toPlaceStateEvent(place, "activate"),
-      });
-    }
 
-    for (const [placeId, prev] of this.lastPlaces) {
-      if (nextPlaces.has(placeId)) continue;
-      emit({
-        type: "place-state",
-        payload: this.toPlaceStateEvent(prev, "deactivate"),
-      });
+      for (const [placeId, prev] of this.lastPlaces) {
+        if (nextPlaces.has(placeId)) continue;
+        emit({
+          type: "place-state",
+          payload: this.toPlaceStateEvent(prev, "deactivate"),
+        });
+      }
+      this.lastPlaces = nextPlaces;
     }
 
     this.lastRegions = nextRegions;
-    this.lastPlaces = nextPlaces;
   }
 
   private toPlaceStateEvent(

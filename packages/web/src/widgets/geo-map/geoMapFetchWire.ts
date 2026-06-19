@@ -50,7 +50,11 @@ export function wireLayerFetchStreams<T>(options: {
   sub.add(
     streams.data$.pipe(takeUntil(destroy$)).subscribe((data) => {
       patchGeoMapLayerFetchStatus(layerId, { error: null, loading: false });
-      pushAppLog("info", "Загружено", { source: label });
+      const detail =
+        layerId === "heatmap"
+          ? "точек загружено"
+          : `features: ${(data as { features?: unknown[] }).features?.length ?? "?"}`;
+      pushAppLog("info", `Загружено (${detail})`, { source: label });
       onData(data);
     }),
   );

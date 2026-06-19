@@ -1,11 +1,35 @@
 import type { GeoJSONSource, Map as MapLibreMap } from "maplibre-gl";
+import { animationFrames, timer } from "rxjs";
+import { take } from "rxjs/operators";
 import type { SourceMessage } from "@radar/shared";
+import { resolveMapBasemapFallbackForTheme } from "../../shared/config/mapConfig.service";
 import { mapApi } from "../../shared/api/mapApi";
 import { isRegionVisibleOnMap } from "../../shared/state/derivations";
 import { regionsByCode$ } from "../../shared/state/mapStore";
+import type { ThemeMode } from "../../shared/state/themeStore";
 import { geoJsonFingerprint, paintRegionInsetOutlines } from "./geoMapPaint";
 import { REGIONS_OUTLINE_SOURCE, REGIONS_SOURCE } from "./geoMapLayerIds";
 import type { GeoJsonCollection } from "./geoMapTypes";
+
+/** Таймаут ожидания внешнего стиля перед переходом на inline-fallback. */
+const MAP_STYLE_LOAD_TIMEOUT_MS = 5_000;
+
+/** Повтор push в источник без idle — при сбое тайлов idle может не наступить (Rx animationFrames). */
+function retrySourcePush(push: () => boolean, onCommitted?: () => void): void {
+  if (push()) {
+    onCommitted?.();
+    return;
+  }
+  let attempts = 0;
+  const sub = animationFrames().subscribe(() => {
+    if (push()) {
+      onCommitted?.();
+      sub.unsubscribe();
+      return;
+    }
+    if (++attempts >= 30) sub.unsubscribe();
+  });
+}
 
 /** Доступ к MapLibre-инстансу из closure useEffect. */
 export type GeoMapRuntimeHost = {
@@ -54,12 +78,81 @@ export function whenStyleReady(map: MapLibreMap, fn: () => void): void {
     fn();
     return;
   }
-  const onStyleData = (): void => {
-    if (!map.isStyleLoaded()) return;
+  let done = false;
+  const run = (): void => {
+    if (done || !map.isStyleLoaded()) return;
+    done = true;
     map.off("styledata", onStyleData);
+    map.off("load", onStyleData);
     fn();
   };
+  const onStyleData = (): void => run();
   map.on("styledata", onStyleData);
+  map.on("load", onStyleData);
+}
+
+export type WireMapBootstrapOptions = {
+  map: MapLibreMap;
+  theme: ThemeMode;
+  onReady: () => void;
+  isDisposed: () => boolean;
+};
+
+/**
+ * Поднимает оверлеи, когда стиль готов — не ждём успешной загрузки тайлов.
+ * При недоступности CDN подложки переключается на inline minimal style.
+ */
+export function wireMapBootstrap(opts: WireMapBootstrapOptions): () => void {
+  let bootstrapped = false;
+  let fallbackApplied = false;
+
+  const bootstrap = (): void => {
+    if (bootstrapped || opts.isDisposed()) return;
+    if (!opts.map.isStyleLoaded()) return;
+    bootstrapped = true;
+    opts.onReady();
+  };
+
+  const scheduleBootstrap = (): void => {
+    whenStyleReady(opts.map, bootstrap);
+  };
+
+  const applyFallback = (): void => {
+    if (fallbackApplied || bootstrapped || opts.isDisposed()) return;
+    fallbackApplied = true;
+    opts.map.setStyle(resolveMapBasemapFallbackForTheme(opts.theme) as never);
+    scheduleBootstrap();
+  };
+
+  const onError = (): void => {
+    if (bootstrapped || opts.isDisposed()) return;
+    // Ошибка отдельного тайла — стиль уже есть, оверлеи можно поднимать.
+    if (opts.map.isStyleLoaded()) {
+      scheduleBootstrap();
+      return;
+    }
+    applyFallback();
+  };
+
+  opts.map.on("load", scheduleBootstrap);
+  opts.map.on("styledata", scheduleBootstrap);
+  opts.map.on("error", onError);
+
+  const timeoutSub = timer(MAP_STYLE_LOAD_TIMEOUT_MS).pipe(take(1)).subscribe(() => {
+    if (bootstrapped || opts.isDisposed()) return;
+    if (opts.map.isStyleLoaded()) {
+      scheduleBootstrap();
+      return;
+    }
+    applyFallback();
+  });
+
+  return () => {
+    timeoutSub.unsubscribe();
+    opts.map.off("load", scheduleBootstrap);
+    opts.map.off("styledata", scheduleBootstrap);
+    opts.map.off("error", onError);
+  };
 }
 
 export type GeoMapRuntime = ReturnType<typeof createGeoMapRuntime>;
@@ -95,8 +188,7 @@ export function createGeoMapRuntime(host: GeoMapRuntimeHost) {
 
       const push = (): boolean => sources.set(sourceId, data);
       whenStyleReady(map, () => {
-        if (push()) return;
-        map.once("idle", push);
+        retrySourcePush(push);
       });
     },
 
@@ -136,19 +228,18 @@ export function createGeoMapRuntime(host: GeoMapRuntimeHost) {
 
       const push = (): boolean => sources.commitRegions(painted, force);
       whenStyleReady(map, () => {
-        if (push()) {
-          onCommitted();
-          return;
-        }
-        map.once("idle", () => {
-          if (push()) onCommitted();
-        });
+        retrySourcePush(push, onCommitted);
       });
     },
 
     invalidateRegions(): void {
       fingerprints.delete(REGIONS_SOURCE);
       fingerprints.delete(REGIONS_OUTLINE_SOURCE);
+    },
+
+    /** Сброс отпечатка источника — принудительный setData при 0→N features. */
+    clearFingerprint(sourceId: string): void {
+      fingerprints.delete(sourceId);
     },
 
     clear(): void {
@@ -161,7 +252,7 @@ export function createGeoMapRuntime(host: GeoMapRuntimeHost) {
       const fadeBucket = Math.floor(now / 60_000);
       const parts: string[] = [];
       for (const [code, region] of regionsByCode$.value) {
-        if (!isRegionVisibleOnMap(region)) continue;
+        if (!isRegionVisibleOnMap(region, now)) continue;
         parts.push(`${code}:${region.stateLevel}:${region.statusEventAt ?? ""}:${fadeBucket}`);
       }
       parts.sort();

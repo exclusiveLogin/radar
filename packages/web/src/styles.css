@@ -188,8 +188,8 @@
   min-height: 0;
 }
 
-/** Глобальная лента событий/ошибок — правый нижний угол viewport. */
-.app-log-rail {
+/** Глобальная лента событий — host не перехватывает клики вне блока ленты. */
+.app-log-rail-host {
   position: fixed;
   right: 10px;
   bottom: 10px;
@@ -197,11 +197,28 @@
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 4px;
   max-width: min(320px, 42vw);
+  pointer-events: none;
+}
+
+/** Скроллируемая лента: pointer-events auto — иначе :hover на parent с none не срабатывает. */
+.app-log-rail {
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  width: 100%;
   max-height: min(40vh, 420px);
   overflow-y: auto;
-  pointer-events: none;
+  overscroll-behavior: contain;
+  opacity: 0.55;
+  transition: opacity 0.15s ease;
+  scrollbar-width: thin;
+}
+
+.app-log-rail:hover {
+  opacity: 1;
 }
 
 .app-log-rail__item {
@@ -316,7 +333,7 @@
   position: absolute;
   right: calc(var(--rail-width) + 20px);
   top: 12px;
-  z-index: 12;
+  z-index: 30;
   width: 200px;
   max-height: calc(100% - 100px);
   overflow-y: auto;

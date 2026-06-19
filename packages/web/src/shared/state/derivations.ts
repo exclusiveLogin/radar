@@ -31,13 +31,57 @@ export function effectivePlaceLevel(
 /** Старые green/grey не рисуем на карте (гео и схема). */
 const REGION_CALM_STALE_MS = 3 * 60 * 60 * 1000;
 
-/** Регион показываем на карте: alarm-уровни всегда; green/grey — только первые 3ч. */
-export function isRegionVisibleOnMap(region: MapRegionSnapshot): boolean {
+/**
+ * Регион показываем на карте: alarm-уровни всегда; green/grey — только первые 3ч
+ * относительно якоря просмотра (live: now, replay: asOf).
+ */
+export function isRegionVisibleOnMap(
+  region: MapRegionSnapshot,
+  viewNowMs: number = Date.now(),
+): boolean {
   if (region.stateLevel !== "green" && region.stateLevel !== "grey") {
     return true;
   }
   if (!region.statusEventAt) return false;
-  return Date.now() - new Date(region.statusEventAt).getTime() < REGION_CALM_STALE_MS;
+  return viewNowMs - new Date(region.statusEventAt).getTime() < REGION_CALM_STALE_MS;
+}
+
+/** SSOT: коды регионов, видимых на карте при якоре viewNowMs. */
+export function visibleRegionCodes(
+  regions: Map<string, MapRegionSnapshot>,
+  viewNowMs: number,
+): string[] {
+  const codes: string[] = [];
+  for (const region of regions.values()) {
+    if (isRegionVisibleOnMap(region, viewNowMs)) codes.push(region.regionCode);
+  }
+  return codes.sort();
+}
+
+/** Fingerprint видимых регионов для geo-fetch/paint. */
+export function visibleRegionCodesFingerprint(
+  regions: Map<string, MapRegionSnapshot>,
+  viewNowMs: number,
+): string {
+  return visibleRegionCodes(regions, viewNowMs).join("\0");
+}
+
+/** geoFeatureId активных places для districts-fetch. */
+export function activeDistrictGeoFeatureIds(
+  places: Map<string, MapPlaceSnapshot>,
+): string[] {
+  const ids: string[] = [];
+  for (const place of places.values()) {
+    if (place.geoFeatureId) ids.push(place.geoFeatureId);
+  }
+  return ids.sort();
+}
+
+/** Fingerprint districts-fetch. */
+export function activeDistrictIdsFingerprint(
+  places: Map<string, MapPlaceSnapshot>,
+): string {
+  return activeDistrictGeoFeatureIds(places).join("\0");
 }
 
 /** Счётчики регионов по уровню состояния. */
@@ -136,9 +180,10 @@ export function countActivePlaces(
 export function isPlaceVisibleOnMap(
   place: MapPlaceSnapshot,
   regions: Map<string, MapRegionSnapshot>,
+  viewNowMs: number = Date.now(),
 ): boolean {
   const region = regions.get(place.regionCode);
-  if (!region || !isRegionVisibleOnMap(region)) return false;
+  if (!region || !isRegionVisibleOnMap(region, viewNowMs)) return false;
   return place.stateLevel !== "grey";
 }
 
@@ -155,7 +200,7 @@ export function countPlacesOnMapByLevel(
     grey: 0,
   };
   for (const place of places.values()) {
-    if (!isPlaceVisibleOnMap(place, regions)) continue;
+    if (!isPlaceVisibleOnMap(place, regions, Date.now())) continue;
     counts[place.stateLevel]++;
   }
   return counts;
@@ -167,7 +212,7 @@ export function countVisiblePlacesOnMap(
 ): number {
   let n = 0;
   for (const place of places.values()) {
-    if (isPlaceVisibleOnMap(place, regions)) n += 1;
+    if (isPlaceVisibleOnMap(place, regions, Date.now())) n += 1;
   }
   return n;
 }

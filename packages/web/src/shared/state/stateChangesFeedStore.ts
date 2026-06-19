@@ -2,6 +2,7 @@ import { BehaviorSubject } from "rxjs";
 import { stateChangeEventsResponseSchema } from "@radar/shared";
 import type { StateChangeEventItem } from "@radar/shared";
 import { mapApi } from "../api/mapApi";
+import { startIntervalPoll } from "../rx/startIntervalPoll";
 import { reportAppError } from "./appLogStore";
 
 /** Лента разобранных событий с привязкой к регионам (REST poll). */
@@ -15,8 +16,7 @@ export function startStateChangesFeedStore(): void {
   if (started) return;
   started = true;
 
-  void refreshStateChangesFeed();
-  setInterval(() => void refreshStateChangesFeed(), POLL_MS);
+  startIntervalPoll(POLL_MS, refreshStateChangesFeed);
 }
 
 async function refreshStateChangesFeed(): Promise<void> {

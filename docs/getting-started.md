@@ -1,6 +1,7 @@
 # Запуск продукта Radar (локально)
 
 Единая инструкция: **что поднять**, **в каком порядке**, **как проверить**.  
+**CLI:** [`radar-cli.md`](./radar-cli.md) — `npm run radar -- <domain> <action>`.  
 Детали ingest/backfill — в отдельных гайдах (ссылки в конце).
 
 ---
@@ -38,12 +39,14 @@ flowchart LR
 
 ## Режимы (что выбрать)
 
-| Цель | Команды | Worker | `.env` |
-|------|---------|--------|--------|
-| **Только UI + API** (без Telegram) | `cold:up` → `npm run dev:app` | не нужен | `DATABASE_URL` |
-| **Полный dev-стек** | `cold:up` → `npm run dev` | memory (по умолчанию) | как выше |
+| Цель | Команды (radar) | Worker | `.env` |
+|------|-----------------|--------|--------|
+| **Только UI + API** (без Telegram) | `stack cold-up` → `stack dev` | не нужен | `DATABASE_URL` |
+| **Полный dev-стек** | `stack cold-up` → `stack dev --full` | memory (по умолчанию) | как выше |
 | **Продукт с live ingest** | + session + manifest + `RADAR_STORAGE_MODE=db` | `worker:dev` db | см. § Ingest |
-| **+ архив канала** | + `POST backfill-jobs` или CLI `--all-bindings` | демон / CLI chunk | [backfill-v2-pipeline.md](./backfill-v2-pipeline.md), [cheatsheet.md](./cheatsheet.md) |
+| **+ архив канала** | + `POST backfill-jobs` или `ingest backfill` | демон / CLI chunk | [backfill-v2-pipeline.md](./backfill-v2-pipeline.md) |
+
+> В таблице — действия после `npm run radar --`. Legacy: `cold:up`, `dev`, `dev:app`.
 
 ---
 
@@ -54,27 +57,26 @@ flowchart LR
 ```powershell
 cd C:\path\to\radar
 Copy-Item .env.example .env
-# Заполнить минимум DATABASE_URL (TELEGRAM_API_ID/HASH опциональны — dev fallback Telegram Desktop)
-npm run cold:up
+npm run radar -- stack cold-up
 ```
 
-`cold:up`: Docker (Postgres + Adminer + pgAdmin), `npm install`, build shared, **миграции**.
+`stack cold-up`: Docker (Postgres + Adminer + pgAdmin), `npm install`, build shared, **миграции**. Legacy: `npm run cold:up`.
 
 Опции cold:up: `-Geo` (geo pipeline), `-Dev` (сразу dev-серверы), `-Llm`, `-LlmUi` — см. [README § Быстрый старт](../README.md#быстрый-старт-windows).
 
 ### 2. Каждый рабочий день
 
 ```powershell
-npm run up
+npm run radar -- stack up
 ```
 
-Поднимает Docker и **API + web** (без worker). Полный стек с Telegram:
+Поднимает Docker и **API + web** (без worker). Полный стек:
 
 ```powershell
-npm run dev
+npm run radar -- stack dev --full
 ```
 
-(если Postgres уже запущен — можно без `up`, только `npm run dev` или `npm run dev:app`).
+(если Postgres уже запущен — можно `stack dev` / `stack dev --full` без `up`).
 
 ### 3. Проверка
 
@@ -89,7 +91,7 @@ npm run dev
 | `GET /api/map/snapshot` | Снапшот карты (регионы + places) |
 | `WS /ws` | Realtime: snapshot + `region-state` / `place-state` |
 
-Проверка WS: `node scripts/ws-smoke.mjs` (из корня репо, API должен быть запущен).
+Проверка WS: `npm run radar -- dev ws-smoke` (API должен быть запущен).
 
 ---
 
@@ -106,7 +108,7 @@ RADAR_STORAGE_MODE=db
 RADAR_SESSIONS_DIR=.radar/sessions
 ```
 
-Сессии Telegram **не** задаются в `.env` — только `worker:session:deploy` в слот (см. ниже).  
+Сессии Telegram **не** задаются в `.env` — только `radar ingest session:deploy` в слот (см. ниже).
 Полный актуальный список переменных — **`.env.example`**.
 
 ---
@@ -118,19 +120,18 @@ RADAR_SESSIONS_DIR=.radar/sessions
 ### Шаг A — user-сессия (не в БД, на диске)
 
 ```powershell
-npm run worker:session:deploy
-# по умолчанию слот tg-default-user; или: -- --slot tg-default-user --kind mtproto_user
-npm run worker:session:probe
+npm run radar -- ingest session:deploy
+npm run radar -- ingest session:probe
 ```
 
 Секрет: `<корень репо>/.radar/sessions/tg-default-user/`. В БД только **имя слота** в `credentialRefs` (см. manifest).
 
 ### Шаг B — провайдеры и bindings в PostgreSQL
 
-Шаблон каналов (PF, Russia, RVK, RRPFO) подхватывается автоматически при первом `ingest:manifest:import` — если `.radar/ingest.manifest.json` нет, worker **создаёт** его из [ingest.manifest.radar-channels-mtproxy.json](./examples/ingest.manifest.radar-channels-mtproxy.json). Либо положите свой manifest в `.radar/ingest.manifest.json`. Затем:
+Шаблон каналов подхватывается при первом `radar ingest manifest:import` — если `.radar/ingest.manifest.json` нет, worker **создаёт** его из [ingest.manifest.radar-channels-mtproxy.json](./examples/ingest.manifest.radar-channels-mtproxy.json). Затем:
 
 ```powershell
-npm run ingest:manifest:import
+npm run radar -- ingest manifest:import
 ```
 
 | key | Telegram |
@@ -175,8 +176,7 @@ POST /api/admin/ingest/messages
 Без job в БД — удобно для первичного наполнения:
 
 ```powershell
-# все enabled каналы, по 100 сообщений
-npm run worker:ingest:backfill -- --all-bindings --batch-size=100
+npm run radar -- ingest backfill -- --all-bindings --batch-size=100
 ```
 
 Один канал: `--provider-id` + `--binding-id` (UUID — SQL в [cheatsheet.md § SQL](./cheatsheet.md#полезный-sql)).
@@ -208,10 +208,10 @@ BackfillDaemon (отдельно от Orchestrator) → streamHistory → тот
 Если нужны регионы в БД и структурная геометрия (карта районов):
 
 ```powershell
-npm run cold:up -- -Geo
+npm run radar -- stack cold-up -- -Geo
 ```
 
-**Чистый лист:** [phase-commands.md](./phase-commands.md) — `npm run system:reset -- --confirm`
+**Чистый лист:** [phase-commands.md](./phase-commands.md) — `npm run radar -- data reset -- --confirm`
 
 или вручную:
 
@@ -234,18 +234,15 @@ npm run geo:features:import # → geo_feature + catalog place(kind=district) + p
 
 ## Полезные команды (корень репо)
 
-| Команда | Назначение |
-|---------|------------|
-| `npm run cold:up` | Первая настройка: Docker + install + migrations |
-| `npm run up` | Docker + `dev:app` (shared + API + web, **без** worker) |
-| `npm run dev` | Без Docker: shared + API + web + worker (`dev-stack --full`) |
-| `npm run dev:app` | Без Docker и без worker (только UI + API) |
-| `npm run migration:run` | Миграции TypeORM |
-| `npm run system:reset -- --confirm` | vendor + full wipe БД + `vendor:run` + `geo:run` |
-| `npm run ingest:wipe -- --dry-run` | План сноса raw+parsed (см. phase-commands.md) |
-| `npm run worker:parse:report -- --input tests` | Оффлайн-тест парсера без Telegram |
-| `npm run worker:ingest:backfill -- --all-bindings --batch-size=100` | Backfill всех каналов (CLI chunk) |
-| `npm run build` | Production build всех пакетов |
+SSOT таблиц radar ↔ legacy: **[radar-cli.md](./radar-cli.md)**. Частые:
+
+```powershell
+npm run radar -- stack cold-up
+npm run radar -- stack dev --full
+npm run radar -- stack migrate
+npm run radar -- parse run
+npm run radar -- ingest backfill -- --all-bindings --batch-size=100
+```
 
 ---
 

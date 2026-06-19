@@ -1,3 +1,4 @@
+import { withPgContendedReadRetry } from "../../infrastructure/pgDeadlockRetry.js";
 import type { StateLevel } from "../../schemas/geo/state-level";
 import type { EventLocationFact } from "./mapStateFold";
 import { shouldIncomingBeatWinner } from "./mapStateFold";
@@ -15,6 +16,51 @@ export type MapFactsDbQuery = {
 
 /** @deprecated используй MapFactsDbQuery */
 export type MapFoldDbQuery = MapFactsDbQuery;
+
+const MAP_FACTS_STATEMENT_TIMEOUT_MS = 8_000;
+
+type QueryRunnerLike = {
+  connect(): Promise<void>;
+  release(): Promise<void>;
+  query(sql: string, parameters?: unknown[]): Promise<unknown>;
+};
+
+type DataSourceWithQueryRunner = MapFactsDbQuery & {
+  createQueryRunner(): QueryRunnerLike;
+};
+
+function hasPinnedConnection(db: MapFactsDbQuery): db is DataSourceWithQueryRunner {
+  return typeof (db as DataSourceWithQueryRunner).createQueryRunner === "function";
+}
+
+/**
+ * Одно PG-соединение на весь fold-read (pool-safe).
+ * statement_timeout через SET LOCAL внутри READ ONLY tx.
+ */
+async function runMapFactsReadSession<T>(
+  db: MapFactsDbQuery,
+  fn: (session: MapFactsDbQuery) => Promise<T>,
+): Promise<T> {
+  if (!hasPinnedConnection(db)) {
+    return fn(db);
+  }
+
+  const runner = db.createQueryRunner();
+  await runner.connect();
+  const session: MapFactsDbQuery = {
+    query: <T>(sql: string, parameters?: unknown[]) =>
+      runner.query(sql, parameters) as Promise<T>,
+  };
+
+  try {
+    await session.query("BEGIN READ ONLY");
+    await session.query(`SET LOCAL statement_timeout = '${MAP_FACTS_STATEMENT_TIMEOUT_MS}'`);
+    return await fn(session);
+  } finally {
+    await session.query("ROLLBACK").catch(() => undefined);
+    await runner.release();
+  }
+}
 
 type FactRow = {
   fact_id: string;
@@ -80,16 +126,29 @@ function toRegionClearFact(row: SyntheticClearRow, prefix: string): EventLocatio
   };
 }
 
+/** Область загрузки location facts для split read-path. */
+export type MapFactsLocationScope = "all" | "regions" | "places";
+
+function scopeFilterSql(scope: MapFactsLocationScope): string {
+  if (scope === "regions") {
+    return `AND el.place_id IS NULL AND COALESCE(el.entity_kind, 'region') <> 'place'`;
+  }
+  if (scope === "places") {
+    return `AND el.place_id IS NOT NULL AND COALESCE(el.entity_kind, 'region') <> 'region'`;
+  }
+  return "";
+}
+
 /**
- * Время события на read-line: el.occurred_at → rm.posted_at → pe.parsed_at.
- * posted_at — SSOT порядка fold; parsed_at только fallback без posted_at.
+ * Время события на read-line: el.occurred_at (SSOT после write-line backfill).
  */
 async function loadLocationFacts(
   db: MapFactsDbQuery,
   asOf: Date,
   cutoff: Date,
+  scope: MapFactsLocationScope = "all",
 ): Promise<EventLocationFact[]> {
-  const rows = (await db.query(
+  const rows = await db.query<FactRow[]>(
     `
     SELECT el.id AS fact_id,
            el.region_id,
@@ -103,7 +162,7 @@ async function loadLocationFacts(
            ) AS action,
            COALESCE(el.author_channel_key, c.key) AS author_channel_key,
            el.entity_kind,
-           COALESCE(el.occurred_at, rm.posted_at, pe.parsed_at) AS occurred_at
+           el.occurred_at AS occurred_at
     FROM event_locations el
     JOIN parsed_events pe ON pe.id = el.parsed_event_id
     JOIN raw_messages rm ON rm.id = pe.raw_message_id
@@ -111,11 +170,12 @@ async function loadLocationFacts(
     LEFT JOIN regions r ON r.id = el.region_id
     LEFT JOIN status_dictionary sd
       ON sd.code = COALESCE(el.status_code, pe.event_type) AND sd.is_active = true
-    WHERE COALESCE(el.occurred_at, rm.posted_at, pe.parsed_at) <= $1::timestamptz
-      AND COALESCE(el.occurred_at, rm.posted_at, pe.parsed_at) > $2::timestamptz
+    WHERE el.occurred_at <= $1::timestamptz
+      AND el.occurred_at > $2::timestamptz
+      ${scopeFilterSql(scope)}
     `,
     [asOf.toISOString(), cutoff.toISOString()],
-  )) as FactRow[];
+  );
 
   return rows.map(toFact);
 }
@@ -128,16 +188,18 @@ async function loadChannelClearFacts(
   asOf: Date,
   cutoff: Date,
 ): Promise<EventLocationFact[]> {
-  const rows = (await db.query(
+  const rows = await db.query<SyntheticClearRow[]>(
     `
     WITH global_clears AS (
       SELECT pe.id AS parsed_event_id,
              rm.posted_at AS clear_at,
-             c.key AS channel_key
+             c.key AS channel_key,
+             COALESCE(pe.extras->'excludedRegionCodes', '[]'::jsonb) AS excluded_region_codes
       FROM parsed_events pe
       JOIN raw_messages rm ON rm.id = pe.raw_message_id
       JOIN channels c ON c.id = rm.channel_id
       WHERE (pe.event_type = 'cleared' OR pe.is_active = false)
+        AND COALESCE(pe.extras->>'massClearChannel', 'false') = 'true'
         AND rm.posted_at <= $1::timestamptz
         AND rm.posted_at > $2::timestamptz
         AND NOT EXISTS (
@@ -162,10 +224,15 @@ async function loadChannelClearFacts(
     JOIN regions r ON r.id = el.region_id
     LEFT JOIN status_dictionary sd_clear
       ON sd_clear.code = 'cleared' AND sd_clear.is_active = true
+    WHERE NOT EXISTS (
+      SELECT 1
+      FROM jsonb_array_elements_text(gc.excluded_region_codes) excluded(code)
+      WHERE excluded.code = r.iso
+    )
     ORDER BY gc.parsed_event_id, el.region_id, el.occurred_at DESC
     `,
     [asOf.toISOString(), cutoff.toISOString()],
-  )) as SyntheticClearRow[];
+  );
 
   return rows.map((row) => toRegionClearFact(row, "synthetic-channel-clear"));
 }
@@ -177,7 +244,7 @@ async function loadMassClearFacts(
   cutoff: Date,
   regions: MassClearRegionRef[],
 ): Promise<EventLocationFact[]> {
-  const rows = (await db.query(
+  const rows = await db.query<MassClearCandidateRow[]>(
     `
     SELECT pe.id::text AS parsed_event_id,
            rm.raw_text,
@@ -203,7 +270,7 @@ async function loadMassClearFacts(
       AND EXISTS (SELECT 1 FROM event_locations el WHERE el.parsed_event_id = pe.id)
     `,
     [asOf.toISOString(), cutoff.toISOString()],
-  )) as MassClearCandidateRow[];
+  );
 
   const facts: EventLocationFact[] = [];
   for (const row of rows) {
@@ -230,19 +297,21 @@ async function loadMassClearFacts(
 }
 
 async function loadActiveRegions(db: MapFoldDbQuery): Promise<MassClearRegionRef[]> {
-  const rows = (await db.query(
+  const rows = await db.query<
+    Array<{
+      id: string;
+      iso: string | null;
+      name: string;
+      name_with_type: string | null;
+      short_name: string | null;
+    }>
+  >(
     `
     SELECT id, iso, name, name_with_type, short_name
     FROM regions
     WHERE is_active = true
     `,
-  )) as Array<{
-    id: string;
-    iso: string | null;
-    name: string;
-    name_with_type: string | null;
-    short_name: string | null;
-  }>;
+  );
 
   return rows.map((row) => ({
     id: row.id,
@@ -330,38 +399,89 @@ function collectRegionClearFacts(facts: EventLocationFact[]): EventLocationFact[
   );
 }
 
+/** Region winners: region-scoped locations + mass/channel clear synthetics. */
+export async function loadRegionMapFacts(
+  db: MapFactsDbQuery,
+  asOf: Date,
+  ttlMs: number,
+): Promise<EventLocationFact[]> {
+  return withPgContendedReadRetry(
+    () => runMapFactsReadSession(db, (session) => loadRegionMapFactsOnce(session, asOf, ttlMs)),
+    { maxAttempts: 3, baseDelayMs: 60 },
+  );
+}
+
+async function loadRegionMapFactsOnce(
+  db: MapFactsDbQuery,
+  asOf: Date,
+  ttlMs: number,
+): Promise<EventLocationFact[]> {
+  const cutoff = new Date(asOf.getTime() - ttlMs);
+  const locationFacts = await loadLocationFacts(db, asOf, cutoff, "regions");
+  const regions = await loadActiveRegions(db);
+  const massClearFacts = await loadMassClearFacts(db, asOf, cutoff, regions);
+  const channelClearFacts = await loadChannelClearFacts(db, asOf, cutoff);
+  return [...locationFacts, ...massClearFacts, ...channelClearFacts];
+}
+
+/** Place layer: place locations + synthetic place-clear от region clears. */
+export async function loadPlaceMapFacts(
+  db: MapFactsDbQuery,
+  asOf: Date,
+  ttlMs: number,
+  regionClears?: EventLocationFact[],
+): Promise<EventLocationFact[]> {
+  return withPgContendedReadRetry(
+    () => runMapFactsReadSession(db, (session) =>
+      loadPlaceMapFactsOnce(session, asOf, ttlMs, regionClears),
+    ),
+    { maxAttempts: 3, baseDelayMs: 60 },
+  );
+}
+
+async function loadPlaceMapFactsOnce(
+  db: MapFactsDbQuery,
+  asOf: Date,
+  ttlMs: number,
+  regionClears?: EventLocationFact[],
+): Promise<EventLocationFact[]> {
+  const cutoff = new Date(asOf.getTime() - ttlMs);
+  const locationFacts = await loadLocationFacts(db, asOf, cutoff, "places");
+  const placeRaiseFacts = locationFacts.filter(
+    (fact) => fact.placeId && fact.entityKind !== "region",
+  );
+
+  let clears = regionClears;
+  if (!clears) {
+    const regionFacts = await loadRegionMapFactsOnce(db, asOf, ttlMs);
+    clears = collectRegionClearFacts(regionFacts);
+  }
+
+  const authorPlaceClearFacts = buildAuthorPlaceClearFacts(clears, placeRaiseFacts);
+  return [...locationFacts, ...authorPlaceClearFacts];
+}
+
 /** Полная загрузка фактов для fold: locations + синтетики mass/channel/place-clear. */
 export async function loadMapFacts(
   db: MapFactsDbQuery,
   asOf: Date,
   ttlMs: number,
 ): Promise<EventLocationFact[]> {
-  const cutoff = new Date(asOf.getTime() - ttlMs);
-  const [locationFacts, regions] = await Promise.all([
-    loadLocationFacts(db, asOf, cutoff),
-    loadActiveRegions(db),
-  ]);
-  const [massClearFacts, channelClearFacts] = await Promise.all([
-    loadMassClearFacts(db, asOf, cutoff, regions),
-    loadChannelClearFacts(db, asOf, cutoff),
-  ]);
-
-  const regionClears = collectRegionClearFacts([
-    ...locationFacts,
-    ...massClearFacts,
-    ...channelClearFacts,
-  ]);
-  const placeRaiseFacts = locationFacts.filter(
-    (fact) => fact.placeId && fact.entityKind !== "region",
+  return withPgContendedReadRetry(
+    () => runMapFactsReadSession(db, (session) => loadMapFactsOnce(session, asOf, ttlMs)),
+    { maxAttempts: 3, baseDelayMs: 60 },
   );
-  const authorPlaceClearFacts = buildAuthorPlaceClearFacts(regionClears, placeRaiseFacts);
+}
 
-  return [
-    ...locationFacts,
-    ...massClearFacts,
-    ...channelClearFacts,
-    ...authorPlaceClearFacts,
-  ];
+async function loadMapFactsOnce(
+  db: MapFactsDbQuery,
+  asOf: Date,
+  ttlMs: number,
+): Promise<EventLocationFact[]> {
+  const regionFacts = await loadRegionMapFactsOnce(db, asOf, ttlMs);
+  const regionClears = collectRegionClearFacts(regionFacts);
+  const placeFacts = await loadPlaceMapFactsOnce(db, asOf, ttlMs, regionClears);
+  return [...regionFacts, ...placeFacts];
 }
 
 /** @deprecated используй loadMapFacts */

@@ -108,3 +108,14 @@ test("Крым/Севастополь и Донбасс: контуры в build
 
   RegionGeometryCatalog.resetForTests();
 });
+
+test("buildLayerByCodes: только запрошенные ISO", () => {
+  const catalog = RegionGeometryCatalog.getInstance();
+  catalog.bindRegions([]);
+  const layer = catalog.buildLayerByCodes(["RU-MOS", "RU-SPE"]);
+  const codes = new Set(layer.features.map((f) => String(f.properties.regionCode)));
+  assert.ok(codes.has("RU-MOS"));
+  assert.ok(codes.has("RU-SPE"));
+  assert.equal(layer.features.length, codes.size);
+  RegionGeometryCatalog.resetForTests();
+});

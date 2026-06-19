@@ -1,0 +1,37 @@
+schemaVersion: 1
+revision: "2026-06-19.1"
+enrichers:
+  - id: catalog
+    trust: 80
+    processorPriority: 50
+    processors:
+      - geo-processor
+      - event-type-processor
+      - mass-clear-exclude-processor
+      - mass-clear-scope-processor
+      - repeat-processor
+      - mass-processor
+      - count-processor
+  - id: llm
+    trust: 90
+    processorPriority: 60
+    processors:
+      - llm-processor
+  - id: dadata
+    trust: 75
+    processorPriority: 40
+    processors:
+      - dadata-processor
+  - id: nominatim
+    trust: 70
+    processorPriority: 30
+    processors:
+      - nominatim-processor
+
+processorTieBreak:
+  llm-processor: 100
+  event-type-processor: 90
+  geo-processor: 80
+  mass-clear-scope-processor: 85
+  dadata-processor: 70
+  nominatim-processor: 65

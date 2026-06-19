@@ -18,7 +18,20 @@ export default defineConfig({
     },
   },
   server: {
+    /** Слушаем все интерфейсы (LAN + туннель на этой машине). */
+    host: true,
     port: 5173,
+    strictPort: true,
+    /**
+     * CloudPub: каждая сессия — новый xxx.cloudpub.ru.
+     * Vite 6 без этого режет Host («Blocked request»). URL в .env не нужен.
+     */
+    allowedHosts: [".cloudpub.ru"],
+    /**
+     * Прокси на локальный API — всегда 127.0.0.1, не CloudPub URL.
+     * Запрос: браузер → https://xxx.cloudpub.ru/api → CloudPub → Vite:5173 → API:3000.
+     * WS в приложении: location.host/ws (уже так в ws.ts).
+     */
     proxy: {
       "/api": {
         target: "http://127.0.0.1:3000",

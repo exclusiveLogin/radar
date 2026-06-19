@@ -117,39 +117,49 @@ export function isRegionVisibleInSnapshot(
   return asOfMs - eventMs < REGION_CALM_SUPPRESS_MS;
 }
 
-/**
- * LastWinner fold: статусы карты от фактов и маркера asOf.
- * Stale не хранится — факты вне TTL-окна отфильтровываются заранее.
- */
-export function foldMapState(input: MapStateFoldInput): MapStateFoldResult {
-  const asOfMs = input.asOf.getTime();
-  const inWindow = input.facts.filter((fact) => {
+/** Факты region fold: только region-scoped rows (без place raises). */
+export function filterRegionScopedFacts(facts: EventLocationFact[]): EventLocationFact[] {
+  return facts.filter((fact) => !fact.placeId && fact.entityKind !== "place");
+}
+
+function filterInWindow(facts: EventLocationFact[], asOfMs: number, ttlMs: number): EventLocationFact[] {
+  return facts.filter((fact) => {
     if (Date.parse(fact.occurredAt) > asOfMs) return false;
-    return !isMapEventOlderThanTtl(fact.occurredAt, asOfMs, input.ttlMs);
+    return !isMapEventOlderThanTtl(fact.occurredAt, asOfMs, ttlMs);
   });
+}
 
-  const regionWinners = foldEntityWinners(
-    inWindow,
-    (fact) => fact.regionId,
-    false,
-  );
-
-  const placeFacts = inWindow.filter(
-    (fact) => fact.placeId && fact.entityKind !== "region",
-  );
-  const placeWinners = foldEntityWinners(
-    placeFacts,
-    (fact) => fact.placeId,
-    true,
-  );
+/** Region winners из region-scoped фактов + visibility filter. */
+export function foldRegionMapState(input: MapStateFoldInput): MapEntityWinner[] {
+  const asOfMs = input.asOf.getTime();
+  const inWindow = filterInWindow(filterRegionScopedFacts(input.facts), asOfMs, input.ttlMs);
+  const regionWinners = foldEntityWinners(inWindow, (fact) => fact.regionId, false);
 
   const regions: MapEntityWinner[] = [];
   for (const [, winner] of regionWinners) {
     if (!isRegionVisibleInSnapshot(winner, asOfMs)) continue;
     regions.push(winner);
   }
+  return regions;
+}
 
-  const regionById = new Map(regions.map((r) => [r.regionId, r]));
+export type FoldPlaceMapStateInput = {
+  asOf: Date;
+  ttlMs: number;
+  facts: EventLocationFact[];
+  regionWinners: MapEntityWinner[];
+};
+
+/** Place winners с suppress по region winners. */
+export function foldPlaceMapState(input: FoldPlaceMapStateInput): MapEntityWinner[] {
+  const asOfMs = input.asOf.getTime();
+  const inWindow = filterInWindow(input.facts, asOfMs, input.ttlMs);
+  const placeFacts = inWindow.filter(
+    (fact) => fact.placeId && fact.entityKind !== "region",
+  );
+  const placeWinners = foldEntityWinners(placeFacts, (fact) => fact.placeId, true);
+  const regionById = new Map(input.regionWinners.map((r) => [r.regionId, r]));
+
   const places: MapEntityWinner[] = [];
   for (const [, winner] of placeWinners) {
     if (!winner.placeId) continue;
@@ -168,6 +178,15 @@ export function foldMapState(input: MapStateFoldInput): MapStateFoldResult {
     }
     places.push(winner);
   }
+  return places;
+}
 
+/**
+ * LastWinner fold: статусы карты от фактов и маркера asOf.
+ * Stale не хранится — факты вне TTL-окна отфильтровываются заранее.
+ */
+export function foldMapState(input: MapStateFoldInput): MapStateFoldResult {
+  const regions = foldRegionMapState(input);
+  const places = foldPlaceMapState({ ...input, regionWinners: regions });
   return { regions, places };
 }

@@ -199,6 +199,38 @@ export class RegionGeometryCatalog {
     return { type: "FeatureCollection", features };
   }
 
+  /**
+   * GeoJSON контуров субъектов по ISO-кодам (без fold/stateLevel).
+   * Без regionCodes → 400 (не отдаём 44MB целиком).
+   */
+  buildLayerByCodes(regionCodes: string[]): GeoJsonFeatureCollection {
+    const codeSet = new Set(regionCodes.map((code) => code.trim()).filter(Boolean));
+    const features: GeoJsonFeature[] = [];
+
+    for (const template of [
+      ...this.loadSubjectOutlines().features,
+      ...this.loadSupplementalOutlines().features,
+    ]) {
+      const label = String(template.properties.region ?? "");
+      const iso =
+        String(template.properties.regionCode ?? "") || this.resolveIso(label);
+      if (!iso || !codeSet.has(iso)) continue;
+
+      features.push({
+        type: "Feature",
+        id: iso,
+        properties: {
+          regionCode: iso,
+          kind: "region",
+          label,
+        },
+        geometry: template.geometry,
+      });
+    }
+
+    return { type: "FeatureCollection", features };
+  }
+
   /** Сводка (CLI/тесты). */
   debugStats(): { subjects: number; isoIndex: number; outlineFileExists: boolean } {
     return {

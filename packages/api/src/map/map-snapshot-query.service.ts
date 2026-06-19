@@ -2,11 +2,20 @@ import { Injectable } from "@nestjs/common";
 import { InjectDataSource } from "@nestjs/typeorm";
 import type { DataSource } from "typeorm";
 import { In } from "typeorm";
-import type { MapPlaceSnapshot, MapRegionSnapshot, MapSnapshot, StateLevel } from "@radar/shared";
+import type {
+  MapPlaceSnapshot,
+  MapPlacesStateResponse,
+  MapRegionSnapshot,
+  MapRegionsStateResponse,
+  MapSnapshot,
+  StateLevel,
+} from "@radar/shared";
 import {
-  foldMapState,
+  foldPlaceMapState,
+  foldRegionMapState,
   maxStateLevel,
   resolveMapStateTtlMs,
+  type EventLocationFact,
 } from "@radar/shared";
 import { GeoFeatureEntity, PlaceEntity, RegionEntity } from "../geo/entities";
 import { StatusDictionaryEntity } from "../events/entities";
@@ -22,7 +31,7 @@ function toNumber(value: string | null): number | undefined {
   return Number.isFinite(parsed) ? parsed : undefined;
 }
 
-/** Use-case: fold фактов на asOf + enrich geo/layout → MapSnapshot. */
+/** Use-case: fold фактов на asOf + enrich geo/layout → layered map state. */
 @Injectable()
 export class MapSnapshotQueryService {
   constructor(
@@ -30,19 +39,80 @@ export class MapSnapshotQueryService {
     private readonly factsRepository: MapFactsRepository,
   ) {}
 
-  async getSnapshotAt(asOf: Date): Promise<MapSnapshot> {
+  async getRegionsStateAt(asOf: Date): Promise<MapRegionsStateResponse> {
     const ttlMs = resolveMapStateTtlMs(process.env);
-    const facts = await this.factsRepository.loadFacts(asOf, ttlMs);
-    const folded = foldMapState({ asOf, ttlMs, facts });
-    const levelByStatus = await this.loadStatusLevels();
+    let facts: EventLocationFact[] = [];
+    try {
+      facts = await this.factsRepository.loadRegionFacts(asOf, ttlMs);
+    } catch (error) {
+      console.warn("[MapSnapshot] loadRegionFacts failed — empty fold", error);
+    }
+    const folded = foldRegionMapState({ asOf, ttlMs, facts });
+    const regions = await this.buildRegionSnapshots(folded, asOf);
+    return {
+      generatedAt: asOf.toISOString(),
+      regions,
+    };
+  }
 
+  async getPlacesStateAt(asOf: Date, regionId?: string): Promise<MapPlacesStateResponse> {
+    const ttlMs = resolveMapStateTtlMs(process.env);
+    let regionFacts: EventLocationFact[] = [];
+    let placeFacts: EventLocationFact[] = [];
+    try {
+      regionFacts = await this.factsRepository.loadRegionFacts(asOf, ttlMs);
+      const regionClears = regionFacts.filter(
+        (fact) => !fact.placeId && fact.action === "clear" && fact.entityKind !== "place",
+      );
+      placeFacts = await this.factsRepository.loadPlaceFacts(asOf, ttlMs, regionClears);
+    } catch (error) {
+      console.warn("[MapSnapshot] loadPlaceFacts failed — empty fold", error);
+    }
+    const regionWinners = foldRegionMapState({ asOf, ttlMs, facts: regionFacts });
+    const placeWinners = foldPlaceMapState({
+      asOf,
+      ttlMs,
+      facts: placeFacts,
+      regionWinners,
+    });
+    const levelByStatus = await this.loadStatusLevels();
+    let places = await this.buildPlaceSnapshots(placeWinners, levelByStatus, asOf);
+    if (regionId) {
+      places = places.filter((place) => place.regionId === regionId);
+    }
+    return {
+      generatedAt: asOf.toISOString(),
+      places,
+    };
+  }
+
+  async getSnapshotAt(asOf: Date): Promise<MapSnapshot> {
+    const [regionsState, placesState] = await Promise.all([
+      this.getRegionsStateAt(asOf),
+      this.getPlacesStateAt(asOf),
+    ]);
+    return {
+      generatedAt: asOf.toISOString(),
+      regions: regionsState.regions,
+      places: placesState.places,
+    };
+  }
+
+  private async buildRegionSnapshots(
+    winners: Array<{
+      regionId: string;
+      regionCode: string;
+      stateLevel: StateLevel;
+      action: "raise" | "clear";
+      occurredAt: string;
+    }>,
+    _asOf: Date,
+  ): Promise<MapRegionSnapshot[]> {
     const regions = await this.dataSource.getRepository(RegionEntity).find({
       where: { isActive: true },
       order: { name: "ASC" },
     });
-    const winnerByRegionId = new Map(
-      folded.regions.map((winner) => [winner.regionId, winner]),
-    );
+    const winnerByRegionId = new Map(winners.map((winner) => [winner.regionId, winner]));
     const placeCentroidByRegion = await this.loadPlaceCentroidByRegion();
     const layout = loadLayout();
 
@@ -70,14 +140,7 @@ export class MapSnapshotQueryService {
         statusAction: winner.action,
       });
     }
-
-    const places = await this.buildPlaceSnapshots(folded.places, levelByStatus, asOf);
-
-    return {
-      generatedAt: asOf.toISOString(),
-      regions: regionItems,
-      places,
-    };
+    return regionItems;
   }
 
   private async buildPlaceSnapshots(

@@ -1,4 +1,5 @@
-import { BehaviorSubject } from "rxjs";
+import { BehaviorSubject, timer, type Subscription } from "rxjs";
+import { take } from "rxjs/operators";
 
 import {
   isAppLogLevelEnabled,
@@ -27,7 +28,7 @@ const DEDUP_MS = 15_000;
 /** Единая лента UI — подписывается AppLogOverlay. */
 export const appLogEntries$ = new BehaviorSubject<AppLogEntry[]>([]);
 
-const expiryTimers = new Map<string, ReturnType<typeof setTimeout>>();
+const expirySubs = new Map<string, Subscription>();
 let lastDedupKey: string | null = null;
 let lastDedupAt = 0;
 
@@ -43,15 +44,14 @@ function formatLogLine(source: string | undefined, message: string): string {
 }
 
 function cancelExpiryTimer(id: string): void {
-  const timer = expiryTimers.get(id);
-  if (timer) clearTimeout(timer);
-  expiryTimers.delete(id);
+  expirySubs.get(id)?.unsubscribe();
+  expirySubs.delete(id);
 }
 
 /** Снять таймеры у записей, вытесненных из буфера. */
 function cancelTimersForEvicted(next: AppLogEntry[]): void {
   const nextIds = new Set(next.map((row) => row.id));
-  for (const id of expiryTimers.keys()) {
+  for (const id of expirySubs.keys()) {
     if (!nextIds.has(id)) cancelExpiryTimer(id);
   }
 }
@@ -114,12 +114,14 @@ export function pushAppLog(
   }
 
   cancelExpiryTimer(id);
-  expiryTimers.set(
+  expirySubs.set(
     id,
-    setTimeout(() => {
-      appLogEntries$.next(appLogEntries$.value.filter((row) => row.id !== id));
-      expiryTimers.delete(id);
-    }, TTL_MS),
+    timer(TTL_MS)
+      .pipe(take(1))
+      .subscribe(() => {
+        appLogEntries$.next(appLogEntries$.value.filter((row) => row.id !== id));
+        expirySubs.delete(id);
+      }),
   );
 }
 
@@ -135,7 +137,7 @@ export function reportAppError(
 }
 
 export function clearAppLogs(): void {
-  for (const id of [...expiryTimers.keys()]) cancelExpiryTimer(id);
+  for (const id of [...expirySubs.keys()]) cancelExpiryTimer(id);
   appLogEntries$.next([]);
   lastDedupKey = null;
   lastDedupAt = 0;

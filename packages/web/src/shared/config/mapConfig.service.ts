@@ -134,6 +134,26 @@ export const MAP_STYLE_MINIMAL = {
   ],
 };
 
+/** Светлый фон без тайлов — fallback при недоступности CDN подложки. */
+export const MAP_STYLE_MINIMAL_LIGHT = {
+  version: 8 as const,
+  sources: {},
+  layers: [
+    {
+      id: "background",
+      type: "background" as const,
+      paint: { "background-color": "#e8eaed" },
+    },
+  ],
+};
+
+/** Inline-стиль без внешних тайлов — авто-fallback при ошибке загрузки подложки. */
+export function resolveMapBasemapFallbackForTheme(
+  theme: ThemeMode,
+): typeof MAP_STYLE_MINIMAL | typeof MAP_STYLE_MINIMAL_LIGHT {
+  return theme === "light" ? MAP_STYLE_MINIMAL_LIGHT : MAP_STYLE_MINIMAL;
+}
+
 function readBasemapMode(): MapBasemapMode {
   const raw = import.meta.env.VITE_MAP_BASEMAP_STYLE?.trim().toLowerCase();
   if (raw === "carto" || raw === "minimal" || raw === "openfreemap") {
@@ -230,6 +250,23 @@ export const DISTRICT_MAP_MIN_ZOOM = 6;
 /** Радиус маркера place на карте: точка для district меньше, чтобы не перекрывать полигон. */
 export const PLACE_CIRCLE_RADIUS_DEFAULT = 9;
 export const PLACE_CIRCLE_RADIUS_DISTRICT = 6;
+
+/** MapLibre: радиус place-маркера уменьшается на overview (anti-clump). */
+export function placeCircleRadiusByZoom(): unknown[] {
+  return [
+    "interpolate",
+    ["linear"],
+    ["zoom"],
+    3,
+    2,
+    6,
+    5,
+    10,
+    PLACE_CIRCLE_RADIUS_DEFAULT,
+    14,
+    12,
+  ];
+}
 
 /** MapLibre: теплокарта raise-событий (heatmap + точки при zoom). */
 export const EVENTS_HEATMAP_SOURCE = "events-heatmap";

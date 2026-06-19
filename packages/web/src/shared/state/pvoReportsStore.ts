@@ -1,5 +1,6 @@
 import { BehaviorSubject } from "rxjs";
 import { mapApi, type PvoReportItem } from "../api/mapApi";
+import { startIntervalPoll } from "../rx/startIntervalPoll";
 import { reportAppError } from "./appLogStore";
 
 /** Информационная лента сводок ПВО (REST poll, не влияет на карту). */
@@ -12,8 +13,7 @@ export function startPvoReportsStore(): void {
   if (started) return;
   started = true;
 
-  void refreshPvoReports();
-  setInterval(() => void refreshPvoReports(), POLL_MS);
+  startIntervalPoll(POLL_MS, refreshPvoReports);
 }
 
 async function refreshPvoReports(): Promise<void> {

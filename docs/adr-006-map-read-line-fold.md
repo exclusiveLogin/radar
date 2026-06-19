@@ -56,6 +56,24 @@ SSOT загрузки фактов: `packages/shared/src/domain/region-state/map
 
 `since` и `asOf` взаимоисключающие.
 
+## Layered transport (state + geo)
+
+Fold остаётся SSOT правил; transport разделён на независимые read-слои:
+
+| Endpoint | Содержимое | Fold |
+|----------|------------|------|
+| `GET /map/regions-state` | region winners + layout/centroid | да (region-scoped facts) |
+| `GET /map/places-state` | active places (lat/lon, geoFeatureId) | да (place facts + suppress) |
+| `GET /map/regions-geojson?regionCodes=` | OSM контуры субъектов | нет |
+| `GET /map/districts-geojson?geoFeatureIds=` | полигоны районов | нет |
+| `GET /map/snapshot` | composite (legacy / Time Machine shortcut) | да |
+
+**Bootstrap фронта:** `regions-state` + `places-state` + WS deltas; geo lazy по visible region codes и `geoFeatureId` place-событий.
+
+**Poller:** regions fold каждые 1s, places fold каждые 3s; WS seed — regions-only (`places: []`).
+
+Индексы read-path: `event_locations(occurred_at)`, `(raise, occurred_at)`, `raw_messages(posted_at)`.
+
 ## Вне scope ADR
 
 - Raw semantic dedup cross-channel (`posted_at` + normalized text)

@@ -4,6 +4,8 @@ import {
   stateChangeEventsResponseSchema,
   readyResponseSchema,
   workerStatusResponseSchema,
+  mapRegionsStateResponseSchema,
+  mapPlacesStateResponseSchema,
   mapSnapshotSchema,
   sourceMessageResponseSchema,
   statusDictionarySchema,
@@ -11,6 +13,8 @@ import {
   eventHeatmapResponseSchema,
 } from "@radar/shared";
 import type {
+  MapPlacesStateResponse,
+  MapRegionsStateResponse,
   MapSnapshot,
   MessageFeedResponse,
   StateChangeEventsResponse,
@@ -72,6 +76,25 @@ export type MapSnapshotQuery = {
 };
 
 export const mapApi = {
+  regionsState: (query?: { asOf?: string }): Promise<MapRegionsStateResponse> => {
+    const params = new URLSearchParams();
+    if (query?.asOf) params.set("asOf", query.asOf);
+    const qs = params.toString();
+    return getJson(
+      `/api/map/regions-state${qs ? `?${qs}` : ""}`,
+      mapRegionsStateResponseSchema,
+    );
+  },
+  placesState: (query?: { asOf?: string; regionId?: string }): Promise<MapPlacesStateResponse> => {
+    const params = new URLSearchParams();
+    if (query?.asOf) params.set("asOf", query.asOf);
+    if (query?.regionId) params.set("regionId", query.regionId);
+    const qs = params.toString();
+    return getJson(
+      `/api/map/places-state${qs ? `?${qs}` : ""}`,
+      mapPlacesStateResponseSchema,
+    );
+  },
   snapshot: (query?: MapSnapshotQuery): Promise<MapSnapshot> => {
     const params = new URLSearchParams();
     if (query?.since) params.set("since", query.since);
@@ -95,21 +118,29 @@ export const mapApi = {
   },
   geoRegions: (): Promise<GeoRegionRef[]> =>
     getJson("/api/geo/regions", geoRegionsResponseSchema).then((r) => r.regions),
-  /** Полигоны субъектов РФ (OSM artifacts) с regionCode/stateLevel. */
-  regionsGeoJson: (): Promise<GeoJsonFeatureCollection> =>
-    getJson("/api/map/regions-geojson", geoJsonFeatureCollectionSchema),
-  /**
-   * Полигоны только активных районов (place_status raise).
-   * Лёгкий ответ — вызывается при каждом обновлении снапшота places.
-   */
+  /** Контуры субъектов по ISO-кодам (lazy geo layer). */
+  regionsGeoJson: (params: { regionCodes: string[] }): Promise<GeoJsonFeatureCollection> => {
+    const qs = new URLSearchParams({
+      regionCodes: params.regionCodes.join(","),
+    });
+    return getJson(`/api/map/regions-geojson?${qs}`, geoJsonFeatureCollectionSchema);
+  },
+  /** @deprecated bootstrap districts-active — lazy geoFeatureIds. */
   activeDistrictsGeoJson: (): Promise<GeoJsonFeatureCollection> =>
     getJson("/api/map/districts-active-geojson", geoJsonFeatureCollectionSchema),
-  /** Полигоны всех районов из geo_feature (district/city_district), опционально по regionId. */
-  districtsGeoJson: (params?: { regionId?: string }): Promise<GeoJsonFeatureCollection> =>
-    getJson(
-      `/api/map/districts-geojson${params?.regionId ? `?regionId=${encodeURIComponent(params.regionId)}` : ""}`,
+  districtsGeoJson: (params?: {
+    regionId?: string;
+    geoFeatureIds?: string[];
+  }): Promise<GeoJsonFeatureCollection> => {
+    const qs = new URLSearchParams();
+    if (params?.regionId) qs.set("regionId", params.regionId);
+    if (params?.geoFeatureIds?.length) qs.set("geoFeatureIds", params.geoFeatureIds.join(","));
+    const query = qs.toString();
+    return getJson(
+      `/api/map/districts-geojson${query ? `?${query}` : ""}`,
       geoJsonFeatureCollectionSchema,
-    ),
+    );
+  },
   /** Список ingest-провайдеров (статус каналов). */
   providers: (): Promise<IngestProvider[]> =>
     getJson("/api/admin/ingest/providers", ingestProvidersSchema),

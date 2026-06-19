@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { LiveBadge, LiveClock, ThemeToggle } from "../shared/ds";
 import { startMapStore } from "../shared/state/mapStore";
+import { startMapStateEffects } from "../shared/state/mapStateEffects";
 import { startMessagesStore } from "../shared/state/messagesStore";
 import { startStateChangesFeedStore } from "../shared/state/stateChangesFeedStore";
 import { startProvidersStore } from "../shared/state/providersStore";
@@ -33,6 +34,7 @@ export function AppShell() {
 
   useEffect(() => {
     startMapStore();
+    startMapStateEffects();
     startProvidersStore();
     startMessagesStore();
     startStateChangesFeedStore();

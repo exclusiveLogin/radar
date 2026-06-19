@@ -8,7 +8,8 @@ import type {
   MapLayerMouseEvent,
   Popup,
 } from "maplibre-gl";
-import { Subject, Subscription, takeUntil } from "rxjs";
+import { Subject, Subscription, animationFrames, takeUntil } from "rxjs";
+import { take } from "rxjs/operators";
 import {
   DISTRICT_MAP_MIN_ZOOM,
   DISTRICT_MAP_STROKE_WIDTH,
@@ -25,21 +26,23 @@ import {
   GEO_MAP_REGION_STROKE_OPACITY,
   LEVEL_COLORS,
   MAP_INITIAL_VIEW,
-  PLACE_CIRCLE_RADIUS_DEFAULT,
+  placeCircleRadiusByZoom,
   REGION_MAP_SELECTED_FILL_OPACITY,
   REGION_MAP_SELECTED_STROKE_WIDTH,
   REGION_MAP_SELECTION_HALO,
   REGION_MAP_STROKE_WIDTH,
   regionStateLevelColorExpression,
+  resolveMapBasemapFallbackForTheme,
   resolveMapBasemapStyleForTheme,
 } from "../../shared/config/mapConfig.service";
-import { placesById$, regionsByCode$ } from "../../shared/state/mapStore";
-import { geoMapLayers$ } from "../../shared/state/mapLayerStore";
+import { placesById$, regionsByCode$, mapViewAnchor$ } from "../../shared/state/mapStore";
+import { geoMapLayers$, type GeoMapLayerId } from "../../shared/state/mapLayerStore";
 import {
   hasActiveHeatmapEventTypesFilter,
   heatmapEventTypesFilter$,
   setHeatmapMeta,
 } from "../../shared/state/heatmapStore";
+import { buildDistrictsCollection, buildRegionsCollection } from "../../shared/state/geoGeometryStore";
 import { resetAllGeoMapLayerFetchStatus } from "../../shared/state/geoMapLayerFetchStore";
 import { resetGeoMapStats, setGeoMapStats } from "../../shared/state/geoMapStatsStore";
 import { selectRegion, selectedRegion$ } from "../../shared/state/selectionStore";
@@ -64,14 +67,17 @@ import {
   placesCollection,
   placesToFeatures,
 } from "./geoMapPaint";
-import { createGeoMapRuntime, whenStyleReady } from "./geoMapRuntime";
+import { createGeoMapRuntime, whenStyleReady, wireMapBootstrap } from "./geoMapRuntime";
 import {
   createGeoMapFetchStreams,
-  placesStoreTick$,
-  regionsStoreTick$,
-  type GeoMapEffectHost,
   type GeoMapEffectSignals,
 } from "./geoMapEffects";
+import {
+  districtsPaint$,
+  mapCanvasReady$,
+  placesPaint$,
+  regionsPaint$,
+} from "../../shared/state/mapGeoPipeline";
 import { wireLayerFetchStreams } from "./geoMapFetchWire";
 import {
   afterStyleChange,
@@ -90,10 +96,6 @@ import type { GeoJsonCollection, PointFeature, PolygonFeature } from "./geoMapTy
 
 /** MapLibre lifecycle: init, fetch-потоки, store-подписки, cleanup. */
 export function useGeoMapLifecycle(containerRef: RefObject<HTMLDivElement | null>): void {
-  /** Статическая геометрия регионов с API (контуры без paint-свойств). */
-  const baseRegionsRef = useRef<GeoJsonCollection | null>(null);
-  /** Статическая геометрия активных районов (districts-active-geojson). */
-  const baseDistrictsRef = useRef<GeoJsonCollection | null>(null);
   /** Однократный auto-fit уже выполнен (или после появления первых places). */
   const didFitRef = useRef(false);
   /** Число place-точек на прошлом кадре — для fit при переходе 0 → N мест. */
@@ -104,8 +106,6 @@ export function useGeoMapLifecycle(containerRef: RefObject<HTMLDivElement | null
     /** true после unmount — гасит async-callback и подписки. */
     let disposed = false;
     const destroy$ = new Subject<void>();
-    const bootstrap$ = new Subject<void>();
-    const resetRegionsDebounce$ = new Subject<void>();
     const heatmapManualRefresh$ = new Subject<void>();
     /** Все store-подписки карты — один Subscription, отписка на unmount (как ngOnDestroy). */
     const storeSubscriptions = new Subscription();
@@ -116,14 +116,16 @@ export function useGeoMapLifecycle(containerRef: RefObject<HTMLDivElement | null
     let highlightedCode: string | null = null;
     /** Сброс фильтра до загрузки контуров — догоняем fit после regions-geojson. */
     let requestOverviewFit = !selectedRegion$.value;
-    /** Интервал 60 с — пересчёт fade-прозрачности без ожидания нового WS-события. */
-    let fadeTicker: ReturnType<typeof setInterval> | undefined;
     let placePopup: Popup | null = null;
     let regionPopup: Popup | null = null;
     let activePlacePopupId: string | null = null;
     /** Пользователь сдвинул карту до прихода geojson — не делаем auto-fit/stop. */
     let userAdjustedViewBeforeGeo = false;
     let geoRecoveryHooked = false;
+    /** Отписка wireMapBootstrap при unmount. */
+    let disposeMapBootstrap: (() => void) | null = null;
+    /** Однократная инициализация слоёв и подписок (не привязана к успеху тайлов). */
+    let mapBootstrapped = false;
     // Хранит ссылку на maplibre после динамического import — нужна для Popup в обработчиках
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let maplibreRef: any = null;
@@ -136,11 +138,14 @@ export function useGeoMapLifecycle(containerRef: RefObject<HTMLDivElement | null
 
     /** Обзор всех активных регионов/мест — когда сброшен selectedRegion$. */
     const tryFitOverview = (duration: number): void => {
-      if (!map || !baseRegionsRef.current || highlightedCode) return;
+      const baseRegions = buildRegionsCollection();
+      if (!map || baseRegions.features.length === 0 || highlightedCode) return;
       whenStyleReady(map, () => {
-        if (!map || !baseRegionsRef.current || highlightedCode) return;
+        if (!map || highlightedCode) return;
+        const regions = buildRegionsCollection();
+        if (regions.features.length === 0) return;
         map.stop();
-        fitOperationalOverview(map, baseRegionsRef.current, duration);
+        fitOperationalOverview(map, regions, duration);
         requestOverviewFit = false;
       });
     };
@@ -165,32 +170,84 @@ export function useGeoMapLifecycle(containerRef: RefObject<HTMLDivElement | null
       didFitRef.current = true;
     };
 
+    const syncRegionsFromStores = (forceRegions = false): void => {
+      if (disposed || !map) return;
+      applyRegions(forceRegions);
+    };
+
+    const syncDistrictsFromStores = (): void => {
+      if (disposed || !map) return;
+      applyDistrictsLayer(buildDistrictsCollection());
+    };
+
+    const syncPlacesFromStores = (): void => {
+      if (disposed || !map) return;
+      applyPlacesCentroids();
+    };
+
+    /** Синхронизирует visibility оверлеев с mapLayerStore после paint/recovery. */
+    const syncLayerVisibility = (): void => {
+      if (!map) return;
+      whenStyleReady(map, () => {
+        if (!map || disposed) return;
+        syncGeoOverlayLayers(map, geoMapLayers$.value);
+      });
+    };
+
+    /** Реакция на toggle слоя: мгновенная visibility; paint — через layer-specific tick$. */
+    const handleGeoLayerToggle = (
+      layers: Record<GeoMapLayerId, boolean>,
+    ): void => {
+      if (!map || disposed) return;
+      whenStyleReady(map, () => {
+        if (!map || disposed) return;
+        syncGeoOverlayLayers(map, layers);
+        if (!layers.heatmap) hideEventsHeatmap();
+      });
+    };
+
     /** После pan/zoom/idle — перекладывает данные, если MapLibre сбросил слои (редкий race). */
     const scheduleGeoLayerRecovery = (): void => {
       if (!map || geoRecoveryHooked) return;
       geoRecoveryHooked = true;
       const recover = (): void => {
-        if (disposed || !map || !baseRegionsRef.current) return;
-        applyRegions();
-        if (baseDistrictsRef.current) {
-          applyDistrictsLayer(baseDistrictsRef.current);
-        }
-        applyPlacesFadeLayers();
+        if (disposed || !map) return;
+        syncRegionsFromStores();
+        syncDistrictsFromStores();
+        syncPlacesFromStores();
+        syncLayerVisibility();
       };
-      map.once("idle", recover);
       map.once("moveend", recover);
+      // Короткий retry без idle — при сбое тайлов idle может не наступить (Rx animationFrames).
+      animationFrames().pipe(take(2)).subscribe({ complete: recover });
     };
 
     /**
-     * Перекрашивает контуры регионов из baseRegionsRef + regionsByCode$.
+     * Перекрашивает контуры регионов из geoGeometryStore + regionsByCode$.
      * force=true — сбрасывает fingerprint (смена темы, fade-тик).
      */
     const applyRegions = (force = false): void => {
-      if (!map || !baseRegionsRef.current) return;
+      if (!map) return;
+      if (!geoMapLayers$.value.regions && !force) return;
       whenStyleReady(map, () => {
-        if (!map || !baseRegionsRef.current) return;
-        const now = Date.now();
+        if (!map) return;
+        const baseRegions = buildRegionsCollection();
+        const now = mapViewAnchor$.value;
         const paintFingerprint = runtime.regions.buildPaintFingerprint(now);
+        const painted = paintRegionOutlines(
+          baseRegions,
+          regionsByCode$.value,
+          now,
+        );
+        if (painted.features.length === 0) {
+          runtime.sources.pushRegions(
+            { type: "FeatureCollection", features: [] },
+            force,
+            () => {},
+          );
+          syncLayerVisibility();
+          return;
+        }
         if (runtime.regions.shouldSkipPaint(paintFingerprint, force)) {
           return;
         }
@@ -198,101 +255,68 @@ export function useGeoMapLifecycle(containerRef: RefObject<HTMLDivElement | null
         if (force) {
           runtime.sources.invalidateRegions();
         }
-        const painted = paintRegionOutlines(
-          baseRegionsRef.current,
-          regionsByCode$.value,
-          now,
-        );
         setGeoMapStats({ regionOutlines: painted.features.length });
         runtime.sources.pushRegions(painted, force, () => {
           if (highlightedCode && map) {
             runtime.selection.setRegionSelected(highlightedCode, true);
           }
         });
-        const placeFeatures = placesToFeatures(
-          placesById$.value,
-          regionsByCode$.value,
-          now,
-        );
         if (!userAdjustedViewBeforeGeo) {
+          const placeFeatures = placesToFeatures(
+            placesById$.value,
+            regionsByCode$.value,
+            now,
+          );
           fitIfNeeded(painted.features, placeFeatures);
           if (requestOverviewFit) {
             tryFitOverview(0);
           }
         }
+        syncLayerVisibility();
       });
     };
 
     /**
-     * Рендерит слой districts-active из уже загруженной геометрии.
-     * HTTP — через geoMapEffects (debounce) или loadAndApplyDistricts на map.load.
+     * Рендерит слой районов из кеша geoGeometryStore (lazy per geoFeatureId).
+     * HTTP — через geoMapEffects на place-state / places-state.
      */
     const applyDistrictsLayer = (layer: GeoJsonCollection): void => {
-      if (!map) return;
+      if (!map || !geoMapLayers$.value.districts) return;
       whenStyleReady(map, () => {
         if (!map) return;
         const painted = paintActiveDistricts(
           layer,
           placesById$.value,
           regionsByCode$.value,
-          Date.now(),
+          mapViewAnchor$.value,
         );
         runtime.sources.apply(DISTRICTS_SOURCE, painted);
+        syncLayerVisibility();
       });
     };
 
-    /** Place-маркеры и place-полигоны с пересчётом fade — без repaint регионов и без HTTP. */
-    const applyPlacesFadeLayers = (): void => {
-      if (!map) return;
+    /** Centroids places: только fold-state (lat/lon), без geo HTTP. */
+    const applyPlacesCentroids = (): void => {
+      if (!map || !geoMapLayers$.value.places) return;
       whenStyleReady(map, () => {
         if (!map) return;
-        const now = Date.now();
+        const now = mapViewAnchor$.value;
         const collection = placesCollection(
           placesById$.value,
           regionsByCode$.value,
           now,
         );
-        setGeoMapStats({ placeCount: collection.features.length });
-        lastPlaceFeaturesRef.current = collection.features.length;
+        const featureCount = collection.features.length;
+        if (featureCount !== lastPlaceFeaturesRef.current) {
+          runtime.sources.clearFingerprint(PLACES_SOURCE);
+        }
+        setGeoMapStats({ placeCount: featureCount });
+        lastPlaceFeaturesRef.current = featureCount;
         runtime.sources.apply(PLACES_SOURCE, collection);
-        if (baseDistrictsRef.current) {
-          const painted = paintActiveDistricts(
-            baseDistrictsRef.current,
-            placesById$.value,
-            regionsByCode$.value,
-            now,
-          );
-          runtime.sources.apply(DISTRICTS_SOURCE, painted);
-        }
-      });
-    };
-
-    /**
-     * Полное обновление places после mount/load: маркеры + опциональный fit.
-     */
-    const applyPlaces = (): void => {
-      applyPlacesFadeLayers();
-      if (!map || !baseRegionsRef.current) return;
-      whenStyleReady(map, () => {
-        if (!map || !baseRegionsRef.current) return;
-        const collection = placesCollection(
-          placesById$.value,
-          regionsByCode$.value,
-        );
-        const painted = paintRegionOutlines(
-          baseRegionsRef.current,
-          regionsByCode$.value,
-          Date.now(),
-        );
-        if (highlightedCode) {
-          runtime.selection.setRegionSelected(highlightedCode, true);
-        }
         if (!userAdjustedViewBeforeGeo) {
-          fitIfNeeded(painted.features, collection.features);
-          if (requestOverviewFit) {
-            tryFitOverview(0);
-          }
+          fitIfNeeded([], collection.features);
         }
+        syncLayerVisibility();
       });
     };
 
@@ -450,7 +474,7 @@ export function useGeoMapLifecycle(containerRef: RefObject<HTMLDivElement | null
           filter: ["==", ["get", "kind"], "place"],
           paint: {
             "circle-color": ["coalesce", ["get", "color"], LEVEL_COLORS.yellow],
-            "circle-radius": ["coalesce", ["get", "radius"], PLACE_CIRCLE_RADIUS_DEFAULT],
+            "circle-radius": placeCircleRadiusByZoom() as never,
             "circle-stroke-color": "#ffffff",
             "circle-stroke-width": 2,
             "circle-opacity": ["coalesce", ["get", "circleOpacity"], GEO_MAP_PLACE_FILL_OPACITY],
@@ -579,20 +603,12 @@ export function useGeoMapLifecycle(containerRef: RefObject<HTMLDivElement | null
       map.on("mousemove", REGIONS_FILL, onRegionHover);
       map.on("mouseleave", REGIONS_FILL, onRegionHoverEnd);
 
-      // До прихода geojson — запоминаем ручной pan/zoom, чтобы не сбивать камеру auto-fit.
+      // До первого auto-fit — запоминаем ручной pan/zoom (не привязано к regions-geojson).
       map.on("movestart", () => {
-        if (!baseRegionsRef.current) {
+        if (!didFitRef.current) {
           userAdjustedViewBeforeGeo = true;
         }
       });
-
-      if (baseRegionsRef.current) {
-        applyRegions();
-      }
-      if (baseDistrictsRef.current) {
-        applyDistrictsLayer(baseDistrictsRef.current);
-      }
-      applyPlacesFadeLayers();
     };
 
     // --- Инициализация MapLibre (dynamic import — code-splitting) ---
@@ -610,22 +626,23 @@ export function useGeoMapLifecycle(containerRef: RefObject<HTMLDivElement | null
         attributionControl: { compact: true },
       });
 
+      // Подписка сразу после создания map — не ждём load, иначе toggle до load теряется.
+      storeSubscriptions.add(
+        geoMapLayers$.pipe(takeUntil(destroy$)).subscribe((layers) => {
+          handleGeoLayerToggle(layers);
+        }),
+      );
+
       // Карта и стиль готовы — слои, первая загрузка данных, RxJS-подписки.
-      map.on("load", () => {
-        if (!map) return;
+      // Не ждём map.load с успешными тайлами: wireMapBootstrap + fallback minimal style.
+      const bootstrapMap = (): void => {
+        if (!map || mapBootstrapped) return;
+        mapBootstrapped = true;
 
         setupLayersAndHandlers();
 
-        const effectSignals: GeoMapEffectSignals = {
-          bootstrap$,
-          resetRegionsDebounce$,
-          heatmapManualRefresh$,
-        };
-        const effectHost: GeoMapEffectHost = {
-          signals: effectSignals,
-          hasRegionsGeometry: () => baseRegionsRef.current !== null,
-        };
-        const fetchStreams = createGeoMapFetchStreams(effectHost);
+        const effectSignals: GeoMapEffectSignals = { heatmapManualRefresh$ };
+        const fetchStreams = createGeoMapFetchStreams(effectSignals);
 
         wireLayerFetchStreams({
           sub: storeSubscriptions,
@@ -633,10 +650,9 @@ export function useGeoMapLifecycle(containerRef: RefObject<HTMLDivElement | null
           layerId: "regions",
           streams: fetchStreams.regions,
           fallbackError: "Ошибка загрузки геометрии",
-          onData: (layer) => {
+          onData: () => {
             if (disposed || !map) return;
-            baseRegionsRef.current = layer;
-            applyRegions();
+            applyRegions(true);
             scheduleGeoLayerRecovery();
           },
         });
@@ -649,7 +665,6 @@ export function useGeoMapLifecycle(containerRef: RefObject<HTMLDivElement | null
           fallbackError: "Ошибка загрузки районов",
           onData: (layer) => {
             if (disposed || !map) return;
-            baseDistrictsRef.current = layer;
             applyDistrictsLayer(layer);
           },
         });
@@ -671,24 +686,20 @@ export function useGeoMapLifecycle(containerRef: RefObject<HTMLDivElement | null
           },
         });
 
+        // Развязанные подписки: каждый слой реагирует только на свой slice store/geo.
         storeSubscriptions.add(
-          regionsStoreTick$(effectSignals).pipe(takeUntil(destroy$)).subscribe(() => {
-            if (disposed || !baseRegionsRef.current) return;
-            applyRegions();
+          placesPaint$().pipe(takeUntil(destroy$)).subscribe(() => {
+            syncPlacesFromStores();
           }),
         );
-
         storeSubscriptions.add(
-          placesStoreTick$().pipe(takeUntil(destroy$)).subscribe(() => {
-            if (!disposed) applyPlacesFadeLayers();
+          regionsPaint$().pipe(takeUntil(destroy$)).subscribe(() => {
+            syncRegionsFromStores();
           }),
         );
-
         storeSubscriptions.add(
-          geoMapLayers$.pipe(takeUntil(destroy$)).subscribe((layers) => {
-            if (!map || disposed) return;
-            syncGeoOverlayLayers(map, layers);
-            if (!layers.heatmap) hideEventsHeatmap();
+          districtsPaint$().pipe(takeUntil(destroy$)).subscribe(() => {
+            syncDistrictsFromStores();
           }),
         );
 
@@ -699,11 +710,8 @@ export function useGeoMapLifecycle(containerRef: RefObject<HTMLDivElement | null
           }),
         );
 
-        applyPlaces();
-        bootstrap$.next();
+        mapCanvasReady$.next(true);
 
-        // appliedTheme хранит тему, уже применённую к карте —
-        // реагируем только на реальное изменение, не на начальный emit BehaviorSubject.
         let appliedTheme = theme$.value;
         storeSubscriptions.add(
           theme$.pipe(takeUntil(destroy$)).subscribe((theme) => {
@@ -723,13 +731,13 @@ export function useGeoMapLifecycle(containerRef: RefObject<HTMLDivElement | null
               runtime.selection.setRegionSelected(highlightedCode, true);
             }
             applyRegions();
-            if (baseDistrictsRef.current) {
-              applyDistrictsLayer(baseDistrictsRef.current);
-            }
-            applyPlacesFadeLayers();
+            applyDistrictsLayer(buildDistrictsCollection());
+            applyPlacesCentroids();
             applyEventsHeatmapPaint(map, theme);
             syncGeoOverlayLayers(map, geoMapLayers$.value);
             if (geoMapLayers$.value.heatmap) heatmapManualRefresh$.next();
+          }, {
+            fallbackStyle: resolveMapBasemapFallbackForTheme(theme),
           });
           }),
         );
@@ -737,7 +745,6 @@ export function useGeoMapLifecycle(containerRef: RefObject<HTMLDivElement | null
         // Выбор региона: feature-state + flyTo / overview fit.
         storeSubscriptions.add(
           selectedRegion$.pipe(takeUntil(destroy$)).subscribe((code) => {
-          resetRegionsDebounce$.next();
           const prev = highlightedCode;
           runtime.selection.apply(prev, code);
           highlightedCode = code;
@@ -748,46 +755,44 @@ export function useGeoMapLifecycle(containerRef: RefObject<HTMLDivElement | null
             return;
           }
           requestOverviewFit = false;
-          if (!map || !baseRegionsRef.current) return;
+          if (!map) return;
           if (code === prev) return;
 
           whenStyleReady(map, () => {
-            if (!map || !baseRegionsRef.current) return;
+            if (!map) return;
+            const regions = buildRegionsCollection();
+            if (regions.features.length === 0) return;
             map.stop();
             const animate = prev === null;
-            flyToRegion(map, code, baseRegionsRef.current, animate ? 320 : 0);
+            flyToRegion(map, code, regions, animate ? 320 : 0);
           });
           }),
         );
+      };
 
-        // Снапшот мог прийти до mount виджета — повторно кладём точки на карту.
-        if (placesById$.value.size > 0) {
-          map.once("idle", () => applyPlaces());
-        }
-
-        // Тик 60с: пересчёт fade для регионов, place-полигонов и маркеров.
-        fadeTicker = setInterval(() => {
-          if (disposed) return;
-          applyRegions(false);
-          applyPlacesFadeLayers();
-        }, 60_000);
+      disposeMapBootstrap = wireMapBootstrap({
+        map,
+        theme: theme$.value,
+        isDisposed: () => disposed,
+        onReady: bootstrapMap,
       });
     })();
 
     // --- Cleanup: таймеры, подписки, popup, кэши, destroy map ---
     return () => {
       disposed = true;
+      mapCanvasReady$.next(false);
       destroy$.next();
       destroy$.complete();
       storeSubscriptions.unsubscribe();
       resetAllGeoMapLayerFetchStatus();
       resetGeoMapStats();
       runtime.dispose();
-      clearInterval(fadeTicker);
       placePopup?.remove();
       placePopup = null;
       regionPopup?.remove();
       regionPopup = null;
+      disposeMapBootstrap?.();
       map?.remove();
     };
   }, [containerRef]);

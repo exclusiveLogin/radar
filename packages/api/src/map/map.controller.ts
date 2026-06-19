@@ -2,6 +2,8 @@ import { BadRequestException, Controller, Get, NotFoundException, Param, Post, Q
 import { ApiOperation, ApiParam, ApiQuery, ApiResponse, ApiTags } from "@nestjs/swagger";
 import {
   mapSnapshotSchema,
+  mapRegionsStateResponseSchema,
+  mapPlacesStateResponseSchema,
   messageFeedResponseSchema,
   stateChangeEventsResponseSchema,
   statusDictionarySchema,
@@ -91,6 +93,40 @@ export class MapController {
     return mapSnapshotSchema.parse(await this.map.getSnapshot(since));
   }
 
+  @Get("map/regions-state")
+  @ApiOperation({
+    summary: "Состояние регионов (fold без places)",
+    description: "Лёгкий read-layer для bootstrap карты. Опционально `asOf` для Time Machine.",
+  })
+  @ApiQuery({ name: "asOf", required: false, description: "ISO8601 — historical fold" })
+  @ApiResponse({ status: 200, description: "MapRegionsStateResponse" })
+  async regionsState(@Query("asOf") asOf?: string) {
+    const at = asOf ? new Date(asOf) : new Date();
+    if (!Number.isFinite(at.getTime())) {
+      throw new BadRequestException("Invalid asOf datetime");
+    }
+    return mapRegionsStateResponseSchema.parse(await this.map.getRegionsStateAt(at));
+  }
+
+  @Get("map/places-state")
+  @ApiOperation({
+    summary: "Состояние places (fold без geo polygons)",
+    description: "Лёгкий read-layer. Фильтр `regionId` — только places субъекта.",
+  })
+  @ApiQuery({ name: "asOf", required: false, description: "ISO8601 — historical fold" })
+  @ApiQuery({ name: "regionId", required: false, description: "UUID региона" })
+  @ApiResponse({ status: 200, description: "MapPlacesStateResponse" })
+  async placesState(
+    @Query("asOf") asOf?: string,
+    @Query("regionId") regionId?: string,
+  ) {
+    const at = asOf ? new Date(asOf) : new Date();
+    if (!Number.isFinite(at.getTime())) {
+      throw new BadRequestException("Invalid asOf datetime");
+    }
+    return mapPlacesStateResponseSchema.parse(await this.map.getPlacesStateAt(at, regionId));
+  }
+
   @Get("geo/regions")
   @ApiOperation({ summary: "Справочник регионов для гео-виджета (метаданные без геометрии)" })
   @ApiResponse({ status: 200, description: "{ regions: GeoRegionRef[] } — regionId, code, name, centroid, bbox" })
@@ -100,20 +136,29 @@ export class MapController {
     });
   }
 
-  /** GeoJSON контуров субъектов РФ (включая stateLevel grey). */
+  /** GeoJSON контуров субъектов по regionCodes (lazy geo layer). */
   @Get("map/regions-geojson")
   @ApiOperation({
-    summary: "GeoJSON слой контуров субъектов РФ",
-    description: "FeatureCollection полигонов регионов со свойствами regionCode, stateLevel, name. Включает grey-регионы без активного статуса.",
+    summary: "GeoJSON контуров субъектов по ISO-кодам",
+    description: "Query `regionCodes=RU-MOW,RU-SPE`. Без stateLevel — paint на клиенте. Без codes → 400.",
   })
-  @ApiResponse({ status: 200, description: "GeoJSON FeatureCollection (полигоны регионов)" })
-  async regionsGeoJson() {
-    return await this.map.getRegionsGeoJsonLayer();
+  @ApiQuery({
+    name: "regionCodes",
+    required: true,
+    description: "Comma-separated ISO коды (RU-XXX)",
+  })
+  @ApiResponse({ status: 200, description: "GeoJSON FeatureCollection" })
+  @ApiResponse({ status: 400, description: "regionCodes required" })
+  async regionsGeoJson(@Query("regionCodes") regionCodes?: string) {
+    if (!regionCodes?.trim()) {
+      throw new BadRequestException("regionCodes query param required (comma-separated ISO codes)");
+    }
+    const codes = regionCodes.split(",").map((c) => c.trim()).filter(Boolean);
+    return await this.map.getRegionsGeoJsonLayer(codes);
   }
 
   /**
-   * GeoJSON активных районов: geo_feature мест из fold snapshot.
-   * Лёгкий ответ (~единицы объектов) — безопасно вызывать при каждом обновлении places.
+   * @deprecated Используй districts-geojson?geoFeatureIds= или lazy fetch по place-state.
    */
   @Get("map/districts-active-geojson")
   @ApiOperation({
@@ -126,18 +171,25 @@ export class MapController {
   }
 
   /**
-   * GeoJSON всех районов из geo_feature (layer=district/city_district).
-   * Опционально: ?regionId=<uuid> для фильтрации по субъекту.
+   * GeoJSON районов из geo_feature (layer=district/city_district).
+   * Фильтр: regionId и/или geoFeatureIds (comma-separated UUID).
    */
   @Get("map/districts-geojson")
   @ApiOperation({
-    summary: "GeoJSON всех районов (тяжёлый слой)",
-    description: "Все geo_feature с layer=district/city_district. Для ленивой подгрузки контуров при клике на регион. Фильтр по regionId (uuid).",
+    summary: "GeoJSON районов (lazy geo layer)",
+    description: "Фильтр по regionId (uuid) и/или geoFeatureIds (uuid, comma-separated). Без fold.",
   })
-  @ApiQuery({ name: "regionId", required: false, description: "UUID региона — вернуть районы только этого субъекта" })
+  @ApiQuery({ name: "regionId", required: false, description: "UUID региона" })
+  @ApiQuery({ name: "geoFeatureIds", required: false, description: "Comma-separated geo_feature UUID" })
   @ApiResponse({ status: 200, description: "GeoJSON FeatureCollection (полигоны районов)" })
-  async districtsGeoJson(@Query("regionId") regionId?: string) {
-    return await this.map.getDistrictsGeoJsonLayer(regionId);
+  async districtsGeoJson(
+    @Query("regionId") regionId?: string,
+    @Query("geoFeatureIds") geoFeatureIds?: string,
+  ) {
+    const ids = geoFeatureIds
+      ? geoFeatureIds.split(",").map((id) => id.trim()).filter(Boolean)
+      : undefined;
+    return await this.map.getDistrictsGeoJsonLayer({ regionId, geoFeatureIds: ids });
   }
 
   @Get("regions/:id/geometry")
