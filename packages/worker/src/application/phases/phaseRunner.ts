@@ -12,6 +12,7 @@ import type {
   IPlaceRepository,
   IRawMessageRepository,
   IRegionRepository,
+  IPlaceScanPort,
   PhaseCoverageTask,
   PhaseDefinitionRecord,
   PhaseRunStats,
@@ -19,7 +20,6 @@ import type {
 } from "@radar/shared";
 import { resolveGeoEnrichmentProvider } from "@radar/shared";
 import type { PlaceEnrichmentRunner } from "../geo-parse/placeEnrichmentRunner.js";
-import { GeoCatalog } from "../../infrastructure/geo-catalog/index.js";
 import { ParseRawMessageHandler } from "../handlers/parseRawMessageHandler.js";
 import { createParseWorkspaceStack } from "../parse/createParseWorkspaceStack.js";
 import type { ParsePhaseContext } from "../parse/parsePhaseContext.js";
@@ -41,7 +41,7 @@ export type PhaseRunnerDeps = {
   places: IPlaceRepository;
   regions: IRegionRepository;
   validation: GeoValidationService;
-  geoCatalog: GeoCatalog;
+  placeScan: IPlaceScanPort;
   placeCache: IPlaceCacheRepository;
   events: IEventPublisher;
   /** geoParse drain (place_enrichment_jobs). */
@@ -66,8 +66,9 @@ export class PhaseRunner {
       runKind: resolvePhaseRunKind(phase),
     };
     const { workspaceService } = createParseWorkspaceStack({
-      geoCatalog: this.deps.geoCatalog,
+      placeScan: this.deps.placeScan,
       regions: this.deps.regions,
+      places: this.deps.places,
       validation: this.deps.validation,
       parsedEvents: this.deps.parsedEvents,
       eventLocations: this.deps.eventLocations,

@@ -17,6 +17,8 @@ import { RuleBasedEventClassifier } from "../infrastructure/classifiers/ruleBase
 import { loadRootEnv } from "../infrastructure/config/loadRootEnv.js";
 import { GeoCatalog } from "../infrastructure/geo-catalog/index.js";
 import { createWorkerDataSource } from "../infrastructure/persistence/createWorkerDataSource.js";
+import { createWorkerDbRepositories } from "../infrastructure/persistence/workerDbRepos.js";
+import { createPlaceScanService } from "../infrastructure/place-scan/createPlaceScanService.js";
 import {
   canonicalRegionCode,
   type NormalizedLocation,
@@ -335,12 +337,20 @@ async function runChannelAudit(options: AuditRunOptions): Promise<void> {
   const outJson = outMd.replace(/\.md$/i, ".json");
 
   const dataSource = await createWorkerDataSource();
+  const repos = await createWorkerDbRepositories(dataSource);
+  const placeScan = await createPlaceScanService({
+    places: repos.places,
+    regions: repos.regions,
+  });
   const catalog = GeoCatalog.loadFromArtifacts();
-  const classifier = new RuleBasedEventClassifier(catalog.getRegionCatalog());
+  const classifier = new RuleBasedEventClassifier(
+    catalog.getRegionCatalog(),
+  );
   const ingestParsePhases = await loadIngestParsePhases({ repoRoot: MONOREPO_ROOT });
   const { pipeline } = createParsePipeline({
-    geoCatalog: catalog,
-    regions: new InMemoryRegionRepository(),
+    placeScan,
+    regions: repos.regions,
+    places: repos.places,
     ingestParsePhases,
   });
 

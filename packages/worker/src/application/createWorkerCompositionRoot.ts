@@ -22,6 +22,7 @@ import type {
   IPlaceRepository,
   IRawMessageRepository,
   IRegionRepository,
+  IPlaceScanPort,
 } from "@radar/shared";
 import { InProcessEventBus } from "@radar/shared";
 import {
@@ -52,8 +53,8 @@ import {
   InMemoryRawMessageRepository,
 } from "./handlers/inMemoryRepositories.js";
 import { MONOREPO_ROOT } from "@repo/root";
-import { GeoCatalog } from "../infrastructure/geo-catalog/index.js";
 import { GeoValidationService } from "./parsing/geoValidationService.js";
+import { createPlaceScanService } from "../infrastructure/place-scan/createPlaceScanService.js";
 import { createParseWorkspaceStack } from "./parse/createParseWorkspaceStack.js";
 import {
   loadAllIngestParsePhases,
@@ -88,7 +89,8 @@ import {
 export type WorkerCompositionOptions = {
   storageMode?: WorkerStorageMode;
   placeCacheRepository?: IPlaceCacheRepository;
-  geoCatalog?: GeoCatalog;
+  /** Override DB-backed geo scan (tests / offline CLI). */
+  placeScan?: IPlaceScanPort;
   /**
    * Override ingestParse-фаз для offline CLI (snap/report).
    * Default / `{ kind: "manifest" }` — enabled фазы из phase.manifest (prod parity).
@@ -197,7 +199,11 @@ export async function createWorkerCompositionRoot(
   }
 
   const placeCache = options.placeCacheRepository ?? new InMemoryPlaceCacheRepository();
-  const geoCatalog = options.geoCatalog ?? GeoCatalog.loadFromArtifacts();
+  const placeScan = options.placeScan ?? await createPlaceScanService({ places, regions });
+  // CLI/test override — не тянем places.listScanEntries (DB repo из api/dist может быть устаревшим).
+  const placeScanEntries =
+    options.placeScan != null ? [] : await places.listScanEntries();
+  const placeScanRevision = placeScan.revision();
 
   const phaseDefinitions = workerRepos?.phaseDefinitions;
   const phaseSelection = options.ingestParsePhaseSelection ?? { kind: "manifest" };
@@ -214,11 +220,16 @@ export async function createWorkerCompositionRoot(
           }),
           phaseSelection,
         );
-  const parsePipelineWorkerConfig: ParsePipelineWorkerConfig = { ingestParsePhases };
+  const parsePipelineWorkerConfig: ParsePipelineWorkerConfig = {
+    ingestParsePhases,
+    placeScanEntries,
+    placeScanRevision,
+  };
   const { pipeline } = createParsePipeline({
-    geoCatalog,
+    placeScan,
     regions,
     ingestParsePhases,
+    places,
   });
   const validation = new GeoValidationService(regions, places, aliases);
 
@@ -232,8 +243,9 @@ export async function createWorkerCompositionRoot(
     cursors,
   );
   const { workspaceService } = createParseWorkspaceStack({
-    geoCatalog,
+    placeScan,
     regions,
+    places,
     validation,
     parsedEvents,
     eventLocations,
@@ -267,7 +279,7 @@ export async function createWorkerCompositionRoot(
       places: workerRepos.places,
       regions: workerRepos.regions,
       validation,
-      geoCatalog,
+      placeScan,
       placeCache,
       events: bus,
       placeEnrichmentRunner,
@@ -357,7 +369,7 @@ export async function createWorkerCompositionRoot(
     storageMode,
     bus,
     metricsAggregator,
-    geoCatalog,
+    placeScan,
     parsePipelineService: pipeline,
     ingestParsePhases,
     parseWorkerPool,

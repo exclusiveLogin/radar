@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { GeoCatalog } from "../../infrastructure/geo-catalog/index.js";
 import { planFinalize } from "./ParseFinalizerService.js";
 import { runParseWorkspaceOrchestrator } from "./ParseWorkspaceOrchestrator.js";
+import { buildTestPlaceScanService } from "./geo/testPlaceScanFixture.js";
 import {
   extractMassClearExcludeSegment,
   isChannelWideMassClearText,
@@ -39,11 +39,11 @@ test("extractMassClearExcludeSegment: хвост после «кроме»", () 
 });
 
 test("mass-clear pipeline: channel-wide → один system cleared", () => {
-  const geoCatalog = GeoCatalog.loadFromArtifacts();
+  const placeScan = buildTestPlaceScanService();
   const result = runParseWorkspaceOrchestrator({
     rawMessageId: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
     rawText: RVK_MASS_CLEAR,
-    geoCatalog,
+    placeScan,
   });
   assert.equal(result.kind, "event");
   if (result.kind !== "event") return;
@@ -69,11 +69,11 @@ test("mass-clear pipeline: channel-wide → один system cleared", () => {
 });
 
 test("mass-clear pipeline: кроме → excludedRegionCodes в extras", () => {
-  const geoCatalog = GeoCatalog.loadFromArtifacts();
+  const placeScan = buildTestPlaceScanService();
   const result = runParseWorkspaceOrchestrator({
     rawMessageId: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
     rawText: RVK_MASS_CLEAR_KROME,
-    geoCatalog,
+    placeScan,
   });
   assert.equal(result.kind, "event");
   if (result.kind !== "event") return;

@@ -122,7 +122,7 @@ npm run parse-engine:rebuild -w @radar/worker
 
 | Тема | Статус |
 |------|--------|
-| `deriveRegionFromPlace` в finalizer (ADR-012 §8.1) | не вынесен отдельно — region из geo-pipeline на resolve |
+| `deriveRegionFromPlace` в finalizer (ADR-012 §8.1) | ✅ P6 — `buildMaterializedEventLocations` |
 | `parsePost` / classifier в `channelIngestAudit`, `evalShared.loadFixtureBlocks` | legacy read-only |
 | Per-candidate eventType из block-context | v1: `all_candidates` (EventTypeProcessor) |
 | ODP parser-rules pack | fallback `extractEventType.ts` |

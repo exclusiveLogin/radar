@@ -1,7 +1,7 @@
 # ADR-012: Geo-scan по каталогу БД без place_aliases
 
 Дата: 2026-06-11  
-Статус: **Accepted** (контракт; реализация — вместе с Parse Workspace, см. RFC)  
+Статус: **Accepted** · **Implemented (P6, 2026-06-19)**  
 Связано: [ADR-004](./adr-004-region-place-ssot.md), [RFC parse-processor-workspace](./rfc/parse-processor-workspace.md), [geo-clean-rebuild](./runbook/geo-clean-rebuild.md)
 
 ## Контекст

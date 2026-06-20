@@ -3,9 +3,10 @@ import type {
   IEventLocationRepository,
   IMessageParseWorkspaceRepository,
   IParsedEventRepository,
+  IPlaceRepository,
   IRegionRepository,
+  IPlaceScanPort,
 } from "@radar/shared";
-import type { GeoCatalog } from "../../infrastructure/geo-catalog/index.js";
 import type { GeoValidationService } from "../parsing/geoValidationService.js";
 import {
   ParseWorkspaceMessageService,
@@ -14,8 +15,9 @@ import {
 import { ParseWorkspacePersistService } from "./ParseWorkspacePersistService.js";
 
 export type ParseWorkspaceStackDeps = {
-  geoCatalog: GeoCatalog;
+  placeScan: IPlaceScanPort;
   regions: IRegionRepository;
+  places: IPlaceRepository;
   validation: GeoValidationService;
   parsedEvents: IParsedEventRepository;
   eventLocations: IEventLocationRepository;
@@ -48,8 +50,9 @@ export function createParseWorkspaceStack(deps: ParseWorkspaceStackDeps): {
   };
 
   const workspaceService = new ParseWorkspaceMessageService({
-    geoCatalog: deps.geoCatalog,
+    placeScan: deps.placeScan,
     regions: deps.regions,
+    places: deps.places,
     validation: deps.validation,
     persist,
     loadStoredWorkspace,

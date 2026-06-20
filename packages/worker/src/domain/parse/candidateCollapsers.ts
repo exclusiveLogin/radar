@@ -13,7 +13,7 @@ export function applyCandidateCollapsers(
     (c) => c.extras[MASS_CLEAR_CHANNEL_EXTRAS_KEY] === true,
   );
   if (!hasChannelMassClear) {
-    return collapseGeoPlaceRegion(winners);
+    return collapseGeoPlaceRegion(winners, workspace);
   }
 
   const massClearNs = workspace.namespaces.massClear as
@@ -39,8 +39,14 @@ export function applyCandidateCollapsers(
   });
 }
 
-/** ADR-012: place + region same code → region winner убираем если есть place. */
-function collapseGeoPlaceRegion(candidates: EventCandidate[]): EventCandidate[] {
+/** ADR-012: place + region same code → region winner убираем если есть place (кроме geoConflict). */
+function collapseGeoPlaceRegion(
+  candidates: EventCandidate[],
+  workspace: ParseWorkspace,
+): EventCandidate[] {
+  if (workspace.namespaces.geoConflict === true) {
+    return candidates;
+  }
   const placeRegionCodes = new Set(
     candidates
       .filter((c) => c.anchor.kind === "place" && c.anchor.regionCode)

@@ -1,5 +1,5 @@
 import type { ParseWorkspace } from "@radar/shared";
-import type { GeoCatalog } from "../../infrastructure/geo-catalog/index.js";
+import type { IPlaceScanPort } from "@radar/shared";
 import { createEmptyParseWorkspace } from "./parseWorkspaceFactory.js";
 import { groomMessage } from "./groomMessage.js";
 import { runCatalogEnricher, parsePipelineRevisionHash } from "./parseEnricherRunner.js";
@@ -13,7 +13,7 @@ export type OrchestratorResult =
 export function runParseWorkspaceOrchestrator(input: {
   rawMessageId: string;
   rawText: string;
-  geoCatalog: GeoCatalog;
+  placeScan: IPlaceScanPort;
 }): OrchestratorResult {
   const groomed = groomMessage(input.rawText);
   if (groomed.kind !== "event") {
@@ -25,7 +25,7 @@ export function runParseWorkspaceOrchestrator(input: {
     blocks: groomed.blocks,
   };
 
-  runCatalogEnricher({ workspace, geoCatalog: input.geoCatalog });
+  runCatalogEnricher({ workspace, placeScan: input.placeScan });
 
   const eventTypeFound = listActiveCandidates(workspace).some((c) => c.eventType !== "unknown");
   if (!eventTypeFound && workspace.candidates.length === 0) {

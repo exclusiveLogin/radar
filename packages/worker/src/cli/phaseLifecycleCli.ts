@@ -9,7 +9,7 @@ import { clearPhaseQueues, type PhaseQueueScope } from "../application/phases/li
 import type { DataSource } from "typeorm";
 import type { PhaseMutationResult } from "../application/phases/lifecycle/phaseLifecycle.types.js";
 import type { WorkerDbRepositories } from "../infrastructure/persistence/workerDbRepos.types.js";
-import { GeoCatalog } from "../infrastructure/geo-catalog/geoCatalog.js";
+import { buildTestPlaceScanService } from "../domain/parse/geo/testPlaceScanFixture.js";
 import { createWorkerCompositionRoot } from "../application/createWorkerCompositionRoot.js";
 import { loadRootEnv } from "../infrastructure/config/loadRootEnv.js";
 import { notifyMapPushSnapshot } from "../infrastructure/notifyMapPushSnapshot.js";
@@ -156,7 +156,7 @@ async function main(): Promise<void> {
   const runtime = await createWorkerCompositionRoot({
     storageMode: WorkerStorageMode.Db,
     startIngestParseDaemon: false,
-    geoCatalog: GeoCatalog.empty(),
+    placeScan: buildTestPlaceScanService([]),
   });
 
   if (!runtime.dataSource || !runtime.workerRepos) {

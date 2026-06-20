@@ -2,13 +2,13 @@
   EventLocation,
   GeoEnrichmentArtifact,
   GeoPipelineReport,
+  IPlaceRepository,
   ParseReport,
   ParsedEvent,
   ParseWorkspace,
   PhaseDefinitionRecord,
 } from "@radar/shared";
 import { randomUUID } from "node:crypto";
-import type { GeoCatalog } from "../../infrastructure/geo-catalog/index.js";
 import type { IRegionRepository } from "@radar/shared";
 import type { GeoValidationService } from "./geoValidationService.js";
 import { candidateToParsedEvent } from "../../domain/parse/candidateToParsedEvent.js";
@@ -48,7 +48,7 @@ export type ParsePipelineInput = {
 export type ParsePipelineServiceDeps = {
   workspaceService: ParseWorkspaceMessageService;
   regions: IRegionRepository;
-  geoCatalog: GeoCatalog;
+  places: IPlaceRepository;
   validation: GeoValidationService;
   ingestParsePhases: PhaseDefinitionRecord[];
 };
@@ -76,14 +76,14 @@ async function collectMaterializedLocations(
   workspace: ParseWorkspace,
   candidateEventMap: Record<string, string>,
   regions: IRegionRepository,
-  geoCatalog: GeoCatalog,
+  places: IPlaceRepository,
   validation: GeoValidationService,
 ): Promise<EventLocation[]> {
   const byCandidate = await buildMaterializedEventLocations({
     workspace,
     materializedCandidateIds: Object.keys(candidateEventMap),
     regions,
-    geoCatalog,
+    places,
     validation,
   });
   const locations: EventLocation[] = [];
@@ -131,7 +131,7 @@ export class ParsePipelineService {
       workspace,
       finalize.candidateEventMap,
       this.deps.regions,
-      this.deps.geoCatalog,
+      this.deps.places,
       this.deps.validation,
     );
     const geoPipeline = enricherRunLogToGeoPipeline(workspace);

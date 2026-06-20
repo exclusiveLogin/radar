@@ -1,5 +1,4 @@
-import type { IRegionRepository, PhaseDefinitionRecord } from "@radar/shared";
-import type { GeoCatalog } from "../../infrastructure/geo-catalog/index.js";
+import type { IPlaceScanPort, IRegionRepository, PhaseDefinitionRecord, PlaceScanEntry, IPlaceRepository } from "@radar/shared";
 import {
   InMemoryEventLocationRepository,
   InMemoryMessageParseWorkspaceRepository,
@@ -11,20 +10,23 @@ import {
 import { createParseWorkspaceStack } from "../parse/createParseWorkspaceStack.js";
 import { createTestGeoValidation } from "../parse/createTestGeoValidation.js";
 import { ParsePipelineService } from "./parsePipelineService.js";
+import { PlaceScanService } from "../../domain/parse/geo/placeScanService.js";
 
-/** Конфиг worker_threads: сериализуемые ingestParse-фазы манифеста. */
+/** Конфиг worker_threads: сериализуемые ingestParse-фазы + scan entries. */
 export type ParsePipelineWorkerConfig = {
   ingestParsePhases: PhaseDefinitionRecord[];
+  placeScanEntries: PlaceScanEntry[];
+  placeScanRevision: string;
 };
 
 export type CreateParsePipelineDeps = {
+  placeScan: IPlaceScanPort;
   regions: IRegionRepository;
-  geoCatalog: GeoCatalog;
   ingestParsePhases: PhaseDefinitionRecord[];
   parsedEvents?: InMemoryParsedEventRepository;
   eventLocations?: InMemoryEventLocationRepository;
   messageParseWorkspaces?: InMemoryMessageParseWorkspaceRepository;
-  places?: InMemoryPlaceRepository;
+  places?: IPlaceRepository;
   aliases?: InMemoryPlaceAliasRepository;
 };
 
@@ -38,15 +40,17 @@ export function createParsePipeline(deps: CreateParsePipelineDeps): {
   const eventLocations = deps.eventLocations ?? new InMemoryEventLocationRepository();
   const messageParseWorkspaces =
     deps.messageParseWorkspaces ?? new InMemoryMessageParseWorkspaceRepository();
+  const places = deps.places ?? new InMemoryPlaceRepository();
   const validation = createTestGeoValidation(
     deps.regions,
-    deps.places ?? new InMemoryPlaceRepository(),
+    places,
     deps.aliases ?? new InMemoryPlaceAliasRepository(),
   );
 
   const { workspaceService } = createParseWorkspaceStack({
-    geoCatalog: deps.geoCatalog,
+    placeScan: deps.placeScan,
     regions: deps.regions,
+    places,
     validation,
     parsedEvents,
     eventLocations,
@@ -56,7 +60,7 @@ export function createParsePipeline(deps: CreateParsePipelineDeps): {
   const pipeline = new ParsePipelineService({
     workspaceService,
     regions: deps.regions,
-    geoCatalog: deps.geoCatalog,
+    places,
     validation,
     ingestParsePhases: deps.ingestParsePhases,
   });
@@ -67,10 +71,10 @@ export function createParsePipeline(deps: CreateParsePipelineDeps): {
 /** Сборка в worker_thread (in-memory stack). */
 export function createParsePipelineInWorker(
   config: ParsePipelineWorkerConfig,
-  geoCatalog: GeoCatalog,
 ): ParsePipelineService {
+  const placeScan = new PlaceScanService(config.placeScanEntries, config.placeScanRevision);
   return createParsePipeline({
-    geoCatalog,
+    placeScan,
     regions: new InMemoryRegionRepository(),
     ingestParsePhases: config.ingestParsePhases,
   }).pipeline;

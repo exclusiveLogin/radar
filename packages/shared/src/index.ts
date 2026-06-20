@@ -224,6 +224,21 @@ export {
   placeStemCore,
 } from "./domain/geo/placeStem";
 export {
+  kindMeetsFloor,
+  placeKindRank,
+  sortPlaceScanEntriesStable,
+} from "./domain/geo/placeKindRank";
+export type {
+  FindByStemGlobalOptions,
+  GeoSpanToken,
+  IPlaceScanPort,
+  PlaceKindHint,
+  PlaceResolveContext,
+  PlaceScanEntry,
+  PlaceScanHit,
+  TextSpan,
+} from "./ports/place-scan";
+export {
   normalizePlaceIdentityName,
   placeIdentityMatches,
   resolvePlaceIdentityKey,

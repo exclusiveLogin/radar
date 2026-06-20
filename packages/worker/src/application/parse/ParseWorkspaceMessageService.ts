@@ -1,11 +1,12 @@
 import type {
   FinalizeContext,
   FinalizeResult,
+  IPlaceRepository,
   IRegionRepository,
+  IPlaceScanPort,
   ParseWorkspace,
 } from "@radar/shared";
 import { normalizeParseWorkspace } from "@radar/shared";
-import type { GeoCatalog } from "../../infrastructure/geo-catalog/index.js";
 import type { GeoValidationService } from "../parsing/geoValidationService.js";
 import { planFinalize } from "../../domain/parse/ParseFinalizerService.js";
 import { buildMaterializedEventLocations } from "../../domain/parse/buildMaterializedEventLocations.js";
@@ -32,8 +33,9 @@ export type StoredParseWorkspace = {
 };
 
 export type WorkspaceHandleDeps = {
-  geoCatalog: GeoCatalog;
+  placeScan: IPlaceScanPort;
   regions: IRegionRepository;
+  places: IPlaceRepository;
   validation: GeoValidationService;
   persist: ParseWorkspacePersistService;
   loadStoredWorkspace: (rawMessageId: string) => Promise<StoredParseWorkspace | null>;
@@ -82,7 +84,7 @@ export class ParseWorkspaceMessageService {
     const orchestrated = runParseWorkspaceOrchestrator({
       rawMessageId: input.rawMessageId,
       rawText: input.rawText,
-      geoCatalog: this.deps.geoCatalog,
+      placeScan: this.deps.placeScan,
     });
     if (orchestrated.kind !== "event") {
       return orchestrated;
@@ -170,10 +172,8 @@ export class ParseWorkspaceMessageService {
   private async runEnrichers(workspace: ParseWorkspace, enrichers: ParseEnricherId[]): Promise<void> {
     for (const enricherId of enrichers) {
       if (enricherId === "catalog") continue;
-      await invokeExternalParseEnricher(enricherId, workspace, {
-        geoCatalog: this.deps.geoCatalog,
-      });
-      runParseEnricher(enricherId, { workspace, geoCatalog: this.deps.geoCatalog });
+      await invokeExternalParseEnricher(enricherId, workspace);
+      runParseEnricher(enricherId, { workspace, placeScan: this.deps.placeScan });
     }
   }
 
@@ -192,7 +192,7 @@ export class ParseWorkspaceMessageService {
       workspace: input.workspace,
       materializedCandidateIds: plan.materialized.map((item) => item.candidateId),
       regions: this.deps.regions,
-      geoCatalog: this.deps.geoCatalog,
+      places: this.deps.places,
       validation: this.deps.validation,
     });
     const finalize = await this.deps.persist.finalize({

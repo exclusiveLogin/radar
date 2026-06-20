@@ -1,5 +1,5 @@
-import { mergePlaceContribution, placeStem } from "@radar/shared";
 import type { IPlaceRepository, PlaceContribution, PlaceProvider, PlaceRecord } from "@radar/shared";
+import { kindMeetsFloor, mergePlaceContribution, placeKindRank, placeStem, type FindByStemGlobalOptions, type PlaceScanEntry } from "@radar/shared";
 import type { DataSource } from "typeorm";
 import { PlaceEntity } from "../../geo/entities";
 
@@ -209,6 +209,75 @@ export class TypeOrmPlaceRepository implements IPlaceRepository {
     // Иначе: catalog (isTrusted) > operational
     const trusted = rows.find((r) => r.isTrusted);
     return this.toRecord(trusted ?? rows[0]);
+  }
+
+  async findByStemGlobal(
+    stem: string,
+    opts: FindByStemGlobalOptions,
+  ): Promise<PlaceRecord[]> {
+    const qb = this.repo()
+      .createQueryBuilder("p")
+      .where("p.is_active = true")
+      .andWhere("p.name_stem = :stem", { stem });
+    if (opts.regionId) {
+      qb.andWhere("p.region_id = :regionId", { regionId: opts.regionId });
+    }
+    const rows = await qb.getMany();
+    let records = rows
+      .map((row) => this.toRecord(row))
+      .filter((row) => kindMeetsFloor(row.kind, opts.minKind));
+    if (opts.maxKind) {
+      records = records.filter((row) => placeKindRank(row.kind) <= placeKindRank(opts.maxKind!));
+    }
+    if (opts.preferKind) {
+      const preferred = records.filter((row) => row.kind === opts.preferKind);
+      if (preferred.length > 0) return preferred;
+    }
+    return records;
+  }
+
+  async findRegionPlaceByIso(iso: string): Promise<PlaceRecord | null> {
+    const row = await this.repo()
+      .createQueryBuilder("p")
+      .innerJoin("regions", "r", "r.id = p.region_id")
+      .where("p.kind = :kind", { kind: "region" })
+      .andWhere("p.is_active = true")
+      .andWhere("r.iso = :iso", { iso })
+      .getOne();
+    return row ? this.toRecord(row) : null;
+  }
+
+  async listScanEntries(): Promise<PlaceScanEntry[]> {
+    const rows: Array<{
+      id: string;
+      region_id: string;
+      kind: PlaceRecord["kind"];
+      name: string;
+      name_stem: string;
+      name_with_type: string | null;
+      centroid_lat: string | null;
+      centroid_lon: string | null;
+      region_code: string;
+    }> = await this.dataSource.query(
+      `SELECT p.id, p.region_id, p.kind, p.name, p.name_stem, p.name_with_type,
+              p.centroid_lat, p.centroid_lon,
+              COALESCE(r.iso, r.fias_id, r.name) AS region_code
+       FROM places p
+       INNER JOIN regions r ON r.id = p.region_id
+       WHERE p.is_active = true`,
+    );
+    return rows.map((row) => ({
+      placeId: row.id,
+      regionId: row.region_id,
+      // Канонический regionCode для scan scope — как toRegionRecord().code / canonicalRegionCode().
+      regionIso: row.region_code,
+      kind: row.kind,
+      name: row.name,
+      nameStem: row.name_stem,
+      nameWithType: row.name_with_type ?? undefined,
+      centroidLat: row.centroid_lat != null ? Number(row.centroid_lat) : undefined,
+      centroidLon: row.centroid_lon != null ? Number(row.centroid_lon) : undefined,
+    }));
   }
 
   /** Returns all active places as domain records. */

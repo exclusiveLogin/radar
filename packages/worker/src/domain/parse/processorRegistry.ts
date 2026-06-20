@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import type { ParseWorkspace } from "@radar/shared";
-import type { GeoCatalog } from "../../infrastructure/geo-catalog/index.js";
+import type { IPlaceScanPort } from "@radar/shared";
 import { runGeoProcessor } from "./geoProcessor.js";
 import { runEventTypeProcessor } from "./eventTypeProcessor.js";
 import { runMassClearExcludeProcessor } from "./massClearExcludeProcessor.js";
@@ -12,12 +12,14 @@ import { runRepeatProcessor, runMassProcessor, runCountProcessor } from "./trait
 import { runLlmProcessor } from "./llmProcessor.js";
 import { runDadataProcessor } from "./dadataProcessor.js";
 import { runNominatimProcessor } from "./nominatimProcessor.js";
+import { runVicinityProcessor } from "./vicinityProcessor.js";
 
 export type ParseProcessorId =
   | "geo-processor"
   | "event-type-processor"
   | "mass-clear-exclude-processor"
   | "mass-clear-scope-processor"
+  | "vicinity-processor"
   | "repeat-processor"
   | "mass-processor"
   | "count-processor"
@@ -38,21 +40,22 @@ export type ProcessorRegistry = {
 
 export type ParseProcessorContext = {
   workspace: ParseWorkspace;
-  geoCatalog: GeoCatalog;
+  placeScan: IPlaceScanPort;
 };
 
 export type ParseProcessorFn = (ctx: ParseProcessorContext) => void;
 
 const PROCESSOR_IMPL: Record<ParseProcessorId, ParseProcessorFn> = {
-  "geo-processor": ({ workspace, geoCatalog }) => runGeoProcessor({ workspace, geoCatalog }),
+  "geo-processor": ({ workspace, placeScan }) => runGeoProcessor({ workspace, placeScan }),
   "event-type-processor": ({ workspace }) => {
     runEventTypeProcessor(workspace);
   },
-  "mass-clear-exclude-processor": ({ workspace, geoCatalog }) =>
-    runMassClearExcludeProcessor({ workspace, geoCatalog }),
+  "mass-clear-exclude-processor": ({ workspace, placeScan }) =>
+    runMassClearExcludeProcessor({ workspace, placeScan }),
   "mass-clear-scope-processor": ({ workspace }) => {
     runMassClearScopeProcessor(workspace);
   },
+  "vicinity-processor": ({ workspace }) => runVicinityProcessor(workspace),
   "repeat-processor": ({ workspace }) => runRepeatProcessor(workspace),
   "mass-processor": ({ workspace }) => runMassProcessor(workspace),
   "count-processor": ({ workspace }) => runCountProcessor(workspace),
@@ -75,6 +78,7 @@ function defaultRegistry(): ProcessorRegistry {
       { id: "event-type-processor", enabled: true, order: 20 },
       { id: "mass-clear-exclude-processor", enabled: true, order: 25 },
       { id: "mass-clear-scope-processor", enabled: true, order: 30 },
+      { id: "vicinity-processor", enabled: true, order: 35 },
       { id: "repeat-processor", enabled: true, order: 40 },
       { id: "mass-processor", enabled: true, order: 50 },
       { id: "count-processor", enabled: true, order: 60 },

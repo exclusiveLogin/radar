@@ -6,6 +6,7 @@ import {
   InMemoryEventLocationRepository,
   InMemoryMessageParseWorkspaceRepository,
   InMemoryParsedEventRepository,
+  InMemoryPlaceRepository,
   InMemoryRegionRepository,
 } from "../../application/handlers/inMemoryRepositories.js";
 import { createTestGeoValidation } from "../../application/parse/createTestGeoValidation.js";
@@ -86,6 +87,7 @@ test("persist: multi-anchor → distinct parsed_event ids", async () => {
     workspaces,
   );
   const validation = createTestGeoValidation(regions);
+  const places = new InMemoryPlaceRepository();
 
   const plan = planFinalize({
     workspace,
@@ -104,6 +106,7 @@ test("persist: multi-anchor → distinct parsed_event ids", async () => {
     workspace,
     materializedCandidateIds: plan.materialized.map((item) => item.candidateId),
     regions,
+    places,
     validation,
   });
 

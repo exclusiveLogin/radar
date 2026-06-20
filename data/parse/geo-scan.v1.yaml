@@ -1,0 +1,17 @@
+revision: p6-geo-scan-v1
+description: DB-backed geo scan index (places + regions metadata)
+
+sources:
+  - table: places
+  - join: regions.iso_code
+invalidation:
+  - geo:db:apply
+  - places.upsert
+
+kindFloor:
+  default: city
+  municipalHint: district
+
+resolve:
+  regionScope: single explicit region ISO in text
+  geoImprecise: true when multiple matches without scope

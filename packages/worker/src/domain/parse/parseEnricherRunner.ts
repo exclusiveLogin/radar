@@ -1,5 +1,5 @@
 import type { ParseWorkspace } from "@radar/shared";
-import type { GeoCatalog } from "../../infrastructure/geo-catalog/index.js";
+import type { IPlaceScanPort } from "@radar/shared";
 import { runEnricherProcessors } from "./runEnricherProcessors.js";
 import type { ParseEnricherId } from "./parseEnricherRegistry.js";
 import {
@@ -11,7 +11,7 @@ import { loadProcessorRegistry, registryRevisionHash } from "./processorRegistry
 
 export type EnricherRunContext = {
   workspace: ParseWorkspace;
-  geoCatalog: GeoCatalog;
+  placeScan: IPlaceScanPort;
 };
 
 /** Запуск одного enricher-контейнера (processors → NS + candidates). */

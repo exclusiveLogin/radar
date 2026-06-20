@@ -1,98 +1,54 @@
-import type { EventCandidate, ParseWorkspace } from "@radar/shared";
-import type { GeoCatalog } from "../../infrastructure/geo-catalog/index.js";
-import type { RegionCatalogEntry } from "../../infrastructure/geo-catalog/regionCatalog.js";
-import {
-  findLocalityAnchorsInText,
-  resolvePlaceRegionCodeInContext,
-} from "../geo/geographicTextContext.js";
+import type { EventCandidate, IPlaceScanPort, ParseWorkspace } from "@radar/shared";
 import { appendCandidate, rejectOwnCandidates } from "./parseProcessorContract.js";
 
 const AUTHOR = "geo-processor";
 const ENRICHER = "catalog";
 
-type TextSpan = { start: number; end: number; matchedText: string };
-
-function findSpan(text: string, needle: string): TextSpan | null {
-  const lower = text.toLowerCase();
-  const idx = lower.indexOf(needle.toLowerCase());
-  if (idx < 0) return null;
-  return {
-    start: idx,
-    end: idx + needle.length,
-    matchedText: text.slice(idx, idx + needle.length),
-  };
-}
-
-function findRegionSpan(text: string, region: RegionCatalogEntry): TextSpan | null {
-  const needles = [region.name, ...region.aliases].filter((value) => value.length >= 4);
-  let best: TextSpan | null = null;
-  for (const needle of needles) {
-    const span = findSpan(text, needle);
-    if (!span) continue;
-    if (!best || span.start < best.start) best = span;
-  }
-  return best;
-}
-
-/** GeoProcessor: append place/region candidates (ADR-012 wrap GeoCatalog). */
+/** GeoProcessor: DB-backed spawn через IPlaceScanPort (ADR-012 P6). */
 export function runGeoProcessor(input: {
   workspace: ParseWorkspace;
-  geoCatalog: GeoCatalog;
+  placeScan: IPlaceScanPort;
 }): void {
-  const { workspace, geoCatalog } = input;
+  const { workspace, placeScan } = input;
   const text = workspace.groomedText;
-  const regions = geoCatalog.findRegions(text);
-  const places = geoCatalog.findPlacesInRegion(text);
 
-  const regionCandidates: EventCandidate[] = [];
-  for (const region of regions) {
-    const span = findRegionSpan(text, region);
-    if (!span) continue;
-    regionCandidates.push(
-      appendCandidate({
-        workspace,
-        authorProcessorId: AUTHOR,
-        authorEnricherId: ENRICHER,
-        anchor: {
-          kind: "region",
-          name: region.name,
-          regionCode: region.code,
-          placeFias: region.fiasId,
-          span,
-        },
-        eventType: "unknown",
-        provenance: {
-          eventTypeSource: "pending",
-          anchorSource: "geo-processor",
-        },
-      }),
-    );
+  const regionHits = placeScan.matchRegions(text);
+  const explicitRegionIsos = regionHits.map((h) => h.entry.regionIso);
+  const regionScopeIso =
+    explicitRegionIsos.length === 1 ? explicitRegionIsos[0] : undefined;
+
+  // Пустой ctx — без auto regionScope (pickRegionScopeIso иначе режет чужие place)
+  const unscopedPlaceHits = placeScan.matchPlaces(text, {});
+  const scopedPlaceHits = regionScopeIso
+    ? placeScan.matchPlaces(text, { regionScopeIso, explicitRegionIsos })
+    : unscopedPlaceHits;
+
+  detectGeoConflict(workspace, regionHits, unscopedPlaceHits);
+  const placeHits =
+    workspace.namespaces.geoConflict === true ? unscopedPlaceHits : scopedPlaceHits;
+
+  for (const hit of regionHits) {
+    appendCandidate({
+      workspace,
+      authorProcessorId: AUTHOR,
+      authorEnricherId: ENRICHER,
+      anchor: {
+        kind: "region",
+        name: hit.entry.name,
+        placeId: hit.entry.placeId,
+        regionCode: hit.entry.regionIso,
+        span: hit.span,
+      },
+      eventType: "unknown",
+      provenance: {
+        eventTypeSource: "pending",
+        anchorSource: "geo-processor",
+      },
+    });
   }
 
-  const localityCatalog = geoCatalog.listLocalityCatalog();
-  const anchorsInText = findLocalityAnchorsInText(text, localityCatalog);
-  const regionsCollected = regions.map((region) => ({
-    code: region.code,
-    name: region.name,
-    fiasId: region.fiasId,
-    aliases: region.aliases,
-  }));
-  const multiPlaceContext = places.length > 1;
-
   const placeCandidates: EventCandidate[] = [];
-  for (const place of places) {
-    const span = findSpan(text, place.name);
-    if (!span) continue;
-    const regionCode =
-      resolvePlaceRegionCodeInContext({
-        placeName: place.name,
-        placeRegionCode: geoCatalog.lookupRegionForPlaceName(place.name) ?? undefined,
-        rawText: text,
-        anchorsInText,
-        localityCatalog,
-        regionsCollected,
-        multiPlaceContext,
-      }) ?? undefined;
+  for (const hit of placeHits) {
     placeCandidates.push(
       appendCandidate({
         workspace,
@@ -100,14 +56,15 @@ export function runGeoProcessor(input: {
         authorEnricherId: ENRICHER,
         anchor: {
           kind: "place",
-          name: place.name,
-          regionCode,
-          lat: place.lat,
-          lon: place.lon,
-          span,
+          name: hit.entry.name,
+          placeId: hit.entry.placeId,
+          regionCode: hit.entry.regionIso,
+          lat: hit.entry.centroidLat,
+          lon: hit.entry.centroidLon,
+          span: hit.span,
         },
         eventType: "unknown",
-        extras: place.alias ? { geoImprecise: true } : {},
+        extras: hit.geoImprecise ? { geoImprecise: true } : {},
         provenance: {
           eventTypeSource: "pending",
           anchorSource: "geo-processor",
@@ -115,6 +72,8 @@ export function runGeoProcessor(input: {
       }),
     );
   }
+
+  if (workspace.namespaces.geoConflict === true) return;
 
   const regionCodesFromPlaces = new Set(
     placeCandidates.map((c) => c.anchor.regionCode).filter(Boolean),
@@ -128,5 +87,21 @@ export function runGeoProcessor(input: {
         && Boolean(candidate.anchor.regionCode)
         && regionCodesFromPlaces.has(candidate.anchor.regionCode!),
     });
+  }
+}
+
+/** Конфликт: явный субъект в тексте ≠ region place-hit. */
+function detectGeoConflict(
+  workspace: ParseWorkspace,
+  regionHits: ReturnType<IPlaceScanPort["matchRegions"]>,
+  placeHits: ReturnType<IPlaceScanPort["matchPlaces"]>,
+): void {
+  if (regionHits.length === 0 || placeHits.length === 0) return;
+  const textRegionIsos = new Set(regionHits.map((h) => h.entry.regionIso));
+  for (const place of placeHits) {
+    if (!textRegionIsos.has(place.entry.regionIso)) {
+      workspace.namespaces.geoConflict = true;
+      return;
+    }
   }
 }

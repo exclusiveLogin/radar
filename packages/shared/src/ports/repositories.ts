@@ -28,6 +28,8 @@ import type {
   PhaseRunStatus,
 } from "../schemas/enrichment/phase-run";
 import type { ManualRunScope } from "../schemas/enrichment/phase";
+import type { FindByStemGlobalOptions, PlaceScanEntry } from "./place-scan.js";
+
 export type RegionRecord = {
   id: string;
   code: string;
@@ -165,6 +167,12 @@ export interface IPlaceRepository {
    * preferKind: при коллизии предпочесть place с этим kind (city_district при городском якоре).
    */
   findByStemInRegion(stem: string, regionId: string, preferKind?: PlaceRecord["kind"]): Promise<PlaceRecord | null>;
+  /** Global stem search с kindFloor (ADR-012 §2). */
+  findByStemGlobal(stem: string, opts: FindByStemGlobalOptions): Promise<PlaceRecord[]>;
+  /** Canonical place(kind=region) по ISO субъекта. */
+  findRegionPlaceByIso(iso: string): Promise<PlaceRecord | null>;
+  /** Все активные places для построения scan index. */
+  listScanEntries(): Promise<PlaceScanEntry[]>;
   listActive(): Promise<PlaceRecord[]>;
   upsertMany(places: PlaceRecord[]): Promise<void>;
   mergeContribution(input: PlaceContribution): Promise<{ updated: PlaceRecord; appliedFields: string[] }>;

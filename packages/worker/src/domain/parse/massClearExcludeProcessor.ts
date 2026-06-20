@@ -1,5 +1,5 @@
 import type { ParseWorkspace } from "@radar/shared";
-import type { GeoCatalog } from "../../infrastructure/geo-catalog/index.js";
+import type { IPlaceScanPort } from "@radar/shared";
 import {
   extractMassClearExcludeSegment,
   type MassClearWorkspaceState,
@@ -10,21 +10,18 @@ function readMassClearState(workspace: ParseWorkspace): MassClearWorkspaceState 
   return existing ?? { scope: "channel", excludedRegionCodes: [] };
 }
 
-/**
- * Исключения из канального отбоя: только явное «кроме …».
- * Регионы в основном тексте («в том числе по Воронежской») сюда не попадают.
- */
+/** Исключения из канального отбоя: явное «кроме …» → region ISO из DB scan. */
 export function runMassClearExcludeProcessor(input: {
   workspace: ParseWorkspace;
-  geoCatalog: GeoCatalog;
+  placeScan: IPlaceScanPort;
 }): void {
-  const { workspace, geoCatalog } = input;
+  const { workspace, placeScan } = input;
   const excludeSegment = extractMassClearExcludeSegment(workspace.groomedText);
   if (!excludeSegment) return;
 
   const excludedRegionCodes = [
     ...new Set(
-      geoCatalog.findRegions(excludeSegment).map((region) => region.code),
+      placeScan.matchRegions(excludeSegment).map((hit) => hit.entry.regionIso),
     ),
   ];
   if (excludedRegionCodes.length === 0) return;

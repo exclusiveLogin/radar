@@ -1,5 +1,5 @@
 import type { GeoEnrichmentArtifact, ParseWorkspace } from "@radar/shared";
-import type { GeoCatalog } from "../../infrastructure/geo-catalog/index.js";
+import { GeoCatalog } from "../../infrastructure/geo-catalog/index.js";
 import { LlmStep } from "../../application/geo-pipeline/steps/LlmStep.js";
 import { DadataStep } from "../../application/geo-pipeline/steps/DadataStep.js";
 import { NominatimStep } from "../../application/geo-pipeline/steps/NominatimStep.js";
@@ -13,7 +13,6 @@ import type { ParseEnricherId } from "./parseEnricherRegistry.js";
 import { syncCatalogArtifactFromWorkspace } from "./syncCatalogArtifactFromWorkspace.js";
 
 export type ExternalParseEnricherDeps = {
-  geoCatalog: GeoCatalog;
   llm?: LlmEnricher;
   dadata?: DadataEnricher;
   nominatim?: NominatimEnricher;
@@ -28,18 +27,18 @@ function ensureGeoArtifact(workspace: ParseWorkspace): GeoEnrichmentArtifact {
 }
 
 /**
- * Lazy enricher prelude: вызывает LlmEnricher/Dadata/Nominatim и пишет slice в geoArtifact
- * до запуска sync processors (llm-processor, dadata-processor, …).
+ * Lazy enricher prelude: LlmEnricher/Dadata/Nominatim → geoArtifact
+ * до sync processors (llm-processor, dadata-processor, …).
  */
 export async function invokeExternalParseEnricher(
   enricherId: ParseEnricherId,
   workspace: ParseWorkspace,
-  deps: ExternalParseEnricherDeps,
+  deps: ExternalParseEnricherDeps = {},
 ): Promise<void> {
   if (enricherId === "catalog") return;
 
   const artifact = ensureGeoArtifact(workspace);
-  syncCatalogArtifactFromWorkspace(artifact, workspace, deps.geoCatalog);
+  syncCatalogArtifactFromWorkspace(artifact, workspace);
 
   const ctx: GeoPipelineContext = {
     rawText: workspace.groomedText,
@@ -50,7 +49,7 @@ export async function invokeExternalParseEnricher(
 
   if (enricherId === "llm") {
     const llm = deps.llm ?? new LlmEnricher(loadLlmRuntimeConfig());
-    await new LlmStep(llm, deps.geoCatalog).run(ctx);
+    await new LlmStep(llm, GeoCatalog.loadFromArtifacts()).run(ctx);
     return;
   }
 

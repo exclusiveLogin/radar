@@ -1,5 +1,4 @@
-import type { GeoEnrichmentArtifact, ParseWorkspace } from "@radar/shared";
-import type { GeoCatalog } from "../../infrastructure/geo-catalog/index.js";
+import type { ParseWorkspace } from "@radar/shared";
 import { listActiveCandidates } from "./parseProcessorContract.js";
 
 /**
@@ -7,16 +6,15 @@ import { listActiveCandidates } from "./parseProcessorContract.js";
  * если slice ещё не задан (phase_enrich после load из БД).
  */
 export function syncCatalogArtifactFromWorkspace(
-  artifact: GeoEnrichmentArtifact,
+  artifact: import("@radar/shared").GeoEnrichmentArtifact,
   workspace: ParseWorkspace,
-  geoCatalog: GeoCatalog,
 ): void {
   if (artifact.catalog?.regions?.length || artifact.catalog?.places?.length) {
     return;
   }
 
-  const regions: NonNullable<GeoEnrichmentArtifact["catalog"]>["regions"] = [];
-  const places: NonNullable<GeoEnrichmentArtifact["catalog"]>["places"] = [];
+  const regions: NonNullable<import("@radar/shared").GeoEnrichmentArtifact["catalog"]>["regions"] = [];
+  const places: NonNullable<import("@radar/shared").GeoEnrichmentArtifact["catalog"]>["places"] = [];
   const regionCodes = new Set<string>();
 
   for (const candidate of listActiveCandidates(workspace)) {
@@ -39,13 +37,6 @@ export function syncCatalogArtifactFromWorkspace(
         lat: anchor.lat,
         lon: anchor.lon,
       });
-    }
-  }
-
-  if (regions.length === 0 && places.length === 0) {
-    const foundRegions = geoCatalog.findRegions(workspace.groomedText);
-    for (const region of foundRegions) {
-      regions.push({ code: region.code, name: region.name, fiasId: region.fiasId });
     }
   }
 

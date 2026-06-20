@@ -10,15 +10,16 @@ import {
   InMemoryEventLocationRepository,
   InMemoryMessageParseWorkspaceRepository,
   InMemoryParsedEventRepository,
+  InMemoryPlaceRepository,
   InMemoryRegionRepository,
 } from "../../application/handlers/inMemoryRepositories.js";
 import { ParseRawMessageHandler } from "../../application/handlers/parseRawMessageHandler.js";
 import { createParseWorkspaceStack } from "../../application/parse/createParseWorkspaceStack.js";
 import { createTestGeoValidation } from "../../application/parse/createTestGeoValidation.js";
-import { GeoCatalog } from "../../infrastructure/geo-catalog/index.js";
+import { buildTestPlaceScanService } from "../../domain/parse/geo/testPlaceScanFixture.js";
 
 const regionRecord = {
-  id: "reg-bry",
+  id: "44444444-4444-4444-4444-444444444401",
   code: "RU-BRY",
   iso: "RU-BRY",
   name: "Брянская область",
@@ -34,15 +35,17 @@ async function buildHandler(input: {
   workspaces: InMemoryMessageParseWorkspaceRepository;
   phaseMode: "baseline" | "enrich";
 }) {
-  const geoCatalog = GeoCatalog.loadFromArtifacts();
+  const placeScan = buildTestPlaceScanService();
   const regionRepo = new InMemoryRegionRepository();
+  const places = new InMemoryPlaceRepository();
   for (const region of input.regions) {
     await regionRepo.upsertMany([region]);
   }
   const { workspaceService } = createParseWorkspaceStack({
-    geoCatalog,
+    placeScan,
     regions: regionRepo,
-    validation: createTestGeoValidation(regionRepo),
+    places,
+    validation: createTestGeoValidation(regionRepo, places),
     parsedEvents: input.parsedEvents,
     eventLocations: input.eventLocations,
     messageParseWorkspaces: input.workspaces,

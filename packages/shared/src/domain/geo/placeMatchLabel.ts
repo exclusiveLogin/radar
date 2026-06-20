@@ -35,21 +35,28 @@ export function placeStemCore(name: string): string {
 
   const CHAR_REPLACEMENTS: Array<[RegExp, string]> = [
     [/ё/g, "е"],
-    [/й/g, "и"],
     [/-/g, ""],
     [/[^а-яa-z0-9\s]/gi, " "],
     [/\s+/g, " "],
   ];
 
   let value = name.toLowerCase().trim();
+  // Длинные stop-words первыми («муниципальный район» до «район»)
+  const stopWords = [...STOP_WORDS].sort((a, b) => b.length - a.length);
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const stopWord of stopWords) {
+      const normalized = stopWord.replace(/ё/g, "е");
+      const before = value;
+      value = value
+        .replace(new RegExp(`^${normalized}\\s+`, "gi"), "")
+        .replace(new RegExp(`\\s+${normalized}$`, "gi"), "");
+      if (value !== before) changed = true;
+    }
+  }
   for (const [pattern, replacement] of CHAR_REPLACEMENTS) {
     value = value.replace(pattern, replacement);
-  }
-  for (const stopWord of STOP_WORDS) {
-    const normalized = stopWord.replace(/ё/g, "е");
-    value = value
-      .replace(new RegExp(`^${normalized}\\s+`, "g"), "")
-      .replace(new RegExp(`\\s+${normalized}$`, "g"), "");
   }
   return value.trim();
 }

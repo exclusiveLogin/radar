@@ -27,7 +27,8 @@ import type {
   RawMessageTelegramExtension,
   TimelineQuery,
 } from "@radar/shared";
-import { mergePlaceContribution } from "@radar/shared";
+import type { FindByStemGlobalOptions, PlaceScanEntry } from "@radar/shared";
+import { kindMeetsFloor, mergePlaceContribution, placeKindRank, placeStem } from "@radar/shared";
 import { randomUUID } from "node:crypto";
 
 export class InMemoryRawMessageRepository implements IRawMessageRepository {
@@ -374,6 +375,12 @@ export class InMemoryRegionRepository implements IRegionRepository {
 
 export class InMemoryPlaceRepository implements IPlaceRepository {
   private readonly rows = new Map<string, PlaceRecord>();
+  private regionIsoById = new Map<string, string>();
+
+  /** Связать regionId → ISO для listScanEntries (тесты). */
+  setRegionIsoMap(map: Map<string, string>): void {
+    this.regionIsoById = map;
+  }
 
   async findById(id: string): Promise<PlaceRecord | null> {
     return this.rows.get(id) ?? null;
@@ -428,6 +435,49 @@ export class InMemoryPlaceRepository implements IPlaceRepository {
     }
     return matches[0];
   }
+
+  async findByStemGlobal(
+    stem: string,
+    opts: FindByStemGlobalOptions,
+  ): Promise<PlaceRecord[]> {
+    let matches: PlaceRecord[] = [];
+    for (const row of this.rows.values()) {
+      if ((row.nameStem ?? placeStem(row.name)) !== stem) continue;
+      if (opts.regionId && row.regionId !== opts.regionId) continue;
+      if (!kindMeetsFloor(row.kind, opts.minKind)) continue;
+      if (opts.maxKind && placeKindRank(row.kind) > placeKindRank(opts.maxKind)) continue;
+      matches.push(row);
+    }
+    if (opts.preferKind) {
+      const preferred = matches.filter((r) => r.kind === opts.preferKind);
+      if (preferred.length > 0) return preferred;
+    }
+    return matches;
+  }
+
+  async findRegionPlaceByIso(iso: string): Promise<PlaceRecord | null> {
+    for (const row of this.rows.values()) {
+      if (row.kind !== "region") continue;
+      const regionIso = this.regionIsoById.get(row.regionId);
+      if (regionIso === iso) return row;
+    }
+    return null;
+  }
+
+  async listScanEntries(): Promise<PlaceScanEntry[]> {
+    return [...this.rows.values()].map((row) => ({
+      placeId: row.id,
+      regionId: row.regionId,
+      regionIso: this.regionIsoById.get(row.regionId) ?? row.regionId,
+      kind: row.kind,
+      name: row.name,
+      nameStem: row.nameStem ?? placeStem(row.name),
+      nameWithType: row.nameWithType,
+      centroidLat: row.centroidLat,
+      centroidLon: row.centroidLon,
+    }));
+  }
+
   async listActive(): Promise<PlaceRecord[]> {
     return [...this.rows.values()];
   }

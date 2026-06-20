@@ -15,6 +15,7 @@
 | **P3** | [phase-p3-processor-registry.md](./phase-p3-processor-registry.md) | ✅ код | 2 |
 | **P4** | [phase-p4-semantic-segmenter.md](./phase-p4-semantic-segmenter.md) | ✅ код | 2+ |
 | **P5** | — (legacy removal) | 🔶 частично | 1 |
+| **P6** | [phase-p6-geo-db-scan.md](./phase-p6-geo-db-scan.md) | ✅ код | ADR-012 |
 
 **Приёмка:** [implementation-plan.md](./implementation-plan.md) — чеклист проверки.
 
@@ -36,7 +37,7 @@ raw → grooming → processors → ParseWorkspace → finalize → parsed_event
 |-------|--------------|
 | P1 EventTypeProcessor | ODP D1 parser-rules pack |
 | P1 finalize → facts | Tracking T1 input |
-| P1 + ADR-012 | geo scan без place_aliases |
+| P1 + ADR-012 | geo scan без place_aliases | ✅ P6 |
 
 Рекомендация: **P1 параллельно Tracking T1 + ODP D1**.
 

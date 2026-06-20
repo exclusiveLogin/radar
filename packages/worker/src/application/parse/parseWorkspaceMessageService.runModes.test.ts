@@ -4,14 +4,15 @@ import {
   InMemoryEventLocationRepository,
   InMemoryMessageParseWorkspaceRepository,
   InMemoryParsedEventRepository,
+  InMemoryPlaceRepository,
   InMemoryRegionRepository,
 } from "../handlers/inMemoryRepositories.js";
 import { createParseWorkspaceStack } from "./createParseWorkspaceStack.js";
 import { createTestGeoValidation } from "./createTestGeoValidation.js";
-import { GeoCatalog } from "../../infrastructure/geo-catalog/index.js";
+import { buildTestPlaceScanService } from "../../domain/parse/geo/testPlaceScanFixture.js";
 
 const regionRecord = {
-  id: "reg-bry",
+  id: "44444444-4444-4444-4444-444444444401",
   code: "RU-BRY",
   iso: "RU-BRY",
   name: "Брянская область",
@@ -24,17 +25,19 @@ const rawText =
   "Клинцы и близлежащие\nБрянская область\nОпасность по БПЛА";
 
 test("phase_enrich: load workspace из БД без re-orchestrator", async () => {
-  const geoCatalog = GeoCatalog.loadFromArtifacts();
+  const placeScan = buildTestPlaceScanService();
   const regions = new InMemoryRegionRepository();
+  const places = new InMemoryPlaceRepository();
   await regions.upsertMany([regionRecord]);
   const parsedEvents = new InMemoryParsedEventRepository();
   const eventLocations = new InMemoryEventLocationRepository();
   const workspaces = new InMemoryMessageParseWorkspaceRepository();
 
   const { workspaceService } = createParseWorkspaceStack({
-    geoCatalog,
+    placeScan,
     regions,
-    validation: createTestGeoValidation(regions),
+    places,
+    validation: createTestGeoValidation(regions, places),
     parsedEvents,
     eventLocations,
     messageParseWorkspaces: workspaces,
@@ -78,16 +81,18 @@ test("phase_enrich: load workspace из БД без re-orchestrator", async () =
 });
 
 test("heal: без workspace → meta", async () => {
-  const geoCatalog = GeoCatalog.loadFromArtifacts();
+  const placeScan = buildTestPlaceScanService();
   const regions = new InMemoryRegionRepository();
+  const places = new InMemoryPlaceRepository();
   const parsedEvents = new InMemoryParsedEventRepository();
   const eventLocations = new InMemoryEventLocationRepository();
   const workspaces = new InMemoryMessageParseWorkspaceRepository();
 
   const { workspaceService } = createParseWorkspaceStack({
-    geoCatalog,
+    placeScan,
     regions,
-    validation: createTestGeoValidation(regions),
+    places,
+    validation: createTestGeoValidation(regions, places),
     parsedEvents,
     eventLocations,
     messageParseWorkspaces: workspaces,

@@ -7,6 +7,7 @@ import {
 import { WorkerStorageMode } from "../infrastructure/persistence/storageMode.js";
 import { loadRootEnv } from "../infrastructure/config/loadRootEnv.js";
 import { notifyMapPushSnapshot } from "../infrastructure/notifyMapPushSnapshot.js";
+import { buildTestPlaceScanService } from "../domain/parse/geo/testPlaceScanFixture.js";
 import { hasAnyFlag, parseLongFlagsMap } from "./workerCliArgs.js";
 import { warnDeprecatedNpmScript } from "./deprecatedNpmScript.js";
 
@@ -52,6 +53,8 @@ async function main(): Promise<void> {
   const runtime = await createWorkerCompositionRoot({
     storageMode: WorkerStorageMode.Db,
     startIngestParseDaemon: false,
+    // Сброс не парсит сообщения — geo scan из БД не нужен.
+    placeScan: buildTestPlaceScanService([]),
   });
 
   if (!runtime.dataSource || !runtime.workerRepos) {

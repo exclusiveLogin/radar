@@ -23,6 +23,7 @@ npm run radar -- help [stack|pipeline|ingest|parse|geo|phase|map|data|dev]
 | Импорт geo-каталога | `npm run radar -- geo catalog:import` |
 | Backfill архива | `npm run radar -- ingest backfill -- --all-bindings --batch-size=100` |
 | **Reparse / карта после ingest** | `npm run radar -- parse run` |
+| **После deploy P6 (ADR-012)** | `stack migrate` → restart worker → `pipeline reset` → `parse run` → `pipeline parity` |
 | Перепарсить без смены каталога | `npm run radar -- pipeline reset` → `parse run` |
 | Статус очередей | `npm run radar -- pipeline status` |
 | Чистая система | `phase wipe vendor-ingest-parse-geo -- --confirm` → `geo catalog:import` → backfill → `parse run` |
@@ -211,6 +212,15 @@ npm run radar -- geo catalog:import
 npm run radar -- ingest backfill -- --all-bindings --batch-size=100
 npm run radar -- parse run
 npm run radar -- pipeline parity
+
+# После deploy P6 (parse geo DB scan, ADR-012)
+npm run build
+npm run radar -- stack migrate
+# restart worker
+npm run radar -- pipeline reset
+npm run radar -- parse run
+npm run radar -- pipeline parity
+# опционально: npm run radar -- geo catalog:import
 
 # Перепарсить raw без смены каталога
 npm run radar -- pipeline reset

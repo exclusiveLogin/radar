@@ -71,13 +71,27 @@ function classifyLine(text: string, rules: SegmenterRules): MessageBlock["kind"]
   return "unknown";
 }
 
-/** Семантическая сегментация v1: split + role classification. */
+/** Семантическая сегментация v2: split + role classification (whitespace перед signal). */
+function splitMessageParts(text: string): string[] {
+  const chunks = text.split(/\n+|[|;]/);
+  const parts: string[] = [];
+  for (const chunk of chunks) {
+    const trimmed = chunk.trim();
+    if (!trimmed) continue;
+    const signalParts = trimmed.split(
+      /\s+(?=(?:опасност|внимани|отбой|тревог|сбит|фиксаци|перехват|уничтожен|перехвачен|итог)\b)/iu,
+    );
+    for (const part of signalParts) {
+      const p = part.trim();
+      if (p.length > 0) parts.push(p);
+    }
+  }
+  return parts;
+}
+
 export function segmentMessage(text: string): MessageBlock[] {
   const rules = loadSegmenterRules();
-  const parts = text
-    .split(/\n+|[|;]/)
-    .map((part) => part.trim())
-    .filter((part) => part.length > 0);
+  const parts = splitMessageParts(text);
 
   let offset = 0;
   const blocks: MessageBlock[] = [];

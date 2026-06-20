@@ -5,7 +5,7 @@ import {
   createParsePipelineInWorker,
   type ParsePipelineWorkerConfig,
 } from "./createParsePipeline.js";
-import { GeoCatalog } from "../../infrastructure/geo-catalog/index.js";
+import { GF_P6_SCAN_ENTRIES } from "../../domain/parse/geo/testPlaceScanFixture.js";
 
 type WorkerRequest = {
   type: "parse";
@@ -18,7 +18,12 @@ type WorkerResponse =
   | { id: string; error: string };
 
 const config = workerData as { config: ParsePipelineWorkerConfig };
-const pipeline = createParsePipelineInWorker(config.config, GeoCatalog.loadFromArtifacts());
+const workerConfig: ParsePipelineWorkerConfig = {
+  ...config.config,
+  placeScanEntries: config.config.placeScanEntries ?? GF_P6_SCAN_ENTRIES,
+  placeScanRevision: config.config.placeScanRevision ?? "worker-fixture",
+};
+const pipeline = createParsePipelineInWorker(workerConfig);
 
 parentPort?.on("message", (msg: WorkerRequest) => {
   if (msg.type !== "parse") return;

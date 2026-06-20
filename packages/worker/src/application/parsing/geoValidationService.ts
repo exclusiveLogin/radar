@@ -24,16 +24,8 @@ import {
   isTrustedGeocodeSource,
 } from "../../domain/geo/coordRegionReconcile.js";
 import {
-  filterRegionsByTextContext,
-  findLocalityAnchorsInText,
-  regionHasExplicitMentionInText,
-  resolvePlaceRegionCodeInContext,
-  type RegionCandidate,
-} from "../../domain/geo/geographicTextContext.js";
-import {
   isGarbageIngestPlaceName,
 } from "../../domain/parsing/channelCityListPromo.js";
-import { KnownLocalityCatalog } from "../../infrastructure/geo-catalog/knownLocalityCatalog.js";
 
 export type GeoValidationResult = {
   decision: "matched_existing" | "created_new" | "rejected";
@@ -168,28 +160,6 @@ export class GeoValidationService {
     return null;
   }
 
-  /** Алиас «ГО X» не нужен, если stem-кандидаты уже покрывают catalog place. */
-  private shouldRegisterAlias(placeName: string, matched: PlaceRecord): boolean {
-    if (!matched.nameStem) {
-      return true;
-    }
-    return !collectPlaceMatchStems(placeName).includes(matched.nameStem);
-  }
-
-  private async registerPlaceAlias(
-    placeId: string,
-    alias: string,
-  ): Promise<void> {
-    if (!(await this.places.findById(placeId))) {
-      return;
-    }
-    await this.aliases.upsertAlias({
-      placeId,
-      alias,
-      source: "auto",
-    });
-  }
-
   private buildMatchedContribution(input: {
     placeId: string;
     provider: PlaceProvider;
@@ -241,25 +211,24 @@ export class GeoValidationService {
     return null;
   }
 
-  /** Кандидаты субъектов, упомянутых в тексте (SSOT с finalizer). */
-  private async collectRegionsInText(
-    rawText: string,
-    anchors: ReturnType<typeof findLocalityAnchorsInText>,
-  ): Promise<RegionCandidate[]> {
-    const allRegions = await this.regions.listActive();
-    const candidates: RegionCandidate[] = allRegions.map((region) => ({
-      code: canonicalRegionCode(region),
-      name: region.name,
-      fiasId: region.fiasId ?? undefined,
-      aliases: [],
-    }));
-    return filterRegionsByTextContext(candidates, rawText, anchors);
+  /** Кандидаты субъектов через place(kind=region) stem в БД. */
+  private async resolveRegionByStem(name: string): Promise<RegionRecord | null> {
+    for (const stem of collectPlaceMatchStems(name)) {
+      const matches = await this.places.findByStemGlobal(stem, {
+        minKind: "region",
+        maxKind: "region",
+      });
+      for (const place of matches) {
+        const region = await this.regions.findById(place.regionId);
+        if (region) return region;
+      }
+    }
+    return null;
   }
 
-  /** Локация уровня субъекта: только явно распознанный region, без create place. */
+  /** Локация уровня субъекта: stem-only через place(kind=region), без artifact catalog. */
   private async resolveRegionEntity(
     location: EventLocation,
-    rawText: string,
   ): Promise<RegionRecord | null> {
     if (location.regionCode) {
       const normalizedCode = normalizeRegionCodeAlias(location.regionCode);
@@ -272,30 +241,35 @@ export class GeoValidationService {
     if (location.placeName) {
       const fromNameAlias = await this.resolveRegionByAlias(location.placeName);
       if (fromNameAlias) return fromNameAlias;
+      const fromStem = await this.resolveRegionByStem(location.placeName);
+      if (fromStem) return fromStem;
     }
 
-    const catalog = KnownLocalityCatalog.loadFromDictionaries().list();
-    const anchors = findLocalityAnchorsInText(rawText, catalog);
-    const regionsInText = await this.collectRegionsInText(rawText, anchors);
-    const explicit = regionsInText.find((region) =>
-      regionHasExplicitMentionInText(rawText, region),
-    );
-    if (!explicit) {
-      return null;
+    if (location.placeId) {
+      const place = await this.places.findById(location.placeId);
+      if (place?.kind === "region") {
+        const region = await this.regions.findById(place.regionId);
+        if (region) return region;
+      }
     }
-    return this.regions.findByCode(explicit.code);
+
+    return null;
   }
 
   /**
-   * Регион для НП: тот же SSOT, что finalizer (places.json → якорь → явный субъект).
-   * Без regionCode — reject, «хвост сообщения» не используется.
+   * Регион для НП: placeId / regionCode на локации (P6 stem-only, без places.json).
    */
   private async resolvePlaceEntityRegion(
     location: EventLocation,
-    rawText: string,
-    multiPlaceContext: boolean,
   ): Promise<RegionRecord | null> {
-    // regionCode уже привязан finalizer/enricher — не глушить через suppress на stub «RU-XXX»
+    if (location.placeId) {
+      const place = await this.places.findById(location.placeId);
+      if (place) {
+        const region = await this.regions.findById(place.regionId);
+        if (region) return region;
+      }
+    }
+
     if (location.regionCode) {
       const normalizedCode = normalizeRegionCodeAlias(location.regionCode);
       const bound =
@@ -307,22 +281,7 @@ export class GeoValidationService {
       }
     }
 
-    const catalog = KnownLocalityCatalog.loadFromDictionaries().list();
-    const anchors = findLocalityAnchorsInText(rawText, catalog);
-    const regionsCollected = await this.collectRegionsInText(rawText, anchors);
-    const regionCode = resolvePlaceRegionCodeInContext({
-      placeName: location.placeName!,
-      placeRegionCode: location.regionCode,
-      rawText,
-      anchorsInText: anchors,
-      localityCatalog: catalog,
-      regionsCollected,
-      multiPlaceContext,
-    });
-    if (!regionCode) {
-      return null;
-    }
-    return this.regions.findByCode(regionCode);
+    return null;
   }
 
   private isRegionLevelLocation(location: EventLocation): boolean {
@@ -334,10 +293,8 @@ export class GeoValidationService {
     location: EventLocation,
     context: GeoValidationContext = {},
   ): Promise<GeoValidationResult> {
-    const multiPlaceContext = context.multiPlaceContext ?? false;
-
     if (this.isRegionLevelLocation(location)) {
-      const region = await this.resolveRegionEntity(location, rawQuery);
+      const region = await this.resolveRegionEntity(location);
       if (!region) {
         return { decision: "rejected", location: null };
       }
@@ -355,28 +312,39 @@ export class GeoValidationService {
       return { decision: "rejected", location: null };
     }
 
-    const region = await this.resolvePlaceEntityRegion(
-      location,
-      rawQuery,
-      multiPlaceContext,
-    );
+    const region = await this.resolvePlaceEntityRegion(location);
     if (!region) {
       return { decision: "rejected", location: null };
     }
 
     const provider = context.providerHint ?? sourceToProvider(location.source);
     const trust = toTrustState(provider, context.confidence);
-    // Определяем якоря в тексте — нужны для выбора city_district при коллизии
-    const catalog = KnownLocalityCatalog.loadFromDictionaries().list();
-    const anchors = findLocalityAnchorsInText(rawQuery, catalog);
-    const hasCityAnchor = anchors.some((a) => a.kind === "city");
+
+    if (location.placeId) {
+      const byId = await this.places.findById(location.placeId);
+      if (byId && byId.kind !== "region") {
+        const placeRegion = await this.regions.findById(byId.regionId);
+        if (placeRegion) {
+          return {
+            decision: "matched_existing",
+            location: {
+              ...withResolvedRegion(location, placeRegion),
+              placeId: byId.id,
+              placeName: byId.name,
+              placeFias: byId.fiasId,
+              entityKind: "place",
+            },
+          };
+        }
+      }
+    }
 
     const matched = await this.matchPlace(
       location.placeName,
       region,
       location,
       location.placeFias,
-      hasCityAnchor ? "city_district" : undefined,
+      undefined,
     );
 
     if (matched) {
@@ -394,9 +362,6 @@ export class GeoValidationService {
         return { decision: "rejected", location: null };
       }
 
-      if (this.shouldRegisterAlias(location.placeName ?? "", matched)) {
-        await this.registerPlaceAlias(persistedId, location.placeName ?? "");
-      }
       if (context.allowPlaceUpdates) {
         await this.applyProviderContribution(
           this.buildMatchedContribution({
@@ -450,7 +415,6 @@ export class GeoValidationService {
       return { decision: "rejected", location: null };
     }
 
-    await this.registerPlaceAlias(persistedId, location.placeName);
     return {
       decision: "created_new",
       location: {

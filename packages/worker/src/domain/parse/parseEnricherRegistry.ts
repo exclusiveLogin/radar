@@ -81,6 +81,7 @@ function defaultRegistry(): ParseEnricherRegistry {
           "event-type-processor",
           "mass-clear-exclude-processor",
           "mass-clear-scope-processor",
+          "vicinity-processor",
           "repeat-processor",
           "mass-processor",
           "count-processor",
