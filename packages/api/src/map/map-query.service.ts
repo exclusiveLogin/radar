@@ -13,7 +13,7 @@ import type {
   EventHeatmapPeriod,
   EventHeatmapResponse,
 } from "@radar/shared";
-import { STATE_LEVEL_RANK, eventHeatmapPeriodMs } from "@radar/shared";
+import { STATE_LEVEL_RANK, classifyContentKind, eventHeatmapPeriodMs } from "@radar/shared";
 import type { EventType } from "@radar/shared";
 import { StatusDictionaryEntity } from "../events/entities";
 import { PlaceEntity, RegionEntity } from "../geo/entities";
@@ -518,11 +518,9 @@ export class MapQueryService {
        INNER JOIN channels c ON c.id = rm.channel_id
        INNER JOIN event_locations el ON el.parsed_event_id = pe.id
        INNER JOIN regions r ON r.id = el.region_id AND r.is_active = true
-       INNER JOIN status_dictionary sd
+       LEFT JOIN status_dictionary sd
          ON sd.code = pe.event_type AND sd.is_active = true
        WHERE pe.is_active = true
-         AND sd.state_level IS NOT NULL
-         AND sd.state_level <> 'grey'
        GROUP BY pe.id, rm.id, c.key, c.title, rm.posted_at, rm.raw_text,
                 pe.event_type, pe.extras, pe.repeat, sd.state_level
        ORDER BY rm.posted_at DESC
@@ -538,7 +536,7 @@ export class MapQueryService {
       event_type: string;
       event_category: string | null;
       repeat: boolean | null;
-      state_level: StateLevel;
+      state_level: StateLevel | null;
       region_codes: string[];
       region_names: string[];
     }>;
@@ -553,13 +551,13 @@ export class MapQueryService {
       eventType: row.event_type,
       eventCategory: row.event_category ?? undefined,
       repeat: row.repeat ?? undefined,
-      stateLevel: row.state_level,
+      stateLevel: (row.state_level ?? "grey") as StateLevel,
       regionCodes: row.region_codes ?? [],
       regionNames: row.region_names ?? [],
     }));
   }
 
-  /** Последние raw_messages всех каналов + parse/уровень для ленты дашборда. */
+  /** Последние raw_messages всех каналов — 1 строка на raw, без фильтра по parse/loc. */
   async getRecentMessages(limit: number): Promise<MessageFeedItem[]> {
     const rows = (await this.dataSource.query(
       `SELECT rm.id,
@@ -568,23 +566,29 @@ export class MapQueryService {
               rm.posted_at,
               rm.raw_text,
               rm.ingest_mode,
-              pe.event_type,
-              pe.extras,
-              pe.extras->>'eventCategory' AS event_category,
-              pe.repeat,
-              sd.state_level,
-              COALESCE(
-                array_agg(DISTINCT r.iso) FILTER (WHERE r.iso IS NOT NULL),
-                '{}'
-              ) AS region_codes
+              COALESCE(stats.parsed_event_count, 0)::int AS parsed_event_count,
+              COALESCE(stats.location_count, 0)::int AS location_count,
+              stats.primary_event_type AS event_type,
+              stats.event_category,
+              stats.repeat,
+              stats.state_level,
+              COALESCE(stats.region_codes, '{}') AS region_codes
        FROM raw_messages rm
        INNER JOIN channels c ON c.id = rm.channel_id
-       LEFT JOIN parsed_events pe ON pe.raw_message_id = rm.id AND pe.is_active = true
-       LEFT JOIN status_dictionary sd ON sd.code = pe.event_type AND sd.is_active = true
-       LEFT JOIN event_locations el ON el.parsed_event_id = pe.id
-       LEFT JOIN regions r ON r.id = el.region_id
-       GROUP BY rm.id, c.key, c.title, rm.posted_at, rm.raw_text, rm.ingest_mode,
-                pe.event_type, pe.extras, pe.extras->>'eventCategory', pe.repeat, sd.state_level
+       LEFT JOIN LATERAL (
+         SELECT COUNT(DISTINCT pe.id)::int AS parsed_event_count,
+                COUNT(DISTINCT el.id)::int AS location_count,
+                (array_agg(pe.event_type ORDER BY pe.parsed_at DESC))[1] AS primary_event_type,
+                (array_agg(pe.extras->>'eventCategory' ORDER BY pe.parsed_at DESC))[1] AS event_category,
+                bool_or(pe.repeat) AS repeat,
+                (array_agg(sd.state_level ORDER BY pe.parsed_at DESC))[1] AS state_level,
+                array_agg(DISTINCT r.iso) FILTER (WHERE r.iso IS NOT NULL) AS region_codes
+         FROM parsed_events pe
+         LEFT JOIN status_dictionary sd ON sd.code = pe.event_type AND sd.is_active = true
+         LEFT JOIN event_locations el ON el.parsed_event_id = pe.id
+         LEFT JOIN regions r ON r.id = el.region_id
+         WHERE pe.raw_message_id = rm.id AND pe.is_active = true
+       ) stats ON true
        ORDER BY rm.posted_at DESC
        LIMIT $1`,
       [limit],
@@ -595,11 +599,13 @@ export class MapQueryService {
       posted_at: Date;
       raw_text: string;
       ingest_mode: MessageFeedItem["ingestMode"];
+      parsed_event_count: number;
+      location_count: number;
       event_type: string | null;
       event_category: string | null;
       repeat: boolean | null;
       state_level: StateLevel | null;
-      region_codes: string[];
+      region_codes: string[] | null;
     }>;
 
     return rows.map((row) => ({
@@ -609,6 +615,9 @@ export class MapQueryService {
       postedAt: row.posted_at.toISOString(),
       rawText: row.raw_text,
       ingestMode: row.ingest_mode,
+      contentKind: classifyContentKind(row.raw_text),
+      parsedEventCount: row.parsed_event_count,
+      hasLocations: row.location_count > 0,
       eventType: row.event_type ?? undefined,
       eventCategory: row.event_category ?? undefined,
       repeat: row.repeat ?? undefined,

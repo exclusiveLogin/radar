@@ -243,6 +243,7 @@ export type { CatalogPlaceGeocodeInput, NominatimViewbox } from "./domain/geo/ca
 export { normalizeRegionCodeAlias } from "./domain/regionCodeAlias";
 export { layoutTileToCentroid } from "./domain/layoutCentroid";
 export { maxStateLevel } from "./domain/maxStateLevel";
+export { classifyContentKind, type ContentKind } from "./domain/parsing/classifyContentKind";
 export {
   resolveRawMessagePostedAtOrder,
   type RawMessagePostedAtOrder,

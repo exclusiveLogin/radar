@@ -47,6 +47,7 @@ export {
   fetchHistoryBatchSchema,
 } from "./ingest-timeline";
 export {
+  contentKindSchema,
   messageFeedItemSchema,
   messageFeedResponseSchema,
 } from "./message-feed";

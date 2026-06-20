@@ -2,6 +2,8 @@ import { z } from "zod";
 import { ingestModeSchema } from "./ingest-domain";
 import { stateLevelSchema } from "../geo/state-level";
 
+export const contentKindSchema = z.enum(["event", "noise", "meta"]);
+
 /** Строка ленты сырых сообщений для дашборда (read-side). */
 export const messageFeedItemSchema = z.object({
   id: z.string().uuid(),
@@ -10,6 +12,12 @@ export const messageFeedItemSchema = z.object({
   postedAt: z.string().datetime(),
   rawText: z.string(),
   ingestMode: ingestModeSchema,
+  /** Эвристика groom/noise — для бейджа в UI даже без parse. */
+  contentKind: contentKindSchema,
+  /** Число active parsed_events (0 = не разобрано / noise skip). */
+  parsedEventCount: z.number().int().nonnegative().default(0),
+  /** Есть хотя бы одна строка event_locations. */
+  hasLocations: z.boolean().default(false),
   /** Тип события после parse (null — ещё не разобрано). */
   eventType: z.string().nullable().optional(),
   /** Семантика из parse/LLM (threat, clear, other, …). */
