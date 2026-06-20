@@ -7,11 +7,26 @@ import type {
 } from "@radar/shared";
 import { canonicalRegionCode } from "@radar/shared";
 import type { GeoValidationService } from "../../application/parsing/geoValidationService.js";
+import { applyVicinityScope } from "./applyVicinityScope.js";
 import { deriveEventLocationsFromCandidate } from "./deriveEventLocationsFromCandidate.js";
 import { listActiveCandidates } from "./parseProcessorContract.js";
 
 function countPlaceAnchors(candidates: EventCandidate[]): number {
   return candidates.filter((c) => c.anchor.kind === "place").length;
+}
+
+/** Подтянуть lat/lon из places если anchor пуст. */
+async function enrichDraftCoords(
+  draft: EventLocation,
+  candidate: EventCandidate,
+  places: IPlaceRepository,
+): Promise<EventLocation> {
+  if (draft.lat != null && draft.lon != null) return draft;
+  const placeId = draft.placeId ?? candidate.anchor.placeId;
+  if (!placeId) return draft;
+  const place = await places.findById(placeId);
+  if (place?.centroidLat == null || place.centroidLon == null) return draft;
+  return { ...draft, lat: place.centroidLat, lon: place.centroidLon };
 }
 
 /**
@@ -51,8 +66,7 @@ async function deriveRegionFromPlace(
 }
 
 /**
- * derive + GeoValidationService для materialized winners.
- * SSOT place_id на write-line (как v1 validate перед persist).
+ * derive + GeoValidationService для materialized winners + vicinity scope.
  */
 export async function buildMaterializedEventLocations(input: {
   workspace: ParseWorkspace;
@@ -72,7 +86,8 @@ export async function buildMaterializedEventLocations(input: {
     if (drafts.length === 0) continue;
 
     const validated: EventLocation[] = [];
-    for (const draft of drafts) {
+    for (const rawDraft of drafts) {
+      const draft = await enrichDraftCoords(rawDraft, candidate, input.places);
       const decision = await input.validation.validate(rawText, draft, { multiPlaceContext });
       if (decision.decision === "rejected" || !decision.location) continue;
       validated.push(decision.location);
@@ -97,6 +112,17 @@ export async function buildMaterializedEventLocations(input: {
         result[target.id] = [...(result[target.id] ?? []), ...validatedFacets];
       }
     }
+  }
+
+  const vicinity = await applyVicinityScope({
+    workspace: input.workspace,
+    materializedCandidateIds: input.materializedCandidateIds,
+    regions: input.regions,
+    places: input.places,
+  });
+  if (vicinity) {
+    const existing = result[vicinity.anchorCandidateId] ?? [];
+    result[vicinity.anchorCandidateId] = [...existing, vicinity.location];
   }
 
   return result;

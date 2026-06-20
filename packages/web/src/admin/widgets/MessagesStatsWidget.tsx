@@ -70,9 +70,9 @@ export function MessagesStatsWidget() {
             className="ds-muted"
             style={{ fontSize: 10, margin: "14px 0 6px", lineHeight: 1.35 }}
           >
-            Geo (place_enrichment_jobs):             полоска — доля каталога с{" "}
-            <strong>enriched★</strong> (провайдер в <code>places.evidence_providers</code>).{" "}
-            <strong>осталось</strong> — places без evidence; при <strong>pend/proc</strong> worker
+            Geo (place_enrichment_jobs): полоска — доля каталога с{" "}
+            <strong>enriched★</strong> (job done + coords).{" "}
+            <strong>осталось</strong> — places без coords; при <strong>pend/proc</strong> worker
             ещё крутит очередь.
           </p>
           <div className="admin-phase-enrich-grid">

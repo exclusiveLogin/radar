@@ -9,7 +9,6 @@ import {
   normalizePlaceLabelForGeocode,
 } from "../../domain/parsing/channelCityListPromo.js";
 import { enrichmentMissError } from "../../domain/parsing/placeEnrichmentStatus.js";
-import { syncPlaceGeoQueueForProvider } from "./placeGeoQueueSync.js";
 import {
   logGeoBatchSummary,
   logGeoPlaceOutcome,
@@ -100,7 +99,7 @@ export class PlaceEnrichmentRunner {
     return { ...contribution, fields };
   }
 
-  /** merge + проверка: job done только если провайдер попал в evidence_providers. */
+  /** merge contribution; job done по факту успешного merge. */
   private async applyContribution(
     placeId: string,
     provider: PlaceEnrichmentProvider,
@@ -112,10 +111,6 @@ export class PlaceEnrichmentRunner {
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       return { ok: false, reason: message };
-    }
-    const after = await this.places.findById(placeId);
-    if (!after?.evidenceProviders?.includes(provider)) {
-      return { ok: false, reason: `${provider}: evidence_providers не обновлён после merge` };
     }
     return { ok: true };
   }
@@ -129,19 +124,8 @@ export class PlaceEnrichmentRunner {
       return { claimed: 0, processed: 0, failed: 0 };
     }
 
-    const catchUpEnqueued = await syncPlaceGeoQueueForProvider(this.jobs, provider);
-    const claimed = await this.jobs.claimBatch(provider, limit);
+    const claimed = await this.jobs.claimEligibleBatch(provider, limit);
     if (claimed.length === 0) {
-      if (catchUpEnqueued > 0) {
-        logGeoBatchSummary({
-          phaseId: logContext?.phaseId,
-          provider,
-          claimed: 0,
-          processed: 0,
-          failed: 0,
-          catchUpEnqueued,
-        });
-      }
       return { claimed: 0, processed: 0, failed: 0 };
     }
 
@@ -306,7 +290,6 @@ export class PlaceEnrichmentRunner {
       claimed: claimed.length,
       processed,
       failed,
-      catchUpEnqueued,
     });
     return { claimed: claimed.length, processed, failed };
   }

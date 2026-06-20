@@ -19,6 +19,8 @@
 
 **Приёмка:** [implementation-plan.md](./implementation-plan.md) — чеклист проверки.
 
+**Отладка workspace:** [parse-inspect.md](../../parse-inspect.md) — `parse:inspect` для agent-driven разбора сообщений.
+
 ---
 
 ## Целевой поток

@@ -392,8 +392,13 @@ export type PlaceEnrichmentJobRecord = {
 
 export interface IPlaceEnrichmentJobRepository {
   enqueue(placeId: string, provider: PlaceEnrichmentProvider): Promise<void>;
-  /** Активные places (не region) без провайдера в evidence_providers → pending job. */
+  /** Активные eligible places → pending job (admin warm-up). */
   enqueueCatchUp(provider: PlaceEnrichmentProvider): Promise<{ enqueued: number }>;
+  /** Pull batch: фильтр eligible до LIMIT, upsert + claim processing. */
+  claimEligibleBatch(
+    provider: PlaceEnrichmentProvider,
+    limit: number,
+  ): Promise<PlaceEnrichmentJobRecord[]>;
   claimBatch(
     provider: PlaceEnrichmentProvider,
     limit: number,

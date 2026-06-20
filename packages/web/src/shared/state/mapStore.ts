@@ -4,6 +4,7 @@ import {
   isPlaceSuppressedByRegionClear,
   type MapPlaceSnapshot,
   type MapRegionSnapshot,
+  type MapVicinityScopeSnapshot,
   type PlaceStateEvent,
   type RegionStateEvent,
   type Warning,
@@ -21,6 +22,11 @@ export const regionsByCode$ = new BehaviorSubject<Map<string, MapRegionSnapshot>
 
 /** Активные места с координатами (гео-слой places). */
 export const placesById$ = new BehaviorSubject<Map<string, MapPlaceSnapshot>>(
+  new Map(),
+);
+
+/** Vicinity scope кольца (point + radiusM). */
+export const vicinityScopesById$ = new BehaviorSubject<Map<string, MapVicinityScopeSnapshot>>(
   new Map(),
 );
 
@@ -92,8 +98,9 @@ export function applyMapSnapshot(
   regions: MapRegionSnapshot[],
   places: MapPlaceSnapshot[],
   generatedAt?: string,
+  vicinityScopes: MapVicinityScopeSnapshot[] = [],
 ): void {
-  seedSnapshot(regions, places, generatedAt);
+  seedSnapshot(regions, places, generatedAt, vicinityScopes);
 }
 
 /** Однократная инициализация: REST-снапшот + подписка на WS-дельты. */
@@ -220,6 +227,7 @@ function seedSnapshot(
   regions: MapRegionSnapshot[],
   places: MapPlaceSnapshot[],
   generatedAt?: string,
+  vicinityScopes: MapVicinityScopeSnapshot[] = [],
 ): void {
   const rawRegions = new Map<string, MapRegionSnapshot>();
   for (const region of regions) rawRegions.set(region.regionCode, region);
@@ -230,6 +238,10 @@ function seedSnapshot(
   const rawPlaces = new Map<string, MapPlaceSnapshot>();
   for (const place of places) rawPlaces.set(place.placeId, place);
   placesById$.next(prunePlacesForRegions(rawPlaces, nextRegions));
+
+  const rawScopes = new Map<string, MapVicinityScopeSnapshot>();
+  for (const scope of vicinityScopes) rawScopes.set(scope.scopeId, scope);
+  vicinityScopesById$.next(rawScopes);
 
   lastSnapshotAt$.next(generatedAt ?? new Date().toISOString());
 }
@@ -257,8 +269,9 @@ function applyMessage(message: WsServerMessage): void {
   if (historicalAsOf$.value !== null) return;
   if (message.type === "snapshot") {
     const places = message.payload.places ?? [];
-    if (places.length > 0) {
-      seedSnapshot(message.payload.regions, places, message.payload.generatedAt);
+    const scopes = message.payload.vicinityScopes ?? [];
+    if (places.length > 0 || scopes.length > 0) {
+      seedSnapshot(message.payload.regions, places, message.payload.generatedAt, scopes);
     } else {
       applyRegionsSnapshotOnly(message.payload.regions, message.payload.generatedAt);
     }

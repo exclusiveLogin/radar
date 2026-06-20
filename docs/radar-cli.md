@@ -122,7 +122,10 @@ npm run radar -- help [stack|pipeline|ingest|parse|geo|phase|map|data|dev]
 |-------|--------|------------|
 | `parse snap -- tests/snap_001.txt` | `worker:parse:snap` | Snap одного текста |
 | `parse snap:ollama -- --input …` | `worker:parse:snap:ollama` | Snap + Ollama |
+| `parse inspect -- file.txt --out=tmp/inspect` | `worker:parse:inspect` | Agent debug → md+json dir |
 | `parse report -- --input tests --outdir reports` | `worker:parse:report` | Batch-отчёт |
+
+Подробнее inspect vs snap vs report: [parse-inspect.md](./parse-inspect.md).
 
 ### geo — каталог и обогащение
 

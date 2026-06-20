@@ -468,6 +468,12 @@ docker compose --profile llm-ui up -d
 - Флаг `--use-providers` включает enrich-цепочку поверх локального artifacts-first резолва.
 - Для Ollama snap-check: `npm run worker:parse:snap:ollama -- --input tests/snap_001.txt` (проверяет `/api/tags` и запускает parse через LLM-enabled runtime).
 
+## Parse inspect (agent debug)
+
+- `worker:parse:inspect` — raw → groom/candidates/locations в `--out` dir для разбора агентом (не CI).
+- SSOT: [docs/parse-inspect.md](docs/parse-inspect.md).
+- Отличие от `parse:report`: inspect = один кейс + human trace; report = batch metrics.
+
 ## Worker и Telegram
 
 - Сессии **не в `.env`**: только volume-слоты **`RADAR_SESSIONS_DIR`** (см. `worker:session:deploy`).

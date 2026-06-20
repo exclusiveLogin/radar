@@ -5,6 +5,7 @@ import {
   loadMapFacts,
   loadPlaceMapFacts,
   loadRegionMapFacts,
+  loadVicinityMapFacts,
   type EventLocationFact,
 } from "@radar/shared";
 
@@ -27,5 +28,9 @@ export class MapFactsRepository {
     regionClears?: EventLocationFact[],
   ): Promise<EventLocationFact[]> {
     return loadPlaceMapFacts(this.dataSource, asOf, ttlMs, regionClears);
+  }
+
+  async loadVicinityFacts(asOf: Date, ttlMs: number): Promise<EventLocationFact[]> {
+    return loadVicinityMapFacts(this.dataSource, asOf, ttlMs);
   }
 }

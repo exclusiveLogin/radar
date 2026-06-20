@@ -22,9 +22,9 @@ const phaseCoverageCountsSchema = queueCountsSchema.extend({
 });
 
 const geoEnrichmentCountsSchema = queueCountsSchema.extend({
-  /** job done и провайдер реально в places.evidence_providers. */
+  /** job done и coords на place (geo enrich закрыт). */
   doneWithEvidence: z.number().int().nonnegative(),
-  /** Активные places без провайдера в evidence (ещё не обогащены). */
+  /** Активные places без coords — eligible для drain. */
   catalogRemaining: z.number().int().nonnegative(),
 });
 

@@ -6,6 +6,7 @@ export const locationPrecisionSchema = z.enum([
   "city",
   "locality",
   "settlement",
+  "vicinity",
 ]);
 
 export type LocationPrecision = z.infer<typeof locationPrecisionSchema>;

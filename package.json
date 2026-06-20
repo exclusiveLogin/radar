@@ -62,6 +62,7 @@
     "bot:dev": "npm run dev -w @radar/admin-bot",
     "worker:parse:snap": "npm run parse:snap -w @radar/worker --",
     "worker:parse:snap:ollama": "npm run parse:snap:ollama -w @radar/worker --",
+    "worker:parse:inspect": "npm run parse:inspect -w @radar/worker --",
     "start:api": "npm run start -w @radar/api",
     "worker:parse:report": "npm run parse:report -w @radar/worker --",
     "worker:session:deploy": "npm run worker:session:deploy -w @radar/worker --",

@@ -202,6 +202,13 @@ implements IPlaceEnrichmentJobRepository {
     return { enqueued: 0 };
   }
 
+  async claimEligibleBatch(
+    provider: PlaceEnrichmentProvider,
+    limit: number,
+  ): Promise<PlaceEnrichmentJobRecord[]> {
+    return this.claimBatch(provider, limit);
+  }
+
   async claimBatch(
     provider: PlaceEnrichmentProvider,
     limit: number,

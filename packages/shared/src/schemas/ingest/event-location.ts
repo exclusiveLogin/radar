@@ -20,6 +20,7 @@ export const eventLocationSchema = z.object({
   precision: locationPrecisionSchema,
   lat: z.number().finite().optional(),
   lon: z.number().finite().optional(),
+  scopeRadiusM: z.number().positive().optional(),
   entityKind: z.enum(["region", "place", "point"]).optional(),
   confidence: z.number().min(0).max(1).optional(),
   authorChannelKey: z.string().min(1).optional(),

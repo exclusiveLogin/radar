@@ -6,6 +6,8 @@ import { dirname, join } from "node:path";
 import { runParseWorkspaceOrchestrator } from "./ParseWorkspaceOrchestrator.js";
 import { buildTestPlaceScanService } from "./geo/testPlaceScanFixture.js";
 import { applyCandidateCollapsers } from "./candidateCollapsers.js";
+import { runCatalogEnricher } from "./parseEnricherRunner.js";
+import { groomMessage } from "./groomMessage.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const fixture = (name: string) =>
@@ -14,6 +16,7 @@ const fixture = (name: string) =>
 const TAGANROG_FIXTURE = fixture("gf-p6-02-taganrog-multiline.txt").trim();
 const MO_ONELINER = fixture("gf-p6-01-mo-oneline.txt").trim();
 const GEO_CONFLICT = fixture("gf-p6-04-geo-conflict.txt").trim();
+const TUAPSE_ONELINER = fixture("gf-p6-07-tuapse-vicinity-oneline.txt").trim();
 
 test("GF-P6-01: три MO one-liner → 3 place candidates", () => {
   const placeScan = buildTestPlaceScanService();
@@ -146,4 +149,38 @@ test("geoConflict: collapse не убирает region anchor", () => {
   const collapsed = applyCandidateCollapsers(result.workspace.candidates, result.workspace);
   assert.ok(collapsed.some((c) => c.anchor.kind === "region"));
   assert.ok(collapsed.some((c) => c.anchor.kind === "place"));
+});
+
+test("GF-P6-07: Tuapse one-liner — groom, places, vicinity trait", () => {
+  const placeScan = buildTestPlaceScanService();
+  const groomed = groomMessage(TUAPSE_ONELINER);
+  assert.equal(groomed.kind, "event");
+  if (groomed.kind !== "event") return;
+  assert.ok(!groomed.groomedText.includes("@radar"));
+
+  const result = runParseWorkspaceOrchestrator({
+    rawMessageId: "77777777-7777-7777-7777-777777777707",
+    rawText: TUAPSE_ONELINER,
+    placeScan,
+  });
+  assert.equal(result.kind, "event");
+  if (result.kind !== "event") return;
+
+  runCatalogEnricher({ workspace: result.workspace, placeScan });
+
+  const placeNames = result.workspace.candidates
+    .filter((c) => c.anchor.kind === "place")
+    .map((c) => c.anchor.name.toLowerCase());
+  assert.ok(placeNames.some((n) => n.includes("туапсе")));
+  assert.ok(placeNames.some((n) => n.includes("адлер")));
+  assert.ok(placeNames.some((n) => n.includes("сочи")));
+
+  assert.ok(
+    result.workspace.traitAttachments.some(
+      (t) => t.traitKey === "vicinity" && t.value === true,
+    ),
+  );
+
+  const blockKinds = groomed.blocks.map((b) => b.kind);
+  assert.ok(blockKinds.includes("signal"));
 });

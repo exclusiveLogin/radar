@@ -14,6 +14,14 @@
 npm run worker:parse:snap -- tests/snap_001.txt --geo-report
 ```
 
+### 1.1) Agent debug (parse:inspect)
+
+```bash
+npm run worker:parse:inspect -- tests/snap_001.txt --out=packages/worker/tmp/inspect-snap --storage-mode=db
+```
+
+См. [docs/parse-inspect.md](../docs/parse-inspect.md): snap = stdout JSON; inspect = `--out` md+json; report = batch.
+
 ### 2) Прогон всех снапшотов с отчетом по файлам
 
 ```bash

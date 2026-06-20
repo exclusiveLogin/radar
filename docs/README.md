@@ -4,6 +4,7 @@
 
 | Документ | Когда читать |
 |----------|----------------|
+| **[parse-inspect.md](./parse-inspect.md)** | **Parse debug:** `parse:inspect` → agent artifacts |
 | **[radar-cli.md](./radar-cli.md)** | **SSOT CLI:** частые команды + таблицы radar ↔ legacy по доменам |
 | **[cheatsheet.md](./cheatsheet.md)** | Ingest, backfill, SQL, UI, диагностика (без дубля таблиц) |
 | **[runbook/geo-clean-rebuild.md](./runbook/geo-clean-rebuild.md)** | Сброс БД → catalog → backfill → reparse |
@@ -52,7 +53,7 @@ npm run radar -- pipeline status
 | CLI / операции | [radar-cli.md](./radar-cli.md), [cheatsheet.md](./cheatsheet.md), [phase-commands.md](./phase-commands.md) |
 | Слои и wiring | [architecture-layers-and-wiring.md](./architecture-layers-and-wiring.md) |
 | Потоки в коде | [domain/how-it-works.md](./domain/how-it-works.md) |
-| Parse / domain pack | [master-implementation-roadmap.md](./rfc/master-implementation-roadmap.md), [adr-014](./adr-014-operational-domain-profile.md) |
+| Parse / domain pack | [master-implementation-roadmap.md](./rfc/master-implementation-roadmap.md), [parse-inspect.md](./parse-inspect.md), [adr-014](./adr-014-operational-domain-profile.md) |
 | Geo-артефакты / каталог | [runbook/geo-clean-rebuild.md](./runbook/geo-clean-rebuild.md), [data/geo/README.md](../data/geo/README.md) |
 | Phase-pipeline v2 | [phase-pipeline.md](./phase-pipeline.md), [api/phases-admin.md](./api/phases-admin.md) |
 | Карта | корневой [README § Сейчас в продукте](../README.md#сейчас-в-продукте), [web-map-feeds.md](./web-map-feeds.md) |

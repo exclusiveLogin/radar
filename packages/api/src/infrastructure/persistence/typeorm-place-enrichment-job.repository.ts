@@ -17,6 +17,29 @@ type Row = {
   updated_at: Date;
 };
 
+/** SSOT фильтр eligible places для geo enrich (pull batch). */
+const ELIGIBLE_PLACE_WHERE = `
+  p.is_active = true
+  AND p.kind <> 'region'
+  AND p.centroid_lat IS NULL
+  AND p.centroid_lon IS NULL
+  AND (gf.centroid_lat IS NULL OR gf.id IS NULL)
+  AND NOT EXISTS (
+    SELECT 1 FROM place_enrichment_jobs j
+    WHERE j.place_id = p.id
+      AND j.provider = $1
+      AND j.status = 'processing'
+  )
+  AND NOT EXISTS (
+    SELECT 1 FROM place_enrichment_jobs j
+    WHERE j.place_id = p.id
+      AND j.provider = $1
+      AND j.status = 'done'
+      AND p.centroid_lat IS NOT NULL
+      AND p.centroid_lon IS NOT NULL
+  )
+`;
+
 export class TypeOrmPlaceEnrichmentJobRepository
 implements IPlaceEnrichmentJobRepository {
   constructor(private readonly dataSource: DataSource) {}
@@ -43,20 +66,18 @@ implements IPlaceEnrichmentJobRepository {
       INSERT INTO place_enrichment_jobs (place_id, provider, status, attempts, updated_at)
       SELECT p.id, $1, 'pending', 0, now()
       FROM places p
-      WHERE p.is_active = true
-        AND p.kind <> 'region'
-        AND (
-          NOT COALESCE(p.evidence_providers, '[]'::jsonb) @> to_jsonb(ARRAY[$1]::text[])
-          OR EXISTS (
-            SELECT 1 FROM place_enrichment_jobs j
-            WHERE j.place_id = p.id
-              AND j.provider = $1
-              AND j.status = 'failed'
-          )
-        )
+      LEFT JOIN geo_feature gf ON gf.id = p.geo_feature_id
+      WHERE ${ELIGIBLE_PLACE_WHERE}
       ON CONFLICT (place_id, provider) DO UPDATE
       SET status = CASE
-            WHEN place_enrichment_jobs.status = 'done' THEN place_enrichment_jobs.status
+            WHEN place_enrichment_jobs.status = 'done'
+              AND EXISTS (
+                SELECT 1 FROM places pp
+                WHERE pp.id = place_enrichment_jobs.place_id
+                  AND pp.centroid_lat IS NOT NULL
+                  AND pp.centroid_lon IS NOT NULL
+              )
+            THEN place_enrichment_jobs.status
             ELSE 'pending'
           END,
           updated_at = now()
@@ -66,6 +87,53 @@ implements IPlaceEnrichmentJobRepository {
     );
     const inserted = readTypeOrmQueryRows<{ id: string }>(rows);
     return { enqueued: inserted.length };
+  }
+
+  /** Pull batch: eligible places → upsert pending → claim processing. */
+  async claimEligibleBatch(
+    provider: PlaceEnrichmentProvider,
+    limit: number,
+  ): Promise<PlaceEnrichmentJobRecord[]> {
+    const rows = readTypeOrmQueryRows<Row>(
+      await this.dataSource.query(
+        `
+        WITH eligible AS (
+          SELECT p.id AS place_id
+          FROM places p
+          LEFT JOIN geo_feature gf ON gf.id = p.geo_feature_id
+          WHERE ${ELIGIBLE_PLACE_WHERE}
+          ORDER BY p.updated_at ASC
+          LIMIT $2
+        ),
+        upserted AS (
+          INSERT INTO place_enrichment_jobs (place_id, provider, status, attempts, updated_at)
+          SELECT place_id, $1, 'pending', 0, now()
+          FROM eligible
+          ON CONFLICT (place_id, provider) DO UPDATE
+          SET status = CASE
+                WHEN place_enrichment_jobs.status = 'done'
+                  AND EXISTS (
+                    SELECT 1 FROM places pp
+                    WHERE pp.id = place_enrichment_jobs.place_id
+                      AND pp.centroid_lat IS NOT NULL
+                      AND pp.centroid_lon IS NOT NULL
+                  )
+                THEN place_enrichment_jobs.status
+                ELSE 'pending'
+              END,
+              updated_at = now()
+          RETURNING id
+        )
+        UPDATE place_enrichment_jobs j
+        SET status = 'processing', updated_at = now()
+        FROM upserted u
+        WHERE j.id = u.id AND j.status = 'pending'
+        RETURNING j.id, j.place_id, j.provider, j.status, j.attempts, j.last_error, j.created_at, j.updated_at
+        `,
+        [provider, limit],
+      ),
+    );
+    return rows.map((row) => this.toRecord(row));
   }
 
   async claimBatch(

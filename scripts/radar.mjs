@@ -66,7 +66,7 @@ ingest — каналы и backfill
 `,
   parse: `
 parse — офлайн и фаза
-  snap | snap:ollama | report
+  snap | snap:ollama | inspect | report
   run             rebuild:drain (основной прогон)
 `,
   geo: `
@@ -172,6 +172,7 @@ const ACTIONS = {
   parse: {
     snap: (p) => npmW('@radar/worker', 'parse:snap', p),
     'snap:ollama': (p) => npmW('@radar/worker', 'parse:snap:ollama', p),
+    inspect: (p) => npmW('@radar/worker', 'parse:inspect', p),
     report: (p) => npmW('@radar/worker', 'parse:report', p),
     run: (p) => npmW('@radar/worker', 'parse-engine:rebuild:drain', p),
   },

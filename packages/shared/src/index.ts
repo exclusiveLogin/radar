@@ -177,6 +177,7 @@ export {
   foldMapState,
   foldRegionMapState,
   foldPlaceMapState,
+  foldVicinityScopeMapState,
   filterRegionScopedFacts,
   shouldIncomingBeatWinner,
   isRegionVisibleInSnapshot,
@@ -187,6 +188,7 @@ export type {
   MapStateFoldInput,
   MapStateFoldResult,
   FoldPlaceMapStateInput,
+  FoldVicinityScopeMapStateInput,
 } from "./domain/region-state/mapStateFold";
 export {
   isMassClearTextEligible,
@@ -199,6 +201,7 @@ export {
   loadMapFacts,
   loadRegionMapFacts,
   loadPlaceMapFacts,
+  loadVicinityMapFacts,
   loadMapFoldFacts,
 } from "./domain/region-state/mapFactsLoader";
 export { isPgDeadlockError, isPgContendedReadError, isPgStatementTimeoutError, withPgContendedReadRetry, withPgDeadlockRetry } from "./infrastructure/pgDeadlockRetry";
@@ -344,6 +347,7 @@ export type {
   LayoutTile,
   MapRegionSnapshot,
   MapPlaceSnapshot,
+  MapVicinityScopeSnapshot,
   PlaceStateEvent,
   MapSnapshot,
   MapRegionsStateResponse,

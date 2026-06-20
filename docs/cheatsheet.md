@@ -189,6 +189,14 @@ npm run radar -- pipeline status
 npm run radar -- pipeline parity
 ```
 
+### Parse debug (agent)
+
+```powershell
+npm run worker:parse:inspect -- tests/snap_001.txt --out=packages/worker/tmp/inspect-snap --storage-mode=db
+```
+
+SSOT: [parse-inspect.md](./parse-inspect.md).
+
 Wipe/reset/clear — [phase-commands.md](./phase-commands.md).
 
 ---

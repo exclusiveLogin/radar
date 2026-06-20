@@ -19,6 +19,9 @@ export type EventLocationFact = {
   occurredAt: string;
   authorChannelKey: string | null;
   entityKind: "region" | "place" | "point" | null;
+  lat?: number;
+  lon?: number;
+  scopeRadiusM?: number;
 };
 
 /** Winner сущности после fold. */
@@ -179,6 +182,49 @@ export function foldPlaceMapState(input: FoldPlaceMapStateInput): MapEntityWinne
     places.push(winner);
   }
   return places;
+}
+
+export type FoldVicinityScopeMapStateInput = {
+  asOf: Date;
+  ttlMs: number;
+  facts: EventLocationFact[];
+  regionWinners: MapEntityWinner[];
+};
+
+/** Vicinity scope winners: point + scopeRadiusM, suppress по region clear. */
+export function foldVicinityScopeMapState(
+  input: FoldVicinityScopeMapStateInput,
+): MapEntityWinner[] {
+  const asOfMs = input.asOf.getTime();
+  const inWindow = filterInWindow(input.facts, asOfMs, input.ttlMs);
+  const scopeFacts = inWindow.filter(
+    (fact) =>
+      fact.entityKind === "point"
+      && fact.scopeRadiusM != null
+      && fact.lat != null
+      && fact.lon != null,
+  );
+  const scopeWinners = foldEntityWinners(scopeFacts, (fact) => fact.factId, false);
+  const regionById = new Map(input.regionWinners.map((r) => [r.regionId, r]));
+
+  const scopes: MapEntityWinner[] = [];
+  for (const [, winner] of scopeWinners) {
+    if (winner.action !== "raise") continue;
+    if (winner.stateLevel === "grey") continue;
+    const regionWinner = regionById.get(winner.regionId);
+    if (!regionWinner) continue;
+    if (
+      isPlaceSuppressedByRegionClear({
+        placeStatusEventAt: winner.occurredAt,
+        regionStatusEventAt: regionWinner.occurredAt,
+        regionAction: regionWinner.action,
+      })
+    ) {
+      continue;
+    }
+    scopes.push(winner);
+  }
+  return scopes;
 }
 
 /**

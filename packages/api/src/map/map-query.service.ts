@@ -286,6 +286,9 @@ export class MapQueryService {
       places: snapshot.places.filter(
         (place) => place.statusEventAt && new Date(place.statusEventAt) > sinceDate,
       ),
+      vicinityScopes: (snapshot.vicinityScopes ?? []).filter(
+        (scope) => scope.statusEventAt && new Date(scope.statusEventAt) > sinceDate,
+      ),
     };
   }
 

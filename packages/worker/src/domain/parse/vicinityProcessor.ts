@@ -1,29 +1,44 @@
 import type { ParseWorkspace } from "@radar/shared";
-import { listCandidatesByAuthor } from "./parseProcessorContract.js";
+import { createTraitAttachment } from "./attachRule.js";
 
 const AUTHOR = "vicinity-processor";
-const ENRICHER = "catalog";
-const GEO_AUTHOR = "geo-processor";
 
-const VICINITY_PATTERN = /\b(?:около|в\s+районе|рядом\s+с|вблизи)\b/iu;
+/** Маркеры vicinity (ADR-012 §3): без \\b — Cyrillic word boundary ненадёжен. */
+const VICINITY_MARKER =
+  /(?:около|в\s+районе|рядом\s+с|вблизи|близлежащ\w*|ближайш\w*|пригород\w*)/iu;
 
-/** Минимальный VicinityProcessor: trait vicinity по span window рядом с geo-hit. */
+function findBlockForIndex(
+  workspace: ParseWorkspace,
+  index: number,
+): ParseWorkspace["blocks"][number] | undefined {
+  return workspace.blocks.find(
+    (block) => block.span.start <= index && index < block.span.end,
+  );
+}
+
+/** VicinityProcessor: trait vicinity по block overlap, без extras.vicinity. */
 export function runVicinityProcessor(workspace: ParseWorkspace): void {
-  const geoCandidates = listCandidatesByAuthor(workspace, GEO_AUTHOR);
-  if (geoCandidates.length === 0) return;
-
   const text = workspace.groomedText;
-  for (const candidate of geoCandidates) {
-    const span = candidate.anchor.span;
-    if (!span) continue;
+  const match = VICINITY_MARKER.exec(text);
+  if (!match || match.index === undefined) return;
 
-    const windowStart = Math.max(0, span.start - 40);
-    const windowEnd = Math.min(text.length, span.end + 40);
-    const window = text.slice(windowStart, windowEnd);
-    if (!VICINITY_PATTERN.test(window)) continue;
+  const block = findBlockForIndex(workspace, match.index);
+  if (!block) return;
 
-    candidate.extras = { ...candidate.extras, vicinity: true };
-  }
+  const already = workspace.traitAttachments.some(
+    (t) => t.traitKey === "vicinity" && t.processorId === AUTHOR,
+  );
+  if (already) return;
+
+  workspace.traitAttachments.push(
+    createTraitAttachment({
+      processorId: AUTHOR,
+      traitKey: "vicinity",
+      value: true,
+      attachRule: { scope: "by_span_overlap", span: block.span },
+      matchedText: match[0],
+    }),
+  );
 }
 
 export const VICINITY_PROCESSOR_ID = AUTHOR;

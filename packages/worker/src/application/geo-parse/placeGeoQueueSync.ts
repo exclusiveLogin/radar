@@ -4,8 +4,7 @@ import type {
 } from "@radar/shared";
 
 /**
- * geoParse: ставит jobs по каталогу places, без привязки к raw_messages.
- * Условие — провайдер ещё не в evidence_providers (или job failed для повтора).
+ * geoParse: jobs SSOT — drain через claimEligibleBatch (pull batch).
  */
 export async function syncPlaceGeoQueueForProvider(
   jobs: IPlaceEnrichmentJobRepository,

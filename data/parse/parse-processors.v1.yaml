@@ -13,6 +13,9 @@ processors:
   - id: mass-clear-scope-processor
     enabled: true
     order: 30
+  - id: vicinity-processor
+    enabled: true
+    order: 35
   - id: repeat-processor
     enabled: true
     order: 40

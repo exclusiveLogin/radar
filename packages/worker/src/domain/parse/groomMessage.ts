@@ -1,14 +1,16 @@
 import { stripSignature } from "../parsing/stripSignature.js";
 import { classifyContentKind } from "../parsing/classifyContentKind.js";
 import { segmentMessage } from "./segmenter/segmentMessage.js";
+import { stripInlineChannelNoise } from "./stripChannelNoise.js";
 
 export type GroomResult =
   | { kind: "meta" | "noise"; reason: string }
   | { kind: "event"; groomedText: string; blocks: ReturnType<typeof segmentMessage> };
 
-/** Подготовка текста: подпись, сегментация, отсев promo/footer. */
+/** Подготовка текста: подпись, inline promo, сегментация, отсев promo/footer. */
 export function groomMessage(rawPost: string): GroomResult {
-  const cleaned = stripSignature(rawPost);
+  const afterSignature = stripSignature(rawPost);
+  const cleaned = stripInlineChannelNoise(afterSignature);
   const contentKind = classifyContentKind(cleaned);
   if (contentKind === "meta") {
     return { kind: "meta", reason: "meta_content" };

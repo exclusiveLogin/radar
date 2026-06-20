@@ -40,7 +40,7 @@ export class EventLocationEntity {
   place!: PlaceEntity | null;
 
   @Column({ name: "precision", type: "text" })
-  precision!: "region" | "district" | "city" | "locality" | "settlement";
+  precision!: "region" | "district" | "city" | "locality" | "settlement" | "vicinity";
 
   @Column({ name: "lat", type: "numeric", precision: 9, scale: 6, nullable: true })
   lat!: string | null;
@@ -68,4 +68,7 @@ export class EventLocationEntity {
 
   @Column({ name: "occurred_at", type: "timestamptz", default: () => "now()" })
   occurredAt!: Date;
+
+  @Column({ name: "scope_radius_m", type: "numeric", precision: 10, scale: 2, nullable: true })
+  scopeRadiusM!: string | null;
 }

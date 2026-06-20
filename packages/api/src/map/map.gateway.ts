@@ -62,13 +62,19 @@ export class MapGateway
           generatedAt: regionsState.generatedAt,
           regions: regionsState.regions,
           places: [],
+          vicinityScopes: [],
         },
       });
     } catch (error) {
       console.warn("[MapGateway] snapshot on connect failed — empty payload", error);
       this.send(client, {
         type: "snapshot",
-        payload: { generatedAt: new Date().toISOString(), regions: [], places: [] },
+        payload: {
+          generatedAt: new Date().toISOString(),
+          regions: [],
+          places: [],
+          vicinityScopes: [],
+        },
       });
     }
   }

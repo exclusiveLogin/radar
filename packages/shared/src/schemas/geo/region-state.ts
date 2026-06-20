@@ -95,11 +95,25 @@ export const placeStateEventSchema = z.object({
   changedAt: z.string().datetime(),
 });
 
+/** Vicinity scope на гео-карте: point + radiusM (жёлтое кольцо). */
+export const mapVicinityScopeSnapshotSchema = z.object({
+  scopeId: z.string().uuid(),
+  regionId: z.string().uuid(),
+  regionCode: z.string().min(1),
+  lat: z.number().finite(),
+  lon: z.number().finite(),
+  radiusM: z.number().positive(),
+  stateLevel: stateLevelSchema,
+  statusEventAt: z.string().datetime().optional(),
+  updatedAt: z.string().datetime(),
+});
+
 /** Лёгкий снапшот карты: состояние + activity + layout, без полигонов. */
 export const mapSnapshotSchema = z.object({
   generatedAt: z.string().datetime(),
   regions: z.array(mapRegionSnapshotSchema),
   places: z.array(mapPlaceSnapshotSchema).default([]),
+  vicinityScopes: z.array(mapVicinityScopeSnapshotSchema).default([]),
 });
 
 /** Ответ GET /map/regions-state — только fold регионов. */
@@ -150,6 +164,7 @@ export type RegionStateEvent = z.infer<typeof regionStateEventSchema>;
 export type LayoutTile = z.infer<typeof layoutTileSchema>;
 export type MapRegionSnapshot = z.infer<typeof mapRegionSnapshotSchema>;
 export type MapPlaceSnapshot = z.infer<typeof mapPlaceSnapshotSchema>;
+export type MapVicinityScopeSnapshot = z.infer<typeof mapVicinityScopeSnapshotSchema>;
 export type PlaceStateEvent = z.infer<typeof placeStateEventSchema>;
 export type MapSnapshot = z.infer<typeof mapSnapshotSchema>;
 export type MapRegionsStateResponse = z.infer<typeof mapRegionsStateResponseSchema>;

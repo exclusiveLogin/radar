@@ -8,11 +8,13 @@ import type {
   MapRegionSnapshot,
   MapRegionsStateResponse,
   MapSnapshot,
+  MapVicinityScopeSnapshot,
   StateLevel,
 } from "@radar/shared";
 import {
   foldPlaceMapState,
   foldRegionMapState,
+  foldVicinityScopeMapState,
   maxStateLevel,
   resolveMapStateTtlMs,
   type EventLocationFact,
@@ -87,15 +89,78 @@ export class MapSnapshotQueryService {
   }
 
   async getSnapshotAt(asOf: Date): Promise<MapSnapshot> {
-    const [regionsState, placesState] = await Promise.all([
+    const [regionsState, placesState, vicinityScopes] = await Promise.all([
       this.getRegionsStateAt(asOf),
       this.getPlacesStateAt(asOf),
+      this.getVicinityScopesAt(asOf),
     ]);
     return {
       generatedAt: asOf.toISOString(),
       regions: regionsState.regions,
       places: placesState.places,
+      vicinityScopes,
     };
+  }
+
+  async getVicinityScopesAt(asOf: Date): Promise<MapVicinityScopeSnapshot[]> {
+    const ttlMs = resolveMapStateTtlMs(process.env);
+    let regionFacts: EventLocationFact[] = [];
+    let vicinityFacts: EventLocationFact[] = [];
+    try {
+      regionFacts = await this.factsRepository.loadRegionFacts(asOf, ttlMs);
+      vicinityFacts = await this.factsRepository.loadVicinityFacts(asOf, ttlMs);
+    } catch (error) {
+      console.warn("[MapSnapshot] loadVicinityFacts failed — empty fold", error);
+    }
+    const regionWinners = foldRegionMapState({ asOf, ttlMs, facts: regionFacts });
+    const scopeWinners = foldVicinityScopeMapState({
+      asOf,
+      ttlMs,
+      facts: vicinityFacts,
+      regionWinners,
+    });
+    const levelByStatus = await this.loadStatusLevels();
+    return this.buildVicinityScopeSnapshots(scopeWinners, levelByStatus, asOf, vicinityFacts);
+  }
+
+  private buildVicinityScopeSnapshots(
+    winners: Array<{
+      regionId: string;
+      regionCode: string;
+      statusCode: string;
+      stateLevel: StateLevel;
+      occurredAt: string;
+    }>,
+    levelByStatus: Map<string, StateLevel>,
+    asOf: Date,
+    facts: EventLocationFact[],
+  ): MapVicinityScopeSnapshot[] {
+    const items: MapVicinityScopeSnapshot[] = [];
+    for (const winner of winners) {
+      const scopeFact = facts.find(
+        (f) =>
+          f.regionId === winner.regionId
+          && f.occurredAt === winner.occurredAt
+          && f.scopeRadiusM != null
+          && f.lat != null
+          && f.lon != null,
+      );
+      if (!scopeFact?.lat || !scopeFact.lon || !scopeFact.scopeRadiusM) continue;
+      const stateLevel = maxStateLevel([winner.statusCode], levelByStatus);
+      if (stateLevel === "grey") continue;
+      items.push({
+        scopeId: scopeFact.factId,
+        regionId: winner.regionId,
+        regionCode: winner.regionCode,
+        lat: scopeFact.lat,
+        lon: scopeFact.lon,
+        radiusM: scopeFact.scopeRadiusM,
+        stateLevel,
+        statusEventAt: winner.occurredAt,
+        updatedAt: asOf.toISOString(),
+      });
+    }
+    return items;
   }
 
   private async buildRegionSnapshots(

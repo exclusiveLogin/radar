@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import type { MessageBlock } from "@radar/shared";
+import { buildSignalStatsSplitPattern, getSegmenterStems } from "./segmenterStems.js";
 
 type SegmenterRules = {
   promoPatterns: RegExp[];
@@ -48,6 +49,10 @@ function toRules(raw: string): SegmenterRules {
   };
 }
 
+function stemClassifyPatterns(stems: string[]): RegExp[] {
+  return stems.map((s) => new RegExp(s, "i"));
+}
+
 let cachedRules: SegmenterRules | null = null;
 
 function loadSegmenterRules(): SegmenterRules {
@@ -63,24 +68,24 @@ function loadSegmenterRules(): SegmenterRules {
 }
 
 function classifyLine(text: string, rules: SegmenterRules): MessageBlock["kind"] {
+  const stems = getSegmenterStems();
   if (rules.promoPatterns.some((p) => p.test(text))) return "promo";
   if (rules.footerPatterns.some((p) => p.test(text))) return "footer";
-  if (rules.statsPatterns.some((p) => p.test(text))) return "stats";
-  if (rules.signalPatterns.some((p) => p.test(text))) return "signal";
+  if (stemClassifyPatterns(stems.stats).some((p) => p.test(text))) return "stats";
+  if (stemClassifyPatterns(stems.signal).some((p) => p.test(text))) return "signal";
   if (rules.geoPatterns.some((p) => p.test(text))) return "geo";
   return "unknown";
 }
 
 /** Семантическая сегментация v2: split + role classification (whitespace перед signal). */
 function splitMessageParts(text: string): string[] {
+  const splitPattern = buildSignalStatsSplitPattern();
   const chunks = text.split(/\n+|[|;]/);
   const parts: string[] = [];
   for (const chunk of chunks) {
     const trimmed = chunk.trim();
     if (!trimmed) continue;
-    const signalParts = trimmed.split(
-      /\s+(?=(?:опасност|внимани|отбой|тревог|сбит|фиксаци|перехват|уничтожен|перехвачен|итог)\b)/iu,
-    );
+    const signalParts = trimmed.split(splitPattern);
     for (const part of signalParts) {
       const p = part.trim();
       if (p.length > 0) parts.push(p);

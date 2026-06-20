@@ -103,7 +103,7 @@ export async function resetGeoEnrichmentPhase(input: {
       dryRun: true,
       counts: {},
       notes: [
-        "Обнулит centroid/bbox/trust на places; TRUNCATE place_enrichment_jobs и event_evidence.",
+        "Обнулит centroid/bbox/trust на places; TRUNCATE event_evidence. Jobs сохраняются.",
         "geo_feature_id и каталог regions не трогает.",
       ],
     };
@@ -113,10 +113,9 @@ export async function resetGeoEnrichmentPhase(input: {
     dataSource: input.dataSource,
     repos: input.repos,
     reason: "geo:reset",
-    clearGeoJobs: true,
+    clearGeoJobs: false,
   });
 
-  const jobs = await truncateTableCounted(input.dataSource, "place_enrichment_jobs");
   const evidence = await truncateTableCounted(input.dataSource, "event_evidence");
 
   const placesBefore = await countTableRows(input.dataSource, "places");
@@ -140,7 +139,6 @@ export async function resetGeoEnrichmentPhase(input: {
     dryRun: false,
     counts: {
       places_enrichment_cleared: placesBefore,
-      place_enrichment_jobs: jobs,
       event_evidence: evidence,
     },
   };

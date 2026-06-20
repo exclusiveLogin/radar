@@ -1,4 +1,4 @@
-import type { MapPlaceSnapshot, MapRegionSnapshot, StateLevel } from "@radar/shared";
+import type { MapPlaceSnapshot, MapRegionSnapshot, MapVicinityScopeSnapshot, StateLevel } from "@radar/shared";
 import {
   GEO_MAP_PLACE_FILL_OPACITY,
   GEO_MAP_REGION_FILL_OPACITY,
@@ -13,6 +13,81 @@ import { effectivePlaceLevel, isPlaceVisibleOnMap, isRegionVisibleOnMap } from "
 import { geoMapFillOpacity, geoMapStrokeOpacity } from "../../shared/utils/regionFade";
 import { insetRegionGeometry } from "./regionInsetOutline";
 import type { GeoJsonCollection, PointFeature, PolygonFeature } from "./geoMapTypes";
+
+const VICINITY_RING_COLOR = "#FFD54F";
+const EARTH_RADIUS_M = 6371000;
+
+/** Точка на окружности (метры, bearing deg). */
+function destinationPoint(
+  lat: number,
+  lon: number,
+  bearingDeg: number,
+  distanceM: number,
+): [number, number] {
+  const br = (bearingDeg * Math.PI) / 180;
+  const lat1 = (lat * Math.PI) / 180;
+  const lon1 = (lon * Math.PI) / 180;
+  const ang = distanceM / EARTH_RADIUS_M;
+  const lat2 = Math.asin(
+    Math.sin(lat1) * Math.cos(ang) + Math.cos(lat1) * Math.sin(ang) * Math.cos(br),
+  );
+  const lon2 =
+    lon1
+    + Math.atan2(
+      Math.sin(br) * Math.sin(ang) * Math.cos(lat1),
+      Math.cos(ang) - Math.sin(lat1) * Math.sin(lat2),
+    );
+  return [(lon2 * 180) / Math.PI, (lat2 * 180) / Math.PI];
+}
+
+function circleRing(lat: number, lon: number, radiusM: number, steps = 64): [number, number][] {
+  const ring: [number, number][] = [];
+  for (let i = 0; i <= steps; i += 1) {
+    ring.push(destinationPoint(lat, lon, (360 * i) / steps, radiusM));
+  }
+  return ring;
+}
+
+/** Vicinity scope → polygon ring features (жёлтое кольцо). */
+export function vicinityScopesToFeatures(
+  scopes: Map<string, MapVicinityScopeSnapshot>,
+  regions: Map<string, MapRegionSnapshot>,
+  now: number,
+): PolygonFeature[] {
+  return [...scopes.values()]
+    .filter((scope) => {
+      const region = regions.get(scope.regionCode);
+      return region && isRegionVisibleOnMap(region, now);
+    })
+    .map((scope) => ({
+      type: "Feature" as const,
+      geometry: {
+        type: "Polygon" as const,
+        coordinates: [circleRing(scope.lat, scope.lon, scope.radiusM)],
+      },
+      properties: {
+        kind: "vicinity-scope",
+        scopeId: scope.scopeId,
+        regionCode: scope.regionCode,
+        radiusM: scope.radiusM,
+        statusEventAt: scope.statusEventAt ?? "",
+        fillOpacity: geoMapFillOpacity(scope.statusEventAt, now, 0.08),
+        lineOpacity: geoMapStrokeOpacity(scope.statusEventAt, now, 0.08, 0.5),
+        color: VICINITY_RING_COLOR,
+      },
+    }));
+}
+
+export function vicinityScopesCollection(
+  scopes: Map<string, MapVicinityScopeSnapshot>,
+  regions: Map<string, MapRegionSnapshot>,
+  now = Date.now(),
+): GeoJsonCollection {
+  return {
+    type: "FeatureCollection",
+    features: vicinityScopesToFeatures(scopes, regions, now),
+  };
+}
 
 /** Виды place с полигоном района на карте. */
 const DISTRICT_KINDS = new Set(["district", "city_district"]);

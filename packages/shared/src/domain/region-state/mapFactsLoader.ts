@@ -73,6 +73,9 @@ type FactRow = {
   author_channel_key: string | null;
   entity_kind: string | null;
   occurred_at: Date;
+  lat: string | null;
+  lon: string | null;
+  scope_radius_m: string | null;
 };
 
 type SyntheticClearRow = {
@@ -108,6 +111,9 @@ function toFact(row: FactRow): EventLocationFact {
     occurredAt: new Date(row.occurred_at).toISOString(),
     authorChannelKey: row.author_channel_key,
     entityKind: row.entity_kind as EventLocationFact["entityKind"],
+    lat: row.lat != null ? Number(row.lat) : undefined,
+    lon: row.lon != null ? Number(row.lon) : undefined,
+    scopeRadiusM: row.scope_radius_m != null ? Number(row.scope_radius_m) : undefined,
   };
 }
 
@@ -127,7 +133,7 @@ function toRegionClearFact(row: SyntheticClearRow, prefix: string): EventLocatio
 }
 
 /** Область загрузки location facts для split read-path. */
-export type MapFactsLocationScope = "all" | "regions" | "places";
+export type MapFactsLocationScope = "all" | "regions" | "places" | "vicinity";
 
 function scopeFilterSql(scope: MapFactsLocationScope): string {
   if (scope === "regions") {
@@ -135,6 +141,9 @@ function scopeFilterSql(scope: MapFactsLocationScope): string {
   }
   if (scope === "places") {
     return `AND el.place_id IS NOT NULL AND COALESCE(el.entity_kind, 'region') <> 'region'`;
+  }
+  if (scope === "vicinity") {
+    return `AND el.scope_radius_m IS NOT NULL AND COALESCE(el.entity_kind, 'region') = 'point'`;
   }
   return "";
 }
@@ -162,6 +171,9 @@ async function loadLocationFacts(
            ) AS action,
            COALESCE(el.author_channel_key, c.key) AS author_channel_key,
            el.entity_kind,
+           el.lat,
+           el.lon,
+           el.scope_radius_m,
            el.occurred_at AS occurred_at
     FROM event_locations el
     JOIN parsed_events pe ON pe.id = el.parsed_event_id
@@ -459,6 +471,21 @@ async function loadPlaceMapFactsOnce(
 
   const authorPlaceClearFacts = buildAuthorPlaceClearFacts(clears, placeRaiseFacts);
   return [...locationFacts, ...authorPlaceClearFacts];
+}
+
+/** Vicinity scope layer: point + scope_radius_m. */
+export async function loadVicinityMapFacts(
+  db: MapFactsDbQuery,
+  asOf: Date,
+  ttlMs: number,
+): Promise<EventLocationFact[]> {
+  return withPgContendedReadRetry(
+    () => runMapFactsReadSession(db, async (session) => {
+      const cutoff = new Date(asOf.getTime() - ttlMs);
+      return loadLocationFacts(session, asOf, cutoff, "vicinity");
+    }),
+    { maxAttempts: 3, baseDelayMs: 60 },
+  );
 }
 
 /** Полная загрузка фактов для fold: locations + синтетики mass/channel/place-clear. */

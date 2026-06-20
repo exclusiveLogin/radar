@@ -35,7 +35,7 @@ import {
   resolveMapBasemapFallbackForTheme,
   resolveMapBasemapStyleForTheme,
 } from "../../shared/config/mapConfig.service";
-import { placesById$, regionsByCode$, mapViewAnchor$ } from "../../shared/state/mapStore";
+import { placesById$, regionsByCode$, mapViewAnchor$, vicinityScopesById$ } from "../../shared/state/mapStore";
 import { geoMapLayers$, type GeoMapLayerId } from "../../shared/state/mapLayerStore";
 import {
   hasActiveHeatmapEventTypesFilter,
@@ -60,12 +60,16 @@ import {
   REGIONS_OUTLINE_SOURCE,
   REGIONS_SELECTION,
   REGIONS_SOURCE,
+  VICINITY_SCOPES_FILL,
+  VICINITY_SCOPES_OUTLINE,
+  VICINITY_SCOPES_SOURCE,
 } from "./geoMapLayerIds";
 import {
   paintActiveDistricts,
   paintRegionOutlines,
   placesCollection,
   placesToFeatures,
+  vicinityScopesCollection,
 } from "./geoMapPaint";
 import { createGeoMapRuntime, whenStyleReady, wireMapBootstrap } from "./geoMapRuntime";
 import {
@@ -183,6 +187,7 @@ export function useGeoMapLifecycle(containerRef: RefObject<HTMLDivElement | null
     const syncPlacesFromStores = (): void => {
       if (disposed || !map) return;
       applyPlacesCentroids();
+      applyVicinityScopes();
     };
 
     /** Синхронизирует visibility оверлеев с mapLayerStore после paint/recovery. */
@@ -316,6 +321,21 @@ export function useGeoMapLifecycle(containerRef: RefObject<HTMLDivElement | null
         if (!userAdjustedViewBeforeGeo) {
           fitIfNeeded([], collection.features);
         }
+        syncLayerVisibility();
+      });
+    };
+
+    /** Vicinity scope кольца из fold snapshot. */
+    const applyVicinityScopes = (): void => {
+      if (!map) return;
+      whenStyleReady(map, () => {
+        if (!map) return;
+        const collection = vicinityScopesCollection(
+          vicinityScopesById$.value,
+          regionsByCode$.value,
+          mapViewAnchor$.value,
+        );
+        runtime.sources.apply(VICINITY_SCOPES_SOURCE, collection);
         syncLayerVisibility();
       });
     };
@@ -456,6 +476,39 @@ export function useGeoMapLifecycle(containerRef: RefObject<HTMLDivElement | null
           minzoom: EVENTS_HEATMAP_ZOOM_POINTS_MIN,
           layout: { visibility: "none" },
           paint: eventsHeatmapPointsPaint(theme$.value) as never,
+        });
+      }
+
+      // --- Vicinity scopes (между heatmap и places) ---
+      if (!map.getSource(VICINITY_SCOPES_SOURCE)) {
+        map.addSource(VICINITY_SCOPES_SOURCE, {
+          type: "geojson",
+          data: vicinityScopesCollection(new Map(), new Map()),
+        });
+      }
+      if (!map.getLayer(VICINITY_SCOPES_FILL)) {
+        map.addLayer({
+          id: VICINITY_SCOPES_FILL,
+          type: "fill",
+          source: VICINITY_SCOPES_SOURCE,
+          filter: ["==", ["get", "kind"], "vicinity-scope"],
+          paint: {
+            "fill-color": ["coalesce", ["get", "color"], "#FFD54F"],
+            "fill-opacity": ["coalesce", ["get", "fillOpacity"], 0.08],
+          },
+        });
+      }
+      if (!map.getLayer(VICINITY_SCOPES_OUTLINE)) {
+        map.addLayer({
+          id: VICINITY_SCOPES_OUTLINE,
+          type: "line",
+          source: VICINITY_SCOPES_SOURCE,
+          filter: ["==", ["get", "kind"], "vicinity-scope"],
+          paint: {
+            "line-color": ["coalesce", ["get", "color"], "#FFD54F"],
+            "line-width": 2,
+            "line-opacity": ["coalesce", ["get", "lineOpacity"], 0.6],
+          },
         });
       }
 

@@ -173,17 +173,19 @@ export class ReadSideQueryService {
        GROUP BY provider, status`,
     );
 
-    // Считаем напрямую из places.evidence_providers — не зависит от состояния jobs
-    const geoEvidenceRows = await this.dataSource.query<
+    // SSOT: done job + coords на place (не evidence_providers).
+    const geoEnrichedRows = await this.dataSource.query<
       Array<{ provider: string; count: string }>
     >(
-      `SELECT prov.provider, COUNT(*)::int AS count
-       FROM places p
-       CROSS JOIN (VALUES ('dadata'), ('nominatim'), ('llm')) AS prov(provider)
-       WHERE p.is_active = true
+      `SELECT j.provider, COUNT(DISTINCT j.place_id)::int AS count
+       FROM place_enrichment_jobs j
+       JOIN places p ON p.id = j.place_id
+       WHERE j.status = 'done'
+         AND p.is_active = true
          AND p.kind <> 'region'
-         AND COALESCE(p.evidence_providers, '[]'::jsonb) @> to_jsonb(ARRAY[prov.provider]::text[])
-       GROUP BY prov.provider`,
+         AND p.centroid_lat IS NOT NULL
+         AND p.centroid_lon IS NOT NULL
+       GROUP BY j.provider`,
     );
 
     const geoCatalogRemainingRows = await this.dataSource.query<
@@ -191,10 +193,19 @@ export class ReadSideQueryService {
     >(
       `SELECT prov.provider, COUNT(*)::int AS count
        FROM places p
+       LEFT JOIN geo_feature gf ON gf.id = p.geo_feature_id
        CROSS JOIN (VALUES ('dadata'), ('llm'), ('nominatim')) AS prov(provider)
        WHERE p.is_active = true
          AND p.kind <> 'region'
-         AND NOT COALESCE(p.evidence_providers, '[]'::jsonb) @> to_jsonb(ARRAY[prov.provider]::text[])
+         AND p.centroid_lat IS NULL
+         AND p.centroid_lon IS NULL
+         AND (gf.centroid_lat IS NULL OR gf.id IS NULL)
+         AND NOT EXISTS (
+           SELECT 1 FROM place_enrichment_jobs j
+           WHERE j.place_id = p.id
+             AND j.provider = prov.provider
+             AND j.status = 'processing'
+         )
        GROUP BY prov.provider`,
     );
 
@@ -216,8 +227,8 @@ export class ReadSideQueryService {
       geoJobsByProvider.set(row.provider, bucket);
     }
 
-    const geoEvidenceByProvider = new Map(
-      geoEvidenceRows.map((row) => [row.provider, Number(row.count ?? 0)]),
+    const geoEnrichedByProvider = new Map(
+      geoEnrichedRows.map((row) => [row.provider, Number(row.count ?? 0)]),
     );
 
     const geoCatalogRemainingByProvider = new Map(
@@ -238,7 +249,7 @@ export class ReadSideQueryService {
         enabled: phase.enabled,
         counts: {
           ...jobs,
-          doneWithEvidence: provider ? (geoEvidenceByProvider.get(provider) ?? 0) : 0,
+          doneWithEvidence: provider ? (geoEnrichedByProvider.get(provider) ?? 0) : 0,
           catalogRemaining: provider ? (geoCatalogRemainingByProvider.get(provider) ?? 0) : 0,
         },
       };
