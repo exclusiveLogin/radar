@@ -1,9 +1,9 @@
 import type { Subject } from "rxjs";
-import { combineLatest, debounceTime } from "rxjs";
-import { filter, startWith, switchMap } from "rxjs/operators";
-import { mapApi } from "../../shared/api/mapApi";
+import { combineLatest, EMPTY, merge, timer } from "rxjs";
+import { debounceTime, startWith, switchMap } from "rxjs/operators";import { mapApi } from "../../shared/api/mapApi";
 import {
   hasActiveHeatmapEventTypesFilter,
+  HEATMAP_LIVE_POLL_MS,
   heatmapEventTypesFilter$,
   heatmapPeriod$,
   resolveHeatmapEventTypesQuery,
@@ -37,19 +37,32 @@ function heatmapFetchPhase$(
     heatmapEventTypesFilter$,
     signals.heatmapManualRefresh$.pipe(startWith(undefined)),
   ]).pipe(
-    filter(([layers, , , filterTypes]) =>
-      layers.heatmap && hasActiveHeatmapEventTypesFilter(filterTypes),
-    ),
     debounceTime(400),
-    switchMap(([, period, until, filterTypes]) =>
-      toFetchPhase$(() =>
-        mapApi.eventsHeatmap({
-          period,
-          until: until ?? new Date().toISOString(),
-          eventTypes: resolveHeatmapEventTypesQuery(filterTypes),
-        }),
-      ),
-    ),
+    switchMap(([layers, period, until, filterTypes]) => {
+      if (!layers.heatmap || !hasActiveHeatmapEventTypesFilter(filterTypes)) {
+        return EMPTY;
+      }
+
+      const fetchHeatmap = () =>
+        toFetchPhase$(() =>
+          mapApi.eventsHeatmap({
+            period,
+            until: until ?? new Date().toISOString(),
+            eventTypes: resolveHeatmapEventTypesQuery(filterTypes),
+          }),
+        );
+
+      // Live: сразу + poll каждые N с; replay — только при смене asOf/фильтров.
+      const livePoll$ =
+        until === null
+          ? timer(HEATMAP_LIVE_POLL_MS, HEATMAP_LIVE_POLL_MS).pipe(
+              switchMap(() => fetchHeatmap()),
+            )
+          : EMPTY;
+
+      // fetchHeatmap() холодный (HTTP в toFetchPhase$ на subscribe) — defer не обязателен.
+      return merge(fetchHeatmap(), livePoll$);
+    }),
   );
 }
 

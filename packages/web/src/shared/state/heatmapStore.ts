@@ -6,6 +6,9 @@ import {
   type EventHeatmapPeriod,
 } from "@radar/shared";
 
+/** Период live-polling теплокарты (пока слой включён; replay — только по смене asOf). */
+export const HEATMAP_LIVE_POLL_MS = 15_000;
+
 /** Пресет окна выборки событий. */
 export const heatmapPeriod$ = new BehaviorSubject<EventHeatmapPeriod>("24h");
 
