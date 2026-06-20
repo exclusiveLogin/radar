@@ -204,6 +204,21 @@ test("regionHasExplicitMentionInText: короткое DB-name + тип в те�
   assert.equal(regionHasExplicitMentionInText(KHVASTOVICHY_MSG, klu), true);
 });
 
+test("resolvePlaceRegionCodeInContext: RVK перечень МО + одна область", () => {
+  const msg =
+    "г. Елец\nЕлецкий МО\nДолгоруковский МО\nЛипецкая область\nОпасность по БПЛА";
+  const lip = { code: "RU-LIP", name: "Липецкая", aliases: ["липецкая", "липецкая область"] };
+  const code = resolvePlaceRegionCodeInContext({
+    placeName: "Елец",
+    rawText: msg,
+    anchorsInText: [],
+    localityCatalog: ANCHORS,
+    regionsCollected: [lip],
+    multiPlaceContext: true,
+  });
+  assert.equal(code, "RU-LIP");
+});
+
 test("resolvePlaceRegionCodeInContext: pipeline regionCode при пустом regionsCollected", () => {
   const code = resolvePlaceRegionCodeInContext({
     placeName: "Хвастовичский район",

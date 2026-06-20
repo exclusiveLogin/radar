@@ -13,6 +13,14 @@ export const attachRuleSchema = z.discriminatedUnion("scope", [
     scope: z.literal("by_event_type"),
     type: z.string().min(1),
   }),
+  z.object({
+    scope: z.literal("by_span_overlap"),
+    span: z.object({ start: z.number(), end: z.number() }),
+  }),
+  z.object({
+    scope: z.literal("by_candidate_ids"),
+    ids: z.array(z.string()).min(1),
+  }),
   z.object({ scope: z.enum(["first", "last"]) }),
   z.object({ scope: z.literal("system") }),
 ]);

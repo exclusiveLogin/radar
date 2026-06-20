@@ -6,6 +6,7 @@ import type {
   IRegionRepository,
 } from "@radar/shared";
 import type { GeoCatalog } from "../../infrastructure/geo-catalog/index.js";
+import type { GeoValidationService } from "../parsing/geoValidationService.js";
 import {
   ParseWorkspaceMessageService,
   type StoredParseWorkspace,
@@ -15,6 +16,7 @@ import { ParseWorkspacePersistService } from "./ParseWorkspacePersistService.js"
 export type ParseWorkspaceStackDeps = {
   geoCatalog: GeoCatalog;
   regions: IRegionRepository;
+  validation: GeoValidationService;
   parsedEvents: IParsedEventRepository;
   eventLocations: IEventLocationRepository;
   messageParseWorkspaces: IMessageParseWorkspaceRepository;
@@ -48,6 +50,7 @@ export function createParseWorkspaceStack(deps: ParseWorkspaceStackDeps): {
   const workspaceService = new ParseWorkspaceMessageService({
     geoCatalog: deps.geoCatalog,
     regions: deps.regions,
+    validation: deps.validation,
     persist,
     loadStoredWorkspace,
   });

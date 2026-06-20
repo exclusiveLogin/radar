@@ -507,6 +507,23 @@ export function resolvePlaceRegionCodeInContext(options: {
     return placeRegionCode;
   }
 
+  // RVK: перечисление НП/МО + один явный субъект в тексте — привязка всех place к нему.
+  const explicitRegions = options.regionsCollected.filter((region) =>
+    regionHasExplicitMentionInText(options.rawText, region),
+  );
+  if (explicitRegions.length === 1) {
+    const region = explicitRegions[0]!;
+    if (
+      !shouldSuppressFederalSubjectMatch(
+        options.rawText,
+        region,
+        options.anchorsInText,
+      )
+    ) {
+      return region.code;
+    }
+  }
+
   if (options.multiPlaceContext) {
     return null;
   }

@@ -1,6 +1,10 @@
 import type { EventCandidate, ParseWorkspace } from "@radar/shared";
 import type { GeoCatalog } from "../../infrastructure/geo-catalog/index.js";
 import type { RegionCatalogEntry } from "../../infrastructure/geo-catalog/regionCatalog.js";
+import {
+  findLocalityAnchorsInText,
+  resolvePlaceRegionCodeInContext,
+} from "../geo/geographicTextContext.js";
 import { appendCandidate, rejectOwnCandidates } from "./parseProcessorContract.js";
 
 const AUTHOR = "geo-processor";
@@ -65,11 +69,30 @@ export function runGeoProcessor(input: {
     );
   }
 
+  const localityCatalog = geoCatalog.listLocalityCatalog();
+  const anchorsInText = findLocalityAnchorsInText(text, localityCatalog);
+  const regionsCollected = regions.map((region) => ({
+    code: region.code,
+    name: region.name,
+    fiasId: region.fiasId,
+    aliases: region.aliases,
+  }));
+  const multiPlaceContext = places.length > 1;
+
   const placeCandidates: EventCandidate[] = [];
   for (const place of places) {
     const span = findSpan(text, place.name);
     if (!span) continue;
-    const regionCode = geoCatalog.lookupRegionForPlaceName(place.name) ?? undefined;
+    const regionCode =
+      resolvePlaceRegionCodeInContext({
+        placeName: place.name,
+        placeRegionCode: geoCatalog.lookupRegionForPlaceName(place.name) ?? undefined,
+        rawText: text,
+        anchorsInText,
+        localityCatalog,
+        regionsCollected,
+        multiPlaceContext,
+      }) ?? undefined;
     placeCandidates.push(
       appendCandidate({
         workspace,

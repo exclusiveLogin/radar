@@ -68,6 +68,7 @@ export class PhaseRunner {
     const { workspaceService } = createParseWorkspaceStack({
       geoCatalog: this.deps.geoCatalog,
       regions: this.deps.regions,
+      validation: this.deps.validation,
       parsedEvents: this.deps.parsedEvents,
       eventLocations: this.deps.eventLocations,
       messageParseWorkspaces: this.deps.messageParseWorkspaces,

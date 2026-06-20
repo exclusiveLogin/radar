@@ -10,8 +10,10 @@
 import { randomUUID } from "node:crypto";
 import type { GeoCatalog } from "../../infrastructure/geo-catalog/index.js";
 import type { IRegionRepository } from "@radar/shared";
+import type { GeoValidationService } from "./geoValidationService.js";
 import { candidateToParsedEvent } from "../../domain/parse/candidateToParsedEvent.js";
-import { buildLocationsByCandidateId } from "../../domain/parse/deriveEventLocationsFromCandidate.js";
+import { buildMaterializedEventLocations } from "../../domain/parse/buildMaterializedEventLocations.js";
+import { resolveEventTypeForCandidate } from "../../domain/parse/resolveEventTypeForCandidate.js";
 import { createEmptyParseWorkspace } from "../../domain/parse/parseWorkspaceFactory.js";
 import { listActiveCandidates } from "../../domain/parse/parseProcessorContract.js";
 import type { ParseWorkspaceMessageService } from "../parse/ParseWorkspaceMessageService.js";
@@ -47,6 +49,7 @@ export type ParsePipelineServiceDeps = {
   workspaceService: ParseWorkspaceMessageService;
   regions: IRegionRepository;
   geoCatalog: GeoCatalog;
+  validation: GeoValidationService;
   ingestParsePhases: PhaseDefinitionRecord[];
 };
 
@@ -62,7 +65,9 @@ function enricherRunLogToGeoPipeline(workspace: ParseWorkspace): GeoPipelineRepo
 
 function pickPrimaryCandidate(workspace: ParseWorkspace): ParseWorkspace["candidates"][number] | undefined {
   return (
-    listActiveCandidates(workspace).find((c) => c.eventType !== "unknown")
+    listActiveCandidates(workspace).find(
+      (c) => resolveEventTypeForCandidate(c, workspace) !== "unknown",
+    )
     ?? listActiveCandidates(workspace)[0]
   );
 }
@@ -72,8 +77,15 @@ async function collectMaterializedLocations(
   candidateEventMap: Record<string, string>,
   regions: IRegionRepository,
   geoCatalog: GeoCatalog,
+  validation: GeoValidationService,
 ): Promise<EventLocation[]> {
-  const byCandidate = await buildLocationsByCandidateId(workspace, regions, geoCatalog);
+  const byCandidate = await buildMaterializedEventLocations({
+    workspace,
+    materializedCandidateIds: Object.keys(candidateEventMap),
+    regions,
+    geoCatalog,
+    validation,
+  });
   const locations: EventLocation[] = [];
   for (const candidateId of Object.keys(candidateEventMap)) {
     locations.push(...(byCandidate[candidateId] ?? []));
@@ -120,6 +132,7 @@ export class ParsePipelineService {
       finalize.candidateEventMap,
       this.deps.regions,
       this.deps.geoCatalog,
+      this.deps.validation,
     );
     const geoPipeline = enricherRunLogToGeoPipeline(workspace);
 

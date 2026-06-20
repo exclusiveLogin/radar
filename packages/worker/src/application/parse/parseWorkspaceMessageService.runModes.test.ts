@@ -7,6 +7,7 @@ import {
   InMemoryRegionRepository,
 } from "../handlers/inMemoryRepositories.js";
 import { createParseWorkspaceStack } from "./createParseWorkspaceStack.js";
+import { createTestGeoValidation } from "./createTestGeoValidation.js";
 import { GeoCatalog } from "../../infrastructure/geo-catalog/index.js";
 
 const regionRecord = {
@@ -33,6 +34,7 @@ test("phase_enrich: load workspace из БД без re-orchestrator", async () =
   const { workspaceService } = createParseWorkspaceStack({
     geoCatalog,
     regions,
+    validation: createTestGeoValidation(regions),
     parsedEvents,
     eventLocations,
     messageParseWorkspaces: workspaces,
@@ -85,6 +87,7 @@ test("heal: без workspace → meta", async () => {
   const { workspaceService } = createParseWorkspaceStack({
     geoCatalog,
     regions,
+    validation: createTestGeoValidation(regions),
     parsedEvents,
     eventLocations,
     messageParseWorkspaces: workspaces,

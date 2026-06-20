@@ -1,5 +1,6 @@
 import type { EventCandidate, ParseWorkspace, TraitAttachment } from "@radar/shared";
 import { resolveAttachTargets } from "./attachRule.js";
+import { EVENT_TYPE_TRAIT_KEY } from "./resolveEventTypeForCandidate.js";
 
 /** Ключи traits — только из traitAttachments, не in-place на candidate. */
 export const TRAIT_EXTRAS_KEYS = ["repeat", "mass", "count"] as const;
@@ -58,7 +59,7 @@ export function materializeCandidateExtras(
   workspace: ParseWorkspace,
 ): Record<string, unknown> {
   const base = { ...candidate.extras };
-  for (const key of TRAIT_EXTRAS_KEYS) {
+  for (const key of [...TRAIT_EXTRAS_KEYS, EVENT_TYPE_TRAIT_KEY]) {
     delete base[key];
   }
   const traits = resolveTraitsForCandidate(

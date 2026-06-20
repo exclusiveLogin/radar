@@ -9,6 +9,7 @@ import { listActiveCandidates } from "./parseProcessorContract.js";
 import { applyCandidateCollapsers } from "./candidateCollapsers.js";
 import { candidateToParsedEvent } from "./candidateToParsedEvent.js";
 import { isCandidateGeoValid } from "./geoPolicy.js";
+import { withResolvedEventType } from "./resolveEventTypeForCandidate.js";
 import type { FinalizePlan, MaterializedEvent } from "./ParseFinalizerService.js";
 
 /** Выбор winner в CRDT-группе: trust → processor tie-break. */
@@ -55,10 +56,11 @@ export function planFinalizeMerge(input: {
   const collapsed = applyCandidateCollapsers(winners, workspace);
 
   for (const candidate of collapsed) {
-    if (candidate.eventType === "unknown" || !isCandidateGeoValid({
-      eventType: candidate.eventType,
-      anchorKind: candidate.anchor.kind,
-      massClearChannel: candidate.extras.massClearChannel === true,
+    const resolved = withResolvedEventType(candidate, workspace);
+    if (resolved.eventType === "unknown" || !isCandidateGeoValid({
+      eventType: resolved.eventType,
+      anchorKind: resolved.anchor.kind,
+      massClearChannel: resolved.extras.massClearChannel === true,
     })) {
       const priorId = context.candidateEventMap[candidate.id];
       if (priorId) invalidIds.push(priorId);
@@ -66,7 +68,7 @@ export function planFinalizeMerge(input: {
     }
 
     const parsedEventId = context.candidateEventMap[candidate.id];
-    const parsedEvent = candidateToParsedEvent({ workspace, candidate, postedAt });
+    const parsedEvent = candidateToParsedEvent({ workspace, candidate: resolved, postedAt });
     materialized.push({
       candidateId: candidate.id,
       parsedEvent,

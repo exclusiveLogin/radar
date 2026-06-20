@@ -39,15 +39,8 @@ export class TypeOrmParsedEventRepository implements IParsedEventRepository {
 
   async upsertById(id: string | undefined, parsed: ParsedEvent): Promise<{ id: string }> {
     const repo = this.dataSource.getRepository(ParsedEventEntity);
-    const existing = id
-      ? await repo.findOne({ where: { id } })
-      : await repo.findOne({
-          where: {
-            rawMessageId: parsed.rawMessageId,
-            parserVersion: parsed.parserVersion,
-          },
-          order: { parsedAt: "DESC" },
-        });
+    // Без id — всегда новый parsed_event (multi-anchor finalize). Обновление — только по id / candidateEventMap.
+    const existing = id ? await repo.findOne({ where: { id } }) : null;
 
     if (existing) {
       existing.eventType = parsed.eventType;

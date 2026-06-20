@@ -4,21 +4,72 @@ import {
   normalizeRegionCodeAlias,
 } from "@radar/shared";
 import type { GeoCatalog } from "../../infrastructure/geo-catalog/index.js";
+import {
+  findLocalityAnchorsInText,
+  resolvePlaceRegionCodeInContext,
+} from "../geo/geographicTextContext.js";
 import { listActiveCandidates } from "./parseProcessorContract.js";
 
-/** Резолв region row по anchor candidate (code → name → catalog lookup для place). */
+/** regionCode для anchor: явный на candidate → контекст сообщения (RVK + субъект). */
+function resolveAnchorRegionCode(
+  candidate: EventCandidate,
+  geoCatalog: GeoCatalog,
+  workspace: ParseWorkspace,
+): string | undefined {
+  const onAnchor = candidate.anchor.regionCode?.trim();
+  if (onAnchor) {
+    return normalizeRegionCodeAlias(onAnchor);
+  }
+
+  if (candidate.anchor.kind !== "place") {
+    return undefined;
+  }
+
+  const text = workspace.groomedText;
+  const localityCatalog = geoCatalog.listLocalityCatalog();
+  const regionsCollected = geoCatalog.findRegions(text).map((region) => ({
+    code: region.code,
+    name: region.name,
+    fiasId: region.fiasId,
+    aliases: region.aliases,
+  }));
+  const anchorsInText = findLocalityAnchorsInText(text, localityCatalog);
+  const placeCount = listActiveCandidates(workspace).filter((c) => c.anchor.kind === "place").length;
+  const catalogCode = geoCatalog.lookupRegionForPlaceName(candidate.anchor.name);
+
+  const code = resolvePlaceRegionCodeInContext({
+    placeName: candidate.anchor.name,
+    placeRegionCode: catalogCode ?? undefined,
+    rawText: text,
+    anchorsInText,
+    localityCatalog,
+    regionsCollected,
+    multiPlaceContext: placeCount > 1,
+  });
+
+  return code ? normalizeRegionCodeAlias(code) : undefined;
+}
+
+/** Резолв region row по anchor candidate (code → контекст → catalog lookup для place). */
 async function resolveRegionForCandidate(
   regions: IRegionRepository,
   candidate: EventCandidate,
   geoCatalog?: GeoCatalog,
+  workspace?: ParseWorkspace,
 ): Promise<RegionRecord | null> {
-  const code = candidate.anchor.regionCode?.trim();
+  const code =
+    geoCatalog && workspace
+      ? resolveAnchorRegionCode(candidate, geoCatalog, workspace)
+      : candidate.anchor.regionCode?.trim()
+        ? normalizeRegionCodeAlias(candidate.anchor.regionCode.trim())
+        : undefined;
+
   if (code) {
     const byCode = await regions.findByCode(normalizeRegionCodeAlias(code));
     if (byCode) return byCode;
   }
 
-  if (candidate.anchor.kind === "place" && geoCatalog) {
+  if (candidate.anchor.kind === "place" && geoCatalog && !workspace) {
     const fromCatalog = geoCatalog.lookupRegionForPlaceName(candidate.anchor.name);
     if (fromCatalog) {
       const byCatalog = await regions.findByCode(normalizeRegionCodeAlias(fromCatalog));
@@ -40,12 +91,13 @@ export async function deriveEventLocationsFromCandidate(
   candidate: EventCandidate,
   regions: IRegionRepository,
   geoCatalog?: GeoCatalog,
+  workspace?: ParseWorkspace,
 ): Promise<EventLocation[]> {
   if (candidate.anchor.kind === "system") {
     return [];
   }
 
-  const region = await resolveRegionForCandidate(regions, candidate, geoCatalog);
+  const region = await resolveRegionForCandidate(regions, candidate, geoCatalog, workspace);
   if (!region) {
     return [];
   }
@@ -92,7 +144,12 @@ export async function buildLocationsByCandidateId(
 ): Promise<Record<string, EventLocation[]>> {
   const result: Record<string, EventLocation[]> = {};
   for (const candidate of listActiveCandidates(workspace)) {
-    const locations = await deriveEventLocationsFromCandidate(candidate, regions, geoCatalog);
+    const locations = await deriveEventLocationsFromCandidate(
+      candidate,
+      regions,
+      geoCatalog,
+      workspace,
+    );
     if (locations.length > 0) {
       result[candidate.id] = locations;
     }

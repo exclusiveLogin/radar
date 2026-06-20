@@ -90,7 +90,7 @@ export class ParseWorkspacePersistService {
       parserRevision: input.parserRevision,
       groomedText: input.workspace.groomedText,
       workspace: input.workspace,
-      spawnedEventIds,
+      spawnedEventIds: [...new Set(spawnedEventIds)],
       candidateEventMap,
     });
 
@@ -99,7 +99,7 @@ export class ParseWorkspacePersistService {
       updated,
       deactivated,
       deleted,
-      spawnedEventIds,
+      spawnedEventIds: [...new Set(spawnedEventIds)],
       candidateEventMap,
     };
   }

@@ -1,13 +1,18 @@
 import type { ParseWorkspace } from "@radar/shared";
 import { extractEventType } from "../parsing/extractEventType.js";
 import { appendCandidate, listCandidatesByAuthor } from "./parseProcessorContract.js";
+import { createTraitAttachment } from "./attachRule.js";
 import { isChannelWideMassClearText } from "./massClearScope.js";
+import { EVENT_TYPE_TRAIT_KEY } from "./resolveEventTypeForCandidate.js";
 
 const AUTHOR = "event-type-processor";
 const ENRICHER = "catalog";
 const GEO_AUTHOR = "geo-processor";
 
-/** EventTypeProcessor: append type overlays (не in-place mutate чужих candidates). */
+/**
+ * EventTypeProcessor: обогащает workspace traitAttachments, не клонирует geo-candidates.
+ * Finalizer резолвит eventType через resolveEventTypeForCandidate.
+ */
 export function runEventTypeProcessor(workspace: ParseWorkspace): string | null {
   const eventType = extractEventType(workspace.groomedText);
   if (!eventType) {
@@ -48,50 +53,24 @@ export function runEventTypeProcessor(workspace: ParseWorkspace): string | null 
     const localType = extractEventType(block.text);
     if (!localType) continue;
 
-    for (const geo of geoCandidates) {
-      const overlaps =
-        geo.anchor.span.start <= block.span.end
-        && geo.anchor.span.end >= block.span.start;
-      if (!overlaps) continue;
-
-      appendCandidate({
-        workspace,
-        authorProcessorId: AUTHOR,
-        authorEnricherId: ENRICHER,
-        anchor: { ...geo.anchor },
-        eventType: localType,
-        extras: { ...geo.extras },
-        provenance: {
-          eventTypeSource: `${AUTHOR}:context`,
-          anchorSource: geo.provenance.anchorSource,
-          blockId: block.id,
-        },
-      });
-    }
-  }
-
-  for (const geo of geoCandidates) {
-    const hasOverlay = workspace.candidates.some(
-      (c) =>
-        c.authorProcessorId === AUTHOR
-        && c.mergeKey === geo.mergeKey
-        && c.status === "active",
+    workspace.traitAttachments.push(
+      createTraitAttachment({
+        processorId: AUTHOR,
+        traitKey: EVENT_TYPE_TRAIT_KEY,
+        value: localType,
+        attachRule: { scope: "by_span_overlap", span: block.span },
+      }),
     );
-    if (hasOverlay) continue;
-
-    appendCandidate({
-      workspace,
-      authorProcessorId: AUTHOR,
-      authorEnricherId: ENRICHER,
-      anchor: { ...geo.anchor },
-      eventType,
-      extras: { ...geo.extras },
-      provenance: {
-        eventTypeSource: AUTHOR,
-        anchorSource: geo.provenance.anchorSource,
-      },
-    });
   }
+
+  workspace.traitAttachments.push(
+    createTraitAttachment({
+      processorId: AUTHOR,
+      traitKey: EVENT_TYPE_TRAIT_KEY,
+      value: eventType,
+      attachRule: { scope: "all_candidates" },
+    }),
+  );
 
   return eventType;
 }

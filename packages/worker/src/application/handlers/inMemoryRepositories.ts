@@ -69,12 +69,7 @@ export class InMemoryParsedEventRepository implements IParsedEventRepository {
   private readonly byId = new Map<string, ParsedEvent & { id: string }>();
 
   async upsert(parsed: ParsedEvent): Promise<{ id: string }> {
-    const existing = [...this.byId.values()].find(
-      (row) =>
-        row.rawMessageId === parsed.rawMessageId
-        && row.parserVersion === parsed.parserVersion,
-    );
-    return this.upsertById(existing?.id, parsed);
+    return this.upsertById(undefined, parsed);
   }
 
   async findByRawMessageId(rawMessageId: string): Promise<(ParsedEvent & { id: string }) | null> {

@@ -4,9 +4,12 @@ import {
   InMemoryEventLocationRepository,
   InMemoryMessageParseWorkspaceRepository,
   InMemoryParsedEventRepository,
+  InMemoryPlaceAliasRepository,
+  InMemoryPlaceRepository,
   InMemoryRegionRepository,
 } from "../handlers/inMemoryRepositories.js";
 import { createParseWorkspaceStack } from "../parse/createParseWorkspaceStack.js";
+import { createTestGeoValidation } from "../parse/createTestGeoValidation.js";
 import { ParsePipelineService } from "./parsePipelineService.js";
 
 /** Конфиг worker_threads: сериализуемые ingestParse-фазы манифеста. */
@@ -21,6 +24,8 @@ export type CreateParsePipelineDeps = {
   parsedEvents?: InMemoryParsedEventRepository;
   eventLocations?: InMemoryEventLocationRepository;
   messageParseWorkspaces?: InMemoryMessageParseWorkspaceRepository;
+  places?: InMemoryPlaceRepository;
+  aliases?: InMemoryPlaceAliasRepository;
 };
 
 /**
@@ -33,10 +38,16 @@ export function createParsePipeline(deps: CreateParsePipelineDeps): {
   const eventLocations = deps.eventLocations ?? new InMemoryEventLocationRepository();
   const messageParseWorkspaces =
     deps.messageParseWorkspaces ?? new InMemoryMessageParseWorkspaceRepository();
+  const validation = createTestGeoValidation(
+    deps.regions,
+    deps.places ?? new InMemoryPlaceRepository(),
+    deps.aliases ?? new InMemoryPlaceAliasRepository(),
+  );
 
   const { workspaceService } = createParseWorkspaceStack({
     geoCatalog: deps.geoCatalog,
     regions: deps.regions,
+    validation,
     parsedEvents,
     eventLocations,
     messageParseWorkspaces,
@@ -46,6 +57,7 @@ export function createParsePipeline(deps: CreateParsePipelineDeps): {
     workspaceService,
     regions: deps.regions,
     geoCatalog: deps.geoCatalog,
+    validation,
     ingestParsePhases: deps.ingestParsePhases,
   });
 

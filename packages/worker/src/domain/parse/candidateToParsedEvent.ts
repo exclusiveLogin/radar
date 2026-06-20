@@ -1,6 +1,7 @@
 import type { EventCandidate, ParsedEvent, ParseWorkspace } from "@radar/shared";
 import { inferSeverity } from "../parsing/inferSeverity.js";
 import { PARSER_VERSION } from "../parsing/version.js";
+import { withResolvedEventType } from "./resolveEventTypeForCandidate.js";
 import { materializeCandidateExtras } from "./resolveTraitsForCandidate.js";
 
 /** Проекция candidate → ParsedEvent для finalize и offline pipeline. */
@@ -11,7 +12,8 @@ export function candidateToParsedEvent(input: {
   parserVersion?: string;
   locations?: ParsedEvent["locations"];
 }): ParsedEvent {
-  const { workspace, candidate, postedAt } = input;
+  const { workspace, postedAt } = input;
+  const candidate = withResolvedEventType(input.candidate, workspace);
   const extras = materializeCandidateExtras(candidate, workspace);
   return {
     rawMessageId: workspace.rawMessageId,

@@ -1,5 +1,4 @@
 import type {
-  EventLocation,
   FinalizeContext,
   FinalizeResult,
   IRegionRepository,
@@ -7,14 +6,16 @@ import type {
 } from "@radar/shared";
 import { normalizeParseWorkspace } from "@radar/shared";
 import type { GeoCatalog } from "../../infrastructure/geo-catalog/index.js";
+import type { GeoValidationService } from "../parsing/geoValidationService.js";
+import { planFinalize } from "../../domain/parse/ParseFinalizerService.js";
+import { buildMaterializedEventLocations } from "../../domain/parse/buildMaterializedEventLocations.js";
 import { runParseWorkspaceOrchestrator } from "../../domain/parse/ParseWorkspaceOrchestrator.js";
+import type { ParseEnricherId } from "../../domain/parse/parseEnricherRegistry.js";
+import { invokeExternalParseEnricher } from "../../domain/parse/invokeExternalParseEnricher.js";
 import {
   parsePipelineRevisionHash,
   runParseEnricher,
 } from "../../domain/parse/parseEnricherRunner.js";
-import type { ParseEnricherId } from "../../domain/parse/parseEnricherRegistry.js";
-import { buildLocationsByCandidateId } from "../../domain/parse/deriveEventLocationsFromCandidate.js";
-import { invokeExternalParseEnricher } from "../../domain/parse/invokeExternalParseEnricher.js";
 import { ParseWorkspacePersistService } from "./ParseWorkspacePersistService.js";
 import {
   type ParseWorkspaceRunKind,
@@ -33,6 +34,7 @@ export type StoredParseWorkspace = {
 export type WorkspaceHandleDeps = {
   geoCatalog: GeoCatalog;
   regions: IRegionRepository;
+  validation: GeoValidationService;
   persist: ParseWorkspacePersistService;
   loadStoredWorkspace: (rawMessageId: string) => Promise<StoredParseWorkspace | null>;
 };
@@ -181,16 +183,24 @@ export class ParseWorkspaceMessageService {
     postedAt: string;
     parserRevision: string;
   }): Promise<Extract<ParseWorkspaceRunResult, { kind: "event" }>> {
+    const plan = planFinalize({
+      workspace: input.workspace,
+      context: input.context,
+      postedAt: input.postedAt,
+    });
+    const locationsByCandidateId = await buildMaterializedEventLocations({
+      workspace: input.workspace,
+      materializedCandidateIds: plan.materialized.map((item) => item.candidateId),
+      regions: this.deps.regions,
+      geoCatalog: this.deps.geoCatalog,
+      validation: this.deps.validation,
+    });
     const finalize = await this.deps.persist.finalize({
       workspace: input.workspace,
       context: input.context,
       postedAt: input.postedAt,
       parserRevision: input.parserRevision,
-      locationsByCandidateId: await buildLocationsByCandidateId(
-        input.workspace,
-        this.deps.regions,
-        this.deps.geoCatalog,
-      ),
+      locationsByCandidateId,
     });
     return { kind: "event", workspace: input.workspace, finalize };
   }

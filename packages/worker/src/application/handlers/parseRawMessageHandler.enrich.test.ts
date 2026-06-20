@@ -14,6 +14,7 @@ import {
 } from "../../application/handlers/inMemoryRepositories.js";
 import { ParseRawMessageHandler } from "../../application/handlers/parseRawMessageHandler.js";
 import { createParseWorkspaceStack } from "../../application/parse/createParseWorkspaceStack.js";
+import { createTestGeoValidation } from "../../application/parse/createTestGeoValidation.js";
 import { GeoCatalog } from "../../infrastructure/geo-catalog/index.js";
 
 const regionRecord = {
@@ -41,6 +42,7 @@ async function buildHandler(input: {
   const { workspaceService } = createParseWorkspaceStack({
     geoCatalog,
     regions: regionRepo,
+    validation: createTestGeoValidation(regionRepo),
     parsedEvents: input.parsedEvents,
     eventLocations: input.eventLocations,
     messageParseWorkspaces: input.workspaces,

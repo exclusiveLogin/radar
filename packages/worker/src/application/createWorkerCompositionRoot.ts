@@ -234,6 +234,7 @@ export async function createWorkerCompositionRoot(
   const { workspaceService } = createParseWorkspaceStack({
     geoCatalog,
     regions,
+    validation,
     parsedEvents,
     eventLocations,
     messageParseWorkspaces,
