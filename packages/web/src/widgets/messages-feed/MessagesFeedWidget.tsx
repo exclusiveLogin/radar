@@ -3,7 +3,8 @@ import type { MessageFeedItem } from "@radar/shared";
 import { Badge, EllipsisText, Panel, Tip, flattenText } from "../../shared/ds";
 import { useObservable } from "../../shared/hooks/useObservable";
 import { formatMessagePostedAt } from "../../shared/state/derivations";
-import { messagesFeed$ } from "../../shared/state/messagesStore";
+import { messagesFeed$ } from "../../shared/state/stateChangesFeedStore";
+import { setHistoricalAsOf } from "../../shared/state/mapStore";
 import { selectRegion, selectedRegion$ } from "../../shared/state/selectionStore";
 import type { WidgetProps } from "../widgetProps";
 
@@ -74,6 +75,15 @@ export function MessagesFeedWidget({ defaultCollapsed = false }: WidgetProps) {
                       {formatMessagePostedAt(row.postedAt)}
                     </span>
                   </Tip>
+                  <button
+                    type="button"
+                    className="map-timeline__jump"
+                    title="Карта на момент события"
+                    aria-label="Карта на момент события"
+                    onClick={() => void setHistoricalAsOf(row.postedAt)}
+                  >
+                    ⏱
+                  </button>
                   {row.stateLevel ? (
                     <Badge level={row.stateLevel} />
                   ) : row.eventType ? (
