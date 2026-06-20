@@ -36,6 +36,18 @@
 
 ## Записи
 
+### 2026-06-20 — Web: разделение лент «Сообщения» / «Лента изменений»
+
+**Сделано:**
+- Два endpoint + два store (`messagesStore`, `stateChangesFeedStore`); убран derived `messagesFeed$` из потока events.
+- `GET /map/messages/recent`: 1 строка на raw, поля `contentKind`, `parsedEventCount`, `hasLocations`; бейджи шум/meta/raw/тип (fix: `cleared` без loc → green Badge, не «parse»).
+- `GET /map/events/recent`: только loc (`event_locations`), снят фильтр `state_level <> grey`.
+- `classifyContentKind` перенесён в `@radar/shared` (API + worker re-export).
+
+**Архитектура:** контракты лент разведены (raw ingest ≠ loc events); карта по-прежнему fold read-line. Mass-clear без EL — в «Сообщениях» и на карте (синтетика fold), не в loc-ленте.
+
+**Док:** [web-map-feeds.md](./web-map-feeds.md) · коммиты `81f75c8` → `e18c8c8`.
+
 ### 2026-06-11 — Web geo-map: декомпозиция виджета, FetchPhase, per-layer fetch-status
 
 **Сделано:**

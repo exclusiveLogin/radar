@@ -258,8 +258,8 @@ npm run radar -- pipeline rebuild
 | Обзор (KPI + donut) | left | `regionsByCode$` |
 | Схема | left | `layout.json` — `npm run geo:layout:build` |
 | Активные угрозы | right | active region/place |
-| Лента изменений | right | recent events |
-| Сообщения | right | `GET /api/map/messages/recent` |
+| Лента изменений | right | `GET /api/map/events/recent` — loc-only, любой `event_type` |
+| Сообщения | right | `GET /api/map/messages/recent` — все raw, `contentKind` + parse summary |
 | Macro-сводки | right | `GET /api/map/pvo-reports` (→ D6: `/map/event-feed`) |
 | Топ активности | right | top regions |
 | Динамика | right | sparkline |

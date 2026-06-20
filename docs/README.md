@@ -55,6 +55,6 @@ npm run radar -- pipeline status
 | Parse / domain pack | [master-implementation-roadmap.md](./rfc/master-implementation-roadmap.md), [adr-014](./adr-014-operational-domain-profile.md) |
 | Geo-артефакты / каталог | [runbook/geo-clean-rebuild.md](./runbook/geo-clean-rebuild.md), [data/geo/README.md](../data/geo/README.md) |
 | Phase-pipeline v2 | [phase-pipeline.md](./phase-pipeline.md), [api/phases-admin.md](./api/phases-admin.md) |
-| Карта | корневой [README § Сейчас в продукте](../README.md#сейчас-в-продукте) |
+| Карта | корневой [README § Сейчас в продукте](../README.md#сейчас-в-продукте), [web-map-feeds.md](./web-map-feeds.md) |
 
 Корневой [README.md](../README.md) — обзор продукта.

@@ -59,8 +59,8 @@
   - **Гео-карта** — MapLibre, контуры субъектов (fill + inset outline), маркеры places, HUD-статистика.
   - **Схема** — layout.json, heat по `stateLevel`.
   - **Обзор** — KPI по уровням + donut.
-  - **Активные угрозы**, **Лента изменений** — feed из `event_locations` / recent events.
-  - **Сообщения** — лента raw ingest (канал, время MSK, parse status).
+  - **Активные угрозы**, **Лента изменений** — `GET /api/map/events/recent` (только события с `event_locations`).
+  - **Сообщения** — `GET /api/map/messages/recent` (все raw: шум/meta/parse/clear без loc). См. [docs/web-map-feeds.md](docs/web-map-feeds.md).
   - **Macro-сводки** — агрегированные отчёты (`GET /api/map/pvo-reports`, → D6: `/map/event-feed`).
   - **Топ активности**, **Динамика событий** — sparkline + BarMini по журналу.
   - **Каналы**, **Система** — ingest providers, worker probe, WS/db health.

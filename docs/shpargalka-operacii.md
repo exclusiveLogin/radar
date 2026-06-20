@@ -146,8 +146,8 @@ npm run radar -- stack dev --full
 | GET | `/map/regions-geojson` | — | GeoJSON FeatureCollection полигонов регионов (включая grey) |
 | GET | `/map/districts-active-geojson` | — | GeoJSON активных районов (только `action=raise`); лёгкий, вызывать при каждом place-state |
 | GET | `/map/districts-geojson` | `?regionId=UUID` (опц.) | GeoJSON всех районов; тяжёлый — для ленивой подгрузки по региону |
-| GET | `/map/messages/recent` | `?limit=80` | Лента raw-сообщений (все каналы) |
-| GET | `/map/events/recent` | `?limit=80` | Лента событий изменения статуса (1 событие = 1 карточка) |
+| GET | `/map/messages/recent` | `?limit=80` | Все raw (1 строка/raw): `contentKind`, parse/loc summary |
+| GET | `/map/events/recent` | `?limit=80` | События с `event_locations` (1 parsed_event = 1 карточка), без фильтра по типу |
 | GET | `/map/regions/by-code/:code/source-message` | `code` = ISO 3166-2:RU (напр. `RU-MOW`) | Исходное сообщение статуса региона |
 | GET | `/map/places/:placeId/source-message` | `placeId` = UUID | Исходное сообщение статуса НП |
 | POST | `/map/push-snapshot` | — | Разослать снапшот всем WS-клиентам; `{ ok, pushed }` |
