@@ -19,15 +19,15 @@ export const DISTRICTS_FILL = "districts-active-fill";
 export const DISTRICTS_OUTLINE = "districts-active-outline";
 export const PLACES_LAYER = "places-circles";
 
-/** Z-order: heatmap → region → district → place. */
+/** Z-order (снизу вверх): region → district → heatmap → place. */
 export const GEO_ENTITY_LAYER_ORDER = [
-  EVENTS_HEATMAP_LAYER,
-  EVENTS_HEATMAP_POINTS_LAYER,
   REGIONS_FILL,
   REGIONS_OUTLINE,
   REGIONS_SELECTION,
   DISTRICTS_FILL,
   DISTRICTS_OUTLINE,
+  EVENTS_HEATMAP_LAYER,
+  EVENTS_HEATMAP_POINTS_LAYER,
   PLACES_LAYER,
 ] as const;
 

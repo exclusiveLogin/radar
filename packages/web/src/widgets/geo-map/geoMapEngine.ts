@@ -28,7 +28,7 @@ import {
 import { paintRegionOutlines, placesToFeatures } from "./geoMapPaint";
 import type { GeoJsonCollection, PointFeature, PolygonFeature } from "./geoMapTypes";
 
-/** Поднимает наши слои в фиксированном z-order (heatmap внизу, places сверху). */
+/** Поднимает наши слои в фиксированном z-order (region/district внизу, places сверху). */
 export function enforceGeoEntityLayerOrder(map: MapLibreMap): void {
   for (const layerId of GEO_ENTITY_LAYER_ORDER) {
     if (map.getLayer(layerId)) map.moveLayer(layerId);

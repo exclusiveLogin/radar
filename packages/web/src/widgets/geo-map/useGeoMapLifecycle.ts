@@ -339,36 +339,6 @@ export function useGeoMapLifecycle(containerRef: RefObject<HTMLDivElement | null
       if (!map || !maplibreRef) return;
       const ml = maplibreRef;
 
-      // --- Теплокарта событий (под контурами) ---
-      if (!map.getSource(EVENTS_HEATMAP_SOURCE)) {
-        map.addSource(EVENTS_HEATMAP_SOURCE, {
-          type: "geojson",
-          data: { type: "FeatureCollection", features: [] },
-        });
-      }
-      if (!map.getLayer(EVENTS_HEATMAP_LAYER)) {
-        map.addLayer({
-          id: EVENTS_HEATMAP_LAYER,
-          type: "heatmap",
-          source: EVENTS_HEATMAP_SOURCE,
-          maxzoom: EVENTS_HEATMAP_ZOOM_HEAT_MAX,
-          layout: { visibility: "none" },
-          paint: eventsHeatmapPaint(theme$.value) as never,
-        });
-      } else {
-        applyEventsHeatmapPaint(map, theme$.value);
-      }
-      if (!map.getLayer(EVENTS_HEATMAP_POINTS_LAYER)) {
-        map.addLayer({
-          id: EVENTS_HEATMAP_POINTS_LAYER,
-          type: "circle",
-          source: EVENTS_HEATMAP_SOURCE,
-          minzoom: EVENTS_HEATMAP_ZOOM_POINTS_MIN,
-          layout: { visibility: "none" },
-          paint: eventsHeatmapPointsPaint(theme$.value) as never,
-        });
-      }
-
       // --- Регионы ---
       if (!map.getSource(REGIONS_SOURCE)) {
         map.addSource(REGIONS_SOURCE, {
@@ -456,6 +426,36 @@ export function useGeoMapLifecycle(containerRef: RefObject<HTMLDivElement | null
             "line-width": DISTRICT_MAP_STROKE_WIDTH,
             "line-opacity": ["coalesce", ["get", "lineOpacity"], GEO_MAP_PLACE_STROKE_OPACITY],
           },
+        });
+      }
+
+      // --- Теплокарта (над region/district, под places) ---
+      if (!map.getSource(EVENTS_HEATMAP_SOURCE)) {
+        map.addSource(EVENTS_HEATMAP_SOURCE, {
+          type: "geojson",
+          data: { type: "FeatureCollection", features: [] },
+        });
+      }
+      if (!map.getLayer(EVENTS_HEATMAP_LAYER)) {
+        map.addLayer({
+          id: EVENTS_HEATMAP_LAYER,
+          type: "heatmap",
+          source: EVENTS_HEATMAP_SOURCE,
+          maxzoom: EVENTS_HEATMAP_ZOOM_HEAT_MAX,
+          layout: { visibility: "none" },
+          paint: eventsHeatmapPaint(theme$.value) as never,
+        });
+      } else {
+        applyEventsHeatmapPaint(map, theme$.value);
+      }
+      if (!map.getLayer(EVENTS_HEATMAP_POINTS_LAYER)) {
+        map.addLayer({
+          id: EVENTS_HEATMAP_POINTS_LAYER,
+          type: "circle",
+          source: EVENTS_HEATMAP_SOURCE,
+          minzoom: EVENTS_HEATMAP_ZOOM_POINTS_MIN,
+          layout: { visibility: "none" },
+          paint: eventsHeatmapPointsPaint(theme$.value) as never,
         });
       }
 
