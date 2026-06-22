@@ -20,3 +20,9 @@ test("PlaceScanIndex: kind filter excludes region from place match", () => {
   const hits = index.matchPlacesByPhrase("Ростовская область");
   assert.equal(hits.length, 0);
 });
+
+test("PlaceScanIndex: region short_name phrase match", () => {
+  const index = new PlaceScanIndex(GF_P6_SCAN_ENTRIES);
+  const hits = index.matchRegions("Таганрог\nРостовская\nОпасность");
+  assert.ok(hits.some((h) => h.entry.regionIso === "RU-ROS"));
+});

@@ -30,6 +30,10 @@ export class PlaceScanIndex {
     for (const entry of entries) {
       const phrases = new Set<string>([entry.name]);
       if (entry.nameWithType) phrases.add(entry.nameWithType);
+      // Краткое имя субъекта (regions.short_name) — только region-place, без place_aliases.
+      if (entry.kind === "region" && entry.regionShortName) {
+        phrases.add(entry.regionShortName);
+      }
       for (const phrase of phrases) {
         const key = phrase.toLowerCase().trim();
         if (key.length < 3) continue;

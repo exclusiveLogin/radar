@@ -56,7 +56,9 @@ export interface IRawIngestAdapter {
     binding: IngestBindingRecord,
     params: StreamHistoryParams,
     sink: IngestMessageSink,
-  ): Promise<{ inserted: number; duplicates: number }>;
+  ): Promise<{ inserted: number; duplicates: number; streamed: number }>;
+  /** Две выборки GramJS: самое старое и новое сообщение канала (для preflight progress). */
+  probeChannelBounds?(externalTarget: string): Promise<ChannelHistoryBounds>;
 }
 
 export type StreamHistoryParams = {
@@ -66,6 +68,22 @@ export type StreamHistoryParams = {
   toExternalId?: string;
   /** Resume: Telegram message id последнего обработанного сообщения. */
   offsetId?: number;
+  /**
+   * GramJS iterMessages.reverse.
+   * false (default) — от новых к старым; true — от старых к новым.
+   */
+  reverse?: boolean;
+  /** Макс. сообщений за один вызов streamHistory (round-robin backfill). */
+  limit?: number;
+};
+
+/** Границы истории канала (preflight probe до stream backfill). */
+export type ChannelHistoryBounds = {
+  minId: string;
+  maxId: string;
+  minPostedAt: string;
+  maxPostedAt: string;
+  probedAt: string;
 };
 
 export type { IngestMode, SourceKind };

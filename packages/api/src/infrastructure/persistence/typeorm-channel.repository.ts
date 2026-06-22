@@ -41,6 +41,8 @@ type ChannelAdminSqlRow = {
   source_kind: string;
   provider_id: string | null;
   binding_id: string | null;
+  resolved_binding_id: string | null;
+  resolved_provider_id: string | null;
   provider_status: string | null;
   binding_enabled: boolean | null;
   has_active_enabled_binding: boolean | null;
@@ -59,11 +61,20 @@ export class TypeOrmChannelRepository implements IChannelRepository {
       `SELECT
          c.id, c.key, c.title, c.telegram_target, c.enabled, c.source_kind,
          c.provider_id, c.binding_id,
+         pb.id AS resolved_binding_id,
+         pb.provider_id AS resolved_provider_id,
          agg.provider_status,
          agg.binding_enabled,
          COALESCE(agg.has_active_enabled_binding, false) AS has_active_enabled_binding,
          lr.last_raw_posted_at
        FROM channels c
+       LEFT JOIN LATERAL (
+         SELECT b.id, b.provider_id
+         FROM ingest_bindings b
+         WHERE b.channel_id = c.id
+         ORDER BY b.enabled DESC, b.binding_key ASC
+         LIMIT 1
+       ) pb ON true
        LEFT JOIN LATERAL (
          SELECT
            bool_or(b.enabled AND p.status = 'active') AS has_active_enabled_binding,
@@ -88,8 +99,8 @@ export class TypeOrmChannelRepository implements IChannelRepository {
       telegramTarget: row.telegram_target,
       enabled: row.enabled,
       sourceKind: row.source_kind,
-      providerId: row.provider_id,
-      bindingId: row.binding_id,
+      providerId: row.provider_id ?? row.resolved_provider_id,
+      bindingId: row.binding_id ?? row.resolved_binding_id,
       providerStatus: row.provider_status,
       bindingEnabled: row.binding_enabled,
       hasActiveEnabledBinding: Boolean(row.has_active_enabled_binding),

@@ -327,6 +327,8 @@ export interface IIngestBackfillJobRepository {
   findMany(filter?: BackfillJobFilter): Promise<BackfillJobRecord[]>;
   /** Следующая задача pending или running (resume после рестарта). */
   findRunnable(): Promise<BackfillJobRecord | null>;
+  /** Все активные задачи для round-robin (стабильный порядок createdAt ASC). */
+  findRunnableMany(limit?: number): Promise<BackfillJobRecord[]>;
   updateStatus(id: string, status: BackfillJobRecord["status"], stats?: BackfillJobRecord["stats"]): Promise<void>;
   /** Запросить отмену: pending/running → canceled (демон прервёт стрим). */
   requestCancel(id: string): Promise<BackfillJobRecord | null>;
@@ -334,6 +336,8 @@ export interface IIngestBackfillJobRepository {
     id: string,
     patch: { stats?: BackfillJobRecord["stats"]; params?: Record<string, unknown> },
   ): Promise<void>;
+  /** Пульс для админки: обновляет updated_at без смены stats/params. */
+  touch(id: string): Promise<void>;
 }
 
 /** Запись технического следа парсинга (parse_attempts). */

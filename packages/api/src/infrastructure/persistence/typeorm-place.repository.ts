@@ -258,10 +258,12 @@ export class TypeOrmPlaceRepository implements IPlaceRepository {
       centroid_lat: string | null;
       centroid_lon: string | null;
       region_code: string;
+      short_name: string | null;
     }> = await this.dataSource.query(
       `SELECT p.id, p.region_id, p.kind, p.name, p.name_stem, p.name_with_type,
               p.centroid_lat, p.centroid_lon,
-              COALESCE(r.iso, r.fias_id, r.name) AS region_code
+              COALESCE(r.iso, r.fias_id, r.name) AS region_code,
+              r.short_name
        FROM places p
        INNER JOIN regions r ON r.id = p.region_id
        WHERE p.is_active = true`,
@@ -274,6 +276,8 @@ export class TypeOrmPlaceRepository implements IPlaceRepository {
       kind: row.kind,
       name: row.name,
       nameStem: row.name_stem,
+      regionShortName:
+        row.kind === "region" && row.short_name ? row.short_name : undefined,
       nameWithType: row.name_with_type ?? undefined,
       centroidLat: row.centroid_lat != null ? Number(row.centroid_lat) : undefined,
       centroidLon: row.centroid_lon != null ? Number(row.centroid_lon) : undefined,

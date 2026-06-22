@@ -1,14 +1,17 @@
 import { Injectable } from "@nestjs/common";
 import { InjectDataSource } from "@nestjs/typeorm";
-import { resolveGeoEnrichmentProvider, statsOverviewSchema, type StatsOverview } from "@radar/shared";
+import { resolveGeoEnrichmentProvider, statsOverviewSchema, type ParseAttemptItem, type StatsOverview } from "@radar/shared";
 import type { DataSource } from "typeorm";
 import {
   EventLocationEntity,
-  ParseAttemptEntity,
   ParsedEventEntity,
 } from "../events/entities";
 import { GeoSyncLogEntity, RegionEntity } from "../geo/entities";
+import { listParseAttemptsForAdmin } from "./parse-attempt-admin.query";
+import { loadPhaseCoverageStats } from "./stats-overview.query";
 
+/** Не копим параллельные тяжёлые stats-запросы при поллинге админки. */
+const STATS_OVERVIEW_TTL_MS = 5_000;
 type StatusQuery = {
   placeId?: string;
   statusCode?: string;
@@ -18,6 +21,8 @@ type StatusQuery = {
 export class ReadSideQueryService {
   constructor(@InjectDataSource() private readonly dataSource: DataSource) {}
 
+  private statsOverviewInflight: Promise<StatsOverview> | null = null;
+  private statsOverviewCache: { at: number; value: StatsOverview } | null = null;
   async getEvents(limit = 100): Promise<ParsedEventEntity[]> {
     return this.dataSource.getRepository(ParsedEventEntity).find({
       order: { parsedAt: "DESC" },
@@ -37,178 +42,163 @@ export class ReadSideQueryService {
     limit: number;
     status?: "ok" | "failed" | "skipped";
     channelKey?: string;
-  }): Promise<ParseAttemptEntity[]> {
-    return this.dataSource.getRepository(ParseAttemptEntity).find({
-      where: {
-        ...(params.status ? { status: params.status } : {}),
-        ...(params.channelKey ? { channelKey: params.channelKey } : {}),
-      },
-      order: { createdAt: "DESC" },
-      take: params.limit,
-    });
+  }): Promise<ParseAttemptItem[]> {
+    return listParseAttemptsForAdmin(this.dataSource, params);
   }
 
   /** Глобальные агрегаты для админ-дашборда (сообщения, парсинг, каналы, job'ы). */
   async getStatsOverview(): Promise<StatsOverview> {
-    const [raw] = await this.dataSource.query<
-      Array<{
-        raw_total: string;
-        live: string;
-        backfill: string;
-        manual: string;
-        last_posted_at: Date | null;
-      }>
-    >(
-      `SELECT
-         COUNT(*) AS raw_total,
-         COUNT(*) FILTER (WHERE ingest_mode = 'live') AS live,
-         COUNT(*) FILTER (WHERE ingest_mode = 'backfill') AS backfill,
-         COUNT(*) FILTER (WHERE ingest_mode = 'manual') AS manual,
-         MAX(posted_at) AS last_posted_at
-       FROM raw_messages`,
-    );
+    const now = Date.now();
+    if (this.statsOverviewCache && now - this.statsOverviewCache.at < STATS_OVERVIEW_TTL_MS) {
+      return this.statsOverviewCache.value;
+    }
+    if (this.statsOverviewInflight) return this.statsOverviewInflight;
 
-    const [parsedEvents] = await this.dataSource.query<Array<{ total: string }>>(
-      `SELECT COUNT(*) FILTER (WHERE is_active) AS total FROM parsed_events`,
-    );
+    this.statsOverviewInflight = this.loadStatsOverview()
+      .then((value) => {
+        this.statsOverviewCache = { at: Date.now(), value };
+        return value;
+      })
+      .finally(() => {
+        this.statsOverviewInflight = null;
+      });
 
-    const [parse] = await this.dataSource.query<
-      Array<{ ok: string; failed: string; skipped: string }>
-    >(
-      `SELECT
-         COUNT(*) FILTER (WHERE status = 'ok') AS ok,
-         COUNT(*) FILTER (WHERE status = 'failed') AS failed,
-         COUNT(*) FILTER (WHERE status = 'skipped') AS skipped
-       FROM parse_attempts`,
-    );
+    return this.statsOverviewInflight;
+  }
 
-    const [channels] = await this.dataSource.query<
-      Array<{ total: string; listening: string }>
-    >(
-      `SELECT
-         COUNT(*) AS total,
-         COUNT(*) FILTER (WHERE c.enabled AND EXISTS (
-           SELECT 1 FROM ingest_bindings b
-           JOIN ingest_providers p ON p.id = b.provider_id
-           WHERE b.channel_id = c.id AND b.enabled AND p.status = 'active'
-         )) AS listening
-       FROM channels c`,
-    );
+  private async loadStatsOverview(): Promise<StatsOverview> {
+    const [
+      rawRows,
+      parsedRows,
+      parseRows,
+      channelRows,
+      providerRows,
+      jobRows,
+      phaseRows,
+      placesCatalogRows,
+      geoPhaseRows,
+      geoJobRows,
+      geoEnrichedRows,
+      geoCatalogRemainingRows,
+    ] = await Promise.all([
+      this.dataSource.query<
+        Array<{
+          raw_total: string;
+          live: string;
+          backfill: string;
+          manual: string;
+          last_posted_at: Date | null;
+        }>
+      >(
+        `SELECT
+           COUNT(*) AS raw_total,
+           COUNT(*) FILTER (WHERE ingest_mode = 'live') AS live,
+           COUNT(*) FILTER (WHERE ingest_mode = 'backfill') AS backfill,
+           COUNT(*) FILTER (WHERE ingest_mode = 'manual') AS manual,
+           MAX(posted_at) AS last_posted_at
+         FROM raw_messages`,
+      ),
+      this.dataSource.query<Array<{ total: string; active_raws: string }>>(
+        `SELECT
+           COUNT(*) FILTER (WHERE is_active) AS total,
+           COUNT(DISTINCT raw_message_id) FILTER (WHERE is_active) AS active_raws
+         FROM parsed_events`,
+      ),
+      this.dataSource.query<Array<{ ok: string; failed: string; skipped: string }>>(
+        `SELECT
+           COUNT(*) FILTER (WHERE status = 'ok') AS ok,
+           COUNT(*) FILTER (WHERE status = 'failed') AS failed,
+           COUNT(*) FILTER (WHERE status = 'skipped') AS skipped
+         FROM parse_attempts`,
+      ),
+      this.dataSource.query<Array<{ total: string; listening: string }>>(
+        `SELECT
+           COUNT(*) AS total,
+           COUNT(*) FILTER (WHERE c.enabled AND EXISTS (
+             SELECT 1 FROM ingest_bindings b
+             JOIN ingest_providers p ON p.id = b.provider_id
+             WHERE b.channel_id = c.id AND b.enabled AND p.status = 'active'
+           )) AS listening
+         FROM channels c`,
+      ),
+      this.dataSource.query<Array<{ total: string; active: string }>>(
+        `SELECT
+           COUNT(*) AS total,
+           COUNT(*) FILTER (WHERE status = 'active') AS active
+         FROM ingest_providers`,
+      ),
+      this.dataSource.query<
+        Array<{
+          pending: string;
+          running: string;
+          completed: string;
+          failed: string;
+          canceled: string;
+        }>
+      >(
+        `SELECT
+           COUNT(*) FILTER (WHERE status = 'pending') AS pending,
+           COUNT(*) FILTER (WHERE status = 'running') AS running,
+           COUNT(*) FILTER (WHERE status = 'completed') AS completed,
+           COUNT(*) FILTER (WHERE status = 'failed') AS failed,
+           COUNT(*) FILTER (WHERE status = 'canceled') AS canceled
+         FROM ingest_backfill_jobs`,
+      ),
+      loadPhaseCoverageStats(this.dataSource),
+      this.dataSource.query<Array<{ total: string }>>(
+        `SELECT COUNT(*)::int AS total
+         FROM places
+         WHERE is_active = true AND kind <> 'region'`,
+      ),
+      this.dataSource.query<Array<{ id: string; enabled: boolean; enrichers: string[] }>>(
+        `SELECT id, enabled, enrichers
+         FROM phase_definitions
+         WHERE scope = 'geoParse'
+         ORDER BY id`,
+      ),
+      this.dataSource.query<Array<{ provider: string; status: string; count: string }>>(
+        `SELECT provider, status, COUNT(*)::int AS count
+         FROM place_enrichment_jobs
+         GROUP BY provider, status`,
+      ),
+      this.dataSource.query<Array<{ provider: string; count: string }>>(
+        `SELECT j.provider, COUNT(DISTINCT j.place_id)::int AS count
+         FROM place_enrichment_jobs j
+         JOIN places p ON p.id = j.place_id
+         WHERE j.status = 'done'
+           AND p.is_active = true
+           AND p.kind <> 'region'
+           AND p.centroid_lat IS NOT NULL
+           AND p.centroid_lon IS NOT NULL
+         GROUP BY j.provider`,
+      ),
+      this.dataSource.query<Array<{ provider: string; count: string }>>(
+        `SELECT prov.provider, COUNT(*)::int AS count
+         FROM places p
+         LEFT JOIN geo_feature gf ON gf.id = p.geo_feature_id
+         CROSS JOIN (VALUES ('dadata'), ('llm'), ('nominatim')) AS prov(provider)
+         WHERE p.is_active = true
+           AND p.kind <> 'region'
+           AND p.centroid_lat IS NULL
+           AND p.centroid_lon IS NULL
+           AND (gf.centroid_lat IS NULL OR gf.id IS NULL)
+           AND NOT EXISTS (
+             SELECT 1 FROM place_enrichment_jobs j
+             WHERE j.place_id = p.id
+               AND j.provider = prov.provider
+               AND j.status = 'processing'
+           )
+         GROUP BY prov.provider`,
+      ),
+    ]);
 
-    const [providers] = await this.dataSource.query<
-      Array<{ total: string; active: string }>
-    >(
-      `SELECT
-         COUNT(*) AS total,
-         COUNT(*) FILTER (WHERE status = 'active') AS active
-       FROM ingest_providers`,
-    );
-
-    const [jobs] = await this.dataSource.query<
-      Array<{
-        pending: string;
-        running: string;
-        completed: string;
-        failed: string;
-        canceled: string;
-      }>
-    >(
-      `SELECT
-         COUNT(*) FILTER (WHERE status = 'pending') AS pending,
-         COUNT(*) FILTER (WHERE status = 'running') AS running,
-         COUNT(*) FILTER (WHERE status = 'completed') AS completed,
-         COUNT(*) FILTER (WHERE status = 'failed') AS failed,
-         COUNT(*) FILTER (WHERE status = 'canceled') AS canceled
-       FROM ingest_backfill_jobs`,
-    );
-
-    const phaseRows = await this.dataSource.query<
-      Array<{
-        phase_id: string;
-        pending: string;
-        processing: string;
-        done: string;
-        failed: string;
-        done_for_parsed: string;
-      }>
-    >(
-      `SELECT
-         pc.phase_id,
-         COUNT(*) FILTER (WHERE pc.status = 'pending') AS pending,
-         COUNT(*) FILTER (WHERE pc.status = 'processing') AS processing,
-         COUNT(*) FILTER (WHERE pc.status = 'done') AS done,
-         COUNT(*) FILTER (WHERE pc.status = 'failed') AS failed,
-         COUNT(DISTINCT pc.raw_message_id) FILTER (
-           WHERE pc.status = 'done'
-             AND EXISTS (
-               SELECT 1 FROM parsed_events pe
-               WHERE pe.raw_message_id = pc.raw_message_id AND pe.is_active = true
-             )
-         ) AS done_for_parsed
-       FROM phase_coverage pc
-       GROUP BY pc.phase_id
-       ORDER BY pc.phase_id`,
-    );
-
-    const [placesCatalog] = await this.dataSource.query<Array<{ total: string }>>(
-      `SELECT COUNT(*)::int AS total
-       FROM places
-       WHERE is_active = true AND kind <> 'region'`,
-    );
-
-    const geoPhaseRows = await this.dataSource.query<
-      Array<{ id: string; enabled: boolean; enrichers: string[] }>
-    >(
-      `SELECT id, enabled, enrichers
-       FROM phase_definitions
-       WHERE scope = 'geoParse'
-       ORDER BY id`,
-    );
-
-    const geoJobRows = await this.dataSource.query<
-      Array<{ provider: string; status: string; count: string }>
-    >(
-      `SELECT provider, status, COUNT(*)::int AS count
-       FROM place_enrichment_jobs
-       GROUP BY provider, status`,
-    );
-
-    // SSOT: done job + coords на place (не evidence_providers).
-    const geoEnrichedRows = await this.dataSource.query<
-      Array<{ provider: string; count: string }>
-    >(
-      `SELECT j.provider, COUNT(DISTINCT j.place_id)::int AS count
-       FROM place_enrichment_jobs j
-       JOIN places p ON p.id = j.place_id
-       WHERE j.status = 'done'
-         AND p.is_active = true
-         AND p.kind <> 'region'
-         AND p.centroid_lat IS NOT NULL
-         AND p.centroid_lon IS NOT NULL
-       GROUP BY j.provider`,
-    );
-
-    const geoCatalogRemainingRows = await this.dataSource.query<
-      Array<{ provider: string; count: string }>
-    >(
-      `SELECT prov.provider, COUNT(*)::int AS count
-       FROM places p
-       LEFT JOIN geo_feature gf ON gf.id = p.geo_feature_id
-       CROSS JOIN (VALUES ('dadata'), ('llm'), ('nominatim')) AS prov(provider)
-       WHERE p.is_active = true
-         AND p.kind <> 'region'
-         AND p.centroid_lat IS NULL
-         AND p.centroid_lon IS NULL
-         AND (gf.centroid_lat IS NULL OR gf.id IS NULL)
-         AND NOT EXISTS (
-           SELECT 1 FROM place_enrichment_jobs j
-           WHERE j.place_id = p.id
-             AND j.provider = prov.provider
-             AND j.status = 'processing'
-         )
-       GROUP BY prov.provider`,
-    );
-
+    const raw = rawRows[0];
+    const parsedEvents = parsedRows[0];
+    const parse = parseRows[0];
+    const channels = channelRows[0];
+    const providers = providerRows[0];
+    const jobs = jobRows[0];
+    const placesCatalog = placesCatalogRows[0];
     const geoJobsByProvider = new Map<
       string,
       { pending: number; processing: number; done: number; failed: number }
@@ -261,15 +251,16 @@ export class ReadSideQueryService {
       backfill: Number(raw?.backfill ?? 0),
       manual: Number(raw?.manual ?? 0),
       parsedEvents: Number(parsedEvents?.total ?? 0),
+      parsedEventsActiveRaws: Number(parsedEvents?.active_raws ?? 0),
       placesCatalogActive: Number(placesCatalog?.total ?? 0),
       phaseEnrichment: phaseRows.map((row) => ({
-        phaseId: row.phase_id,
+        phaseId: row.phaseId,
         counts: {
-          pending: Number(row.pending ?? 0),
-          processing: Number(row.processing ?? 0),
-          done: Number(row.done ?? 0),
-          failed: Number(row.failed ?? 0),
-          doneForParsed: Number(row.done_for_parsed ?? 0),
+          pending: row.pending,
+          processing: row.processing,
+          done: row.done,
+          failed: row.failed,
+          doneForParsed: row.doneForParsed,
         },
       })),
       geoEnrichment,

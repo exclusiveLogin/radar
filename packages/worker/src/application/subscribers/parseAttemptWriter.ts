@@ -46,11 +46,11 @@ export class ParseAttemptWriter {
           : "skipped";
 
     const errors =
-      payload.errors && typeof payload.errors === "object"
-        ? (payload.errors as Record<string, unknown>)
-        : status === "skipped"
-          ? null
-          : { reason: readString(payload, "reason") ?? "unknown" };
+      status === "ok"
+        ? null
+        : payload.errors && typeof payload.errors === "object"
+          ? (payload.errors as Record<string, unknown>)
+          : { reason: readString(payload, "reason") ?? (status === "skipped" ? "not_event" : "unknown") };
 
     return {
       rawMessageId,

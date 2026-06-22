@@ -17,6 +17,7 @@ export type {
   IngestMessageSink,
   IRawIngestAdapter,
   StreamHistoryParams,
+  ChannelHistoryBounds,
   TelegramMtprotoAppCredentials,
 } from "./ingest-adapters";
 export type {

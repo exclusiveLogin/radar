@@ -12,6 +12,7 @@ if (fs.existsSync(rootEnv)) {
 }
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  app.enableShutdownHooks();
   app.setGlobalPrefix("api");
   app.enableCors({ origin: true });
   // WebSocket-карта на нативном ws (MapGateway, path /ws).

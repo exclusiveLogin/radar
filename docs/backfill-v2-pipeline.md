@@ -303,7 +303,7 @@ sequenceDiagram
 
   Daemon->>Adapter: connect + streamHistory(binding, params, sink)
 
-  loop iterMessages reverse (новые → старые)
+  loop iterMessages newest→oldest (reverse=false)
     Adapter->>TG: iterMessages(peer, offsetId?)
     alt FloodWait
       TG-->>Adapter: FLOOD_WAIT_N
@@ -345,8 +345,8 @@ sequenceDiagram
 | `by_date_range` | — | Только сообщения в интервале `posted_at` | `fromPostedAt`, `toPostedAt` (ISO UTC) |
 | `by_external_id_range` | — | Ограничение по Telegram message id | `fromExternalId`, `toExternalId` |
 
-**Направление итерации:** `iterMessages` с `reverse: true` — от более новых к более старым.  
-При `by_date_range`, как только `posted_at` ушёл ниже `fromPostedAt`, стрим **останавливается** (дальше только ещё старее).
+**Направление итерации:** `iterMessages` с `reverse: false` (default) — **с последнего сообщения к старым**; сначала закрывается «дыра» у верха канала, затем уход в архив. `streamReverse: true` в params — от старых к новым (legacy).  
+При `by_date_range`, как только `posted_at` ушёл ниже `fromPostedAt`, стрим **останавливается**.
 
 **Resume:** если в `job.params.checkpoint` есть `offsetId`, в Telegram уходит `offsetId` — продолжение **с того же места** (дубликаты от повторного касания гасит dedup в БД).
 
@@ -569,7 +569,20 @@ erDiagram
 |------|--------|
 | Gap recovery после простоя **live** | Отдельная будущая задача (`IngestGapRecoveryService`), см. [ingest-providers.md § ограничения](./ingest-providers.md#текущие-ограничения-и-будущие-задачи). |
 | Приоритет parse live vs backfill | Пока одинаковый pipeline; `ingestMode` не меняет приоритет очереди. |
-| Admin UI для прогресса job | Только API/SQL; UI — позже. |
+| Точный total / ETA backfill | Только ~% по id-слотам Telegram (preflight probe). |
+
+---
+
+## Admin UI (`/admin` → Backfill)
+
+Виджет **Backfill V2** (`BackfillRunnerWidget`):
+
+- Общая форма стратегии + **«Все каналы»** (аналог `--all-bindings`: N jobs, демон стримит **по одному**).
+- Список каналов с binding — кнопка **«Докачать»** на канал.
+- Грид карточек jobs: `~%` по id (preflight + checkpoint), inserted/dup, **Отмена** (`pending`/`running`).
+- `completed` ≠ карта готова: raw в БД; parse — **Обогащение → Фазы** и статистика канала (PE 2.0).
+
+Preflight: перед `streamHistory` демон делает 2 запроса GramJS (`minId`/`maxId`) → `job.params.preflight`.
 
 ---
 

@@ -365,4 +365,11 @@ export type {
 /** Браузер-безопасные хелперы карты (Vite: @radar/shared → этот barrel, не src/index). */
 export { isPlaceSuppressedByRegionClear } from "../domain/region-state/statusEventOrdering.js";
 export type { MapStatusAction } from "../domain/region-state/statusEventOrdering.js";
+export {
+  buildBackfillJobProgress,
+  computeBackfillPercentApprox,
+  mergeBackfillPercentMonotonic,
+  pickFurtherCheckpointOffsetId,
+  readBackfillPreflight,
+} from "../domain/ingest/backfillProgress.js";
 

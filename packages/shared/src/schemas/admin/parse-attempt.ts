@@ -19,6 +19,11 @@ export const parseAttemptItemSchema = z.object({
   status: parseAttemptStatusSchema,
   errors: z.record(z.unknown()).nullable(),
   createdAt: z.string().datetime(),
+  /** Превью текста raw (для лога в админке). */
+  messagePreview: z.string().nullable().optional(),
+  externalMessageId: z.string().nullable().optional(),
+  /** event_type или reason (skipped/failed). */
+  outcomeLabel: z.string().nullable().optional(),
 });
 
 export type ParseAttemptStatus = z.infer<typeof parseAttemptStatusSchema>;

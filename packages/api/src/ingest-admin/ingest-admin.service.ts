@@ -21,6 +21,8 @@ import {
   timelineQuerySchema,
   timelineResponseSchema,
   updateIngestProviderSchema,
+  buildBackfillJobProgress,
+  resolveBackfillRoundRobinSlice,
   type BackfillJobListItem,
   type BackfillJobRecord,
   type ChannelAdminItem,
@@ -307,13 +309,14 @@ export class IngestAdminService {
     return backfillJobListItemSchema.parse({
       ...row,
       channelKey,
-      progress: {
-        inserted: row.stats.inserted,
-        duplicates: row.stats.duplicates,
-        parsed: row.stats.parsed,
+      progress: buildBackfillJobProgress({
+        strategy: row.strategy,
+        params: row.params,
+        stats: row.stats,
         checkpointOffsetId: checkpoint?.offsetId ?? null,
         checkpointPostedAt: checkpoint?.postedAt ?? null,
-      },
+      }),
+      roundRobinSlice: resolveBackfillRoundRobinSlice(row.status, row.params),
     });
   }
 

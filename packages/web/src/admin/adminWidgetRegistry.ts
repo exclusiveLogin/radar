@@ -31,7 +31,7 @@ export type AdminLayoutSection = {
 export const ADMIN_LAYOUT_SECTIONS: AdminLayoutSection[] = [
   {
     id: "overview",
-    title: "Сводка",
+    title: "Система",
     widgets: [{ id: "messages-stats", component: MessagesStatsWidget, span: 12 }],
   },
   {
@@ -55,8 +55,8 @@ export const ADMIN_LAYOUT_SECTIONS: AdminLayoutSection[] = [
     id: "backfill",
     title: "Backfill",
     widgets: [
-      { id: "backfill-runner", component: BackfillRunnerWidget, span: 6 },
-      { id: "backfill-job-log", component: BackfillJobLogWidget, span: 6 },
+      { id: "backfill-runner", component: BackfillRunnerWidget, span: 12 },
+      { id: "parse-attempts-log", component: BackfillJobLogWidget, span: 12 },
     ],
   },
   {

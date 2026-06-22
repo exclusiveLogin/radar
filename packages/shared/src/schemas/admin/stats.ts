@@ -33,7 +33,10 @@ export const statsOverviewSchema = z.object({
   live: z.number().int().nonnegative(),
   backfill: z.number().int().nonnegative(),
   manual: z.number().int().nonnegative(),
+  /** Строк parsed_events с is_active — может быть >1 на один raw. */
   parsedEvents: z.number().int().nonnegative(),
+  /** DISTINCT raw_message_id с active parsed_event — знаменатель для done★. */
+  parsedEventsActiveRaws: z.number().int().nonnegative(),
   /** Активные places в каталоге (не region) — знаменатель для geo enrichment. */
   placesCatalogActive: z.number().int().nonnegative(),
   /** Счётчики phase_coverage по фазам (catalog, llm, …). */

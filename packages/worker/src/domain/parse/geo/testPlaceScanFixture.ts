@@ -54,6 +54,7 @@ export const GF_P6_SCAN_ENTRIES: PlaceScanEntry[] = [
     name: "Ростовская область",
     nameStem: "ростовская",
     nameWithType: "Ростовская область",
+    regionShortName: "Ростовская",
   },
   {
     placeId: "11111111-1111-1111-1111-111111111107",

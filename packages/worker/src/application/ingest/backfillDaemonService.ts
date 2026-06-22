@@ -7,8 +7,15 @@ import type {
   IIngestCursorRepository,
   IIngestProviderRepository,
   IngestNormalizedMessage,
+  IngestProviderRecord,
+  IRawIngestAdapter,
   StreamHistoryParams,
   TelegramMtprotoAppCredentials,
+} from "@radar/shared";
+import {
+  readBackfillPreflight,
+  readBackfillRoundRobinSlice,
+  withBackfillRoundRobinSlice,
 } from "@radar/shared";
 import { createRawIngestAdapter } from "../../infrastructure/ingest-adapters/adapterRegistry.js";
 import type { IngestRawMessageHandler } from "../handlers/ingestRawMessageHandler.js";
@@ -32,6 +39,20 @@ class BackfillCanceledError extends Error {
 /** Каждые N сообщений перечитываем статус job, чтобы заметить отмену. */
 const CANCEL_CHECK_EVERY = 10;
 
+/** Размер батча Telegram за один тик демона (round-robin между каналами). */
+function readBatchLimit(params: Record<string, unknown>): number {
+  const batch = params.batchSize;
+  if (typeof batch === "number" && Number.isFinite(batch) && batch > 0) {
+    return Math.min(Math.floor(batch), 500);
+  }
+  return 50;
+}
+
+/** Как часто сбрасывать stats/checkpoint в БД внутри батча. */
+function readProgressFlushEvery(params: Record<string, unknown>): number {
+  return Math.min(readBatchLimit(params), 50);
+}
+
 function normalizeStrategy(strategy: string): BackfillStrategy {
   if (strategy === "all") return "full_history";
   return strategy as BackfillStrategy;
@@ -48,14 +69,20 @@ function readCheckpoint(params: Record<string, unknown>): BackfillCheckpoint | n
 function buildStreamParams(
   job: BackfillJobRecord,
   checkpoint: BackfillCheckpoint | null,
+  batchLimit: number,
 ): StreamHistoryParams {
   const strategy = normalizeStrategy(job.strategy);
   const p = job.params as Record<string, unknown>;
-  const stream: StreamHistoryParams = {};
+  // По умолчанию: с последнего сообщения канала к старым (закрывает «дыру» спереди).
+  const stream: StreamHistoryParams = { reverse: false, limit: batchLimit };
 
   if (checkpoint?.offsetId) {
     const offsetId = Number(checkpoint.offsetId);
     if (Number.isFinite(offsetId)) stream.offsetId = offsetId;
+  }
+
+  if (p.streamReverse === true) {
+    stream.reverse = true;
   }
 
   if (strategy === "by_date_range") {
@@ -72,11 +99,15 @@ function buildStreamParams(
 }
 
 /**
- * Демон backfill: поллит ingest_backfill_jobs, стримит историю, чекпоинт после каждого сообщения.
+ * Демон backfill: round-robin по активным job, один батч Telegram за тик на канал.
  */
 export class BackfillDaemonService {
   private timer: ReturnType<typeof setInterval> | null = null;
+  private pulseTimer: ReturnType<typeof setInterval> | null = null;
   private ticking = false;
+  private roundRobinIndex = 0;
+  /** MTProto-клиент на провайдера: один connect на весь жизненный цикл демона. */
+  private readonly adaptersByProvider = new Map<string, IRawIngestAdapter>();
 
   constructor(
     private readonly jobs: IIngestBackfillJobRepository,
@@ -88,13 +119,23 @@ export class BackfillDaemonService {
     private readonly sessionResolver: SessionResolver,
     private readonly telegramMtprotoApp: TelegramMtprotoAppCredentials,
     private readonly pollMs = Number(process.env.RADAR_BACKFILL_POLL_MS ?? "15000"),
+    private readonly heartbeatMs = Number(process.env.RADAR_BACKFILL_HEARTBEAT_MS ?? "15000"),
   ) {}
 
   start(): void {
     if (this.timer) return;
     void this.tick();
     this.timer = setInterval(() => void this.tick(), this.pollMs);
-    console.log(`BackfillDaemon: poll каждые ${this.pollMs}ms`);
+    if (this.heartbeatMs > 0) {
+      this.pulseTimer = setInterval(() => {
+        void this.pulseRunnableJobs().catch((err) => {
+          console.warn("BackfillDaemon heartbeat error:", err);
+        });
+      }, this.heartbeatMs);
+    }
+    console.log(
+      `BackfillDaemon: poll ${this.pollMs}ms, heartbeat ${this.heartbeatMs}ms (round-robin batch)`,
+    );
   }
 
   async stop(): Promise<void> {
@@ -102,15 +143,46 @@ export class BackfillDaemonService {
       clearInterval(this.timer);
       this.timer = null;
     }
+    if (this.pulseTimer) {
+      clearInterval(this.pulseTimer);
+      this.pulseTimer = null;
+    }
+    for (const adapter of this.adaptersByProvider.values()) {
+      await adapter.stop();
+    }
+    this.adaptersByProvider.clear();
+  }
+
+  /** Подключает telegram-адаптер один раз на providerId; повторные тики переиспользуют сессию. */
+  private async ensureAdapter(provider: IngestProviderRecord): Promise<IRawIngestAdapter> {
+    const cached = this.adaptersByProvider.get(provider.id);
+    if (cached) return cached;
+
+    const adapter = createRawIngestAdapter(provider.adapterKind, this.sessionResolver);
+    await adapter.connect(
+      buildIngestAdapterConnectContext({
+        provider,
+        sessionResolver: this.sessionResolver,
+        telegramMtprotoApp: this.telegramMtprotoApp,
+      }),
+    );
+    this.adaptersByProvider.set(provider.id, adapter);
+    return adapter;
   }
 
   private async tick(): Promise<void> {
     if (this.ticking) return;
     this.ticking = true;
     try {
-      const job = await this.jobs.findRunnable();
-      if (!job) return;
-      await this.runJob(job);
+      const jobs = await this.jobs.findRunnableMany(32);
+      if (!jobs.length) return;
+
+      const job = jobs[this.roundRobinIndex % jobs.length]!;
+      this.roundRobinIndex += 1;
+
+      await this.publishRoundRobinSlice(jobs, job.id);
+      await this.pulseRunnableJobs();
+      await this.runJobBatch(job);
     } catch (err) {
       console.error("BackfillDaemon tick error:", err);
     } finally {
@@ -124,107 +196,209 @@ export class BackfillDaemonService {
     return fresh?.status === "canceled";
   }
 
-  private async runJob(job: BackfillJobRecord): Promise<void> {
-    if (job.status === "pending") {
-      await this.jobs.updateStatus(job.id, "running", job.stats);
-    }
+  /** Пульс updated_at для всех runnable job — админка видит живую очередь. */
+  private async pulseRunnableJobs(): Promise<void> {
+    const jobs = await this.jobs.findRunnableMany(32);
+    await Promise.all(jobs.map((row) => this.jobs.touch(row.id)));
+  }
 
-    let currentJob = (await this.jobs.findById(job.id)) ?? job;
-    const binding = await this.bindings.findById(currentJob.bindingId);
-    if (!binding) {
-      await this.jobs.updateStatus(job.id, "failed", currentJob.stats);
-      throw new Error(`Binding not found: ${currentJob.bindingId}`);
-    }
+  /** Одна runnable job — всегда active (жёлтый waiting только при конкуренции каналов). */
+  private resolveRoundRobinSlice(
+    runnableCount: number,
+    jobId: string,
+    activeJobId: string,
+  ): "active" | "waiting" {
+    if (runnableCount <= 1) return "active";
+    return jobId === activeJobId ? "active" : "waiting";
+  }
 
-    const provider = await this.providers.findById(currentJob.providerId);
-    if (!provider) {
-      await this.jobs.updateStatus(job.id, "failed", currentJob.stats);
-      throw new Error(`Provider not found: ${currentJob.providerId}`);
-    }
+  /** Публикует active/waiting для runnable job — читает админка по WS/REST. */
+  private async publishRoundRobinSlice(
+    runnableJobs: BackfillJobRecord[],
+    activeJobId: string,
+  ): Promise<void> {
+    await Promise.all(
+      runnableJobs.map((row) => {
+        const slice = this.resolveRoundRobinSlice(
+          runnableJobs.length,
+          row.id,
+          activeJobId,
+        );
+        if (readBackfillRoundRobinSlice(row.params) === slice) return Promise.resolve();
+        return this.jobs.updateProgress(row.id, {
+          params: withBackfillRoundRobinSlice(row.params, slice),
+        });
+      }),
+    );
+  }
 
-    const channel = binding.channelId
-      ? await this.channels.findById(binding.channelId)
-      : null;
-    if (!channel) {
-      await this.jobs.updateStatus(job.id, "failed", currentJob.stats);
-      throw new Error(`Channel not found for binding ${binding.id}`);
-    }
+  /** Снимает метку round-robin при завершении job. */
+  private async clearRoundRobinSlice(
+    jobId: string,
+    params: Record<string, unknown>,
+  ): Promise<void> {
+    if (!readBackfillRoundRobinSlice(params)) return;
+    await this.jobs.updateProgress(jobId, {
+      params: withBackfillRoundRobinSlice(params, null),
+    });
+  }
 
-    const adapter = createRawIngestAdapter(provider.adapterKind, this.sessionResolver);
-    if ("setChannelKeyMap" in adapter && typeof adapter.setChannelKeyMap === "function") {
-      adapter.setChannelKeyMap(new Map([[binding.id, channel.key]]));
-    }
-
-    if (!adapter.streamHistory) {
-      await this.jobs.updateStatus(job.id, "failed", currentJob.stats);
-      throw new Error(`Adapter ${provider.adapterKind} не поддерживает streamHistory`);
-    }
-
-    const checkpoint = readCheckpoint(currentJob.params);
-    const streamParams = buildStreamParams(currentJob, checkpoint);
+  /** Один батч истории; при исчерпании канала — completed. */
+  private async runJobBatch(job: BackfillJobRecord): Promise<void> {
+    let currentJob = job;
 
     try {
-      await adapter.connect(
-        buildIngestAdapterConnectContext({
-          provider,
-          sessionResolver: this.sessionResolver,
-          telegramMtprotoApp: this.telegramMtprotoApp,
-        }),
-      );
+      if (job.status === "pending") {
+        await this.jobs.updateStatus(job.id, "running", job.stats);
+      }
 
-      let processedSinceCancelCheck = 0;
+      currentJob = (await this.jobs.findById(job.id)) ?? job;
+      if (currentJob.status === "canceled") return;
 
-      const sink = async (normalized: IngestNormalizedMessage) => {
-        const { raw, extension } = ingestNormalizedToRaw(normalized, "backfill");
-        const ingestResult = await this.ingestHandler.handle(raw, extension);
+      const binding = await this.bindings.findById(currentJob.bindingId);
+      if (!binding) {
+        await this.jobs.updateStatus(job.id, "failed", currentJob.stats);
+        throw new Error(`Binding not found: ${currentJob.bindingId}`);
+      }
 
-        const stats = { ...currentJob.stats };
-        if (ingestResult.inserted) stats.inserted += 1;
-        else stats.duplicates += 1;
+      const provider = await this.providers.findById(currentJob.providerId);
+      if (!provider) {
+        await this.jobs.updateStatus(job.id, "failed", currentJob.stats);
+        throw new Error(`Provider not found: ${currentJob.providerId}`);
+      }
 
-        const params = {
-          ...currentJob.params,
-          checkpoint: {
-            offsetId: normalized.externalMessageId,
-            postedAt: normalized.postedAt,
-          },
-        };
+      const channel = binding.channelId
+        ? await this.channels.findById(binding.channelId)
+        : null;
+      if (!channel) {
+        await this.jobs.updateStatus(job.id, "failed", currentJob.stats);
+        throw new Error(`Channel not found for binding ${binding.id}`);
+      }
 
-        await this.jobs.updateProgress(currentJob.id, { stats, params });
-        await this.cursors.updateBackfillState(channel.key, provider.key, {
-          jobId: currentJob.id,
-          lastExternalMessageId: normalized.externalMessageId,
-          lastPostedAt: normalized.postedAt,
-        });
+      const adapter = await this.ensureAdapter(provider);
+      if ("setChannelKeyMap" in adapter && typeof adapter.setChannelKeyMap === "function") {
+        adapter.setChannelKeyMap(new Map([[binding.id, channel.key]]));
+      }
 
-        currentJob = {
-          ...currentJob,
-          stats,
-          params,
-        };
+      if (!adapter.streamHistory) {
+        await this.jobs.updateStatus(job.id, "failed", currentJob.stats);
+        throw new Error(`Adapter ${provider.adapterKind} не поддерживает streamHistory`);
+      }
 
-        if (++processedSinceCancelCheck >= CANCEL_CHECK_EVERY) {
-          processedSinceCancelCheck = 0;
-          if (await this.isCanceled(currentJob.id)) {
-            throw new BackfillCanceledError(currentJob.id);
+      const batchLimit = readBatchLimit(currentJob.params);
+      const checkpoint = readCheckpoint(currentJob.params);
+      const streamParams = buildStreamParams(currentJob, checkpoint, batchLimit);
+
+      try {
+        if (!readBackfillPreflight(currentJob.params)) {
+          if (!adapter.probeChannelBounds) {
+            await this.jobs.updateStatus(job.id, "failed", currentJob.stats);
+            throw new Error(`Adapter ${provider.adapterKind} не поддерживает preflight probe`);
           }
-        }
-      };
 
-      await adapter.streamHistory(binding, streamParams, sink);
-      await this.jobs.updateStatus(currentJob.id, "completed", currentJob.stats);
-      console.log(`BackfillDaemon: job ${currentJob.id} completed`, currentJob.stats);
-    } catch (err) {
-      if (err instanceof BackfillCanceledError) {
-        console.log(`BackfillDaemon: job ${currentJob.id} canceled (stats:`, currentJob.stats, ")");
-        await this.jobs.updateProgress(currentJob.id, { stats: currentJob.stats });
-      } else {
-        const message = err instanceof Error ? err.message : String(err);
-        console.error(`BackfillDaemon: job ${currentJob.id} failed:`, message);
-        await this.jobs.updateStatus(currentJob.id, "failed", currentJob.stats);
+          const bounds = await adapter.probeChannelBounds(binding.externalTarget);
+          const paramsWithPreflight = {
+            ...currentJob.params,
+            preflight: bounds,
+            streamReverse: false,
+          };
+          await this.jobs.updateProgress(currentJob.id, { params: paramsWithPreflight });
+          currentJob = { ...currentJob, params: paramsWithPreflight };
+        }
+
+        let processedSinceCancelCheck = 0;
+        let processedSinceProgressFlush = 0;
+        let progressDirty = false;
+
+        const flushProgress = async (): Promise<void> => {
+          if (!progressDirty) return;
+          await this.jobs.updateProgress(currentJob.id, {
+            stats: currentJob.stats,
+            params: currentJob.params,
+          });
+          progressDirty = false;
+          processedSinceProgressFlush = 0;
+        };
+
+        const sink = async (normalized: IngestNormalizedMessage) => {
+          const { raw, extension } = ingestNormalizedToRaw(normalized, "backfill");
+          const ingestResult = await this.ingestHandler.handle(raw, extension);
+
+          const stats = { ...currentJob.stats };
+          if (ingestResult.inserted) stats.inserted += 1;
+          else stats.duplicates += 1;
+
+          const params = {
+            ...currentJob.params,
+            checkpoint: {
+              offsetId: normalized.externalMessageId,
+              postedAt: normalized.postedAt,
+            },
+          };
+
+          currentJob = {
+            ...currentJob,
+            stats,
+            params,
+          };
+          progressDirty = true;
+
+          const flushEvery = readProgressFlushEvery(currentJob.params);
+          if (++processedSinceProgressFlush >= flushEvery) {
+            await flushProgress();
+          }
+
+          await this.cursors.updateBackfillState(channel.key, provider.key, {
+            jobId: currentJob.id,
+            lastExternalMessageId: normalized.externalMessageId,
+            lastPostedAt: normalized.postedAt,
+          });
+
+          if (++processedSinceCancelCheck >= CANCEL_CHECK_EVERY) {
+            processedSinceCancelCheck = 0;
+            if (await this.isCanceled(currentJob.id)) {
+              throw new BackfillCanceledError(currentJob.id);
+            }
+          }
+        };
+
+        const streamResult = await adapter.streamHistory(binding, streamParams, sink);
+        await flushProgress();
+
+        const historyExhausted = streamResult.streamed < batchLimit;
+        if (historyExhausted) {
+          await this.jobs.updateStatus(currentJob.id, "completed", currentJob.stats);
+          await this.clearRoundRobinSlice(currentJob.id, currentJob.params);
+          console.log(`BackfillDaemon: job ${currentJob.id} completed`, currentJob.stats);
+        }
+      } catch (err) {
+        if (err instanceof BackfillCanceledError) {
+          console.log(`BackfillDaemon: job ${currentJob.id} canceled (stats:`, currentJob.stats, ")");
+          await this.jobs.updateProgress(currentJob.id, {
+            stats: currentJob.stats,
+            params: currentJob.params,
+          });
+          await this.clearRoundRobinSlice(currentJob.id, currentJob.params);
+        } else {
+          const message = err instanceof Error ? err.message : String(err);
+          console.error(`BackfillDaemon: job ${currentJob.id} failed:`, message);
+          await this.jobs.updateProgress(currentJob.id, {
+            stats: currentJob.stats,
+            params: currentJob.params,
+          });
+          await this.jobs.updateStatus(currentJob.id, "failed", currentJob.stats);
+          await this.clearRoundRobinSlice(currentJob.id, currentJob.params);
+        }
       }
     } finally {
-      await adapter.stop();
+      const fresh = await this.jobs.findById(currentJob.id);
+      if (fresh && (fresh.status === "pending" || fresh.status === "running")) {
+        const runnable = await this.jobs.findRunnableMany(32);
+        const slice = this.resolveRoundRobinSlice(runnable.length, fresh.id, fresh.id);
+        await this.jobs.updateProgress(fresh.id, {
+          params: withBackfillRoundRobinSlice(fresh.params, slice),
+        });
+      }
     }
   }
 }

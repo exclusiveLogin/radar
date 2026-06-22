@@ -8,6 +8,8 @@ export type PlaceScanEntry = {
   kind: PlaceRecord["kind"];
   name: string;
   nameStem: string;
+  /** Краткое имя субъекта из regions.short_name — только для kind=region (ADR-012). */
+  regionShortName?: string;
   nameWithType?: string;
   centroidLat?: number;
   centroidLon?: number;

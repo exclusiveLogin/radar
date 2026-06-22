@@ -10,6 +10,11 @@ import type {
   PhaseRunsOverview,
   StatsOverview,
 } from "@radar/shared";
+import {
+  computeBackfillPercentApprox,
+  mergeBackfillPercentMonotonic,
+  pickFurtherCheckpointOffsetId,
+} from "@radar/shared";
 import { adminApi } from "../api/adminApi";
 import { connectAdminWs } from "../realtime/adminWs";
 import { startIntervalPoll } from "../rx/startIntervalPoll";
@@ -36,8 +41,10 @@ export const phaseRuns$ = new BehaviorSubject<PhaseRun[]>([]);
 const CHANNELS_POLL_MS = 30_000;
 const STATS_POLL_MS = 30_000;
 const TELEMETRY_POLL_MS = 10_000;
-const BACKFILL_POLL_MS = 15_000;
-const PARSE_LOG_CAP = 200;
+const BACKFILL_POLL_MS = 5_000;
+
+/** Макс. строк лога парсинга в памяти (кольцевой буфер / REST limit DESC). */
+export const PARSE_LOG_LIMIT = 100;
 
 let started = false;
 
@@ -71,7 +78,9 @@ export function startAdminStore(): void {
 /** Принудительное обновление backfill-задач (после создания/отмены). */
 export async function refreshBackfill(): Promise<void> {
   try {
-    backfillJobs$.next(await adminApi.backfillJobs({ limit: 50 }));
+    const incoming = await adminApi.backfillJobs({ limit: 50 });
+    const prevById = new Map(backfillJobs$.value.map((row) => [row.id, row]));
+    backfillJobs$.next(incoming.map((row) => mergeBackfillJob(prevById.get(row.id), row)));
   } catch (error) {
     reportAppError("Backfill", error);
   }
@@ -104,7 +113,7 @@ async function refreshTelemetry(): Promise<void> {
 
 async function seedParseLog(): Promise<void> {
   try {
-    parseLog$.next(await adminApi.parseAttempts({ limit: 100 }));
+    parseLog$.next(trimParseLogRing(await adminApi.parseAttempts({ limit: PARSE_LOG_LIMIT })));
   } catch (error) {
     reportAppError("Лог парсинга", error);
   }
@@ -129,14 +138,74 @@ function patchTelemetryWorker(worker: AdminTelemetry["worker"]): void {
   telemetry$.next({ ...current, worker, capturedAt: new Date().toISOString() });
 }
 
+/** Новые сверху, не больше PARSE_LOG_LIMIT (DESC по createdAt). */
+function trimParseLogRing(items: ParseAttemptItem[]): ParseAttemptItem[] {
+  return items.slice(0, PARSE_LOG_LIMIT);
+}
+
 function prependParseLog(item: ParseAttemptItem): void {
   const next = [item, ...parseLog$.value.filter((row) => row.id !== item.id)];
-  parseLog$.next(next.slice(0, PARSE_LOG_CAP));
+  parseLog$.next(trimParseLogRing(next));
+}
+
+/** Берём более свежий updatedAt (touch heartbeat не всегда меняет stats). */
+function pickNewerIso(a: string, b: string): string {
+  return new Date(a).getTime() >= new Date(b).getTime() ? a : b;
+}
+
+function mergeBackfillJob(
+  prev: BackfillJobListItem | undefined,
+  next: BackfillJobListItem,
+): BackfillJobListItem {
+  if (!prev) return next;
+
+  const p = prev.progress;
+  const n = next.progress;
+  const checkpointOffsetId = pickFurtherCheckpointOffsetId(
+    next.params,
+    p.checkpointOffsetId,
+    n.checkpointOffsetId,
+  );
+  const percentFromCheckpoint = computeBackfillPercentApprox(
+    next.strategy,
+    next.params,
+    checkpointOffsetId,
+  );
+
+  return {
+    ...next,
+    updatedAt: pickNewerIso(prev.updatedAt, next.updatedAt),
+    progress: {
+      ...n,
+      inserted: Math.max(n.inserted, p.inserted),
+      duplicates: Math.max(n.duplicates, p.duplicates),
+      parsed: Math.max(n.parsed, p.parsed),
+      checkpointOffsetId,
+      checkpointPostedAt:
+        checkpointOffsetId === n.checkpointOffsetId
+          ? (n.checkpointPostedAt ?? p.checkpointPostedAt)
+          : (p.checkpointPostedAt ?? n.checkpointPostedAt),
+      boundsMinId: n.boundsMinId ?? p.boundsMinId,
+      boundsMaxId: n.boundsMaxId ?? p.boundsMaxId,
+      percentApprox: mergeBackfillPercentMonotonic(
+        mergeBackfillPercentMonotonic(p.percentApprox, n.percentApprox),
+        percentFromCheckpoint,
+      ),
+    },
+  };
 }
 
 function upsertBackfillJob(job: BackfillJobListItem): void {
-  const rest = backfillJobs$.value.filter((row) => row.id !== job.id);
-  backfillJobs$.next([job, ...rest]);
+  const idx = backfillJobs$.value.findIndex((row) => row.id === job.id);
+  const prev = idx >= 0 ? backfillJobs$.value[idx] : undefined;
+  const merged = mergeBackfillJob(prev, job);
+  if (idx < 0) {
+    backfillJobs$.next([...backfillJobs$.value, merged]);
+    return;
+  }
+  const next = [...backfillJobs$.value];
+  next[idx] = merged;
+  backfillJobs$.next(next);
 }
 
 function applyPhasesUpdate(payload: PhasesUpdatePayload): void {

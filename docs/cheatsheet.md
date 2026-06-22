@@ -135,9 +135,12 @@ npm run radar -- ingest backfill -- `
 
 ### Backfill V2 — демон (полная история)
 
+**UI:** `/admin` → секция **Backfill** (форма, все каналы, грид jobs с `~%`).
+
 1. Worker в `db` mode, `BackfillDaemon` включён.
-2. `POST /api/admin/ingest/backfill-jobs` с `bindingId` + `strategy: "all"`.
-3. Статус: `ingest_backfill_jobs.status` → `pending` → `running` → `completed`.
+2. UI или `POST /api/admin/ingest/backfill-jobs` с `bindingId` + `strategy: "all"`.
+3. Статус: `ingest_backfill_jobs.status` → `pending` → preflight → `running` → `completed`.
+4. Parse PE 2.0 — отдельно: [phase-pipeline.md](./phase-pipeline.md), виджет «Фазы».
 
 Подробно: [backfill-v2-pipeline.md](./backfill-v2-pipeline.md).
 

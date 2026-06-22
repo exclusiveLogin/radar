@@ -61,11 +61,17 @@ export class TypeOrmIngestBackfillJobRepository implements IIngestBackfillJobRep
   }
 
   async findRunnable(): Promise<BackfillJobRecord | null> {
-    const row = await this.dataSource.getRepository(IngestBackfillJobEntity).findOne({
+    const rows = await this.findRunnableMany(1);
+    return rows[0] ?? null;
+  }
+
+  async findRunnableMany(limit = 32): Promise<BackfillJobRecord[]> {
+    const rows = await this.dataSource.getRepository(IngestBackfillJobEntity).find({
       where: [{ status: "pending" }, { status: "running" }],
       order: { createdAt: "ASC" },
+      take: limit,
     });
-    return row ? toBackfillJobRecord(row) : null;
+    return rows.map(toBackfillJobRecord);
   }
 
   async updateProgress(
@@ -81,6 +87,13 @@ export class TypeOrmIngestBackfillJobRepository implements IIngestBackfillJobRep
     if (patch.stats) row.stats = patch.stats;
     if (patch.params) row.params = patch.params;
     await repo.save(row);
+  }
+
+  /** Пульс мониторинга: только updated_at (round-robin / длинный батч). */
+  async touch(id: string): Promise<void> {
+    await this.dataSource
+      .getRepository(IngestBackfillJobEntity)
+      .update({ id }, { updatedAt: new Date() });
   }
 
   async updateStatus(

@@ -1,16 +1,18 @@
 import { useMemo, useState } from "react";
-import type { BackfillStrategy } from "@radar/shared";
+import type { BackfillJobListItem, BackfillStrategy, CreateBackfillJob } from "@radar/shared";
 import { Button, Field, Panel, Select } from "../../shared/ds";
 import { useObservable } from "../../shared/hooks/useObservable";
 import {
   backfillJobs$,
   channels$,
   refreshBackfill,
+  telemetry$,
 } from "../../shared/state/adminStore";
-import { selectedChannelKey$ } from "../../shared/state/channelSelectionStore";
 import { adminApi } from "../../shared/api/adminApi";
 import { reportAppError } from "../../shared/state/appLogStore";
-import { formatDateTime } from "../format";
+import { formatAge } from "../../shared/state/derivations";
+import { BackfillChannelList } from "./BackfillChannelList";
+import { BackfillJobCard } from "./BackfillJobCard";
 
 const STRATEGY_OPTIONS = [
   { value: "full_history", label: "Вся история" },
@@ -18,13 +20,7 @@ const STRATEGY_OPTIONS = [
   { value: "by_external_id_range", label: "По диапазону id" },
 ];
 
-const CANCELABLE = new Set(["pending", "running"]);
-
-/** Доля новых сообщений (insert) среди обработанных — индикатор полезности докачки. */
-function insertedShare(inserted: number, duplicates: number): number {
-  const total = inserted + duplicates;
-  return total === 0 ? 0 : Math.round((inserted / total) * 100);
-}
+const ACTIVE_STATUSES = new Set(["pending", "running"]);
 
 function toIso(local: string): string | undefined {
   if (!local) return undefined;
@@ -32,11 +28,49 @@ function toIso(local: string): string | undefined {
   return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
 }
 
-/** Action-панель backfill: форма постановки + список задач канала с прогрессом/отменой. */
+function buildJobParams(
+  strategy: BackfillStrategy,
+  fromDate: string,
+  toDate: string,
+  fromId: string,
+  toId: string,
+  batchSize: string,
+): CreateBackfillJob["params"] {
+  return {
+    fromPostedAt: strategy === "by_date_range" ? toIso(fromDate) : undefined,
+    toPostedAt: strategy === "by_date_range" ? toIso(toDate) : undefined,
+    fromExternalId: strategy === "by_external_id_range" ? fromId || undefined : undefined,
+    toExternalId: strategy === "by_external_id_range" ? toId || undefined : undefined,
+    batchSize: Number(batchSize) || 200,
+  };
+}
+
+function sortJobs(jobs: BackfillJobListItem[], activeOnly: boolean): BackfillJobListItem[] {
+  const filtered = activeOnly
+    ? jobs.filter((j) => ACTIVE_STATUSES.has(j.status))
+    : jobs;
+
+  const rank = (s: string) => {
+    if (s === "running") return 0;
+    if (s === "pending") return 1;
+    return 2;
+  };
+
+  return [...filtered].sort((a, b) => {
+    const dr = rank(a.status) - rank(b.status);
+    if (dr !== 0) return dr;
+    return (a.channelKey ?? a.id).localeCompare(b.channelKey ?? b.id);
+  });
+}
+
+/**
+ * Backfill V2: форма стратегии, запуск по каналу / all-bindings, грид jobs с ~% progress.
+ * Ingest (raw) отделён от parse PE 2.0 — см. подсказки в карточке completed.
+ */
 export function BackfillRunnerWidget() {
   const channels = useObservable(channels$, []);
   const jobs = useObservable(backfillJobs$, []);
-  const selectedKey = useObservable(selectedChannelKey$, null);
+  const telemetry = useObservable(telemetry$, null);
 
   const [strategy, setStrategy] = useState<BackfillStrategy>("full_history");
   const [fromDate, setFromDate] = useState("");
@@ -44,43 +78,94 @@ export function BackfillRunnerWidget() {
   const [fromId, setFromId] = useState("");
   const [toId, setToId] = useState("");
   const [batchSize, setBatchSize] = useState("200");
-  const [busy, setBusy] = useState(false);
+  const [busyBindingId, setBusyBindingId] = useState<string | null>(null);
+  const [bulkBusy, setBulkBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [jobTab, setJobTab] = useState<"active" | "all">("active");
 
-  const channel = useMemo(
-    () => channels.find((c) => c.key === selectedKey) ?? null,
-    [channels, selectedKey],
+  const activeBindingIds = useMemo(
+    () =>
+      new Set(
+        jobs
+          .filter((j) => ACTIVE_STATUSES.has(j.status))
+          .map((j) => j.bindingId),
+      ),
+    [jobs],
   );
-  const bindingId = channel?.bindingId ?? null;
 
-  const channelJobs = useMemo(
-    () => (selectedKey ? jobs.filter((j) => j.channelKey === selectedKey) : jobs),
-    [jobs, selectedKey],
+  const boundChannels = useMemo(
+    () => channels.filter((c) => c.bindingId),
+    [channels],
   );
 
-  const submit = async (): Promise<void> => {
-    if (!bindingId) return;
-    setBusy(true);
+  const visibleJobs = useMemo(
+    () => sortJobs(jobs, jobTab === "active"),
+    [jobs, jobTab],
+  );
+
+  const runnableJobCount = useMemo(
+    () => jobs.filter((j) => ACTIVE_STATUSES.has(j.status)).length,
+    [jobs],
+  );
+
+  const workerUnreachable = telemetry != null && !telemetry.worker.reachable;
+  const workerProbe = telemetry?.worker.worker;
+
+  const createJob = async (bindingId: string): Promise<boolean> => {
+    setBusyBindingId(bindingId);
     setError(null);
     try {
       await adminApi.createBackfillJob({
         bindingId,
         strategy,
-        params: {
-          fromPostedAt: strategy === "by_date_range" ? toIso(fromDate) : undefined,
-          toPostedAt: strategy === "by_date_range" ? toIso(toDate) : undefined,
-          fromExternalId: strategy === "by_external_id_range" ? fromId || undefined : undefined,
-          toExternalId: strategy === "by_external_id_range" ? toId || undefined : undefined,
-          batchSize: Number(batchSize) || 200,
-        },
+        params: buildJobParams(strategy, fromDate, toDate, fromId, toId, batchSize),
       });
       await refreshBackfill();
+      return true;
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Не удалось создать задачу";
       setError(msg);
       reportAppError("Backfill", err, msg);
+      return false;
     } finally {
-      setBusy(false);
+      setBusyBindingId(null);
+    }
+  };
+
+  const launchAll = async (): Promise<void> => {
+    const targets = boundChannels.filter(
+      (c) => c.bindingId && !activeBindingIds.has(c.bindingId),
+    );
+    if (targets.length === 0) {
+      setError("Нет каналов для постановки (все уже в очереди или без binding).");
+      return;
+    }
+    if (
+      !window.confirm(
+        `Создать ${targets.length} задач? Демон выполняет по одной (stream, 1 сообщение).`,
+      )
+    ) {
+      return;
+    }
+
+    setBulkBusy(true);
+    setError(null);
+    let created = 0;
+    let skipped = boundChannels.length - targets.length;
+
+    try {
+      for (const ch of targets) {
+        const ok = await createJob(ch.bindingId!);
+        if (ok) created += 1;
+      }
+      if (created > 0) {
+        setError(null);
+      }
+      if (skipped > 0 && created === 0) {
+        setError(`Пропущено ${skipped} (активная job на binding).`);
+      }
+    } finally {
+      setBulkBusy(false);
     }
   };
 
@@ -96,123 +181,157 @@ export function BackfillRunnerWidget() {
   };
 
   return (
-    <Panel title="Backfill раннер">
-      {!channel ? (
-        <p className="ds-muted">Выберите канал для постановки докачки.</p>
-      ) : !bindingId ? (
-        <p className="ds-muted">У канала «{channel.key}» нет binding — докачка недоступна.</p>
-      ) : (
-        <>
-          <div className="ds-form-row">
-            <Field label="Стратегия">
-              <Select
-                value={strategy}
-                options={STRATEGY_OPTIONS}
-                onChange={(e) => setStrategy(e.target.value as BackfillStrategy)}
-              />
-            </Field>
-            <Field label="Batch size">
-              <input
-                className="ds-input"
-                type="number"
-                min={1}
-                value={batchSize}
-                onChange={(e) => setBatchSize(e.target.value)}
-              />
-            </Field>
-          </div>
+    <Panel title="Backfill V2">
+      <p className="ds-muted" style={{ fontSize: 10, margin: "0 0 8px" }}>
+        Ingest-job (raw в БД). Старт с <strong>последнего</strong> сообщения канала → в архив; дубликаты
+        идемпотентны. Parse PE 2.0 — Обогащение → Фазы.
+      </p>
 
-          {strategy === "by_date_range" && (
-            <div className="ds-form-row" style={{ marginTop: 8 }}>
-              <Field label="С даты">
-                <input
-                  className="ds-input"
-                  type="datetime-local"
-                  value={fromDate}
-                  onChange={(e) => setFromDate(e.target.value)}
-                />
-              </Field>
-              <Field label="По дату">
-                <input
-                  className="ds-input"
-                  type="datetime-local"
-                  value={toDate}
-                  onChange={(e) => setToDate(e.target.value)}
-                />
-              </Field>
-            </div>
-          )}
-
-          {strategy === "by_external_id_range" && (
-            <div className="ds-form-row" style={{ marginTop: 8 }}>
-              <Field label="С id">
-                <input
-                  className="ds-input"
-                  value={fromId}
-                  onChange={(e) => setFromId(e.target.value)}
-                />
-              </Field>
-              <Field label="По id">
-                <input
-                  className="ds-input"
-                  value={toId}
-                  onChange={(e) => setToId(e.target.value)}
-                />
-              </Field>
-            </div>
-          )}
-
-          <div style={{ marginTop: 10 }}>
-            <Button variant="primary" onClick={() => void submit()} disabled={busy}>
-              {busy ? "Постановка…" : "Запустить докачку"}
-            </Button>
-          </div>
-          {error && (
-            <p className="ds-muted" style={{ color: "var(--status-error)", marginTop: 6 }}>
-              {error}
-            </p>
-          )}
-        </>
+      {boundChannels.length === 0 && channels.length > 0 && (
+        <p style={{ color: "var(--status-warn)", fontSize: 10, margin: "0 0 8px" }}>
+          Каналы в БД есть ({channels.length}), но нет строк в ingest_bindings — нужен manifest:import
+          или POST binding к провайдеру.
+        </p>
       )}
 
-      <h4 style={{ margin: "12px 0 6px", fontSize: 11, color: "var(--text-muted)" }}>
-        Задачи {selectedKey ? `канала ${selectedKey}` : "(все)"} · {channelJobs.length}
+      {workerUnreachable && (
+        <p style={{ color: "var(--status-warn)", fontSize: 10, margin: "0 0 8px" }}>
+          Worker недоступен — задачи останутся pending.
+        </p>
+      )}
+
+      {runnableJobCount > 0 && workerProbe && (
+        <p
+          style={{
+            fontSize: 10,
+            margin: "0 0 8px",
+            color: workerProbe.status === "running" ? "var(--status-ok)" : "var(--status-warn)",
+          }}
+        >
+          Worker pid {workerProbe.pid} · heartbeat {formatAge(workerProbe.heartbeatAt)}
+          {workerProbe.ingest.backfillInserted > 0
+            ? ` · BF insert +${workerProbe.ingest.backfillInserted}`
+            : " · BF: только дубли (insert=0)"}
+        </p>
+      )}
+
+      <div className="ds-form-row">
+        <Field label="Стратегия">
+          <Select
+            value={strategy}
+            options={STRATEGY_OPTIONS}
+            onChange={(e) => setStrategy(e.target.value as BackfillStrategy)}
+          />
+        </Field>
+        <Field label="Batch size">
+          <input
+            className="ds-input"
+            type="number"
+            min={1}
+            value={batchSize}
+            onChange={(e) => setBatchSize(e.target.value)}
+          />
+        </Field>
+      </div>
+
+      {strategy === "by_date_range" && (
+        <div className="ds-form-row" style={{ marginTop: 8 }}>
+          <Field label="С даты">
+            <input
+              className="ds-input"
+              type="datetime-local"
+              value={fromDate}
+              onChange={(e) => setFromDate(e.target.value)}
+            />
+          </Field>
+          <Field label="По дату">
+            <input
+              className="ds-input"
+              type="datetime-local"
+              value={toDate}
+              onChange={(e) => setToDate(e.target.value)}
+            />
+          </Field>
+        </div>
+      )}
+
+      {strategy === "by_external_id_range" && (
+        <div className="ds-form-row" style={{ marginTop: 8 }}>
+          <Field label="С id">
+            <input className="ds-input" value={fromId} onChange={(e) => setFromId(e.target.value)} />
+          </Field>
+          <Field label="По id">
+            <input className="ds-input" value={toId} onChange={(e) => setToId(e.target.value)} />
+          </Field>
+        </div>
+      )}
+
+      <div style={{ marginTop: 10, display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <Button variant="primary" onClick={() => void launchAll()} disabled={bulkBusy || boundChannels.length === 0}>
+          {bulkBusy ? "Постановка…" : `Все каналы (${boundChannels.length})`}
+        </Button>
+      </div>
+
+      {error && (
+        <p className="ds-muted" style={{ color: "var(--status-error)", marginTop: 6 }}>
+          {error}
+        </p>
+      )}
+
+      <h4 style={{ margin: "14px 0 6px", fontSize: 11, color: "var(--text-muted)" }}>
+        Каналы с binding
       </h4>
-      {channelJobs.length === 0 ? (
+      <BackfillChannelList
+        channels={channels}
+        activeBindingIds={activeBindingIds}
+        busyBindingId={busyBindingId}
+        onLaunch={(bindingId) => void createJob(bindingId)}
+      />
+
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          margin: "14px 0 6px",
+        }}
+      >
+        <h4 style={{ margin: 0, fontSize: 11, color: "var(--text-muted)", flex: 1 }}>
+          Задачи · {visibleJobs.length}
+        </h4>
+        <Button
+          variant={jobTab === "active" ? "primary" : "secondary"}
+          onClick={() => setJobTab("active")}
+        >
+          Активные
+        </Button>
+        <Button
+          variant={jobTab === "all" ? "primary" : "secondary"}
+          onClick={() => setJobTab("all")}
+        >
+          Все
+        </Button>
+      </div>
+
+      {visibleJobs.length === 0 ? (
         <p className="ds-muted">Нет задач.</p>
       ) : (
-        <ul className="ds-log-list">
-          {channelJobs.map((job) => (
-            <li
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill, minmax(360px, 1fr))",
+            gap: 8,
+          }}
+        >
+          {visibleJobs.map((job) => (
+            <BackfillJobCard
               key={job.id}
-              className="ds-log-list__item"
-              style={{ flexDirection: "column", alignItems: "stretch", gap: 4 }}
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{ flex: 1, fontWeight: 600 }}>{job.strategy}</span>
-                <span style={{ color: "var(--text-muted)" }}>{job.status}</span>
-                {CANCELABLE.has(job.status) && (
-                  <Button variant="danger" onClick={() => void cancel(job.id)}>
-                    Отменить
-                  </Button>
-                )}
-              </div>
-              <div className="ds-progress">
-                <div
-                  className="ds-progress__fill"
-                  style={{ width: `${insertedShare(job.progress.inserted, job.progress.duplicates)}%` }}
-                />
-              </div>
-              <div style={{ display: "flex", gap: 10, color: "var(--text-muted)", fontSize: 10 }}>
-                <span>insert {job.progress.inserted}</span>
-                <span>dup {job.progress.duplicates}</span>
-                <span title={formatDateTime(job.progress.checkpointPostedAt)}>
-                  cp {job.progress.checkpointOffsetId ?? "—"}
-                </span>
-              </div>
-            </li>
+              job={job}
+              runnableJobCount={runnableJobCount}
+              onCancel={(id) => void cancel(id)}
+            />
           ))}
-        </ul>
+        </div>
       )}
     </Panel>
   );

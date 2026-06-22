@@ -2,6 +2,7 @@ import type {
   IRawIngestAdapter,
   IngestAdapterContext,
   IngestAdapterHealth,
+  ChannelHistoryBounds,
   IngestBindingRecord,
   IngestMessageSink,
   IngestNormalizedMessage,
@@ -9,6 +10,7 @@ import type {
   TelegramAdapterConfig,
 } from "@radar/shared";
 import { TelegramClient, utils } from "telegram";
+import type { Api } from "telegram";
 import { StringSession } from "telegram/sessions/StringSession.js";
 import { NewMessage } from "telegram/events/NewMessage.js";
 import type { SessionResolver } from "../../../application/sessions/sessionResolver.js";
@@ -104,6 +106,19 @@ export class TelegramRawIngestAdapter implements IRawIngestAdapter {
 
     const needsMtproto = true;
     if (needsMtproto && creds.mtprotoSessionSlot) {
+      // Backfill daemon держит адаптер между тиками — повторный connect не должен рвать TCP.
+      if (this.mtproto) {
+        try {
+          if (await this.mtproto.client.isUserAuthorized()) {
+            return;
+          }
+        } catch {
+          /* клиент мёртв — пересоздаём ниже */
+        }
+        await this.mtproto.client.destroy().catch(() => undefined);
+        this.mtproto = null;
+      }
+
       const material = await this.sessionResolver.resolveMaterial(
         creds.mtprotoSessionSlot,
         "mtproto_user",
@@ -441,29 +456,79 @@ export class TelegramRawIngestAdapter implements IRawIngestAdapter {
   }
 
   /**
-   * Потоковая выкачка истории: iterMessages (reverse) + автоматический sleep при FloodWait.
+   * Preflight: min/max message.id и даты границ канала (2 запроса к Telegram).
+   */
+  async probeChannelBounds(externalTarget: string): Promise<ChannelHistoryBounds> {
+    if (!this.mtproto) {
+      throw new Error("MTProto client required for probeChannelBounds");
+    }
+
+    let oldest: Api.Message | undefined;
+    for await (const msg of this.iterMessagesWithFloodRetry(externalTarget, {
+      reverse: true,
+      limit: 1,
+      waitTime: 0,
+    })) {
+      oldest = msg as Api.Message;
+      break;
+    }
+
+    const entity = await this.mtproto.client.getEntity(externalTarget);
+    const newestBatch = await this.mtproto.client.getMessages(entity, { limit: 1 });
+    const newest = newestBatch[0] as Api.Message | undefined;
+
+    if (!oldest?.id || !newest?.id) {
+      throw new Error("Канал пуст или недоступен для probe истории");
+    }
+
+    const toIso = (unix?: number) =>
+      new Date((unix ?? Math.floor(Date.now() / 1000)) * 1000).toISOString();
+
+    return {
+      minId: String(oldest.id),
+      maxId: String(newest.id),
+      minPostedAt: toIso(oldest.date),
+      maxPostedAt: toIso(newest.date),
+      probedAt: new Date().toISOString(),
+    };
+  }
+
+  /**
+   * Потоковая выкачка истории: iterMessages + автоматический sleep при FloodWait.
+   * По умолчанию reverse=false — от последнего сообщения к старым.
    */
   async streamHistory(
     binding: IngestBindingRecord,
     params: StreamHistoryParams,
     sink: IngestMessageSink,
-  ): Promise<{ inserted: number; duplicates: number }> {
+  ): Promise<{ inserted: number; duplicates: number; streamed: number }> {
     if (!this.mtproto || !this.ctx) {
       throw new Error("MTProto client required for streamHistory");
     }
+
+    // Round-robin backfill: dedup только внутри одного батча, не между тиками демона.
+    this.hybridSeen.clear();
 
     const channelKey = this.channelKeys.get(binding.id);
     if (!channelKey) {
       throw new Error(`Channel key not resolved for binding ${binding.id}`);
     }
 
-    const iterOptions: { reverse: boolean; offsetId?: number } = { reverse: true };
+    const iterOptions: { reverse: boolean; offsetId?: number; limit?: number; waitTime?: number } = {
+      reverse: params.reverse ?? false,
+      // Без limit teleproto ставит waitTime=1 и на первом чанке sleep(1 - now_sec) → TimeoutNegativeWarning.
+      waitTime: 0,
+    };
     if (params.offsetId) {
       iterOptions.offsetId = params.offsetId;
+    }
+    if (params.limit != null && params.limit > 0) {
+      iterOptions.limit = params.limit;
     }
 
     let inserted = 0;
     let duplicates = 0;
+    let streamed = 0;
 
     for await (const msg of this.iterMessagesWithFloodRetry(
       binding.externalTarget,
@@ -485,20 +550,24 @@ export class TelegramRawIngestAdapter implements IRawIngestAdapter {
       const key = dedupKey(normalized);
       if (this.hybridSeen.has(key)) {
         duplicates += 1;
+        streamed += 1;
+        if (params.limit != null && streamed >= params.limit) break;
         continue;
       }
       this.hybridSeen.add(key);
-      
-      // sink возвращает { inserted: boolean }, используем это для честной статистики
+
       const result = await sink(normalized);
       if (result && result.inserted === false) {
         duplicates += 1;
       } else {
         inserted += 1;
       }
+
+      streamed += 1;
+      if (params.limit != null && streamed >= params.limit) break;
     }
 
-    return { inserted, duplicates };
+    return { inserted, duplicates, streamed };
   }
 
   private matchesStreamFilters(
@@ -518,7 +587,7 @@ export class TelegramRawIngestAdapter implements IRawIngestAdapter {
     return true;
   }
 
-  /** При reverse-итерации: вышли за нижнюю границу диапазона дат — дальше только старее. */
+  /** Остановка стрима при выходе за нижнюю границу диапазона (зависит от направления). */
   private shouldStopStream(
     normalized: IngestNormalizedMessage,
     params: StreamHistoryParams,
@@ -526,18 +595,32 @@ export class TelegramRawIngestAdapter implements IRawIngestAdapter {
     if (params.fromPostedAt && normalized.postedAt < params.fromPostedAt) {
       return true;
     }
-    if (params.toExternalId) {
-      const toId = Number(params.toExternalId);
-      if (Number.isFinite(toId) && Number(normalized.externalMessageId) < toId) {
+
+    const reverse = params.reverse ?? false;
+
+    if (reverse) {
+      if (params.toExternalId) {
+        const toId = Number(params.toExternalId);
+        if (Number.isFinite(toId) && Number(normalized.externalMessageId) < toId) {
+          return true;
+        }
+      }
+      return false;
+    }
+
+    if (params.fromExternalId) {
+      const fromId = Number(params.fromExternalId);
+      if (Number.isFinite(fromId) && Number(normalized.externalMessageId) < fromId) {
         return true;
       }
     }
+
     return false;
   }
 
   private async *iterMessagesWithFloodRetry(
     peer: string,
-    options: { reverse: boolean; offsetId?: number },
+    options: { reverse: boolean; offsetId?: number; limit?: number; waitTime?: number },
   ): AsyncGenerator<unknown> {
     if (!this.mtproto) {
       throw new Error("MTProto client not connected");

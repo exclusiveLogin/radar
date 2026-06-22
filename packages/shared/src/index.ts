@@ -217,6 +217,24 @@ export {
 export { ingestMessageHash } from "./domain/ingestMessageHash";
 export type { RawMessageHashInput } from "./domain/ingestMessageHash";
 export {
+  readBackfillPreflight,
+  readBackfillStreamReverse,
+  resolveBackfillIdBounds,
+  computeBackfillPercentApprox,
+  mergeBackfillPercentMonotonic,
+  pickFurtherCheckpointOffsetId,
+  buildBackfillJobProgress,
+  readBackfillRoundRobinSlice,
+  withBackfillRoundRobinSlice,
+  resolveBackfillRoundRobinSlice,
+  BACKFILL_ROUND_ROBIN_SLICE_KEY,
+} from "./domain/ingest/backfillProgress";
+export type {
+  BackfillPreflight,
+  BackfillProgressInput,
+  BackfillRoundRobinSlice,
+} from "./domain/ingest/backfillProgress";
+export {
   canonicalRegionCode,
   parseKladrSubjectPrefix,
 } from "./domain/regionLookupCode";
@@ -451,6 +469,7 @@ export type {
   IngestMessageSink,
   IRawIngestAdapter,
   StreamHistoryParams,
+  ChannelHistoryBounds,
   TelegramMtprotoAppCredentials,
   ISessionRuntimeStore,
   ISessionBootstrapService,
