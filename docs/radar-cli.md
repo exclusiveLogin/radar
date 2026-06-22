@@ -26,7 +26,7 @@ npm run radar -- help [stack|pipeline|ingest|parse|geo|phase|map|data|dev]
 | **После deploy P6 (ADR-012)** | `stack migrate` → restart worker → `pipeline reset` → `parse run` → `pipeline parity` |
 | Перепарсить без смены каталога | `npm run radar -- pipeline reset` → `parse run` |
 | Статус очередей | `npm run radar -- pipeline status` |
-| Чистая система | `phase wipe vendor-ingest-parse-geo -- --confirm` → `geo catalog:import` → backfill → `parse run` |
+| Чистая система | **`system wipe -- --confirm`** → `geo catalog:import` → backfill → `parse run` |
 
 Полный справочник — § [Справочник по доменам](#справочник-по-доменам). Сценарии wipe — [phase-commands.md](./phase-commands.md). Runbook — [runbook/geo-clean-rebuild.md](./runbook/geo-clean-rebuild.md).
 
@@ -42,6 +42,7 @@ npm run radar -- help [stack|pipeline|ingest|parse|geo|phase|map|data|dev]
 | `parse` | snap, report, **run** (= rebuild + drain) |
 | `geo` | catalog import/plan, vendor, layout, drain/check/recover |
 | `phase` | wipe / reset / clear по фазам |
+| `system` | полный wipe контента БД (`system wipe`) |
 | `map` | fold status, diagnose |
 | `data` | system reset, migrate |
 | `dev` | ws-smoke, heap diff |
@@ -56,7 +57,7 @@ npm run radar -- help [stack|pipeline|ingest|parse|geo|phase|map|data|dev]
 | **reset** | Снято обогащение (coords, trust, jobs); базовые строки остаются |
 | **clear** | Только очереди (`phase_coverage`, `place_enrichment_jobs`) + cancel runs |
 
-Мутирующие команды: **`-- --dry-run`**. Подробнее по фазам и FK — [phase-commands.md](./phase-commands.md).
+Мутирующие команды: **`-- --dry-run`**. Подробнее по фазам, импакту и сценариям — [phase-commands.md](./phase-commands.md).
 
 **Не путать:** `pipeline reset` (операционный сброс parsed, raw остаётся) ≠ `phase wipe parse` (фазовый TRUNCATE).
 
@@ -100,7 +101,7 @@ npm run radar -- help [stack|pipeline|ingest|parse|geo|phase|map|data|dev]
 | `pipeline drain` | `parse-engine:drain` | Догнать ingest + geo очереди |
 | `pipeline status` | `parse-engine:status` | Сводка очередей / runs |
 | `pipeline reset` | `parse-engine:reset`, `parse-engine:pipeline:reset` | Сброс parsed; **raw остаётся** |
-| `pipeline clear` | `parse-engine:clear`, `parse-engine:archive:clear` | raw + parsed + cursors |
+| `pipeline clear` | `parse-engine:clear`, `parse-engine:archive:clear` | raw + parsed + cursors; закрывает dev/API/worker (`--no-force-locks` опционально) |
 | `pipeline clear:raw` | `parse-engine:clear:raw` | Только raw |
 | `pipeline clear:ingest` | `parse-engine:clear:ingest` | Ingest cursors / backfill |
 | `pipeline queue:ingest` | `parse-engine:queue:ingest` | Очередь phase_coverage |
@@ -160,11 +161,23 @@ Legacy по шагам (не SSOT): `geo:regions:seed`, `geo:features:import`, `
 | `phase reset geo` | `geo:reset` | centroid/trust/jobs |
 | `phase wipe geo-catalog` | `geo-catalog:wipe` | regions, geo_feature, links |
 | `phase wipe ingest-parse` | `ingest-parse:wipe` | = ingest wipe |
-| `phase wipe vendor-ingest-parse-geo -- --confirm` | `vendor-ingest-parse-geo:wipe`, `parse-engine:system:wipe` | Полный wipe контента БД |
+| **`system wipe -- --confirm`** | **`system:wipe`**, `parse-engine:system:wipe` | **Полный wipe контента БД** |
+| `phase wipe system -- --confirm` | = `system wipe` | то же (через redirect) |
+| `phase wipe vendor-ingest-parse-geo -- --confirm` | `vendor-ingest-parse-geo:wipe` | **устарело** → `system wipe` |
 | `phase clear ingest` | `phase:ingest:clear` | phase_coverage + cancel runs |
 | `phase clear geo` | `phase:geo:clear` | place_enrichment_jobs + cancel runs |
 | `phase clear all` | `phase:all:clear` | Обе очереди |
 | `phase manifest:import` / `export` | `phase:manifest:*`, `parse-engine:manifest:*` | Манифест фаз |
+
+### system — полный wipe БД
+
+| radar | legacy | Назначение |
+|-------|--------|------------|
+| **`system wipe -- --confirm`** | `system:wipe`, `parse-engine:system:wipe` | raw + parsed + places + regions/geo_feature |
+| `system wipe -- --dry-run` | — | план без изменений |
+| `system wipe -- --verbose` | — | подробный SQL в лог |
+
+Флаги: `--no-force-locks`, env `RADAR_CONFIRM_SYSTEM_WIPE=1`. Детали шагов — [phase-commands.md § system wipe](./phase-commands.md).
 
 ### map — read-side
 
@@ -196,7 +209,8 @@ Legacy по шагам (не SSOT): `geo:regions:seed`, `geo:features:import`, `
 |---------------|---------------|------------|
 | `parse-engine:reset` (root, до 2026-06) | `pipeline reset` | Раньше ошибочно вёл на `parse:wipe` |
 | `parse-engine:clear` (root, до 2026-06) | `pipeline clear` | Раньше ошибочно вёл на `ingest-parse:wipe` |
-| `parse-engine:system:wipe` | `phase wipe vendor-ingest-parse-geo` | |
+| `parse-engine:system:wipe` | **`system wipe`** | было `vendor-ingest-parse-geo` |
+| `vendor-ingest-parse-geo:wipe` | **`system wipe`** | deprecated alias |
 | `parse-engine:catalog:wipe` | `phase wipe geo` | |
 | `geo:init` / `geo:run` | `geo catalog:import` | |
 | `worker:reparse:raw` (docs) | `parse run` | |
@@ -230,7 +244,7 @@ npm run radar -- pipeline reset
 npm run radar -- parse run
 
 # Чистая система
-npm run radar -- phase wipe vendor-ingest-parse-geo -- --confirm
+npm run radar -- system wipe -- --confirm
 npm run radar -- geo catalog:import
 npm run radar -- ingest backfill -- --all-bindings --batch-size=100
 npm run radar -- parse run

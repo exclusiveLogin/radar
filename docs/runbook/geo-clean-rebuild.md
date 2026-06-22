@@ -90,43 +90,26 @@ data/geo/catalog/  →  radar geo catalog:import
 
 ## Команды по убыванию импакта
 
-> Полный справочник radar ↔ legacy: [radar-cli.md](../radar-cli.md).
+> Полный справочник (bootstrap, manifest, drain): [phase-commands.md](../phase-commands.md). Radar ↔ legacy: [radar-cli.md](../radar-cli.md).
 
-| # | radar (предпочтительно) | Legacy | Импакт |
+| Импакт | Команда (radar) | Legacy | Что удаляет | Что **не** трогает |
+|--------|-----------------|--------|-------------|-------------------|
+| 🔴 max | **`system wipe -- --confirm`** | `system:wipe`, `parse-engine:system:wipe` | raw + parsed + places + regions/geo_feature | channels, bindings, phase_definitions, session, `data/geo/` на диске |
+| 🟠 | `pipeline clear` | `parse-engine:clear` | raw + parsed + cursors | places, regions |
+| 🟠 | `geo catalog:reset -- --confirm` | `geo:catalog:reset` | geo-справочник в БД | raw |
+| 🟡 | `phase wipe geo` | `geo:wipe`, `parse-engine:catalog:wipe` | places + aliases | regions, raw |
+| 🟡 | `phase wipe geo-catalog` | `geo-catalog:wipe` | regions, geo_feature, links | places должны быть пусты |
+| 🟡 | `phase wipe ingest-parse` | `ingest-parse:wipe` | raw + parsed + evloc + jobs | places, regions |
+| 🟢 | `pipeline reset` | `parse-engine:reset` | parse-результаты | raw, каталог |
+| 🟢 | `phase reset geo` | `geo:reset` | coords/trust/jobs | строки places |
+| ⚪ | `phase clear all` | `phase:all:clear` | только очереди | все данные |
+| ⚪ | `vendor:wipe -- --confirm` | `vendor:wipe` | vendor на **диске** | БД |
 
-|---|-------------------------|--------|--------|
-
-| 1 | `radar phase wipe vendor-ingest-parse-geo -- --confirm` | `parse-engine:system:wipe` | 🔴 max |
-
-| 2 | `radar pipeline clear` | `parse-engine:clear` | 🟠 |
-
-| 3 | `radar geo catalog:reset -- --confirm` | `geo:catalog:reset -w @radar/api` | 🟠 |
-
-| 4 | `radar phase wipe geo` | `parse-engine:catalog:wipe` | 🟡 |
-
-| 5 | `radar phase wipe geo-catalog` | `geo-catalog:wipe` | 🟡 |
-
-| 6 | `radar phase wipe ingest-parse` | `ingest-parse:wipe` | 🟡 |
-
-| 7 | `radar pipeline reset` | `parse-engine:reset` | 🟢 |
-
-| 7b | `radar pipeline workspace:heal` | `parse-engine:workspace:heal` | 🟢 |
-
-| 8 | `radar phase wipe geo` (places) | `geo:wipe` | 🟢 |
-
-| 9 | `radar phase reset geo` | `geo:reset` | 🟢 |
-
-| 10 | `parse-engine:catalog:purge-garbage` | — | ⚪ (нет в radar) |
-
-| 11 | `radar phase clear all` | `phase:all:clear` | ⚪ |
-
-
+Устарело: `phase wipe vendor-ingest-parse-geo` → **`system wipe`**.
 
 Все wipe/reset поддерживают **`-- --dry-run`**.
 
-
-
-### `phase wipe vendor-ingest-parse-geo` — детально
+### `system wipe` — детально
 
 
 
@@ -150,7 +133,7 @@ data/geo/catalog/  →  radar geo catalog:import
 
 
 
-> `data reset` и `phase wipe vendor-ingest-parse-geo` **не** удаляют `data/geo/artifacts` — снапшот OSM нужен для `geo catalog:import` (шаг osm). Свежий клон: `vendor:wipe` → `geo:vendor` → `geo:sync`. Полный снос artifacts: `vendor:wipe -- --with-artifacts`.
+> `data reset` и **`system wipe`** **не** удаляют `data/geo/artifacts` — снапшот OSM нужен для `geo catalog:import` (шаг osm). Свежий vendor: `vendor:wipe` → `geo vendor` → `geo sync`. Полный снос artifacts: `vendor:wipe -- --with-artifacts`.
 
 
 
@@ -188,7 +171,7 @@ data/geo/catalog/  →  radar geo catalog:import
 
 ```powershell
 
-npm run radar -- phase wipe vendor-ingest-parse-geo -- --confirm
+npm run radar -- system wipe -- --confirm
 
 npm run radar -- stack migrate
 
@@ -304,7 +287,7 @@ data/geo/dictionaries/adjacency.json
 
 ```powershell
 
-npm run radar -- phase wipe vendor-ingest-parse-geo -- --dry-run
+npm run radar -- system wipe -- --dry-run
 
 npm run radar -- geo catalog:reset -- --dry-run
 

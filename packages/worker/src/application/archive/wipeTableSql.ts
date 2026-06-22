@@ -38,7 +38,7 @@ export class WipeTableLockError extends Error {
       blockers && blockers.length > 0
         ? formatBlockersForError(tables, blockers)
         : `TRUNCATE заблокирован (${tables.join(", ")}). ` +
-            `Остановите npm run dev / API и повторите system:wipe.`,
+            `Остановите npm run dev / API или повторите без --no-force-locks.`,
     );
     this.name = "WipeTableLockError";
     if (cause instanceof Error) {

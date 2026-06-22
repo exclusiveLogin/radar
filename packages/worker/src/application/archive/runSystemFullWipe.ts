@@ -4,7 +4,7 @@ import { wipeFullDataStack } from "../phases/lifecycle/fullStackWipe.js";
 
 export type RunSystemFullWipeResult = Awaited<ReturnType<typeof wipeFullDataStack>>;
 
-/** @deprecated Используйте wipeFullDataStack / vendor-ingest-parse-geo:wipe */
+/** @deprecated Используйте wipeFullDataStack / system:wipe */
 export async function runSystemFullWipe(input: {
   dataSource: DataSource;
   repos: WorkerDbRepositories;

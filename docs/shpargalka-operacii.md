@@ -20,7 +20,7 @@ npm run radar -- stack migrate
 npm run radar -- pipeline status
 npm run radar -- pipeline reset             # parsed сброс, raw остаётся
 npm run radar -- pipeline clear
-npm run radar -- phase wipe vendor-ingest-parse-geo -- --confirm
+npm run radar -- system wipe -- --confirm
 npm run radar -- geo catalog:import
 npm run radar -- ingest backfill -- --all-bindings --batch-size=100
 npm run radar -- parse run
@@ -104,7 +104,7 @@ npm run radar -- geo catalog:import
 ### Быстро: чистая система
 
 ```powershell
-npm run radar -- phase wipe vendor-ingest-parse-geo -- --confirm
+npm run radar -- system wipe -- --confirm
 npm run radar -- geo catalog:import
 npm run radar -- ingest backfill -- --all-bindings --batch-size=100
 npm run radar -- parse run

@@ -321,8 +321,8 @@ npm run radar -- ingest manifest:import
 ## Типовые сценарии
 
 ```powershell
-# Чистая система (кратко — полный runbook в geo-clean-rebuild.md)
-npm run radar -- phase wipe vendor-ingest-parse-geo -- --confirm
+# Чистая система (полный runbook + таблицы импакта — phase-commands.md)
+npm run radar -- system wipe -- --confirm
 npm run radar -- geo catalog:import
 npm run radar -- ingest backfill -- --all-bindings --batch-size=100
 npm run radar -- parse run

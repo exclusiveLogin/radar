@@ -12,7 +12,7 @@ export type FullStackWipeResult = {
 };
 
 /**
- * vendor-ingest-parse-geo:wipe — полный сброс контента (БД), без конфига ingest/фаз.
+ * system:wipe — полный сброс контента (БД), без конфига ingest/фаз.
  */
 export async function wipeFullDataStack(input: {
   dataSource: DataSource;

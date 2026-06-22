@@ -16,13 +16,17 @@ import { notifyMapPushSnapshot } from "../infrastructure/notifyMapPushSnapshot.j
 import { WorkerStorageMode } from "../infrastructure/persistence/storageMode.js";
 import { hasAnyFlag, parseLongFlagsMap, parsePositionalArgs } from "./workerCliArgs.js";
 
+/** Ключи полного wipe БД (ingest + places + geo-catalog). */
+const FULL_SYSTEM_WIPE_KEYS = new Set(["system", "vendor-ingest-parse-geo"]);
+
 const PHASE_HELP: Record<string, string> = {
   ingest: "raw + производные parse; places не трогает",
   parse: "parsed/evloc; raw остаётся",
   geo: "places + aliases; geo_feature/regions остаются",
   "geo-catalog": "regions + geo_feature + geo_dataset_file (БД)",
   "ingest-parse": "ingest:wipe (raw + всё до places)",
-  "vendor-ingest-parse-geo": "полный wipe контента БД",
+  system: "полный wipe контента БД (raw + parsed + places + regions)",
+  "vendor-ingest-parse-geo": "устарело → system wipe",
 };
 
 function printUsage(): void {
@@ -36,7 +40,9 @@ function printUsage(): void {
   geo:wipe    | geo:reset
   geo-catalog:wipe
   ingest-parse:wipe
-  vendor-ingest-parse-geo:wipe  (--confirm обязателен)
+  system:wipe  (--confirm обязателен; предпочтительно: npm run radar -- system wipe)
+
+  Устарело: vendor-ingest-parse-geo:wipe → system:wipe
 
   phase:ingest:clear | phase:geo:clear | phase:all:clear
 
@@ -63,7 +69,14 @@ function printResult(result: PhaseMutationResult): void {
 }
 
 function needsConfirm(phaseKey: string, action: string): boolean {
-  return phaseKey === "vendor-ingest-parse-geo" && action === "wipe";
+  return FULL_SYSTEM_WIPE_KEYS.has(phaseKey) && action === "wipe";
+}
+
+function warnDeprecatedFullWipeKey(phaseKey: string): void {
+  if (phaseKey !== "vendor-ingest-parse-geo") return;
+  console.warn(
+    "⚠ vendor-ingest-parse-geo устарел — используйте: npm run radar -- system wipe -- --confirm",
+  );
 }
 
 type PhaseDbCtx = { dataSource: DataSource; repos: WorkerDbRepositories };
@@ -102,6 +115,7 @@ async function runPhaseMutation(
       return [await wipeGeoCatalogPhase({ dataSource: ds!, dryRun })];
     case "ingest-parse:wipe":
       return [await wipeIngestParsePhase({ dataSource: ds!, repos: repos!, dryRun })];
+    case "system:wipe":
     case "vendor-ingest-parse-geo:wipe":
       return (await wipeFullDataStack({ dataSource: ds!, repos: repos!, dryRun })).steps;
     default:
@@ -130,6 +144,8 @@ async function main(): Promise<void> {
 
   const phaseKey = positionals[0]!.toLowerCase();
   const action = positionals[1]!.toLowerCase();
+
+  warnDeprecatedFullWipeKey(phaseKey);
 
   if (needsConfirm(phaseKey, action) && !dryRun && !isConfirmed(flags)) {
     console.error("Добавьте --confirm для полного wipe.");

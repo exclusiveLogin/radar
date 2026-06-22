@@ -149,6 +149,6 @@ export function formatBlockersForError(
   return (
     `TRUNCATE заблокирован (${tables.join(", ")}). ` +
     `Блокеры: ${formatBlockers(blockers)}. ` +
-    `Остановите npm run dev / API или запустите wipe без --no-force-locks.`
+    `Остановите npm run dev / API или повторите без --no-force-locks.`
   );
 }

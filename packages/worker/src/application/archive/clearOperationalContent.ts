@@ -4,6 +4,7 @@ import { stopAllActivePhaseRuns } from "../phases/stopAllActivePhaseRuns.js";
 import { clearIngestOperationalState } from "./clearIngestOperationalState.js";
 import { clearOperationalMapState } from "./clearOperationalMapState.js";
 import { clearRawArchive } from "./clearRawArchive.js";
+import { terminateOtherDatabaseBackends } from "./wipeDbLocks.js";
 import { truncateTableCounted } from "./wipeTableSql.js";
 import { runWipeStep, type WipeStepOptions } from "./wipeStepReporter.js";
 
@@ -25,7 +26,8 @@ export type ClearOperationalContentResult = {
 
 const truncateOpts = (ctx: WipeStepOptions) => ({
   log: ctx.log,
-  forceLocks: ctx.forceLocks,
+  /** По умолчанию true — TRUNCATE retry через pg_terminate_backend (как system wipe). */
+  forceLocks: ctx.forceLocks !== false,
 });
 
 /**
@@ -40,6 +42,14 @@ export async function clearOperationalContent(
 ): Promise<ClearOperationalContentResult> {
   const reason = input.reason ?? CLEAR_OPERATIONAL_CONTENT_REASON;
   const { dataSource, repos } = input;
+  const forceLocks = input.forceLocks !== false;
+
+  if (forceLocks) {
+    await runWipeStep(input, "закрытие прочих подключений к БД", async () => {
+      input.log?.detail("pg_terminate_backend для dev/API/worker (не текущая сессия)");
+      return terminateOtherDatabaseBackends(dataSource, input.log);
+    });
+  }
 
   let phaseRunsStopped = 0;
   let queueCleared = 0;

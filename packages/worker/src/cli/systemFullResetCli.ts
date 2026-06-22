@@ -17,9 +17,10 @@ function isWipeConfirmed(flags: ReturnType<typeof parseLongFlagsMap>): boolean {
 }
 
 function printHelp(): void {
-  console.log(`Usage: npm run parse-engine:system:wipe -w @radar/worker -- --confirm [--dry-run] [--verbose] [--no-force-locks]
+  console.log(`Usage: npm run radar -- system wipe -- --confirm [--dry-run] [--verbose] [--no-force-locks]
+       или: npm run system:wipe -- --confirm
 
-  Полный wipe БД (без конфига ingest/фаз):
+  Полный wipe контента БД (без конфига ingest/фаз):
     • raw_messages, parsed_events, parse_attempts, phase_runs, domain_events
     • ingest cursors/backfill
     • places, place_aliases, geo_feature, place_geo_link, geo_dataset_file, regions

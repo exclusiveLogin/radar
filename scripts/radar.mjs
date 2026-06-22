@@ -78,10 +78,15 @@ geo — каталог и артефакты
 `,
   phase: `
 phase — фазовый lifecycle (wipe/reset/clear)
-  wipe <ingest|parse|geo|geo-catalog|ingest-parse|vendor-ingest-parse-geo>
+  wipe <ingest|parse|geo|geo-catalog|ingest-parse|system>
   reset <ingest|parse|geo>
   clear <ingest|geo|all>
   manifest:import | manifest:export
+  (устарело: vendor-ingest-parse-geo → system)
+`,
+  system: `
+system — полный wipe контента БД
+  wipe            raw + parsed + places + regions (--confirm)
 `,
   map: `
 map — read-side fold
@@ -109,9 +114,9 @@ function printHelp(topic) {
 radar — операции Radar (корень репо)
 
   npm run radar -- <domain> <action> [-- флаги...]
-  npm run radar -- help [stack|pipeline|ingest|parse|geo|phase|map|data|dev]
+  npm run radar -- help [stack|pipeline|ingest|parse|geo|phase|system|map|data|dev]
 
-Домены: stack pipeline ingest parse geo phase map data dev
+Домены: stack pipeline ingest parse geo phase system map data dev
 
 Примеры:
   npm run radar -- stack dev --full
@@ -119,6 +124,7 @@ radar — операции Radar (корень репо)
   npm run radar -- pipeline parity
   npm run radar -- ingest backfill -- --all-bindings --batch-size=100
   npm run radar -- geo catalog:import
+  npm run radar -- system wipe -- --dry-run
   npm run radar -- phase wipe parse -- --dry-run
   npm run radar -- map diagnose
 
@@ -197,6 +203,9 @@ const ACTIONS = {
     'manifest:import': (p) => npm('phase:manifest:import', p),
     'manifest:export': (p) => npm('phase:manifest:export', p),
   },
+  system: {
+    wipe: (p) => npm('system:wipe', p),
+  },
   map: {
     fold: (p) => npmW('@radar/worker', 'map:fold:status', p),
     diagnose: (p) => npmW('@radar/worker', 'worker:map-state:diagnose', p),
@@ -235,6 +244,21 @@ function main() {
 
   const { head, pass } = splitPass(argv);
   const [domain, action, ...phaseTail] = head;
+
+  // phase wipe system|vendor-ingest-parse-geo → system:wipe (SSOT)
+  if (
+    domain === 'phase' &&
+    action === 'wipe' &&
+    (phaseTail[0] === 'system' || phaseTail[0] === 'vendor-ingest-parse-geo')
+  ) {
+    if (phaseTail[0] === 'vendor-ingest-parse-geo') {
+      console.warn(
+        '⚠ vendor-ingest-parse-geo устарел — используйте: npm run radar -- system wipe -- --confirm',
+      );
+    }
+    dispatch('system', 'wipe', [...phaseTail.slice(1), ...pass]);
+    return;
+  }
 
   // phase wipe parse → phase:lifecycle wipe parse
   if (domain === 'phase' && (action === 'wipe' || action === 'reset' || action === 'clear')) {
