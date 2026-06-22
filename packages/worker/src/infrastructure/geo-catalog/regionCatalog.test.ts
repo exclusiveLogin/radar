@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { RegionCatalog } from "./regionCatalog.js";
-import { repoDataPath } from "../../shims/monorepo-root.js";
+import { repoDataPath } from "@repo/root";
 
 test("buildAliases: род. падеж «воронежской области»", () => {
   const catalogPath = repoDataPath("geo", "catalog", "regions.json");

@@ -3,7 +3,7 @@ import test from "node:test";
 import { RegionCatalog } from "../../infrastructure/geo-catalog/regionCatalog.js";
 import * as path from "node:path";
 import * as fs from "node:fs";
-import { repoDataPath } from "../../shims/monorepo-root.js";
+import { repoDataPath } from "@repo/root";
 import { extractPvoStats } from "./extractPvoStats.js";
 
 // Загружаем реальный каталог регионов из репозитория.

@@ -1,5 +1,7 @@
 # Runbook: сброс БД, каталог geo, backfill и перепривязка событий
 
+> **Copy-paste cold start 0→6:** [cold-start.md](../cold-start.md) — единый сценарий без склейки доков.
+
 
 
 PowerShell, корень репозитория. Нужны `DATABASE_URL`, `RADAR_STORAGE_MODE=db`, Postgres.

@@ -9,7 +9,7 @@ import {
 import { CityCatalog, type CityCatalogEntry } from "./cityCatalog.js";
 import { extractFallbackCities } from "./cityFallbackExtractors.js";
 import { KnownLocalityCatalog } from "./knownLocalityCatalog.js";
-import { repoDataPath } from "../../shims/monorepo-root.js";
+import { repoDataPath } from "@repo/root";
 import {
   RegionCatalog,
   resolveArtifactsRoot,

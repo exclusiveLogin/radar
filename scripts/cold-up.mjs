@@ -52,13 +52,13 @@ async function main() {
 
   dockerOk();
 
-  console.log('\n\x1b[32m[1/5] docker compose up -d\x1b[0m');
+  console.log('\n\x1b[32m[1/6] docker compose up -d\x1b[0m');
   run('docker', ['compose', 'up', '-d']);
 
   const pgUser = process.env.POSTGRES_USER || 'radar';
   const pgDb = process.env.POSTGRES_DB || 'radar';
 
-  console.log('\n\x1b[32m[2/5] ожидание Postgres (pg_isready)...\x1b[0m');
+  console.log('\n\x1b[32m[2/6] ожидание Postgres (pg_isready)...\x1b[0m');
   let ready = false;
   for (let i = 0; i < 45; i++) {
     const probe = spawnSync(
@@ -84,13 +84,14 @@ async function main() {
     process.exit(1);
   }
 
-  console.log('\n\x1b[32m[3/5] npm install\x1b[0m');
+  console.log('\n\x1b[32m[3/6] npm install\x1b[0m');
   run('npm', ['install']);
 
-  console.log('\n\x1b[32m[4/5] сборка @radar/shared (нужна до dev/api)\x1b[0m');
+  console.log('\n\x1b[32m[4/6] сборка @radar/shared и @repo/root (нужны до dev/worker)\x1b[0m');
   run('npm', ['run', 'build', '-w', '@radar/shared']);
+  run('npm', ['run', 'build', '-w', '@repo/root']);
 
-  console.log('\n\x1b[32m[5/5] миграции TypeORM\x1b[0m');
+  console.log('\n\x1b[32m[5/6] миграции TypeORM\x1b[0m');
   run('npm', ['run', 'migration:run']);
 
   const llm =

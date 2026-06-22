@@ -2,6 +2,7 @@
 
 Единая инструкция: **что поднять**, **в каком порядке**, **как проверить**.  
 **CLI:** [`radar-cli.md`](./radar-cli.md) — `npm run radar -- <domain> <action>`.  
+**Чистая система с нуля (wipe → catalog → backfill → parse):** [`cold-start.md`](./cold-start.md) — нумерованный сценарий **0→6**.  
 Детали ingest/backfill — в отдельных гайдах (ссылки в конце).
 
 ---
@@ -205,30 +206,15 @@ BackfillDaemon (отдельно от Orchestrator) → streamHistory → тот
 
 ## Geo (опционально, для качества мест)
 
-Если нужны регионы в БД и структурная геометрия (карта районов):
+SSOT import в БД — одна команда:
 
 ```powershell
-npm run radar -- stack cold-up -- -Geo
+npm run radar -- geo catalog:import
 ```
 
-**Чистый лист:** [phase-commands.md](./phase-commands.md) — `npm run radar -- data reset -- --confirm`
+Полный cold start с wipe и backfill: **[cold-start.md § 0→6](./cold-start.md)** (без legacy `geo:regions:seed` / `geo:features:import`).
 
-или вручную:
-
-```powershell
-npm run geo:regions:seed    # → regions + place(kind=region) из catalog/regions.json
-npm run geo:vendor          # → скачать OSM GeoJSON
-npm run geo:sync            # → geo_dataset_file
-npm run geo:seed            # → geo_dataset_file manifest
-npm run geo:features:import # → geo_feature + catalog place(kind=district) + place_geo_link
-```
-
-Геокаталог:
-- `data/geo/catalog/regions.json` — 89 субъектов РФ (SSOT).
-- `geo:features:import` заполняет `geo_feature` (районы/субъекты OSM) и создаёт catalog-places для parse-матча.
-- `GET /api/map/districts-geojson` — новый endpoint для GeoJSON районов.
-
-Подробности архитектуры: [adr-005-geo-feature-layer.md](./adr-005-geo-feature-layer.md).
+Артефакты: `data/geo/catalog/`, `data/geo/artifacts/`. Архитектура: [adr-005-geo-feature-layer.md](./adr-005-geo-feature-layer.md).
 
 ---
 

@@ -4,7 +4,7 @@
  * Требует Postgres + .env (DATABASE_URL, RADAR_STORAGE_MODE=db).
  */
 import "reflect-metadata";
-import { MONOREPO_ROOT } from "../src/shims/monorepo-root.ts";
+import { MONOREPO_ROOT } from "@repo/root";
 import { loadRootEnv } from "../src/infrastructure/config/loadRootEnv.js";
 import { createWorkerCompositionRoot } from "../src/application/createWorkerCompositionRoot.js";
 import { WorkerStorageMode } from "../src/infrastructure/persistence/storageMode.js";

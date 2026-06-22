@@ -6,11 +6,11 @@
     "outDir": "./dist",
     "rootDir": "./src",
     "noEmit": false,
-    "declaration": false,
-    "declarationMap": false,
+    "declaration": true,
+    "declarationMap": true,
     "composite": false,
     "incremental": false
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "src/**/*.test.ts"]
+  "exclude": ["node_modules", "dist"]
 }

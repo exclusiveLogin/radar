@@ -7,10 +7,11 @@
 | Документ | Когда |
 |----------|--------|
 | **[radar-cli.md](./radar-cli.md)** | SSOT всех CLI-команд |
+| [cold-start.md](./cold-start.md) | **cold start 0→6** — wipe → catalog → backfill → parse |
 | [getting-started.md](./getting-started.md) | первый запуск, troubleshooting |
 | [shpargalka-operacii.md](./shpargalka-operacii.md) | REST API, env, сценарии |
 | [phase-commands.md](./phase-commands.md) | семантика wipe/reset/clear |
-| [runbook/geo-clean-rebuild.md](./runbook/geo-clean-rebuild.md) | чистый перезапуск: wipe → catalog → backfill → reparse |
+| [runbook/geo-clean-rebuild.md](./runbook/geo-clean-rebuild.md) | частичные rebuild-сценарии (catalog only, reparse) |
 | [ingest-providers.md](./ingest-providers.md) | Telegram session, manifest, CLI ingest |
 | [backfill-v2-pipeline.md](./backfill-v2-pipeline.md) | демон полной истории |
 
@@ -320,13 +321,9 @@ npm run radar -- ingest manifest:import
 
 ## Типовые сценарии
 
-```powershell
-# Чистая система (полный runbook + таблицы импакта — phase-commands.md)
-npm run radar -- system wipe -- --confirm
-npm run radar -- geo catalog:import
-npm run radar -- ingest backfill -- --all-bindings --batch-size=100
-npm run radar -- parse run
+**Cold start (полный):** [cold-start.md § copy-paste](./cold-start.md#copy-paste-сценарий-уже-есть-session--manifest)
 
+```powershell
 # Перепарсить raw без смены каталога
 npm run radar -- pipeline reset
 npm run radar -- parse run

@@ -7,7 +7,8 @@
 | **[parse-inspect.md](./parse-inspect.md)** | **Parse debug:** `parse:inspect` → agent artifacts |
 | **[radar-cli.md](./radar-cli.md)** | **SSOT CLI:** частые команды + таблицы radar ↔ legacy по доменам |
 | **[cheatsheet.md](./cheatsheet.md)** | Ingest, backfill, SQL, UI, диагностика (без дубля таблиц) |
-| **[runbook/geo-clean-rebuild.md](./runbook/geo-clean-rebuild.md)** | Сброс БД → catalog → backfill → reparse |
+| **[cold-start.md](./cold-start.md)** | **Cold start 0→6:** wipe → catalog → backfill → parse (copy-paste) |
+| **[runbook/geo-clean-rebuild.md](./runbook/geo-clean-rebuild.md)** | Частичные сценарии rebuild (catalog only, reparse only) |
 | **[shpargalka-operacii.md](./shpargalka-operacii.md)** | REST API, env, сценарии |
 | **[phase-commands.md](./phase-commands.md)** | Семантика wipe/reset/clear |
 | **[getting-started.md](./getting-started.md)** | Запуск всего продукта локально |

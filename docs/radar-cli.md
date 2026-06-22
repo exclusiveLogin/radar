@@ -26,7 +26,7 @@ npm run radar -- help [stack|pipeline|ingest|parse|geo|phase|map|data|dev]
 | **После deploy P6 (ADR-012)** | `stack migrate` → restart worker → `pipeline reset` → `parse run` → `pipeline parity` |
 | Перепарсить без смены каталога | `npm run radar -- pipeline reset` → `parse run` |
 | Статус очередей | `npm run radar -- pipeline status` |
-| Чистая система | **`system wipe -- --confirm`** → `geo catalog:import` → backfill → `parse run` |
+| Чистая система | **[cold-start.md](./cold-start.md)** — шаги 0→6 |
 
 Полный справочник — § [Справочник по доменам](#справочник-по-доменам). Сценарии wipe — [phase-commands.md](./phase-commands.md). Runbook — [runbook/geo-clean-rebuild.md](./runbook/geo-clean-rebuild.md).
 
