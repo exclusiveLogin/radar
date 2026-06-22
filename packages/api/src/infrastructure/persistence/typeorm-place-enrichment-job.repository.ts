@@ -40,6 +40,35 @@ const ELIGIBLE_PLACE_WHERE = `
   )
 `;
 
+/** Промах геокодера (`nominatim:miss`) — терминальный failed, без auto re-queue в drain/catch-up. */
+const TERMINAL_MISS_JOB_WHERE = `
+  NOT EXISTS (
+    SELECT 1 FROM place_enrichment_jobs j
+    WHERE j.place_id = p.id
+      AND j.provider = $1
+      AND j.status = 'failed'
+      AND j.last_error LIKE '%:miss'
+  )
+`;
+
+/** ON CONFLICT: done с coords и terminal miss не трогаем, остальное → pending. */
+const UPSERT_JOB_STATUS_SQL = `
+  CASE
+    WHEN place_enrichment_jobs.status = 'done'
+      AND EXISTS (
+        SELECT 1 FROM places pp
+        WHERE pp.id = place_enrichment_jobs.place_id
+          AND pp.centroid_lat IS NOT NULL
+          AND pp.centroid_lon IS NOT NULL
+      )
+    THEN place_enrichment_jobs.status
+    WHEN place_enrichment_jobs.status = 'failed'
+      AND place_enrichment_jobs.last_error LIKE '%:miss'
+    THEN place_enrichment_jobs.status
+    ELSE 'pending'
+  END
+`;
+
 export class TypeOrmPlaceEnrichmentJobRepository
 implements IPlaceEnrichmentJobRepository {
   constructor(private readonly dataSource: DataSource) {}
@@ -68,18 +97,9 @@ implements IPlaceEnrichmentJobRepository {
       FROM places p
       LEFT JOIN geo_feature gf ON gf.id = p.geo_feature_id
       WHERE ${ELIGIBLE_PLACE_WHERE}
+        AND ${TERMINAL_MISS_JOB_WHERE}
       ON CONFLICT (place_id, provider) DO UPDATE
-      SET status = CASE
-            WHEN place_enrichment_jobs.status = 'done'
-              AND EXISTS (
-                SELECT 1 FROM places pp
-                WHERE pp.id = place_enrichment_jobs.place_id
-                  AND pp.centroid_lat IS NOT NULL
-                  AND pp.centroid_lon IS NOT NULL
-              )
-            THEN place_enrichment_jobs.status
-            ELSE 'pending'
-          END,
+      SET status = ${UPSERT_JOB_STATUS_SQL},
           updated_at = now()
       RETURNING id
       `,
@@ -94,40 +114,43 @@ implements IPlaceEnrichmentJobRepository {
     provider: PlaceEnrichmentProvider,
     limit: number,
   ): Promise<PlaceEnrichmentJobRecord[]> {
+    // Шаг 1: upsert pending для eligible (отдельный statement).
+    await this.dataSource.query(
+      `
+      INSERT INTO place_enrichment_jobs (place_id, provider, status, attempts, updated_at)
+      SELECT p.id, $1, 'pending', 0, now()
+      FROM places p
+      LEFT JOIN geo_feature gf ON gf.id = p.geo_feature_id
+      WHERE ${ELIGIBLE_PLACE_WHERE}
+        AND ${TERMINAL_MISS_JOB_WHERE}
+      ORDER BY p.updated_at ASC
+      LIMIT $2
+      ON CONFLICT (place_id, provider) DO UPDATE
+      SET status = ${UPSERT_JOB_STATUS_SQL},
+          updated_at = now()
+      `,
+      [provider, limit],
+    );
+
+    // Шаг 2: claim pending только для eligible places.
+    // Нельзя INSERT+UPDATE place_enrichment_jobs в одном WITH — PG не видит upsert в UPDATE (claimed=0).
     const rows = readTypeOrmQueryRows<Row>(
       await this.dataSource.query(
         `
-        WITH eligible AS (
-          SELECT p.id AS place_id
-          FROM places p
-          LEFT JOIN geo_feature gf ON gf.id = p.geo_feature_id
-          WHERE ${ELIGIBLE_PLACE_WHERE}
-          ORDER BY p.updated_at ASC
-          LIMIT $2
-        ),
-        upserted AS (
-          INSERT INTO place_enrichment_jobs (place_id, provider, status, attempts, updated_at)
-          SELECT place_id, $1, 'pending', 0, now()
-          FROM eligible
-          ON CONFLICT (place_id, provider) DO UPDATE
-          SET status = CASE
-                WHEN place_enrichment_jobs.status = 'done'
-                  AND EXISTS (
-                    SELECT 1 FROM places pp
-                    WHERE pp.id = place_enrichment_jobs.place_id
-                      AND pp.centroid_lat IS NOT NULL
-                      AND pp.centroid_lon IS NOT NULL
-                  )
-                THEN place_enrichment_jobs.status
-                ELSE 'pending'
-              END,
-              updated_at = now()
-          RETURNING id
-        )
         UPDATE place_enrichment_jobs j
         SET status = 'processing', updated_at = now()
-        FROM upserted u
-        WHERE j.id = u.id AND j.status = 'pending'
+        WHERE j.id IN (
+          SELECT j2.id
+          FROM place_enrichment_jobs j2
+          INNER JOIN places p ON p.id = j2.place_id
+          LEFT JOIN geo_feature gf ON gf.id = p.geo_feature_id
+          WHERE j2.provider = $1
+            AND j2.status = 'pending'
+            AND ${ELIGIBLE_PLACE_WHERE}
+          ORDER BY j2.updated_at ASC
+          LIMIT $2
+          FOR UPDATE OF j2 SKIP LOCKED
+        )
         RETURNING j.id, j.place_id, j.provider, j.status, j.attempts, j.last_error, j.created_at, j.updated_at
         `,
         [provider, limit],

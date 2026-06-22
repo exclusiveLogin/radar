@@ -1,6 +1,6 @@
 import type { PlaceEnrichmentProvider } from "@radar/shared";
 
-/** Стандартный last_error для пустого ответа геокодера (не done, подлежит sweep). */
+/** Стандартный last_error для пустого ответа геокодера — job failed, без auto re-queue (см. TERMINAL_MISS в repo). */
 export function enrichmentMissError(provider: PlaceEnrichmentProvider): string {
   return `${provider}:miss`;
 }

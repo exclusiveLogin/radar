@@ -26,17 +26,28 @@ export function isFederalSubjectLabel(label: string): boolean {
   return tokens.some((token) => SUBJECT_TYPE_TOKENS.has(token));
 }
 
-/** FIAS «обл Белгородская» → «Белгородская область» для Nominatim/DaData. */
+/** FIAS «обл Белгородская» / «Удмуртская Респ» → полное имя для Nominatim/DaData. */
 export function normalizeFederalSubjectDisplay(raw: string): string {
   const trimmed = raw.trim();
   const prefix = trimmed.match(/^(обл|область|край|респ|республика|ао)\.?\s+(.+)$/i);
-  if (!prefix) return trimmed;
+  if (prefix) {
+    const type = prefix[1]!.toLowerCase();
+    const name = prefix[2]!.trim();
+    if (type === "обл" || type === "область") return `${name} область`;
+    if (type === "край") return `${name} край`;
+    if (type === "респ" || type === "республика") return `${name} республика`;
+    return trimmed;
+  }
 
-  const type = prefix[1]!.toLowerCase();
-  const name = prefix[2]!.trim();
-  if (type === "обл" || type === "область") return `${name} область`;
-  if (type === "край") return `${name} край`;
-  if (type === "респ" || type === "республика") return `${name} республика`;
+  const suffixResp = trimmed.match(/^(.+?)\s+респ\.?$/iu);
+  if (suffixResp) return `${suffixResp[1]!.trim()} республика`;
+
+  const suffixObl = trimmed.match(/^(.+?)\s+обл\.?$/iu);
+  if (suffixObl) return `${suffixObl[1]!.trim()} область`;
+
+  const suffixAo = trimmed.match(/^(.+?)\s+(?:ао|автономный\s+округ)\.?$/iu);
+  if (suffixAo) return `${suffixAo[1]!.trim()} автономный округ`;
+
   return trimmed;
 }
 
@@ -64,18 +75,32 @@ export type CatalogPlaceGeocodeInput = {
   parentPlaceNameWithType?: string;
 };
 
+/** FIAS-префикс типа НП ломает Nominatim («с. X» → []), без префикса находит. */
+export function stripFiasSettlementPrefix(label: string): string {
+  return label
+    .replace(
+      /^(?:г|с|д|рп|пгт|ст-?ца|х|аул|сл|м|дп|кп|нп|п|п\.?\s*ст)\.\s+/iu,
+      "",
+    )
+    .trim();
+}
+
 /**
  * Запрос для catalog place + region: «место[, район], субъект, страна».
  * SSOT для geoParse (place_enrichment_jobs) и ingest enrichers.
  */
 export function buildCatalogPlaceGeocodeQuery(input: CatalogPlaceGeocodeInput): string {
-  const placeLabel = (input.placeNameWithType ?? input.placeName).trim();
+  const placeLabel = stripFiasSettlementPrefix(
+    (input.placeNameWithType ?? input.placeName).trim(),
+  );
   const regionLabel = formatFederalSubjectLabel(input.region);
   if (!placeLabel) return regionLabel;
   if (!regionLabel) return placeLabel;
 
   const parts = [placeLabel];
-  const parentLabel = (input.parentPlaceNameWithType ?? input.parentPlaceName)?.trim();
+  const parentLabel = stripFiasSettlementPrefix(
+    (input.parentPlaceNameWithType ?? input.parentPlaceName)?.trim() ?? "",
+  );
   if (parentLabel && !normalize(placeLabel).includes(normalize(parentLabel))) {
     parts.push(parentLabel);
   }
