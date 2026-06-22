@@ -1,0 +1,7 @@
+{
+  "mcpAllowlist": [
+    "context7:*",
+    "lean-ctx:*",
+    "serena:*"
+  ]
+}

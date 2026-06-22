@@ -1,16 +1,25 @@
 {
   "mcpServers": {
     "context7": {
-      "command": "npx",
+      "command": "C:\\Program Files\\nodejs\\npx.cmd",
       "args": ["-y", "@upstash/context7-mcp@latest"],
       "env": {}
     },
     "lean-ctx": {
-      "command": "lean-ctx",
+      "command": "C:\\Users\\Fox\\AppData\\Roaming\\npm\\lean-ctx.cmd",
       "args": [],
       "env": {
         "LEAN_CTX_ALLOW_PATH": "C:/Users/Fox/OneDrive/Документы/GitHub/radar"
       }
+    },
+    "serena": {
+      "command": "C:\\Users\\Fox\\.local\\bin\\uvx.exe",
+      "args": [
+        "--from",
+        "git+https://github.com/oraios/serena",
+        "serena-mcp-server"
+      ],
+      "env": {}
     }
   }
 }
