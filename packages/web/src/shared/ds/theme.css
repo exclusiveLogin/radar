@@ -934,10 +934,6 @@ body {
   gap: 12px;
 }
 
-.admin-shell__ws {
-  font-size: 11px;
-}
-
 .admin-shell__nav a {
   color: var(--text-muted);
   text-decoration: none;

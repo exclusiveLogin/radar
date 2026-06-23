@@ -5,6 +5,7 @@ import { connectionStatus$ } from "../realtime/ws";
 import { historicalAsOf$ } from "../state/mapStore";
 import { systemHealth$ } from "../state/providersStore";
 import { formatDateTime } from "../format/dateTime";
+import { LiveBadgeView, type LiveBadgeKind } from "./LiveBadgeView";
 
 type LiveClockProps = {
   /** Часовой пояс (по умолчанию локальный). */
@@ -47,8 +48,6 @@ export function LiveClock({ timeZone }: LiveClockProps) {
     </div>
   );
 }
-
-type LiveBadgeKind = "ok" | "warn" | "error";
 
 /** Индикатор realtime-потока: WS + health API/БД. */
 export function LiveBadge() {
@@ -112,14 +111,5 @@ export function LiveBadge() {
     };
   }, [health.apiOk, health.dbReady, health.lastCheckAt, historicalAsOf, wsStatus]);
 
-  return (
-    <span
-      className={`ds-live-badge ds-live-badge--${kind}`}
-      title={title}
-      aria-label={title}
-    >
-      <span className={`ds-live-badge__dot${pulse ? " ds-live-badge__dot--pulse" : ""}`} />
-      {label}
-    </span>
-  );
+  return <LiveBadgeView kind={kind} label={label} title={title} pulse={pulse} />;
 }

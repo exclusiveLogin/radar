@@ -1,8 +1,7 @@
 import { useEffect } from "react";
 import { NavLink } from "react-router-dom";
 import { LiveClock, ThemeToggle } from "../shared/ds";
-import { useObservable } from "../shared/hooks/useObservable";
-import { adminWsStatus$ } from "../shared/realtime/adminWs";
+import { AdminWsBadge } from "./AdminWsBadge";
 import { startAdminStore } from "../shared/state/adminStore";
 import { ADMIN_LAYOUT_SECTIONS } from "./adminWidgetRegistry";
 
@@ -10,8 +9,6 @@ import { ADMIN_LAYOUT_SECTIONS } from "./adminWidgetRegistry";
  * Оболочка админ-панели: хедер + секционный дашборд (12 колонок).
  */
 export function AdminAppShell() {
-  const wsStatus = useObservable(adminWsStatus$, "connecting");
-
   useEffect(() => {
     startAdminStore();
   }, []);
@@ -31,7 +28,7 @@ export function AdminAppShell() {
           </NavLink>
         </div>
         <div className="admin-shell__meta">
-          <span className="ds-muted admin-shell__ws">WS: {wsStatus}</span>
+          <AdminWsBadge />
           <LiveClock timeZone="UTC" />
           <ThemeToggle />
         </div>
