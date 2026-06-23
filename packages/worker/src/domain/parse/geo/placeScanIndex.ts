@@ -1,11 +1,41 @@
-import type { PlaceScanEntry, PlaceScanHit, TextSpan } from "@radar/shared";
-import { placeStem } from "@radar/shared";
+import type { PlaceRecord, PlaceScanEntry, PlaceScanHit, TextSpan } from "@radar/shared";
+import {
+  isGeoPhraseStopword,
+  kindMeetsFloor,
+  placeStem,
+  sortPlaceScanEntriesStable,
+} from "@radar/shared";
 
 type PhraseIndexRow = {
   phrase: string;
   phraseLower: string;
   entries: PlaceScanEntry[];
 };
+
+/**
+ * ADR-012: без regionScope — kind ≥ city; locality/settlement только если имя уникально в каталоге.
+ */
+function resolvePhraseCandidates(
+  entries: PlaceScanEntry[],
+  minKind: PlaceRecord["kind"],
+  phraseLower: string,
+): PlaceScanEntry[] {
+  const cityPlus = entries.filter(
+    (e) => e.kind !== "region" && kindMeetsFloor(e.kind, minKind),
+  );
+  if (cityPlus.length > 0) return cityPlus;
+
+  if (isGeoPhraseStopword(phraseLower) || phraseLower.length < 4) {
+    return [];
+  }
+
+  const explicitSettlement = entries.filter(
+    (e) => e.kind === "locality" || e.kind === "settlement",
+  );
+  if (explicitSettlement.length === 1) return explicitSettlement;
+
+  return [];
+}
 
 /** In-memory longest-match index по фразам каталога. */
 export class PlaceScanIndex {
@@ -52,8 +82,12 @@ export class PlaceScanIndex {
       .sort((a, b) => b.phrase.length - a.phrase.length);
   }
 
-  /** Longest-match по фразам kind filter. */
-  matchPhrases(text: string, kindFilter?: (e: PlaceScanEntry) => boolean): PlaceScanHit[] {
+  /** Longest-match по фразам; phraseMinKind — ADR-012 floor для place-phrase. */
+  matchPhrases(
+    text: string,
+    kindFilter?: (e: PlaceScanEntry) => boolean,
+    phraseMinKind: PlaceRecord["kind"] = "city",
+  ): PlaceScanHit[] {
     const lower = text.toLowerCase();
     const hits: PlaceScanHit[] = [];
     const occupied: Array<[number, number]> = [];
@@ -76,16 +110,19 @@ export class PlaceScanIndex {
           continue;
         }
         if (!overlaps(start, end)) {
-          const candidates = kindFilter
-            ? row.entries.filter(kindFilter)
-            : row.entries;
+          const filtered = kindFilter ? row.entries.filter(kindFilter) : row.entries;
+          const candidates =
+            kindFilter && filtered.length > 0 && filtered.every((e) => e.kind !== "region")
+              ? resolvePhraseCandidates(filtered, phraseMinKind, row.phraseLower)
+              : filtered;
           if (candidates.length > 0) {
-            const entry = candidates[0]!;
+            const sorted = sortPlaceScanEntriesStable(candidates);
+            const entry = sorted[0]!;
             occupied.push([start, end]);
             hits.push({
               entry,
               span: { start, end, matchedText: text.slice(start, end) },
-              geoImprecise: candidates.length > 1,
+              geoImprecise: sorted.length > 1,
             });
           }
         }
@@ -100,8 +137,16 @@ export class PlaceScanIndex {
     return this.matchPhrases(text, (e) => e.kind === "region");
   }
 
-  matchPlacesByPhrase(text: string): PlaceScanHit[] {
-    return this.matchPhrases(text, (e) => e.kind !== "region");
+  /**
+   * Phrase-match для place: ADR-012 — без regionScope только kind ≥ city
+   * (locality/settlement не матчатся по голому имени).
+   */
+  matchPlacesByPhrase(
+    text: string,
+    options?: { minKind?: PlaceRecord["kind"] },
+  ): PlaceScanHit[] {
+    const minKind = options?.minKind ?? "city";
+    return this.matchPhrases(text, (e) => e.kind !== "region", minKind);
   }
 }
 

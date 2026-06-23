@@ -88,7 +88,9 @@ export function buildRegionPopupLines(code: string): string[] {
         : null,
     recentEvent?.eventType ? `тип: ${recentEvent.eventType}` : null,
     region?.statusEventAt ? `статус с ${formatDateTime(region.statusEventAt)}` : null,
-    recentEvent?.rawText ? recentEvent.rawText.slice(0, 80) : null,
+    recentEvent?.displayText ?? recentEvent?.rawText
+      ? (recentEvent.displayText ?? recentEvent.rawText).slice(0, 80)
+      : null,
   ].filter((line): line is string => !!line);
 }
 
@@ -109,7 +111,9 @@ export function buildPlacePopupLines(
     LEVEL_LABELS[level],
     place.statusCode ? `тип: ${place.statusCode}` : null,
     place.statusEventAt ? `статус с ${formatDateTime(place.statusEventAt)}` : null,
-    sourceMessage?.rawText ? sourceMessage.rawText.slice(0, 80) : null,
+    sourceMessage?.displayText ?? sourceMessage?.rawText
+      ? (sourceMessage.displayText ?? sourceMessage.rawText).slice(0, 80)
+      : null,
   ].filter((line): line is string => !!line);
 }
 

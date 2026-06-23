@@ -149,6 +149,8 @@ export const warningSchema = z.object({
 /** Исходное сообщение, последнее привязанное к региону/месту. */
 export const sourceMessageSchema = z.object({
   rawText: z.string(),
+  /** Текст без promo/footer канала — для tooltip карты. */
+  displayText: z.string().optional(),
   postedAt: z.string().datetime(),
   channelKey: z.string().optional(),
   /** Все ISO субъектов из того же parsed_event (мультирегион в одном raw). */

@@ -45,7 +45,8 @@ export class PlaceScanService implements IPlaceScanPort {
       hits.push(hit);
     };
 
-    for (const hit of this.index.matchPlacesByPhrase(text)) {
+    // ADR-012: без regionScope — phrase только city+; stem-путь дублирует с kindFloor.
+    for (const hit of this.index.matchPlacesByPhrase(text, { minKind: "city" })) {
       if (regionScopeId && hit.entry.regionId !== regionScopeId) continue;
       pushHit(hit);
     }

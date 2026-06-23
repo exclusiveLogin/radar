@@ -13,7 +13,7 @@ import type {
   EventHeatmapPeriod,
   EventHeatmapResponse,
 } from "@radar/shared";
-import { STATE_LEVEL_RANK, classifyContentKind, eventHeatmapPeriodMs } from "@radar/shared";
+import { STATE_LEVEL_RANK, classifyContentKind, eventHeatmapPeriodMs, groomRawTextForDisplay } from "@radar/shared";
 import type { EventType } from "@radar/shared";
 import { StatusDictionaryEntity } from "../events/entities";
 import { PlaceEntity, RegionEntity } from "../geo/entities";
@@ -426,6 +426,7 @@ export class MapQueryService {
     if (!row) return null;
     return {
       rawText: row.raw_text,
+      displayText: groomRawTextForDisplay(row.raw_text),
       postedAt: row.posted_at.toISOString(),
       channelKey: row.channel_key,
       regionCodes: row.region_codes ?? [],
@@ -468,6 +469,7 @@ export class MapQueryService {
     if (!row) return null;
     return {
       rawText: row.raw_text,
+      displayText: groomRawTextForDisplay(row.raw_text),
       postedAt: row.posted_at.toISOString(),
       channelKey: row.channel_key,
       regionCodes: row.region_codes ?? [],
@@ -551,6 +553,7 @@ export class MapQueryService {
       channelTitle: row.channel_title ?? undefined,
       postedAt: row.posted_at.toISOString(),
       rawText: row.raw_text,
+      displayText: groomRawTextForDisplay(row.raw_text),
       eventType: row.event_type,
       eventCategory: row.event_category ?? undefined,
       repeat: row.repeat ?? undefined,

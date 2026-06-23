@@ -27,6 +27,13 @@ test("оперативная тревога без списка каналов �
   assert.equal(extractEventType(text), "mass_warning");
 });
 
+test("радар launch promo без оперативки — noise", () => {
+  const text =
+    "❗️Радар по всей России - @radarrussiia\n🌐 Обход белых списков - @Internet_Boost_bot";
+  assert.equal(classifyContentKind(text), "noise");
+  assert.equal(extractEventType(text), null);
+});
+
 test("stripChannelStatusPrefix: эмодзи статуса канала", () => {
   assert.equal(stripChannelStatusPrefix("🟡Актарск"), "Актарск");
   assert.equal(stripChannelStatusPrefix("🔴 Котлубань"), "Котлубань");

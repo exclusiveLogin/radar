@@ -57,7 +57,9 @@ function regionHoverTip(
     recentEvent?.eventType ? `тип: ${recentEvent.eventType}` : null,
     region.activity > 0 ? `×${region.activity}` : null,
     region.statusEventAt ? `статус с ${formatDateTime(region.statusEventAt)}` : null,
-    recentEvent?.rawText ? recentEvent.rawText.slice(0, 80) : null,
+    recentEvent?.displayText ?? recentEvent?.rawText
+      ? (recentEvent.displayText ?? recentEvent.rawText).slice(0, 80)
+      : null,
   ]
     .filter(Boolean)
     .join("\n");

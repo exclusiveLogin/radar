@@ -9,6 +9,8 @@ export const stateChangeEventItemSchema = z.object({
   channelTitle: z.string().nullable().optional(),
   postedAt: z.string().datetime(),
   rawText: z.string(),
+  /** Текст без promo/footer канала — для tooltip карты. */
+  displayText: z.string().optional(),
   eventType: z.string().optional(),
   eventCategory: z.string().nullable().optional(),
   stateLevel: stateLevelSchema,

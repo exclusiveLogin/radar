@@ -1,4 +1,4 @@
-import { canonicalRegionCode, type IPlaceAliasRepository, type IPlaceEnrichmentJobRepository, type IPlaceRepository, type IRegionRepository, type PlaceContribution, type PlaceEnrichmentProvider, type PlaceRecord, buildCatalogPlaceGeocodeQuery, parseRegionViewbox, resolveNominatimCountryCode } from "@radar/shared";
+import { canonicalRegionCode, kindMeetsFloor, type IPlaceAliasRepository, type IPlaceEnrichmentJobRepository, type IPlaceRepository, type IRegionRepository, type PlaceContribution, type PlaceEnrichmentProvider, type PlaceRecord, buildCatalogPlaceGeocodeQuery, parseRegionViewbox, resolveNominatimCountryCode } from "@radar/shared";
 import { DadataEnricher } from "../../infrastructure/enrichers/dadataEnricher.js";
 import { loadDadataToken } from "../../infrastructure/enrichers/dadataConfig.js";
 import { LlmEnricher } from "../../infrastructure/enrichers/llmEnricher.js";
@@ -165,6 +165,20 @@ export class PlaceEnrichmentRunner {
             placeName,
             query: "",
             outcome: "skip_region",
+          });
+          await this.jobs.markDone(job.id);
+          processed += 1;
+          continue;
+        }
+        if (!kindMeetsFloor(place.kind, "city")) {
+          logGeoPlaceOutcome({ provider, placeName: place.name, outcome: "skip" });
+          logGeoPlaceVerbose({
+            provider,
+            placeId: place.id,
+            placeName: place.name,
+            query: "",
+            outcome: "skip_region",
+            detail: "kind_below_city",
           });
           await this.jobs.markDone(job.id);
           processed += 1;

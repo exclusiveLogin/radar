@@ -74,12 +74,19 @@ function isChannelCityListPromo(input: string): boolean {
   return false;
 }
 
+function isRadarChannelLaunchPromo(text: string): boolean {
+  if (!/радар\s+по\s+всей\s+россии/i.test(text)) return false;
+  if (/бпла|дрон|прол[её]т|тревог|опасност|пво|фиксац/i.test(text)) return false;
+  return true;
+}
+
 /** Отделяет сигналы о событиях от донатов, политики и служебного шума канала. */
 export function classifyContentKind(input: string): ContentKind {
   const text = input.trim();
   if (!text) return "noise";
 
   if (isChannelCityListPromo(text)) return "noise";
+  if (isRadarChannelLaunchPromo(text)) return "noise";
   if (NOISE_PATTERNS.some((x) => x.test(text))) return "noise";
   if (META_PATTERNS.some((x) => x.test(text))) return "meta";
   if (SUMMARY_PATTERNS.some((x) => x.test(text))) return "meta";

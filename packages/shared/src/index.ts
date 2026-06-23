@@ -280,6 +280,11 @@ export { normalizeRegionCodeAlias } from "./domain/regionCodeAlias";
 export { layoutTileToCentroid } from "./domain/layoutCentroid";
 export { maxStateLevel } from "./domain/maxStateLevel";
 export { classifyContentKind, type ContentKind } from "./domain/parsing/classifyContentKind";
+export { groomRawTextForDisplay } from "./domain/parsing/groomRawTextForDisplay";
+export {
+  GEO_PHRASE_STOPWORDS,
+  isGeoPhraseStopword,
+} from "./domain/parsing/geoPhraseStopwords";
 export {
   resolveRawMessagePostedAtOrder,
   type RawMessagePostedAtOrder,
