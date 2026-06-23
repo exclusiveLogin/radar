@@ -21,7 +21,7 @@ import {
 } from "@radar/shared";
 import { GeoFeatureEntity, PlaceEntity, RegionEntity } from "../geo/entities";
 import { StatusDictionaryEntity } from "../events/entities";
-import { resolvePlaceMapCentroid, resolveRegionCentroid } from "./map-centroid.resolver";
+import { resolvePlaceMapMarkerCoords, resolveRegionCentroid } from "./map-centroid.resolver";
 import { loadLayout } from "./layout.loader";
 import { MapFactsRepository } from "./map-facts.repository";
 
@@ -231,9 +231,8 @@ export class MapSnapshotQueryService {
       winners.filter((w) => w.placeId).map((w) => [w.placeId!, w]),
     );
 
-    const geoFeatureIds = [...new Set(
-      places.map((p) => p.geoFeatureId).filter((id): id is string => id != null),
-    )];
+    const effectiveGeoFeatureByPlace = await this.loadEffectiveGeoFeatureIds(placeIds);
+    const geoFeatureIds = [...new Set(effectiveGeoFeatureByPlace.values())];
     const geoFeatureMap = new Map<string, { lat: number; lon: number }>();
     if (geoFeatureIds.length > 0) {
       const geoFeatures = await this.dataSource
@@ -258,11 +257,12 @@ export class MapSnapshotQueryService {
       const stateLevel = maxStateLevel([winner.statusCode], levelByStatus);
       if (stateLevel === "grey") continue;
 
-      const geoFeatureCentroid = place.geoFeatureId
-        ? geoFeatureMap.get(place.geoFeatureId)
+      const effectiveGeoFeatureId = effectiveGeoFeatureByPlace.get(place.id);
+      const geoFeatureCentroid = effectiveGeoFeatureId
+        ? geoFeatureMap.get(effectiveGeoFeatureId)
         : undefined;
-      const coords = resolvePlaceMapCentroid({ place, geoFeatureCentroid });
-      if (!coords) continue;
+      const markerCoords = resolvePlaceMapMarkerCoords({ place, geoFeatureCentroid });
+      if (!markerCoords && !geoFeatureCentroid) continue;
 
       items.push({
         placeId: place.id,
@@ -272,15 +272,44 @@ export class MapSnapshotQueryService {
         statusCode: winner.statusCode,
         stateLevel,
         kind: place.kind,
-        geoFeatureId: place.geoFeatureId ?? undefined,
-        lat: coords.lat,
-        lon: coords.lon,
+        geoFeatureId: effectiveGeoFeatureId,
+        lat: markerCoords?.lat ?? geoFeatureCentroid!.lat,
+        lon: markerCoords?.lon ?? geoFeatureCentroid!.lon,
         updatedAt: asOf.toISOString(),
         statusEventAt: winner.occurredAt,
       });
     }
 
     return items;
+  }
+
+  /** place.geo_feature_id + place_geo_link — SSOT полигона каталога на карте. */
+  private async loadEffectiveGeoFeatureIds(
+    placeIds: string[],
+  ): Promise<Map<string, string>> {
+    if (placeIds.length === 0) return new Map();
+    const rows = (await this.dataSource.query(
+      `SELECT p.id AS place_id,
+              COALESCE(
+                p.geo_feature_id,
+                (
+                  SELECT l.geo_feature_id
+                  FROM place_geo_link l
+                  WHERE l.place_id = p.id
+                  ORDER BY l.priority ASC, l.geo_feature_id
+                  LIMIT 1
+                )
+              ) AS geo_feature_id
+       FROM places p
+       WHERE p.id = ANY($1::uuid[])`,
+      [placeIds],
+    )) as Array<{ place_id: string; geo_feature_id: string | null }>;
+
+    const map = new Map<string, string>();
+    for (const row of rows) {
+      if (row.geo_feature_id) map.set(row.place_id, row.geo_feature_id);
+    }
+    return map;
   }
 
   private async loadStatusLevels(): Promise<Map<string, StateLevel>> {

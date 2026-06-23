@@ -62,6 +62,8 @@ test("isGarbageIngestPlaceName: служебные строки канала", (
   assert.equal(isGarbageIngestPlaceName("Тингута и ближайшие"), true);
   assert.equal(isGarbageIngestPlaceName("ЖД Вокзал Мариуполь"), true);
   assert.equal(isGarbageIngestPlaceName("Балаклавский район"), false);
+  assert.equal(isGarbageIngestPlaceName("Меры"), true);
+  assert.equal(isGarbageIngestPlaceName("Или"), true);
 });
 
 test("normalizePlaceLabelForGeocode: канальные подписи → топоним", () => {

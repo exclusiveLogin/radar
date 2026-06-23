@@ -92,13 +92,25 @@ export class MapQueryService {
               r.iso AS region_iso,
               gf.geometry
        FROM geo_feature gf
-       INNER JOIN places p ON p.geo_feature_id = gf.id AND p.is_active = true
+       INNER JOIN (
+         SELECT p.id AS place_id,
+                COALESCE(
+                  p.geo_feature_id,
+                  (
+                    SELECT l.geo_feature_id
+                    FROM place_geo_link l
+                    WHERE l.place_id = p.id
+                    ORDER BY l.priority ASC, l.geo_feature_id
+                    LIMIT 1
+                  )
+                ) AS gf_id
+         FROM places p
+         WHERE p.id = ANY($1::uuid[]) AND p.is_active = true
+       ) link ON link.gf_id = gf.id
        LEFT JOIN regions r ON r.id = gf.region_id
-       WHERE p.id = ANY($1::uuid[])
-         AND gf.layer = ANY($2)
-         AND gf.is_active = true
+       WHERE gf.is_active = true
          AND gf.geometry IS NOT NULL`,
-      [placeIds, ["district", "city_district"]],
+      [placeIds],
     )) as Array<{
       id: string;
       name: string;
@@ -172,18 +184,48 @@ export class MapQueryService {
   }> {
     const regionId = input?.regionId;
     const geoFeatureIds = input?.geoFeatureIds?.filter(Boolean) ?? [];
+
+    if (!regionId && geoFeatureIds.length === 0) {
+      return { type: "FeatureCollection", features: [] };
+    }
+
+    if (geoFeatureIds.length > 0) {
+      const rows = (await this.dataSource.query(
+        `SELECT gf.id,
+                gf.name,
+                gf.layer,
+                gf.name_stem,
+                gf.region_id,
+                gf.centroid_lat::float8 AS centroid_lat,
+                gf.centroid_lon::float8 AS centroid_lon,
+                r.iso AS region_iso,
+                gf.geometry
+         FROM geo_feature gf
+         LEFT JOIN regions r ON r.id = gf.region_id
+         WHERE gf.id = ANY($1::uuid[])
+           AND gf.is_active = true
+           AND gf.geometry IS NOT NULL
+         ORDER BY r.iso, gf.name`,
+        [geoFeatureIds],
+      )) as Array<{
+        id: string;
+        name: string;
+        layer: string;
+        name_stem: string;
+        region_id: string | null;
+        centroid_lat: number | null;
+        centroid_lon: number | null;
+        region_iso: string | null;
+        geometry: Record<string, unknown>;
+      }>;
+      return this.toDistrictsFeatureCollection(rows);
+    }
+
     const params: unknown[] = [["district", "city_district"]];
     let regionFilter = "";
-    let idsFilter = "";
 
     if (regionId) {
       regionFilter = `AND gf.region_id = $${params.push(regionId)}`;
-    }
-    if (geoFeatureIds.length > 0) {
-      idsFilter = `AND gf.id = ANY($${params.push(geoFeatureIds)}::uuid[])`;
-    }
-    if (!regionId && geoFeatureIds.length === 0) {
-      return { type: "FeatureCollection", features: [] };
     }
 
     const rows = (await this.dataSource.query(
@@ -202,7 +244,6 @@ export class MapQueryService {
          AND gf.is_active = true
          AND gf.geometry IS NOT NULL
          ${regionFilter}
-         ${idsFilter}
        ORDER BY r.iso, gf.name`,
       params,
     )) as Array<{

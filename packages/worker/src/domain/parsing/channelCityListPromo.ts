@@ -3,7 +3,7 @@
  * Не оперативная тревога: не классифицируем как event и не геокодируем список.
  */
 
-import { normalizePlaceMatchLabel } from "@radar/shared";
+import { isGeoPhraseStopword, normalizePlaceMatchLabel } from "@radar/shared";
 
 /** Суффикс бренда канала — убираем перед lookup в справочнике НП. */
 export function stripChannelPlaceSuffix(placeName: string): string {
@@ -127,6 +127,9 @@ export function isGarbageIngestPlaceName(placeName: string): boolean {
   const trimmed = stripChannelStatusPrefix(placeName);
   const normalized = normalizePlaceLabelForGeocode(placeName);
   if (!trimmed || !normalized || trimmed.length > 80) {
+    return true;
+  }
+  if (isGeoPhraseStopword(normalized.toLowerCase())) {
     return true;
   }
   if (isChannelBrandPlaceName(trimmed) || isChannelBrandPlaceName(normalized)) {

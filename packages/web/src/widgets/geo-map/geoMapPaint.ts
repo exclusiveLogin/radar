@@ -166,7 +166,7 @@ export function paintRegionInsetOutlines(painted: GeoJsonCollection): GeoJsonCol
   };
 }
 
-/** Точки places: маркер-кружок с fade по statusEventAt. */
+/** Точки places: операционный маркер (enrich); полигон каталога — слой districts. */
 export function placesToFeatures(
   places: Map<string, MapPlaceSnapshot>,
   regions: Map<string, MapRegionSnapshot>,
@@ -222,7 +222,7 @@ export function placesCollection(
   };
 }
 
-/** Активные place-полигоны: join geo_feature base + placesById$. */
+/** Активные place-полигоны: join geo_feature base + placesById$ (независимо от enrich-маркера). */
 export function paintActiveDistricts(
   base: GeoJsonCollection,
   places: Map<string, MapPlaceSnapshot>,

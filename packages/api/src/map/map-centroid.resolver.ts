@@ -1,14 +1,14 @@
 import type { RegionEntity } from "../geo/entities";
 
-function toNumber(value: string | null): number | undefined {
-  if (value === null) return undefined;
+function toNumber(value: string | null | undefined): number | undefined {
+  if (value === null || value === undefined) return undefined;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : undefined;
 }
 
 type CentroidInput = {
-  centroidLat: string | null;
-  centroidLon: string | null;
+  centroidLat?: string | null | number;
+  centroidLon?: string | null | number;
 };
 
 /**
@@ -29,19 +29,39 @@ export function resolveRegionCentroid(input: {
   return input.placeFallback;
 }
 
+/** Centroid place после geo-enrich (nominatim/dadata) — операционная точка маркера. */
+export function resolvePlaceEnrichedCentroid(input: {
+  place: CentroidInput;
+}): { lat: number; lon: number } | undefined {
+  const lat = toNumber(input.place.centroidLat as string | null);
+  const lon = toNumber(input.place.centroidLon as string | null);
+  if (lat === undefined || lon === undefined) return undefined;
+  return { lat, lon };
+}
+
+/** Centroid полигона каталога (geo_feature) — не подменяет enrich, только fallback маркера. */
+export function resolveCatalogGeoFeatureCentroid(
+  geoFeatureCentroid?: { lat: number; lon: number },
+): { lat: number; lon: number } | undefined {
+  return geoFeatureCentroid;
+}
+
 /**
- * WGS84-координаты маркера place: сначала собственный centroid, затем centroid из geo_feature.
- * Fallback на geo_feature позволяет отображать catalog-places (districts), у которых
- * place.centroid_lat/lon не заполнены, но geo_feature содержит вычисленный центроид полигона.
- * Fallback на регион намеренно не делается — давал фантомные дубли регионов.
- * Heatmap (getEventsHeatmapGeoJson) дублирует цепочку + el.lat/lon из event_locations.
+ * Координаты маркера на карте: enrich-точка и полигон каталога — разные слои.
+ * Маркер: enrich → fallback centroid полигона (пока enrich нет).
+ * Полигон всегда по geoFeatureId на фронте, enrich его не отменяет.
  */
+export function resolvePlaceMapMarkerCoords(input: {
+  place: CentroidInput;
+  geoFeatureCentroid?: { lat: number; lon: number };
+}): { lat: number; lon: number } | undefined {
+  return resolvePlaceEnrichedCentroid(input) ?? resolveCatalogGeoFeatureCentroid(input.geoFeatureCentroid);
+}
+
+/** @deprecated Используй resolvePlaceMapMarkerCoords — имя сохранено для heatmap/SQL-комментариев. */
 export function resolvePlaceMapCentroid(input: {
   place: CentroidInput;
   geoFeatureCentroid?: { lat: number; lon: number };
 }): { lat: number; lon: number } | undefined {
-  const lat = toNumber(input.place.centroidLat);
-  const lon = toNumber(input.place.centroidLon);
-  if (lat !== undefined && lon !== undefined) return { lat, lon };
-  return input.geoFeatureCentroid;
+  return resolvePlaceMapMarkerCoords(input);
 }

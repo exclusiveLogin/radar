@@ -10,6 +10,7 @@ const DISPLAY_FOOTER_PATTERNS: RegExp[] = [
   /@[\w_]+/i,
   /t\.me\//i,
   /подписывайтесь/i,
+  /меры\s+безопасности/i,
   /промокод/i,
 ];
 

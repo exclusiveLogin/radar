@@ -6,6 +6,8 @@ export const GEO_PHRASE_STOPWORDS = new Set([
   "или",
   "наша",
   "наш",
+  "меры",
+  "мера",
   "это",
   "все",
   "вся",

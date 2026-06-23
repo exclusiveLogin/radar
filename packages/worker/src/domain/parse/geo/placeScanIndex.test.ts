@@ -111,3 +111,23 @@ test("PlaceScanService: союз «или» в оперативном текст
   const hits = scan.matchPlaces(text, {});
   assert.equal(hits.length, 0);
 });
+
+const MERY_LOCALITY: PlaceScanEntry[] = [
+  {
+    placeId: "mery-locality-id",
+    regionId: "mos-region-id",
+    regionIso: "RU-MOS",
+    kind: "locality",
+    name: "Меры",
+    nameStem: "меры",
+    centroidLat: 55.81,
+    centroidLon: 37.62,
+  },
+];
+
+test("PlaceScanIndex: «Меры безопасности» не матчит locality Меры (RU-MOS)", () => {
+  const index = new PlaceScanIndex(MERY_LOCALITY);
+  const text = "Щекинский район\nТульская область\nРабота ПВО по БПЛА\nМеры безопасности";
+  const hits = index.matchPlacesByPhrase(text);
+  assert.equal(hits.length, 0);
+});

@@ -10,3 +10,12 @@ test("groomRawTextForDisplay: обрезает radar promo footer", () => {
     "Ивановка - пролёт БПЛА.",
   );
 });
+
+test("groomRawTextForDisplay: обрезает хвост «Меры безопасности»", () => {
+  const raw =
+    "Щекинский район\nТульская область\nРабота ПВО по БПЛА\nМеры безопасности\n\n❗️Радар";
+  assert.equal(
+    groomRawTextForDisplay(raw),
+    "Щекинский район\nТульская область\nРабота ПВО по БПЛА",
+  );
+});
