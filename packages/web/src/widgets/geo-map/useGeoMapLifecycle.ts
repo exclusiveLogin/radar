@@ -125,9 +125,13 @@ export function useGeoMapLifecycle(containerRef: RefObject<HTMLDivElement | null
     let activePlacePopupId: string | null = null;
     /** Пользователь сдвинул карту до прихода geojson — не делаем auto-fit/stop. */
     let userAdjustedViewBeforeGeo = false;
+    /** Программный fitBounds/flyTo — не считаем ручным pan. */
+    let fittingView = false;
     let geoRecoveryHooked = false;
     /** Отписка wireMapBootstrap при unmount. */
     let disposeMapBootstrap: (() => void) | null = null;
+    /** ResizeObserver — flex-контейнер получает размер после mount. */
+    let resizeObserver: ResizeObserver | null = null;
     /** Однократная инициализация слоёв и подписок (не привязана к успеху тайлов). */
     let mapBootstrapped = false;
     // Хранит ссылку на maplibre после динамического import — нужна для Popup в обработчиках
@@ -170,8 +174,13 @@ export function useGeoMapLifecycle(containerRef: RefObject<HTMLDivElement | null
         || (!hadPlaces && hasPlaces);
       if (!shouldFit) return;
       if (regionFeatures.length === 0 && placeFeatures.length === 0) return;
-      fitMapView(map, regionFeatures, placeFeatures);
-      didFitRef.current = true;
+      fittingView = true;
+      try {
+        fitMapView(map, regionFeatures, placeFeatures);
+        didFitRef.current = true;
+      } finally {
+        fittingView = false;
+      }
     };
 
     const syncRegionsFromStores = (forceRegions = false): void => {
@@ -658,9 +667,8 @@ export function useGeoMapLifecycle(containerRef: RefObject<HTMLDivElement | null
 
       // До первого auto-fit — запоминаем ручной pan/zoom (не привязано к regions-geojson).
       map.on("movestart", () => {
-        if (!didFitRef.current) {
-          userAdjustedViewBeforeGeo = true;
-        }
+        if (fittingView || didFitRef.current) return;
+        userAdjustedViewBeforeGeo = true;
       });
     };
 
@@ -679,6 +687,16 @@ export function useGeoMapLifecycle(containerRef: RefObject<HTMLDivElement | null
         attributionControl: { compact: true },
       });
 
+      const container = containerRef.current;
+      if (container && typeof ResizeObserver !== "undefined") {
+        resizeObserver = new ResizeObserver(() => {
+          if (disposed || !map) return;
+          map.resize();
+          map.triggerRepaint();
+        });
+        resizeObserver.observe(container);
+      }
+
       // Подписка сразу после создания map — не ждём load, иначе toggle до load теряется.
       storeSubscriptions.add(
         geoMapLayers$.pipe(takeUntil(destroy$)).subscribe((layers) => {
@@ -693,6 +711,7 @@ export function useGeoMapLifecycle(containerRef: RefObject<HTMLDivElement | null
         mapBootstrapped = true;
 
         setupLayersAndHandlers();
+        map.resize();
 
         const effectSignals: GeoMapEffectSignals = { heatmapManualRefresh$ };
         const fetchStreams = createGeoMapFetchStreams(effectSignals);
@@ -764,6 +783,14 @@ export function useGeoMapLifecycle(containerRef: RefObject<HTMLDivElement | null
         );
 
         mapCanvasReady$.next(true);
+        // Догоняем paint, если fold/geo уже в store; resize после layout-pass.
+        syncRegionsFromStores(true);
+        syncPlacesFromStores();
+        requestAnimationFrame(() => {
+          if (!map || disposed) return;
+          map.resize();
+          map.triggerRepaint();
+        });
 
         let appliedTheme = theme$.value;
         storeSubscriptions.add(
@@ -846,6 +873,8 @@ export function useGeoMapLifecycle(containerRef: RefObject<HTMLDivElement | null
       regionPopup?.remove();
       regionPopup = null;
       disposeMapBootstrap?.();
+      resizeObserver?.disconnect();
+      resizeObserver = null;
       map?.remove();
     };
   }, [containerRef]);

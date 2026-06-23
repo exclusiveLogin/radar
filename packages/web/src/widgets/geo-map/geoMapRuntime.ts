@@ -14,21 +14,57 @@ import type { GeoJsonCollection } from "./geoMapTypes";
 /** Таймаут ожидания внешнего стиля перед переходом на inline-fallback. */
 const MAP_STYLE_LOAD_TIMEOUT_MS = 5_000;
 
-/** Повтор push в источник без idle — при сбое тайлов idle может не наступить (Rx animationFrames). */
-function retrySourcePush(push: () => boolean, onCommitted?: () => void): void {
-  if (push()) {
-    onCommitted?.();
-    return;
+/**
+ * Пересчёт canvas + repaint: в flex-layout MapLibre часто не рисует GeoJSON
+ * до первого pan/resize, хотя setData уже выполнен.
+ */
+function refreshMapViewport(map: MapLibreMap): void {
+  try {
+    map.resize();
+  } catch {
+    // карта уже уничтожена
   }
-  let attempts = 0;
-  const sub = animationFrames().subscribe(() => {
-    if (push()) {
-      onCommitted?.();
-      sub.unsubscribe();
-      return;
-    }
-    if (++attempts >= 30) sub.unsubscribe();
+  map.triggerRepaint();
+}
+
+/** Повтор push в источник: rAF + idle/sourcedata — источник может появиться после addLayer. */
+function retrySourcePush(
+  map: MapLibreMap,
+  push: () => boolean,
+  onCommitted?: () => void,
+): void {
+  let settled = false;
+  const attempt = (): boolean => {
+    if (settled || !push()) return settled;
+    settled = true;
+    onCommitted?.();
+    cleanup();
+    return true;
+  };
+
+  if (attempt()) return;
+
+  let frameAttempts = 0;
+  const frameSub = animationFrames().subscribe(() => {
+    attempt();
+    if (!settled && ++frameAttempts >= 60) cleanup();
   });
+
+  const onIdle = (): void => {
+    attempt();
+  };
+  const onSourceData = (event: { isSourceLoaded?: boolean }): void => {
+    if (event.isSourceLoaded) attempt();
+  };
+
+  map.on("idle", onIdle);
+  map.on("sourcedata", onSourceData);
+
+  const cleanup = (): void => {
+    frameSub.unsubscribe();
+    map.off("idle", onIdle);
+    map.off("sourcedata", onSourceData);
+  };
 }
 
 /** Доступ к MapLibre-инстансу из closure useEffect. */
@@ -178,7 +214,7 @@ export function createGeoMapRuntime(host: GeoMapRuntimeHost) {
 
       source.setData(data as never);
       fingerprints.set(sourceId, fingerprint);
-      map.triggerRepaint();
+      refreshMapViewport(map);
       return true;
     },
 
@@ -188,7 +224,7 @@ export function createGeoMapRuntime(host: GeoMapRuntimeHost) {
 
       const push = (): boolean => sources.set(sourceId, data);
       whenStyleReady(map, () => {
-        retrySourcePush(push);
+        retrySourcePush(map, push);
       });
     },
 
@@ -214,7 +250,7 @@ export function createGeoMapRuntime(host: GeoMapRuntimeHost) {
       outlineSource.setData(outlineData as never);
       fingerprints.set(REGIONS_SOURCE, fingerprint);
       fingerprints.set(REGIONS_OUTLINE_SOURCE, fingerprint);
-      map.triggerRepaint();
+      refreshMapViewport(map);
       return true;
     },
 
@@ -228,7 +264,7 @@ export function createGeoMapRuntime(host: GeoMapRuntimeHost) {
 
       const push = (): boolean => sources.commitRegions(painted, force);
       whenStyleReady(map, () => {
-        retrySourcePush(push, onCommitted);
+        retrySourcePush(map, push, onCommitted);
       });
     },
 

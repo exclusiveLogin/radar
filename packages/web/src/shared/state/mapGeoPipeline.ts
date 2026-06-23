@@ -102,7 +102,7 @@ export function districtsPaint$(): Observable<void> {
   );
 }
 
-/** Lazy fetch контуров: exhaustMap отменяет параллельные запросы. */
+/** Lazy fetch контуров: switchMap отменяет устаревший запрос при смене visible codes. */
 export function regionsGeoFetch$(): Observable<FetchPhase<RegionsGeometryFetchData>> {
   return combineLatest([
     combineLatest([regionsByCode$, mapViewAnchor$]).pipe(
@@ -118,7 +118,7 @@ export function regionsGeoFetch$(): Observable<FetchPhase<RegionsGeometryFetchDa
   ]).pipe(
     filter(([, , enabled, ready]) => enabled && ready),
     debounceGeo,
-    exhaustMap(() => toFetchPhase$(syncVisibleRegionGeometry)),
+    switchMap(() => toFetchPhase$(syncVisibleRegionGeometry)),
   );
 }
 
