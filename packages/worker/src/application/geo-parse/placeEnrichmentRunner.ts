@@ -1,4 +1,4 @@
-import { canonicalRegionCode, kindMeetsFloor, type IPlaceAliasRepository, type IPlaceEnrichmentJobRepository, type IPlaceRepository, type IRegionRepository, type PlaceContribution, type PlaceEnrichmentProvider, type PlaceRecord, buildCatalogPlaceGeocodeQuery, parseRegionViewbox, resolveNominatimCountryCode } from "@radar/shared";
+import { canonicalRegionCode, isGeoEnrichEligibleKind, type IPlaceAliasRepository, type IPlaceEnrichmentJobRepository, type IPlaceRepository, type IRegionRepository, type PlaceContribution, type PlaceEnrichmentProvider, type PlaceRecord, buildCatalogPlaceGeocodeQuery, parseRegionViewbox, resolveNominatimCountryCode } from "@radar/shared";
 import { DadataEnricher } from "../../infrastructure/enrichers/dadataEnricher.js";
 import { loadDadataToken } from "../../infrastructure/enrichers/dadataConfig.js";
 import { LlmEnricher } from "../../infrastructure/enrichers/llmEnricher.js";
@@ -170,7 +170,7 @@ export class PlaceEnrichmentRunner {
           processed += 1;
           continue;
         }
-        if (!kindMeetsFloor(place.kind, "city")) {
+        if (!isGeoEnrichEligibleKind(place.kind)) {
           logGeoPlaceOutcome({ provider, placeName: place.name, outcome: "skip" });
           logGeoPlaceVerbose({
             provider,

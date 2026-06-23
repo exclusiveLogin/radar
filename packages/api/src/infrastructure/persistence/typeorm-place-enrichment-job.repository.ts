@@ -1,7 +1,8 @@
-import type {
-  IPlaceEnrichmentJobRepository,
-  PlaceEnrichmentJobRecord,
-  PlaceEnrichmentProvider,
+import {
+  GEO_ENRICH_ELIGIBLE_KINDS,
+  type IPlaceEnrichmentJobRepository,
+  type PlaceEnrichmentJobRecord,
+  type PlaceEnrichmentProvider,
 } from "@radar/shared";
 import type { DataSource } from "typeorm";
 import { pgTimestampToIso, readTypeOrmQueryRows } from "./typeorm-query-rows";
@@ -17,10 +18,13 @@ type Row = {
   updated_at: Date;
 };
 
+/** SSOT: kinds с rank ≥ city — не тянем locality/settlement в pull-batch. */
+const ENRICH_ELIGIBLE_KIND_SQL = GEO_ENRICH_ELIGIBLE_KINDS.map((k) => `'${k}'`).join(", ");
+
 /** SSOT фильтр eligible places для geo enrich (pull batch). */
 const ELIGIBLE_PLACE_WHERE = `
   p.is_active = true
-  AND p.kind <> 'region'
+  AND p.kind IN (${ENRICH_ELIGIBLE_KIND_SQL})
   AND p.centroid_lat IS NULL
   AND p.centroid_lon IS NULL
   AND (gf.centroid_lat IS NULL OR gf.id IS NULL)
@@ -114,6 +118,20 @@ implements IPlaceEnrichmentJobRepository {
     provider: PlaceEnrichmentProvider,
     limit: number,
   ): Promise<PlaceEnrichmentJobRecord[]> {
+    // Legacy pending по locality/settlement — не claim'ить, пометить done.
+    await this.dataSource.query(
+      `
+      UPDATE place_enrichment_jobs j
+      SET status = 'done', updated_at = now()
+      FROM places p
+      WHERE j.place_id = p.id
+        AND j.provider = $1
+        AND j.status = 'pending'
+        AND p.kind NOT IN (${ENRICH_ELIGIBLE_KIND_SQL})
+      `,
+      [provider],
+    );
+
     // Шаг 1: upsert pending для eligible (отдельный statement).
     await this.dataSource.query(
       `

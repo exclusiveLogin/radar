@@ -245,6 +245,9 @@ export {
   placeStemCore,
 } from "./domain/geo/placeStem";
 export {
+  GEO_ENRICH_ELIGIBLE_KINDS,
+  GEO_ENRICH_MIN_KIND,
+  isGeoEnrichEligibleKind,
   kindMeetsFloor,
   placeKindRank,
   sortPlaceScanEntriesStable,
