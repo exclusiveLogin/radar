@@ -157,7 +157,7 @@ npm run radar -- ingest backfill -- `
 1. Worker в `db` mode, `BackfillDaemon` включён.
 2. UI или `POST /api/admin/ingest/backfill-jobs` с `bindingId` + `strategy: "all"`.
 3. Статус: `ingest_backfill_jobs.status` → `pending` → preflight → `running` → `completed`.
-4. Parse PE 2.0 — отдельно: [phase-pipeline.md](./phase-pipeline.md), виджет «Фазы».
+4. Parse PE 2.0 — [phase-pipeline.md](./phase-pipeline.md): **Сводка** (coverage) + **Parse-engine** (фазы).
 
 Подробно: [backfill-v2-pipeline.md](./backfill-v2-pipeline.md).
 
@@ -266,7 +266,7 @@ npm run radar -- pipeline phase:run -- --phase=llm --batch=100 [--watch]
 npm run radar -- pipeline rebuild
 ```
 
-**Прогресс:** `GET /api/admin/phases/runs/overview`, виджет «Фазы».
+**Прогресс:** `GET /api/admin/phases/runs/overview`, WS `phases-update`, виджеты **Сводка** + **Parse-engine**.
 
 **Env:** `RADAR_STORAGE_MODE=db`, `RADAR_PHASE_DAEMON_ENABLED` (scheduled), `RADAR_LLM_*`.
 

@@ -3,12 +3,23 @@ import { resolveAttachTargets } from "./attachRule.js";
 import { EVENT_TYPE_TRAIT_KEY } from "./resolveEventTypeForCandidate.js";
 
 /** Ключи traits — только из traitAttachments, не in-place на candidate. */
-export const TRAIT_EXTRAS_KEYS = ["repeat", "mass", "count", "vicinity"] as const;
+export const TRAIT_EXTRAS_KEYS = [
+  "repeat",
+  "uncertain",
+  "negativeMonitoring",
+  "multiple",
+  "mass",
+  "count",
+  "vicinity",
+] as const;
 
 /** Приоритет processor при конфликте одного traitKey (выше = winner). */
 const TRAIT_PROCESSOR_PRIORITY: Record<string, number> = {
   "llm-processor": 90,
   "repeat-processor": 80,
+  "uncertain-processor": 75,
+  "negative-monitoring-processor": 73,
+  "multiple-processor": 72,
   "mass-processor": 70,
   "count-processor": 60,
   "vicinity-processor": 50,

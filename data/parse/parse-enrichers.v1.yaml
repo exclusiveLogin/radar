@@ -1,5 +1,5 @@
 schemaVersion: 1
-revision: "2026-06-19.1"
+revision: "2026-06-24.2"
 enrichers:
   - id: catalog
     trust: 80
@@ -11,6 +11,9 @@ enrichers:
       - mass-clear-scope-processor
       - vicinity-processor
       - repeat-processor
+      - uncertain-processor
+      - negative-monitoring-processor
+      - multiple-processor
       - mass-processor
       - count-processor
   - id: llm

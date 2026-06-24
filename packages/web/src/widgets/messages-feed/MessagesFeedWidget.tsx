@@ -1,6 +1,7 @@
 import { useMemo, type ReactNode } from "react";
 import type { MessageFeedItem } from "@radar/shared";
 import { Badge, EllipsisText, Panel, Tip, flattenText } from "../../shared/ds";
+import { EventTraitIcons } from "../../shared/components/EventTraitIcons";
 import { useObservable } from "../../shared/hooks/useObservable";
 import { formatMessagePostedAt } from "../../shared/state/derivations";
 import { messagesFeed$ } from "../../shared/state/messagesStore";
@@ -152,11 +153,11 @@ export function MessagesFeedWidget({ defaultCollapsed = false }: WidgetProps) {
                     ⏱
                   </button>
                   {messageStatusBadge(row)}
-                  {row.repeat && (
-                    <Tip label="Повторное сообщение">
-                      <span className="ds-message-feed__repeat">↻</span>
-                    </Tip>
-                  )}
+                  <EventTraitIcons
+                    repeat={row.repeat}
+                    uncertain={row.uncertain}
+                    multiple={row.multiple}
+                  />
                 </div>
                 <Tip label={messageTip(row)} className="ds-tip--hint">
                   <p className="ds-message-feed__text">{flattenText(row.rawText)}</p>

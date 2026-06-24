@@ -2,8 +2,8 @@
  * Аудит ingest/parse/geo по каналу: последние N raw из БД vs offline catalog replay.
  *
  * Usage:
- *   npm run parse-engine:channel:audit -w @radar/worker -- --channel=radar-rvk --limit=100 --random
- *   npm run parse-engine:channel:audit -w @radar/worker -- --all-channels --limit=150 --random
+ *   npm run parse-engine:channel:audit -w @radar/worker -- --channel=radar-pf --limit=210 --catalog-only
+ *   npm run parse-engine:channel:audit -w @radar/worker -- --channel=radar-pf --limit=70 --offset=70 --catalog-only
  */
 import * as fs from "node:fs";
 import * as path from "node:path";
@@ -275,6 +275,13 @@ async function main(): Promise<void> {
     throw new Error("--since должен быть валидным ISO datetime");
   }
 
+  const catalogOnly = flags.has("catalog-only");
+  const offsetRaw = readStringFlag(flags, ["offset"]);
+  const offset = offsetRaw ? Number(offsetRaw) : 0;
+  if (offsetRaw && (!Number.isFinite(offset) || offset < 0)) {
+    throw new Error("--offset должен быть неотрицательным числом");
+  }
+
   if (allChannels) {
     const dataSource = await createWorkerDataSource();
     const channels = (await dataSource.query(
@@ -292,8 +299,10 @@ async function main(): Promise<void> {
       await runChannelAudit({
         channelKey: key,
         limit: perChannel,
+        offset: 0,
         randomOrder,
         since,
+        catalogOnly,
         outOverride: readStringFlag(flags, ["out"]),
       });
     }
@@ -310,8 +319,10 @@ async function main(): Promise<void> {
   await runChannelAudit({
     channelKey,
     limit,
+    offset,
     randomOrder,
     since,
+    catalogOnly,
     outOverride: readStringFlag(flags, ["out"]),
   });
 }
@@ -319,13 +330,15 @@ async function main(): Promise<void> {
 type AuditRunOptions = {
   channelKey: string;
   limit: number;
+  offset: number;
   randomOrder: boolean;
   since: Date | null;
+  catalogOnly: boolean;
   outOverride?: string;
 };
 
 async function runChannelAudit(options: AuditRunOptions): Promise<void> {
-  const { channelKey, limit, randomOrder, since, outOverride } = options;
+  const { channelKey, limit, offset, randomOrder, since, outOverride, catalogOnly } = options;
   const suffix = randomOrder ? "random" : "recent";
   const outMd =
     outOverride
@@ -346,16 +359,18 @@ async function runChannelAudit(options: AuditRunOptions): Promise<void> {
   const classifier = new RuleBasedEventClassifier(
     catalog.getRegionCatalog(),
   );
-  const ingestParsePhases = await loadIngestParsePhases({ repoRoot: MONOREPO_ROOT });
-  const { pipeline } = createParsePipeline({
-    placeScan,
-    regions: repos.regions,
-    places: repos.places,
-    ingestParsePhases,
-  });
+  const pipeline = catalogOnly
+    ? null
+    : createParsePipeline({
+      placeScan,
+      regions: repos.regions,
+      places: repos.places,
+      ingestParsePhases: await loadIngestParsePhases({ repoRoot: MONOREPO_ROOT }),
+    }).pipeline;
 
   const orderClause = randomOrder ? "ORDER BY random()" : "ORDER BY rm.posted_at DESC NULLS LAST";
   const sinceClause = since ? "AND rm.posted_at >= $3::timestamptz" : "";
+  const offsetClause = offset > 0 ? `OFFSET ${offset}` : "";
   const params: unknown[] = since
     ? [channelKey, limit, since.toISOString()]
     : [channelKey, limit];
@@ -380,6 +395,7 @@ async function runChannelAudit(options: AuditRunOptions): Promise<void> {
     ) pe ON true
     WHERE true ${sinceClause}
     ${orderClause}
+    ${offsetClause}
     LIMIT $2
     `,
     params,
@@ -449,19 +465,21 @@ async function runChannelAudit(options: AuditRunOptions): Promise<void> {
 
     if (classified.kind === "event") {
       replayEventType = classified.event.eventType;
-      const postedAt = toIsoTimestamp(raw.posted_at);
-      const result = await pipeline.execute({
-        rawText: raw.raw_text,
-        rawMessageId: raw.id,
-        postedAt,
-        channelKey,
-      });
-      replayLocs = result.locations.map((loc) => ({
-        regionCode: canonicalRegionCode(catalog, loc.regionCode) ?? loc.regionCode,
-        placeName: normalizePlaceLabel(loc.placeName),
-        precision: loc.precision,
-        source: loc.source,
-      }));
+      if (!catalogOnly && pipeline) {
+        const postedAt = toIsoTimestamp(raw.posted_at);
+        const result = await pipeline.execute({
+          rawText: raw.raw_text,
+          rawMessageId: raw.id,
+          postedAt,
+          channelKey,
+        });
+        replayLocs = result.locations.map((loc) => ({
+          regionCode: canonicalRegionCode(catalog, loc.regionCode) ?? loc.regionCode,
+          placeName: normalizePlaceLabel(loc.placeName),
+          precision: loc.precision,
+          source: loc.source,
+        }));
+      }
     }
 
     const dbLocations = locByRaw.get(raw.id) ?? [];

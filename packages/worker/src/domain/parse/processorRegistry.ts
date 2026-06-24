@@ -8,7 +8,7 @@ import { runGeoProcessor } from "./geoProcessor.js";
 import { runEventTypeProcessor } from "./eventTypeProcessor.js";
 import { runMassClearExcludeProcessor } from "./massClearExcludeProcessor.js";
 import { runMassClearScopeProcessor } from "./massClearScopeProcessor.js";
-import { runRepeatProcessor, runMassProcessor, runCountProcessor } from "./traitProcessors.js";
+import { runRepeatProcessor, runMassProcessor, runCountProcessor, runUncertainProcessor, runMultipleFixationProcessor, runNegativeMonitoringProcessor } from "./traitProcessors.js";
 import { runLlmProcessor } from "./llmProcessor.js";
 import { runDadataProcessor } from "./dadataProcessor.js";
 import { runNominatimProcessor } from "./nominatimProcessor.js";
@@ -21,6 +21,9 @@ export type ParseProcessorId =
   | "mass-clear-scope-processor"
   | "vicinity-processor"
   | "repeat-processor"
+  | "uncertain-processor"
+  | "negative-monitoring-processor"
+  | "multiple-processor"
   | "mass-processor"
   | "count-processor"
   | "llm-processor"
@@ -57,6 +60,9 @@ const PROCESSOR_IMPL: Record<ParseProcessorId, ParseProcessorFn> = {
   },
   "vicinity-processor": ({ workspace }) => runVicinityProcessor(workspace),
   "repeat-processor": ({ workspace }) => runRepeatProcessor(workspace),
+  "uncertain-processor": ({ workspace }) => runUncertainProcessor(workspace),
+  "negative-monitoring-processor": ({ workspace }) => runNegativeMonitoringProcessor(workspace),
+  "multiple-processor": ({ workspace }) => runMultipleFixationProcessor(workspace),
   "mass-processor": ({ workspace }) => runMassProcessor(workspace),
   "count-processor": ({ workspace }) => runCountProcessor(workspace),
   "llm-processor": ({ workspace }) => runLlmProcessor(workspace),
@@ -80,6 +86,9 @@ function defaultRegistry(): ProcessorRegistry {
       { id: "mass-clear-scope-processor", enabled: true, order: 30 },
       { id: "vicinity-processor", enabled: true, order: 35 },
       { id: "repeat-processor", enabled: true, order: 40 },
+      { id: "uncertain-processor", enabled: true, order: 45 },
+      { id: "negative-monitoring-processor", enabled: true, order: 42 },
+      { id: "multiple-processor", enabled: true, order: 48 },
       { id: "mass-processor", enabled: true, order: 50 },
       { id: "count-processor", enabled: true, order: 60 },
     ],

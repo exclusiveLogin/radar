@@ -30,6 +30,15 @@ export const geoEventCategorySchema = z.enum([
   "impact",
   "all_clear",
   "movement",
+  "fixation",
+  "pvo_work",
+  "intercept",
+  "danger",
+  "rocket_threat",
+  "warning",
+  "attention",
+  "cleared",
+  "noise",
   "other",
 ]);
 export type GeoEventCategory = z.infer<typeof geoEventCategorySchema>;

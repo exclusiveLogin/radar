@@ -7,8 +7,7 @@ export type ParsedEventActivation = {
 
 /**
  * Решение о видимости события после merge/finalizer (ADR-003).
- * Деактивация только при наличии namespace `llm` в артефакте фазы —
- * catalog-only прогон не гасит событие.
+ * Деактивация только при наличии namespace `llm` в артефакте фазы.
  */
 export function resolveParsedEventActivation(
   artifact: GeoEnrichmentArtifact | undefined,
@@ -18,10 +17,10 @@ export function resolveParsedEventActivation(
     return { isActive: true };
   }
 
-  if (llm.eventCategory === "other") {
+  if (llm.eventCategory === "noise" || llm.eventCategory === "other") {
     return {
       isActive: false,
-      inactiveReason: llm.reason?.trim() || "llm:event_category_other",
+      inactiveReason: llm.reason?.trim() || `llm:event_category_${llm.eventCategory}`,
     };
   }
 

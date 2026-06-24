@@ -24,7 +24,7 @@ test("оперативная тревога без списка каналов �
   const text = "Тревога! Возможна активность БПЛА над районом";
   assert.equal(isChannelCityListPromo(text), false);
   assert.equal(classifyContentKind(text), "event");
-  assert.equal(extractEventType(text), "mass_warning");
+  assert.equal(extractEventType(text), "warning");
 });
 
 test("радар launch promo без оперативки — noise", () => {

@@ -10,13 +10,14 @@ export const eventHeatmapPeriodSchema = z.enum(["24h", "7d", "30d", "all"]);
 
 export type EventHeatmapPeriod = z.infer<typeof eventHeatmapPeriodSchema>;
 
-/** Типы, доступные в UI-фильтре heatmap (минимальный набор). */
+/** Типы, доступные в UI-фильтре heatmap. */
 export const EVENT_HEATMAP_FILTER_TYPES = [
   "fixation",
   "pvo_work",
   "intercept",
   "attention",
-  "mass_warning",
+  "warning",
+  "danger",
 ] as const;
 
 export type EventHeatmapFilterType = (typeof EVENT_HEATMAP_FILTER_TYPES)[number];
@@ -30,7 +31,8 @@ export const EVENT_HEATMAP_TYPE_LABELS: Record<
   pvo_work: { short: "ПВО", title: "Работа ПВО" },
   intercept: { short: "сбит", title: "Сбитие" },
   attention: { short: "вним", title: "Внимание" },
-  mass_warning: { short: "трев", title: "Тревога" },
+  warning: { short: "пред", title: "Предупреждение / тревога" },
+  danger: { short: "опас", title: "Опасность по БПЛА" },
 };
 
 export const eventHeatmapMetaSchema = z.object({

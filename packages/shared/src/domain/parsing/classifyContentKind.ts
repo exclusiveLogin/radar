@@ -1,7 +1,8 @@
 /**
  * Классификация текста raw для ленты «Сообщения» (read-side label + groom SSOT).
- * isChannelCityListPromo — локальная копия минимального контракта без worker-only deps.
  */
+import { extractNegativeMonitoringFlag } from "./extractNegativeMonitoringFlag.js";
+import { groomRawTextForDisplay } from "./groomRawTextForDisplay.js";
 
 export type ContentKind = "event" | "noise" | "meta";
 
@@ -19,6 +20,9 @@ const NOISE_PATTERNS = [
   /параллельн\w+\s+импорт/i,
   /промокод/i,
   /реклам/i,
+  /чат[-\s]?бот/i,
+  /сообщить\s+в\s+(?:чат[-\s]?)?бот/i,
+  /@\w+_bot/i,
 ];
 
 const META_PATTERNS = [
@@ -26,6 +30,9 @@ const META_PATTERNS = [
   /минобороны/i,
   /перемирие/i,
   /украин/i,
+  /\bвсу\b|всу/i,
+  /преступный\s+режим/i,
+  /обратите\s+внимание:\s*почему/i,
 ];
 
 const SUMMARY_PATTERNS = [
@@ -85,11 +92,17 @@ export function classifyContentKind(input: string): ContentKind {
   const text = input.trim();
   if (!text) return "noise";
 
+  // Promo/footer (@bot, «Радар по всей России») не должен глушить оперативный текст.
+  const head = groomRawTextForDisplay(text);
+
   if (isChannelCityListPromo(text)) return "noise";
-  if (isRadarChannelLaunchPromo(text)) return "noise";
-  if (NOISE_PATTERNS.some((x) => x.test(text))) return "noise";
-  if (META_PATTERNS.some((x) => x.test(text))) return "meta";
-  if (SUMMARY_PATTERNS.some((x) => x.test(text))) return "meta";
-  if (EVENT_HINTS.some((x) => x.test(text))) return "event";
+  if (isRadarChannelLaunchPromo(head)) return "noise";
+  if (NOISE_PATTERNS.some((x) => x.test(head))) return "noise";
+  if (META_PATTERNS.some((x) => x.test(head))) return "meta";
+  if (SUMMARY_PATTERNS.some((x) => x.test(head))) return "meta";
+  if (extractNegativeMonitoringFlag(head) && !EVENT_HINTS.some((x) => x.test(head))) {
+    return "noise";
+  }
+  if (EVENT_HINTS.some((x) => x.test(head))) return "event";
   return "noise";
 }

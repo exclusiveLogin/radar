@@ -10,7 +10,7 @@ import { candidateToParsedEvent } from "./candidateToParsedEvent.js";
 import { planFinalizeMerge } from "./planFinalizeMerge.js";
 import { createEmptyParseWorkspace } from "./parseWorkspaceFactory.js";
 import { appendCandidate } from "./parseProcessorContract.js";
-import { runRepeatProcessor, runMassProcessor, runCountProcessor } from "./traitProcessors.js";
+import { runRepeatProcessor, runMassProcessor, runCountProcessor, runUncertainProcessor, runMultipleFixationProcessor } from "./traitProcessors.js";
 
 function geoCandidate(id: string, kind: "place" | "region" = "place"): EventCandidate {
   return {
@@ -238,4 +238,28 @@ test("runMassProcessor: mass на place, не на region", () => {
   const regionWinner = ws.candidates.find((c) => c.anchor.kind === "region")!;
   assert.equal(materializeCandidateExtras(placeWinner, ws).mass, true);
   assert.equal(materializeCandidateExtras(regionWinner, ws).mass, undefined);
+});
+
+test("uncertain-processor: «возможно» → trait на всех candidates", () => {
+  const ws = workspaceWithCandidates([
+    geoCandidate("p1", "place"),
+    geoCandidate("r1", "region"),
+  ]);
+  ws.groomedText = "Кузнецкий район — возможно фиксация";
+  runUncertainProcessor(ws);
+
+  for (const candidate of ws.candidates) {
+    assert.equal(
+      materializeCandidateExtras(candidate, ws).uncertain,
+      true,
+      candidate.anchor.kind,
+    );
+  }
+});
+
+test("multiple-processor: «множественная фиксация» → trait multiple", () => {
+  const ws = workspaceWithCandidates([geoCandidate("p1", "place")]);
+  ws.groomedText = "Множественная фиксация БПЛА над городом";
+  runMultipleFixationProcessor(ws);
+  assert.equal(materializeCandidateExtras(ws.candidates[0]!, ws).multiple, true);
 });

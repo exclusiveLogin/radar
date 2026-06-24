@@ -19,6 +19,10 @@ const INLINE_NOISE_PATTERNS: RegExp[] = [
   /промокод/i,
   /подписывайтесь/i,
   /меры\s+безопасности/i,
+  /чат[-\s]?бот/i,
+  /сообщить\s+в\s+(?:чат[-\s]?)?бот/i,
+  /@\w+_bot/i,
+  /obxod|обход.*vpn/i,
 ];
 
 function loadYamlInlinePatterns(): RegExp[] {

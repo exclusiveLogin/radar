@@ -14,3 +14,11 @@ test("tokenizeGeoSpans: г. prefix city", () => {
   const spans = tokenizeGeoSpans(text);
   assert.ok(spans.some((s) => s.matchedText.includes("Таганрог")));
 });
+
+test("tokenizeGeoSpans: с. и б. префиксы", () => {
+  const village = tokenizeGeoSpans("С. Валгусы Бутурлинский МО Пролет");
+  assert.ok(village.some((s) => /валгусы/i.test(s.matchedText)));
+
+  const borough = tokenizeGeoSpans("Пролет на Б. Мурашкино");
+  assert.ok(borough.some((s) => /муршкино|мурашкино/i.test(s.matchedText) || /б\./i.test(s.matchedText)));
+});

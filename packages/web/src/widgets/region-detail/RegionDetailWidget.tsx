@@ -6,6 +6,7 @@ import { reportAppError } from "../../shared/state/appLogStore";
 import { formatDateTime } from "../../shared/format/dateTime";
 import { derivedRegionCodes$, regionsByCode$ } from "../../shared/state/mapStore";
 import { selectRegion, selectedRegion$ } from "../../shared/state/selectionStore";
+import { EventTraitIcons } from "../../shared/components/EventTraitIcons";
 
 /** Панель с деталями выбранного региона: статус, источник, история событий. */
 export function RegionDetailWidget() {
@@ -129,9 +130,12 @@ export function RegionDetailWidget() {
                   {formatDateTime(evt.postedAt)}
                 </span>
                 <span className="region-detail-panel__history-type">{evt.eventType}</span>
-                {evt.repeat ? (
-                  <span className="region-detail-panel__history-repeat" title="Повторно">↻</span>
-                ) : null}
+                <EventTraitIcons
+                  compact
+                  repeat={evt.repeat}
+                  uncertain={evt.uncertain}
+                  multiple={evt.multiple}
+                />
               </li>
             ))}
           </ul>

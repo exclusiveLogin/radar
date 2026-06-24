@@ -27,6 +27,10 @@ export const messageFeedItemSchema = z.object({
   regionCodes: z.array(z.string()).default([]),
   /** Повторное сообщение («Повторно», «Ещё раз»). */
   repeat: z.boolean().optional(),
+  /** Неподтверждённый сигнал («возможно», «вероятно»). */
+  uncertain: z.boolean().optional(),
+  /** Множественная фиксация (multiple-processor). */
+  multiple: z.boolean().optional(),
 });
 
 export const messageFeedResponseSchema = z.object({

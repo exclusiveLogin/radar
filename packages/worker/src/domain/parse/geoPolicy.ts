@@ -9,10 +9,10 @@ const STRICT_TYPES = new Set<EventType>([
   "intercept",
   "impact",
   "rocket_threat",
-  "mass_warning",
+  "warning",
 ]);
 
-const REGION_ONLY_TYPES = new Set<EventType>(["cleared", "mass_warning"]);
+const REGION_ONLY_TYPES = new Set<EventType>(["cleared", "warning"]);
 
 /** Проверка: кандидат проходит geo policy перед materialize. */
 export function isCandidateGeoValid(input: {

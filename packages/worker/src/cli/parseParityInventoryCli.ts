@@ -152,6 +152,28 @@ async function main(): Promise<void> {
     (row) => row.status !== "finalized" || row.pe_count < 1,
   );
 
+  const [heatmapEligible] = await Promise.all([
+    countQuery(
+      dataSource,
+      `SELECT COUNT(*)::text AS count
+       FROM event_locations el
+       JOIN parsed_events pe ON pe.id = el.parsed_event_id AND pe.is_active = true
+       JOIN raw_messages rm ON rm.id = pe.raw_message_id
+       LEFT JOIN places p ON p.id = el.place_id AND p.is_active = true
+       LEFT JOIN LATERAL (
+         SELECT l.geo_feature_id FROM place_geo_link l
+         WHERE l.place_id = p.id ORDER BY l.priority ASC LIMIT 1
+       ) pgl ON el.place_id IS NOT NULL
+       LEFT JOIN geo_feature gf ON gf.id = COALESCE(p.geo_feature_id, pgl.geo_feature_id)
+       LEFT JOIN regions r ON r.id = el.region_id
+       JOIN status_dictionary sd ON sd.code = COALESCE(el.status_code, pe.event_type) AND sd.is_active = true
+       WHERE el.action = 'raise'
+         AND sd.state_level NOT IN ('grey', 'green')
+         AND COALESCE(el.lon, p.centroid_lon, gf.centroid_lon, r.centroid_lon) IS NOT NULL
+         AND (el.place_id IS NOT NULL OR el.region_id IS NOT NULL)`,
+    ),
+  ]);
+
   const report = {
     generatedAt,
     counts: {
@@ -173,6 +195,9 @@ async function main(): Promise<void> {
         placeRaiseTotal > 0
           ? Math.round((placeRaiseWithoutPlaceId / placeRaiseTotal) * 1000) / 10
           : 0,
+      heatmapEligible,
+      heatmapEligiblePctRaw:
+        rawTotal > 0 ? Math.round((heatmapEligible / rawTotal) * 10000) / 100 : 0,
     },
     randomSample: randomSample.map((row) => ({
       id: row.id,

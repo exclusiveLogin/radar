@@ -649,6 +649,54 @@ body {
   flex-shrink: 0;
 }
 
+/* Trait-процессоры: repeat / uncertain / multiple — рядом с бейджем */
+.ds-event-traits {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex-shrink: 0;
+}
+
+.ds-event-traits--compact {
+  gap: 2px;
+}
+
+.ds-event-trait {
+  color: var(--text-muted);
+  font-size: 12px;
+  opacity: 0.75;
+  cursor: default;
+  line-height: 1;
+}
+
+.ds-event-traits--compact .ds-event-trait {
+  font-size: 10px;
+}
+
+.ds-event-trait--uncertain {
+  font-weight: 600;
+  opacity: 0.9;
+}
+
+.ds-event-trait--multiple {
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: -0.08em;
+}
+
+.ds-event-traits--compact .ds-event-trait--multiple {
+  font-size: 9px;
+}
+
+.ds-message-feed__uncertain {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  opacity: 0.85;
+  cursor: default;
+  flex-shrink: 0;
+}
+
 .ds-message-feed__text {
   margin: 0;
   font-size: 11px;
@@ -1381,5 +1429,12 @@ body {
 .region-detail-panel__history-repeat {
   color: var(--text-muted);
   font-size: 10px;
+  flex-shrink: 0;
+}
+
+.region-detail-panel__history-uncertain {
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 600;
   flex-shrink: 0;
 }

@@ -76,11 +76,17 @@ manual: radar pipeline phase:run / админка Run
 
 - **SSOT бэклога:** `GET /api/admin/phases/runs/overview` → `coverage` per phase.
 - **Тики:** `phase_runs` (в т.ч. `claimed=0` с честным `pendingRemaining`).
-- **WS `phase-progress`:** не реализован (v1 — polling).
+- **Админка realtime:** WS `phases-update` (~3s) — overview + runs; не путать с backlog `phase-progress` (побайтовый прогресс тика).
 
 ## Админка
 
-Виджет **«Фазы обогащения»**, REST: [api/phases-admin.md](./api/phases-admin.md).
+| Виджет | Секция | Назначение |
+|--------|--------|------------|
+| **Сводка системы** | Система | KPI + карточки `phase_coverage` |
+| **Parse-engine** | Обогащение | фазы ingest/geo, Run, очереди, runs |
+| **Backfill V2** | Backfill | raw; parse — см. Обогащение |
+
+REST: [api/phases-admin.md](./api/phases-admin.md). Статус: [phase-pipeline-status.md](./phase-pipeline-status.md).
 
 
 ## Диагностика

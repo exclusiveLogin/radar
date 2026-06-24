@@ -10,7 +10,8 @@ export const eventTypeSchema = z.enum([
   "safety_measures",
   "rocket_threat",
   "airspace_restriction",
-  "mass_warning",
+  /** Предупреждение (приготовиться, тревога); массовость — trait extras.mass. */
+  "warning",
   /** Оперативное сбитие БПЛА/МВШ/ракеты — с геолокацией, красный уровень. */
   "intercept",
   /** Сводная статистика ПВО за период — без влияния на карту. */

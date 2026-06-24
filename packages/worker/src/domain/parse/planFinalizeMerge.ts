@@ -4,6 +4,7 @@ import type {
   ParsedEvent,
   ParseWorkspace,
 } from "@radar/shared";
+import { extractNegativeMonitoringFlag } from "@radar/shared";
 import { getProcessorTieBreak } from "./parseEnricherRegistry.js";
 import { listActiveCandidates } from "./parseProcessorContract.js";
 import { applyCandidateCollapsers } from "./candidateCollapsers.js";
@@ -54,6 +55,12 @@ export function planFinalizeMerge(input: {
   }
 
   const collapsed = applyCandidateCollapsers(winners, workspace);
+
+  const skipMaterialize = extractNegativeMonitoringFlag(workspace.groomedText);
+  if (skipMaterialize) {
+    const orphanIds = context.existingSpawnedIds.filter((id) => !usedIds.has(id));
+    return { materialized: [], orphanIds, invalidIds: context.existingSpawnedIds };
+  }
 
   for (const candidate of collapsed) {
     const resolved = withResolvedEventType(candidate, workspace);

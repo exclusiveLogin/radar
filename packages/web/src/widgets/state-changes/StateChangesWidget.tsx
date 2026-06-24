@@ -3,6 +3,7 @@ import type { StateChangeEventItem } from "@radar/shared";
 import { Accordion, Badge, Panel } from "../../shared/ds";
 import type { AccordionItem } from "../../shared/ds";
 import { RegionCodeChips } from "../../shared/components/RegionCodeChips";
+import { EventTraitIcons } from "../../shared/components/EventTraitIcons";
 import { formatDateTime, formatTimeShort } from "../../shared/format/dateTime";
 import { useObservable } from "../../shared/hooks/useObservable";
 import { setHistoricalAsOf } from "../../shared/state/mapStore";
@@ -60,9 +61,11 @@ export function StateChangesWidget({ defaultCollapsed = false }: WidgetProps) {
       head: (
         <>
           <Badge level={row.stateLevel} />
-          {row.repeat && (
-            <span className="ds-message-feed__repeat" title="Повторное сообщение">↻</span>
-          )}
+          <EventTraitIcons
+            repeat={row.repeat}
+            uncertain={row.uncertain}
+            multiple={row.multiple}
+          />
           <RegionCodeChips codes={regionCodes} inline />
           <span className="ds-muted ds-accordion__head-time">
             {formatTimeShort(row.postedAt)}

@@ -44,7 +44,11 @@ Content-Type: application/json
 
 ## Web UI
 
-Виджет **Parse-engine** в OSINT-админке: две секции **Ingest** / **Geo**, тогглы ВКЛ/ВЫКЛ, Run, очереди, runs.
+| Виджет | Секция `/admin` | Описание |
+|--------|-----------------|----------|
+| **Сводка системы** | Система | `GET /api/admin/stats/overview` — ingest/parse KPI + `phaseEnrichment[]` |
+| **Parse-engine** | Обогащение | Ingest / Geo: тогглы, Run, очереди, runs, stop-all |
 
-Polling ~10s (WS `phase-progress` — backlog).
+Realtime: WS **`phases-update`** (~3s, push от API) — `overview` + `runs`.  
+Backlog: отдельный канал `phase-progress` (гранулярный прогресс batch).
 

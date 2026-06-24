@@ -13,7 +13,7 @@ import type {
   EventHeatmapPeriod,
   EventHeatmapResponse,
 } from "@radar/shared";
-import { STATE_LEVEL_RANK, classifyContentKind, eventHeatmapPeriodMs, groomRawTextForDisplay } from "@radar/shared";
+import { STATE_LEVEL_RANK, classifyContentKind, eventHeatmapPeriodMs, extractMultipleFixationFlag, extractUncertainFlag, groomRawTextForDisplay } from "@radar/shared";
 import type { EventType } from "@radar/shared";
 import { StatusDictionaryEntity } from "../events/entities";
 import { PlaceEntity, RegionEntity } from "../geo/entities";
@@ -554,6 +554,8 @@ export class MapQueryService {
               pe.event_type,
               pe.extras->>'eventCategory' AS event_category,
               pe.repeat,
+              COALESCE((pe.extras->>'uncertain')::boolean, false) AS uncertain,
+              COALESCE((pe.extras->>'multiple')::boolean, false) AS multiple,
               sd.state_level,
               array_agg(DISTINCT r.iso ORDER BY r.iso)
                 FILTER (WHERE r.iso IS NOT NULL) AS region_codes,
@@ -582,6 +584,8 @@ export class MapQueryService {
       event_type: string;
       event_category: string | null;
       repeat: boolean | null;
+      uncertain: boolean | null;
+      multiple: boolean | null;
       state_level: StateLevel | null;
       region_codes: string[];
       region_names: string[];
@@ -598,6 +602,8 @@ export class MapQueryService {
       eventType: row.event_type,
       eventCategory: row.event_category ?? undefined,
       repeat: row.repeat ?? undefined,
+      uncertain: row.uncertain ? true : undefined,
+      multiple: row.multiple ? true : undefined,
       stateLevel: (row.state_level ?? "grey") as StateLevel,
       regionCodes: row.region_codes ?? [],
       regionNames: row.region_names ?? [],
@@ -618,6 +624,8 @@ export class MapQueryService {
               stats.primary_event_type AS event_type,
               stats.event_category,
               stats.repeat,
+              stats.uncertain,
+              stats.multiple,
               stats.state_level,
               COALESCE(stats.region_codes, '{}') AS region_codes
        FROM raw_messages rm
@@ -628,6 +636,8 @@ export class MapQueryService {
                 (array_agg(pe.event_type ORDER BY pe.parsed_at DESC))[1] AS primary_event_type,
                 (array_agg(pe.extras->>'eventCategory' ORDER BY pe.parsed_at DESC))[1] AS event_category,
                 bool_or(pe.repeat) AS repeat,
+                bool_or(COALESCE((pe.extras->>'uncertain')::boolean, false)) AS uncertain,
+                bool_or(COALESCE((pe.extras->>'multiple')::boolean, false)) AS multiple,
                 (array_agg(sd.state_level ORDER BY pe.parsed_at DESC))[1] AS state_level,
                 array_agg(DISTINCT r.iso) FILTER (WHERE r.iso IS NOT NULL) AS region_codes
          FROM parsed_events pe
@@ -651,6 +661,8 @@ export class MapQueryService {
       event_type: string | null;
       event_category: string | null;
       repeat: boolean | null;
+      uncertain: boolean | null;
+      multiple: boolean | null;
       state_level: StateLevel | null;
       region_codes: string[] | null;
     }>;
@@ -668,6 +680,14 @@ export class MapQueryService {
       eventType: row.event_type ?? undefined,
       eventCategory: row.event_category ?? undefined,
       repeat: row.repeat ?? undefined,
+      uncertain:
+        row.uncertain || extractUncertainFlag(row.raw_text)
+          ? true
+          : undefined,
+      multiple:
+        row.multiple || extractMultipleFixationFlag(row.raw_text)
+          ? true
+          : undefined,
       stateLevel: row.state_level ?? undefined,
       regionCodes: row.region_codes ?? [],
     }));
@@ -771,6 +791,8 @@ export class MapQueryService {
               pe.event_type,
               pe.extras->>'eventCategory' AS event_category,
               pe.repeat,
+              COALESCE((pe.extras->>'uncertain')::boolean, false) AS uncertain,
+              COALESCE((pe.extras->>'multiple')::boolean, false) AS multiple,
               sd.state_level,
               array_agg(DISTINCT r.iso ORDER BY r.iso)
                 FILTER (WHERE r.iso IS NOT NULL) AS region_codes,
@@ -801,6 +823,8 @@ export class MapQueryService {
       event_type: string;
       event_category: string | null;
       repeat: boolean | null;
+      uncertain: boolean | null;
+      multiple: boolean | null;
       state_level: StateLevel;
       region_codes: string[];
       region_names: string[];
@@ -816,6 +840,8 @@ export class MapQueryService {
       eventType: row.event_type,
       eventCategory: row.event_category ?? undefined,
       repeat: row.repeat ?? undefined,
+      uncertain: row.uncertain ? true : undefined,
+      multiple: row.multiple ? true : undefined,
       stateLevel: row.state_level,
       regionCodes: row.region_codes ?? [],
       regionNames: row.region_names ?? [],
@@ -841,23 +867,31 @@ export class MapQueryService {
 
     const rows = (await this.dataSource.query(
       `SELECT el.id,
-              COALESCE(el.lon, p.centroid_lon, gf.centroid_lon)::float AS lon,
-              COALESCE(el.lat, p.centroid_lat, gf.centroid_lat)::float AS lat,
+              COALESCE(el.lon, p.centroid_lon, gf.centroid_lon, r.centroid_lon)::float AS lon,
+              COALESCE(el.lat, p.centroid_lat, gf.centroid_lat, r.centroid_lat)::float AS lat,
               sd.state_level,
               COALESCE(el.occurred_at, rm.posted_at) AS occurred_at
        FROM event_locations el
        JOIN parsed_events pe ON pe.id = el.parsed_event_id AND pe.is_active = true
        JOIN raw_messages rm ON rm.id = pe.raw_message_id
-       JOIN places p ON p.id = el.place_id AND p.is_active = true
-       LEFT JOIN geo_feature gf ON gf.id = p.geo_feature_id
+       LEFT JOIN places p ON p.id = el.place_id AND p.is_active = true
+       LEFT JOIN LATERAL (
+         SELECT l.geo_feature_id
+         FROM place_geo_link l
+         WHERE l.place_id = p.id
+         ORDER BY l.priority ASC, l.geo_feature_id
+         LIMIT 1
+       ) pgl ON el.place_id IS NOT NULL
+       LEFT JOIN geo_feature gf ON gf.id = COALESCE(p.geo_feature_id, pgl.geo_feature_id)
+       LEFT JOIN regions r ON r.id = el.region_id
        JOIN status_dictionary sd
          ON sd.code = COALESCE(el.status_code, pe.event_type) AND sd.is_active = true
        WHERE el.action = 'raise'
-         AND el.place_id IS NOT NULL
          AND sd.state_level IS NOT NULL
          AND sd.state_level NOT IN ('grey', 'green')
-         AND COALESCE(el.lon, p.centroid_lon, gf.centroid_lon) IS NOT NULL
-         AND COALESCE(el.lat, p.centroid_lat, gf.centroid_lat) IS NOT NULL
+         AND COALESCE(el.lon, p.centroid_lon, gf.centroid_lon, r.centroid_lon) IS NOT NULL
+         AND COALESCE(el.lat, p.centroid_lat, gf.centroid_lat, r.centroid_lat) IS NOT NULL
+         AND (el.place_id IS NOT NULL OR el.region_id IS NOT NULL)
          AND ($2::timestamptz IS NULL OR rm.posted_at >= $2::timestamptz)
          AND rm.posted_at <= $1::timestamptz
          AND ($4::text[] IS NULL OR COALESCE(el.status_code, pe.event_type) = ANY($4::text[]))

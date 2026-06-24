@@ -1,7 +1,8 @@
 import type { GeoEnrichmentArtifact } from "@radar/shared";
 import type { ParseWorkspace } from "@radar/shared";
+import type { EventType } from "@radar/shared";
 import { appendCandidatesFromGeoNodes } from "./appendCandidatesFromGeoNodes.js";
-import { rejectOwnCandidates, writeNamespaceSlice } from "./parseProcessorContract.js";
+import { writeNamespaceSlice } from "./parseProcessorContract.js";
 import { createTraitAttachment } from "./attachRule.js";
 import { EVENT_TYPE_TRAIT_KEY } from "./resolveEventTypeForCandidate.js";
 
@@ -10,6 +11,7 @@ const ENRICHER = "llm";
 
 /**
  * LLM enricher: namespaces.llm + eventType traits + gap-fill candidates (без дублей geo mergeKey).
+ * Geo-кандидаты не отклоняются на other/noise — деактивация через resolveParsedEventActivation.
  */
 export function runLlmProcessor(workspace: ParseWorkspace): void {
   const artifact = workspace.namespaces.geoArtifact as GeoEnrichmentArtifact | undefined;
@@ -41,20 +43,26 @@ export function runLlmProcessor(workspace: ParseWorkspace): void {
     authorEnricherId: ENRICHER,
     onlyMissingMergeKeys: true,
   });
-
-  if (llm.eventCategory === "other") {
-    rejectOwnCandidates({
-      workspace,
-      authorProcessorId: "geo-processor",
-      predicate: () => true,
-    });
-  }
 }
 
-function mapLlmCategoryToEventType(category: string | undefined): string | null {
-  if (category === "all_clear") return "cleared";
-  if (category === "threat") return "danger";
-  if (category === "impact") return "impact";
-  if (category === "other") return null;
-  return "attention";
+function mapLlmCategoryToEventType(category: string | undefined): EventType | null {
+  if (!category) return null;
+  const map: Record<string, EventType | null> = {
+    all_clear: "cleared",
+    cleared: "cleared",
+    threat: "danger",
+    danger: "danger",
+    impact: "impact",
+    intercept: "intercept",
+    fixation: "fixation",
+    movement: "fixation",
+    pvo_work: "pvo_work",
+    warning: "warning",
+    mass_warning: "warning",
+    attention: "attention",
+    rocket_threat: "rocket_threat",
+    noise: null,
+    other: null,
+  };
+  return map[category] ?? "attention";
 }
