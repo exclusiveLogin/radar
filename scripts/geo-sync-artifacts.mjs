@@ -17,6 +17,7 @@ import {
 } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { loadGeoConfig, repoRoot, runOutput } from './utils.mjs';
+import { runBuild as buildFrontRegions } from './geo/build-front-regions-geojson.mjs';
 
 const vendorRoot = join(repoRoot, 'data', 'geo', 'vendor');
 const artifactsRoot = join(repoRoot, 'data', 'geo', 'artifacts');
@@ -24,6 +25,7 @@ const config = loadGeoConfig();
 
 const missing = [];
 for (const s of config.sources) {
+  if (s.optional) continue;
   const v = join(vendorRoot, s.vendorDir);
   if (!existsSync(join(v, '.git'))) missing.push(s.vendorDir);
 }
@@ -71,6 +73,13 @@ function sha256File(absPath) {
 
 for (const s of config.sources) {
   const src = join(vendorRoot, s.vendorDir);
+  if (!existsSync(join(src, '.git'))) {
+    if (s.optional) {
+      console.log(`[skip] ${s.vendorDir} — optional, нет clone`);
+      continue;
+    }
+    throw new Error(`Нет vendor clone: ${s.vendorDir}`);
+  }
   const rev = runOutput('git', ['rev-parse', 'HEAD'], { cwd: src });
   manifestSources.push({
     id: s.id,
@@ -112,6 +121,47 @@ for (const s of config.sources) {
       sourceId: s.id,
       sourceRevision: rev,
       cloneUrl: s.cloneUrl,
+      sha256: hash,
+      byteSize: len,
+    });
+  }
+}
+
+// ДНР/ЛНР/Запорожье/Херсон — derived из ukrainian_geodata (vendor).
+const uaSource = config.sources.find((s) => s.id === 'ukrainian_geodata');
+if (uaSource) {
+  const uaVendor = join(vendorRoot, uaSource.vendorDir);
+  const uaRev = existsSync(join(uaVendor, '.git'))
+    ? runOutput('git', ['rev-parse', 'HEAD'], { cwd: uaVendor })
+    : 'fetch-fallback';
+
+  if (!manifestSources.some((row) => row.id === uaSource.id)) {
+    manifestSources.push({
+      id: uaSource.id,
+      revision: uaRev,
+      cloneUrl: uaSource.cloneUrl,
+      vendorDir: uaSource.vendorDir,
+    });
+  }
+
+  console.log('[build] supplemental/front-regions.geojson');
+  await buildFrontRegions({ root: repoRoot, vendorRoot });
+
+  const supplementalFiles = [
+    'boundaries/supplemental/front-regions.geojson',
+    'boundaries/supplemental/ukraine-regiony.source.geojson',
+  ];
+  for (const rel of supplementalFiles) {
+    const abs = join(artifactsRoot, rel);
+    if (!existsSync(abs)) continue;
+    const hash = sha256File(abs);
+    const len = statSync(abs).size;
+    manifestFiles.push({
+      artifactKey: rel,
+      relPath: rel,
+      sourceId: uaSource.id,
+      sourceRevision: uaRev,
+      cloneUrl: uaSource.cloneUrl,
       sha256: hash,
       byteSize: len,
     });

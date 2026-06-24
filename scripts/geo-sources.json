@@ -7,6 +7,14 @@
       "vendorDir": "Russia_geojson_OSM",
       "artifactDir": "boundaries/Russia_geojson_OSM",
       "includeExtensions": [".geojson", ".json", ".md"]
+    },
+    {
+      "id": "ukrainian_geodata",
+      "cloneUrl": "https://github.com/slawomirmatuszak/ukrainian_geodata.git",
+      "vendorDir": "ukrainian_geodata",
+      "artifactDir": "boundaries/ukrainian_geodata",
+      "includeExtensions": [".geojson"],
+      "optional": true
     }
   ]
 }
