@@ -1,0 +1,19 @@
+# Overlay: self-host OSM raster tiles (TileServer GL). Сборка — npm run tiles:init
+name: radar
+
+services:
+  tiles:
+    image: maptiler/tileserver-gl:latest
+    profiles: ["tiles"]
+    restart: unless-stopped
+    ports:
+      - "${TILES_PORT:-8081}:8080"
+    volumes:
+      - ./data/tiles/output:/data:ro
+    networks:
+      - radar_net
+    command: ["--config", "/data/config.json"]
+
+networks:
+  radar_net:
+    driver: bridge

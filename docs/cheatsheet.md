@@ -50,6 +50,22 @@ npm run radar -- ingest backfill -- --all-bindings --batch-size=100
 | http://127.0.0.1:3000/api/worker/status | probe worker |
 | http://127.0.0.1:3010/status | worker HTTP probe |
 
+Локальная подложка (параллельно с `stack dev`):
+
+```powershell
+npm run radar -- stack tiles:prepare -- --verbose   # артефакты, без сервера
+npm run radar -- stack tiles:up                  # только TileServer
+npm run radar -- stack tiles:update              # пересборка
+npm run radar -- stack tiles:down
+```
+
+```env
+VITE_MAP_BASEMAP_STYLE=local
+VITE_MAP_TILES_URL=http://127.0.0.1:8081
+```
+
+Проверка: http://127.0.0.1:8081/health · смена темы UI → dark/light styles.
+
 ```powershell
 node scripts/ws-smoke.mjs   # или: npm run radar -- dev ws-smoke
 curl.exe -s http://127.0.0.1:3000/api/map/snapshot | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{const j=JSON.parse(d);console.log('regions',j.regions?.length,'places',j.places?.length)})"

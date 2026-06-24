@@ -70,3 +70,19 @@ npm run geo:seed
 ## Конфигурация источников
 
 Один список репозиториев: **`scripts/geo-sources.json`** (используют Node-скрипты `fetch-geo-vendor.mjs` и `geo-sync-artifacts.mjs`).
+
+## Basemap tiles (подложка карты)
+
+Отдельно от geo-каталога регионов — raster OSM для MapLibre.
+
+| Файл | В git? | Назначение |
+|------|--------|------------|
+| **`data/geo/tiles.manifest.json`** | да | SSOT источников pbf, merge, themes, TileServer |
+| **`data/tiles/sources/`** | нет | Скачанные Geofabrik `.pbf` |
+| **`data/tiles/merged/`** | нет | `osmium merge` |
+| **`data/tiles/output/`** | нет | mbtiles + `config.json` для TileServer GL |
+
+Пайплайн: `npm run tiles:init` или `npm run radar -- stack cold-up -- -Tiles`.  
+Документация: [docs/map-tiles-selfhost.md](../../docs/map-tiles-selfhost.md).
+
+**ODP (будущее):** `geoBasemapPackId` в domain pack → тот же контракт, что `tiles.manifest.json` ([sdd/odp/README.md](../../docs/sdd/odp/README.md)).

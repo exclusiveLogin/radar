@@ -43,9 +43,11 @@ flowchart LR
 | Цель | Команды (radar) | Worker | `.env` |
 |------|-----------------|--------|--------|
 | **Только UI + API** (без Telegram) | `stack cold-up` → `stack dev` | не нужен | `DATABASE_URL` |
-| **Полный dev-стек** | `stack cold-up` → `stack dev --full` | memory (по умолчанию) | как выше |
+| **Полный dev-стек (хост)** | `stack cold-up` → `stack dev --full` | `RADAR_WORKER_ROLE=all` | как выше |
+| **Docker dev (всё в compose)** | `stack docker-dev` | split: ingest/backfill/phase | см. [docker-dev-stack.md](./docker-dev-stack.md) |
 | **Продукт с live ingest** | + session + manifest + `RADAR_STORAGE_MODE=db` | `worker:dev` db | см. § Ingest |
 | **+ архив канала** | + `POST backfill-jobs` или `ingest backfill` | демон / CLI chunk | [backfill-v2-pipeline.md](./backfill-v2-pipeline.md) |
+| **Локальная карта (OSM tiles)** | `stack cold-up -- -Tiles` | — | `VITE_MAP_BASEMAP_STYLE=local` |
 
 > В таблице — действия после `npm run radar --`. Legacy: `cold:up`, `dev`, `dev:app`.
 
@@ -63,7 +65,9 @@ npm run radar -- stack cold-up
 
 `stack cold-up`: Docker (Postgres + Adminer + pgAdmin), `npm install`, build shared, **миграции**. Legacy: `npm run cold:up`.
 
-Опции cold:up: `-Geo` (geo pipeline), `-Dev` (сразу dev-серверы), `-Llm`, `-LlmUi` — см. [README § Быстрый старт](../README.md#быстрый-старт-windows).
+Опции: `-Geo`, `-Tiles` (self-host OSM basemap, долго), `-Dev`, `-Verbose`, `-Llm`, `-LlmUi` — [map-tiles-selfhost.md](./map-tiles-selfhost.md), [docker-dev-stack.md](./docker-dev-stack.md).
+
+**Альтернатива host dev:** `npm run radar -- stack docker-dev` — api/web/worker-роли в Docker ([docker-dev-stack.md](./docker-dev-stack.md)).
 
 ### 2. Каждый рабочий день
 
@@ -89,6 +93,7 @@ npm run radar -- stack dev --full
 | http://127.0.0.1:5173 | OSINT-дашборд (geo, KPI, ленты; правый рейл свёрнут по умолчанию) |
 | http://127.0.0.1:8080 | Adminer (PostgreSQL, сервер `db`, учётка из `POSTGRES_*`) |
 | http://127.0.0.1:5050 | pgAdmin (логин из `.env`) |
+| http://127.0.0.1:8081 | TileServer GL (после `cold-up -Tiles` или `tiles:init`) |
 | `GET /api/map/snapshot` | Снапшот карты (регионы + places) |
 | `WS /ws` | Realtime: snapshot + `region-state` / `place-state` |
 

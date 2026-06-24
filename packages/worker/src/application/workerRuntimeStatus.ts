@@ -4,6 +4,7 @@ import { workerProbeStatusSchema } from "@radar/shared";
 type RuntimeState = {
   status: WorkerProbeStatus["status"];
   storageMode: string;
+  workerRole: string;
   startedAt: string;
   heartbeatAt: string;
   orchestratorRunning: boolean;
@@ -19,6 +20,7 @@ type RuntimeState = {
 const state: RuntimeState = {
   status: "starting",
   storageMode: "unknown",
+  workerRole: "all",
   startedAt: new Date().toISOString(),
   heartbeatAt: new Date().toISOString(),
   orchestratorRunning: false,
@@ -33,8 +35,9 @@ const state: RuntimeState = {
 
 /** SSOT runtime-снимка worker для probe /status. */
 export const workerRuntimeStatus = {
-  init(storageMode: string): void {
+  init(storageMode: string, workerRole = "all"): void {
     state.storageMode = storageMode;
+    state.workerRole = workerRole;
     state.startedAt = new Date().toISOString();
     state.heartbeatAt = state.startedAt;
     state.status = "starting";
@@ -98,6 +101,7 @@ export const workerRuntimeStatus = {
     return workerProbeStatusSchema.parse({
       status: state.status,
       storageMode: state.storageMode,
+      workerRole: state.workerRole,
       pid: process.pid,
       startedAt: state.startedAt,
       heartbeatAt: state.heartbeatAt,

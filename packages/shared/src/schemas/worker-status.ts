@@ -15,6 +15,7 @@ export type ProcessMetrics = z.infer<typeof processMetricsSchema>;
 
 /** Снимок runtime worker (probe HTTP на WORKER_PROBE_PORT). */
 export const workerProbeStatusSchema = z.object({
+  workerRole: z.string().optional(),
   status: z.enum(["running", "starting", "stopped"]),
   storageMode: z.string(),
   pid: z.number().int(),

@@ -154,6 +154,11 @@ vite.config.ts.timestamp-*
 # Сторонние geo-репозитории (git clone из scripts/fetch-geo-vendor.mjs)
 data/geo/vendor/
 
+# Self-host basemap tiles (скачанные pbf, mbtiles — не коммитить)
+data/tiles/sources/
+data/tiles/merged/
+data/tiles/output/
+
 # Локальные отчёты и диагностика (не коммитить)
 reports/
 

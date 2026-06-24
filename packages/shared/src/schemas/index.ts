@@ -362,6 +362,11 @@ export type {
   EventHeatmapResponse,
 } from "./map/event-heatmap";
 
+export {
+  geoBasemapManifestSchema,
+} from "./geo/geo-basemap-manifest";
+export type { GeoBasemapManifest } from "./geo/geo-basemap-manifest";
+
 /** Браузер-безопасные хелперы карты (Vite: @radar/shared → этот barrel, не src/index). */
 export { isPlaceSuppressedByRegionClear } from "../domain/region-state/statusEventOrdering.js";
 export type { MapStatusAction } from "../domain/region-state/statusEventOrdering.js";

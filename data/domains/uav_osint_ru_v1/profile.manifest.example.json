@@ -34,5 +34,6 @@
     { "threatProfile": "uav", "when": { "eventSubjects": ["drone"], "eventCategories": ["movement", "threat"] } }
   ],
   "parserRulePackIds": ["parser-rules.v1"],
-  "geoGroomingPackId": "geo-grooming.v1"
+  "geoGroomingPackId": "geo-grooming.v1",
+  "geoBasemapPackId": "rf_ua_v1"
 }

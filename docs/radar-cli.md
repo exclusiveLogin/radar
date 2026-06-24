@@ -77,6 +77,16 @@ npm run radar -- help [stack|pipeline|ingest|parse|geo|phase|map|data|dev]
 | `stack dev` | `dev:app` | UI + API без worker |
 | `stack db:up` / `db:down` | `db:up` / `db:down` | Postgres compose |
 | `stack migrate` | `migration:run` | Миграции БД |
+| `stack docker-dev` | `docker:dev` | Полный стек в Docker (profile `app`) |
+| `stack tiles:prepare` | `tiles:prepare` | Артефакты без TileServer (prepare → потом `tiles:up`) |
+| `stack tiles:init` | `tiles:init` | prepare + поднять TileServer |
+| `stack tiles:update` | `tiles:update` | Пересборка + restart TileServer |
+| `stack tiles:up` | `tiles:up` | Только TileServer :8081 (рядом с `stack dev`) |
+| `stack tiles:down` | `tiles:down` | Остановить TileServer |
+| `stack tiles:verify` | `tiles:verify` | Проверка артефактов |
+| `stack tiles:download` … `tiles:build` | `tiles:*` | Пошаговый пайплайн |
+| `stack cold-up -- -Tiles` | `cold:up -- -Tiles` | cold-up + tiles:init |
+| `stack cold-up -- -Verbose` | — | подробный вывод CLI-скриптов |
 | `build` (корень) | — | Собрать все пакеты |
 
 ### ingest — каналы и raw
@@ -253,6 +263,40 @@ npm run radar -- parse run
 npm run radar -- phase clear all -- --dry-run
 npm run radar -- phase clear all
 npm run radar -- pipeline drain
+```
+
+---
+
+## Progress / verbose (cold-up, tiles)
+
+| Команда | Progress stage | Флаги / env |
+|---------|----------------|-------------|
+| `stack cold-up` | `cold-up` | `-Verbose`, `-Tiles`, `-Geo` |
+| `stack tiles:init` | `tiles:init` | `--verbose`, `--build-only` (без TileServer) |
+| `stack tiles:update` | `tiles:update` | `--verbose`, `--no-up` |
+| `stack tiles:download` | per-source | `--verbose` |
+
+### Параллельно с host dev
+
+```powershell
+# Терминал 1 — приложение
+npm run radar -- stack dev --full
+
+# Терминал 2 — свои тайлы (один раз init, потом только up)
+npm run radar -- stack tiles:init -- --verbose
+# или если артефакты уже есть:
+npm run radar -- stack tiles:up
+```
+
+В `.env`: `VITE_MAP_BASEMAP_STYLE=local`, `VITE_MAP_TILES_URL=http://127.0.0.1:8081`
+
+`-q` / `--quiet` — отключает verbose.
+
+### Docker worker scale
+
+```powershell
+docker compose -f docker-compose.yml -f docker-compose.app.yml --profile app up --build `
+  --scale worker-backfill=2 --scale worker-phase=2
 ```
 
 ---

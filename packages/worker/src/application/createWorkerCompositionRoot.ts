@@ -85,9 +85,22 @@ import {
   resolveTelegramAppCredentials,
   toTelegramMtprotoAppCredentials,
 } from "../infrastructure/telegram/telegramAppCredentials.js";
+import {
+  resolveWorkerRoleFromEnv,
+  rolePublishesIngestToOutbox,
+  roleRunsBackfill,
+  roleRunsLiveIngest,
+  roleRunsOutboxRelay,
+  roleRunsPhaseDaemons,
+  roleSubscribesPhaseIngestOnBus,
+  type WorkerRole,
+} from "../infrastructure/config/workerRole.js";
+import type { IngestEventPublisher } from "./handlers/ingestEventPublishMode.js";
 
 export type WorkerCompositionOptions = {
   storageMode?: WorkerStorageMode;
+  /** Роль процесса; default — env RADAR_WORKER_ROLE или `all`. */
+  workerRole?: WorkerRole;
   placeCacheRepository?: IPlaceCacheRepository;
   /** Override DB-backed geo scan (tests / offline CLI). */
   placeScan?: IPlaceScanPort;
@@ -113,6 +126,7 @@ export async function createWorkerCompositionRoot(
   options: WorkerCompositionOptions = {},
 ) {
   const storageMode = options.storageMode ?? resolveWorkerStorageModeFromEnv();
+  const workerRole = options.workerRole ?? resolveWorkerRoleFromEnv();
 
   const bus = new InProcessEventBus();
   const parseAttemptLogger = new ParseAttemptLogger();
@@ -182,7 +196,9 @@ export async function createWorkerCompositionRoot(
     bus.subscribe("MessageParseFailed", parseAttemptWriter.handler);
 
     outboxRelay = new OutboxRelay(dataSource, bus);
-    outboxRelay.start();
+    if (roleRunsOutboxRelay(workerRole)) {
+      outboxRelay.start();
+    }
 
     shutdown = async () => {
       outboxRelay?.stop();
@@ -237,9 +253,14 @@ export async function createWorkerCompositionRoot(
     parseWorkerPool = new ParseWorkerPool(parsePipelineWorkerConfig);
   }
 
+  const ingestEventPublisher: IngestEventPublisher =
+    workerRepos && rolePublishesIngestToOutbox(workerRole)
+      ? { mode: "outbox", outbox: workerRepos.domainEvents }
+      : { mode: "bus", bus };
+
   const ingestRawMessageHandler = new IngestRawMessageHandler(
     rawMessages,
-    bus,
+    ingestEventPublisher,
     cursors,
   );
   const { workspaceService } = createParseWorkspaceStack({
@@ -288,16 +309,22 @@ export async function createWorkerCompositionRoot(
       workerRepos.phaseCoverage,
       workerRepos.phaseDefinitions,
     );
-    bus.subscribe(
-      "RawMessageIngested",
-      createPhaseIngestHandler({
-        rawMessages: workerRepos.rawMessages,
-        phases: workerRepos.phaseDefinitions,
-        enqueuer: coverageEnqueuer,
-        runner: phaseRunner,
-      }),
-    );
-    if (IngestParseDaemonService.enabled() && options.startIngestParseDaemon !== false) {
+    if (roleSubscribesPhaseIngestOnBus(workerRole)) {
+      bus.subscribe(
+        "RawMessageIngested",
+        createPhaseIngestHandler({
+          rawMessages: workerRepos.rawMessages,
+          phases: workerRepos.phaseDefinitions,
+          enqueuer: coverageEnqueuer,
+          runner: phaseRunner,
+        }),
+      );
+    }
+    const startPhaseDaemons =
+      roleRunsPhaseDaemons(workerRole) &&
+      IngestParseDaemonService.enabled() &&
+      options.startIngestParseDaemon !== false;
+    if (startPhaseDaemons) {
       ingestParseDaemon = new IngestParseDaemonService(
         workerRepos.phaseDefinitions,
         workerRepos.phaseRuns,
@@ -340,17 +367,25 @@ export async function createWorkerCompositionRoot(
     const telegramMtprotoApp = toTelegramMtprotoAppCredentials(
       resolveTelegramAppCredentials(),
     );
-    ingestOrchestrator = new IngestOrchestrator(
-      ingestProviders,
-      ingestBindings,
-      channels,
-      ingestRawMessageHandler,
-      bus,
-      sessionResolver,
-      telegramMtprotoApp,
-    );
 
-    if (backfillJobs && cursors && isBackfillDaemonEnabled()) {
+    if (roleRunsLiveIngest(workerRole)) {
+      ingestOrchestrator = new IngestOrchestrator(
+        ingestProviders,
+        ingestBindings,
+        channels,
+        ingestRawMessageHandler,
+        bus,
+        sessionResolver,
+        telegramMtprotoApp,
+      );
+    }
+
+    if (
+      roleRunsBackfill(workerRole) &&
+      backfillJobs &&
+      cursors &&
+      isBackfillDaemonEnabled()
+    ) {
       backfillDaemon = new BackfillDaemonService(
         backfillJobs,
         ingestProviders,
@@ -367,6 +402,7 @@ export async function createWorkerCompositionRoot(
 
   return {
     storageMode,
+    workerRole,
     bus,
     metricsAggregator,
     placeScan,

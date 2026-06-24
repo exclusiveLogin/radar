@@ -1,52 +1,65 @@
 import { MONOREPO_ROOT } from "@repo/root";
 import { createWorkerCompositionRoot } from "./createWorkerCompositionRoot.js";
 import { loadRootEnv } from "../infrastructure/config/loadRootEnv.js";
+import {
+  resolveWorkerRoleFromEnv,
+  roleRunsBackfill,
+  roleRunsLiveIngest,
+  roleRunsPhaseDaemons,
+} from "../infrastructure/config/workerRole.js";
 import { isDadataConfigured } from "../infrastructure/enrichers/dadataConfig.js";
 import { loadLlmRuntimeConfig } from "../infrastructure/enrichers/llmRuntimeConfig.js";
 import { WorkerStorageMode } from "../infrastructure/persistence/storageMode.js";
 import { workerRuntimeStatus } from "./workerRuntimeStatus.js";
 import { startWorkerProbeServer } from "../infrastructure/probe/workerProbeServer.js";
+
 /**
- * Точка входа worker: env → composition root → ingest orchestrator (db) или idle (memory).
+ * Точка входа worker: env → composition root → daemons по RADAR_WORKER_ROLE.
  * Проверка парсера — отдельно: `npm run parse:snap`, `npm run parse:report` (не в bootstrap).
  */
 export async function runWorkerBootstrap(): Promise<void> {
   loadRootEnv(MONOREPO_ROOT);
+  const workerRole = resolveWorkerRoleFromEnv();
+
   if (!isDadataConfigured()) {
     console.warn(
       "DaData: DADATA_TOKEN не задан — шаг dadata no-op (координаты только catalog/llm/nominatim).",
     );
   }
   await runLlmStartupCheck();
-  const runtime = await createWorkerCompositionRoot();
+  const runtime = await createWorkerCompositionRoot({ workerRole });
 
-  workerRuntimeStatus.init(runtime.storageMode);
+  workerRuntimeStatus.init(runtime.storageMode, workerRole);
   const probe = startWorkerProbeServer();
 
   console.log(`Режим хранилища worker: ${runtime.storageMode}.`);
+  console.log(`Роль worker: ${workerRole}.`);
   console.log("Write-side handlers и event bus инициализированы.");
 
   if (runtime.storageMode === WorkerStorageMode.Db) {
-    if (!runtime.ingestOrchestrator) {
-      throw new Error("Ingest orchestrator не инициализирован в db mode.");
+    if (roleRunsLiveIngest(workerRole)) {
+      if (!runtime.ingestOrchestrator) {
+        throw new Error("Ingest orchestrator не инициализирован для роли ingest/all.");
+      }
+      console.log("Запуск IngestOrchestrator (active providers из БД)...");
+      await runtime.ingestOrchestrator.start();
     }
-    console.log("Запуск IngestOrchestrator (active providers из БД)...");
-    await runtime.ingestOrchestrator.start();
-    workerRuntimeStatus.setRunning();
 
-    if (runtime.backfillDaemon) {
+    if (roleRunsBackfill(workerRole) && runtime.backfillDaemon) {
       runtime.backfillDaemon.start();
       console.log("BackfillDaemon запущен (ingest_backfill_jobs).");
     }
 
-    if (runtime.ingestParseDaemon) {
+    if (roleRunsPhaseDaemons(workerRole) && runtime.ingestParseDaemon) {
       console.log("IngestParseDaemon запущен (scheduled ingestParse → phase_coverage).");
     }
-    if (runtime.placeEnrichmentDaemon) {
+    if (roleRunsPhaseDaemons(workerRole) && runtime.placeEnrichmentDaemon) {
       console.log(
         "GeoParseDaemon запущен (scheduled geoParse → place_enrichment_jobs; в консоль: [geo:nominatim] ok|miss|fail, подробно: RADAR_VERBOSE_GEO_LOG=1).",
       );
     }
+
+    workerRuntimeStatus.setRunning();
 
     const shutdown = async () => {
       console.log("Остановка worker...");

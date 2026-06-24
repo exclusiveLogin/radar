@@ -29,6 +29,8 @@
 | `DOMAIN_PACKS_PATH` | `data/domains` |
 | `DOMAIN_PACK_SOURCE` | `file` |
 
+**Basemap pack (D2+):** поле `geoBasemapPackId` в profile pack ссылается на контракт [`data/geo/tiles.manifest.json`](../../../data/geo/tiles.manifest.json) — см. [map-tiles-selfhost.md](../../map-tiles-selfhost.md).
+
 ---
 
 ## Data layout

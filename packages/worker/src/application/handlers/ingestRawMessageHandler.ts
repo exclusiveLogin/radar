@@ -1,6 +1,5 @@
 import type {
   DomainEvent,
-  IEventPublisher,
   IIngestCursorRepository,
   IRawMessageRepository,
   RawMessage,
@@ -9,10 +8,14 @@ import type {
 import { ingestMessageHash } from "@radar/shared";
 import { randomUUID } from "node:crypto";
 import { workerRuntimeStatus } from "../workerRuntimeStatus.js";
+import {
+  publishIngestDomainEvent,
+  type IngestEventPublisher,
+} from "./ingestEventPublishMode.js";
 
 /**
  * Use case: upsert сырого сообщения, duplicate-safe events, live cursor advance.
- * Публикует в IEventPublisher (worker: InProcessEventBus, не outbox).
+ * Публикация: in-process bus и/или domain_events outbox (по роли worker).
  * @see ../../../../../docs/domain/how-it-works.md#ingest-flow
  * @see ../../../../../docs/domain/contexts/ingest.md
  * @see ../../../../../docs/domain/aggregates.md
@@ -20,7 +23,7 @@ import { workerRuntimeStatus } from "../workerRuntimeStatus.js";
 export class IngestRawMessageHandler {
   constructor(
     private readonly rawMessages: IRawMessageRepository,
-    private readonly events: IEventPublisher,
+    private readonly events: IngestEventPublisher,
     private readonly cursors?: IIngestCursorRepository,
   ) {}
 
@@ -70,7 +73,7 @@ export class IngestRawMessageHandler {
         ingestMode: normalized.ingestMode,
       },
     };
-    await this.events.publish([event]);
+    await publishIngestDomainEvent(this.events, event);
     workerRuntimeStatus.recordIngest({
       ingestMode: normalized.ingestMode ?? "live",
       inserted: result.inserted,

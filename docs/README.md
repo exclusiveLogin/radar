@@ -12,6 +12,8 @@
 | **[shpargalka-operacii.md](./shpargalka-operacii.md)** | REST API, env, сценарии |
 | **[phase-commands.md](./phase-commands.md)** | Семантика wipe/reset/clear |
 | **[getting-started.md](./getting-started.md)** | Запуск всего продукта локально |
+| **[docker-dev-stack.md](./docker-dev-stack.md)** | Docker overlay: api/web/worker-роли |
+| **[map-tiles-selfhost.md](./map-tiles-selfhost.md)** | Self-host OSM basemap, `cold-up -Tiles` |
 | [architecture-layers-and-wiring.md](./architecture-layers-and-wiring.md) | Полная схема слоёв, DIP/wiring |
 | [plan.md](./plan.md) | Продуктовое видение и roadmap |
 | [rfc/master-implementation-roadmap.md](./rfc/master-implementation-roadmap.md) | Parse + ODP + Tracking — единая карта |

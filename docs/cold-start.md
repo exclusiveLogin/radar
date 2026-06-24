@@ -49,6 +49,8 @@ npm run radar -- ingest manifest:import
 
 `stack cold-up`: Docker (Postgres), `npm install`, build shared/api, **миграции**.
 
+Опция **`-Tiles`**: после bootstrap запускает `tiles:init` (скачивание OSM + tilemaker, **30–90 мин**, ≥30 GB диск). Без неё — CDN basemap (`openfreemap`). См. [map-tiles-selfhost.md](./map-tiles-selfhost.md).
+
 > **OSM для geo:** `geo catalog:import` (шаг 4) читает `data/geo/catalog/` и `data/geo/artifacts/`. Если каталога artifacts ещё нет — один раз: `npm run radar -- geo vendor`, затем `npm run radar -- geo sync`. Legacy-цепочка `geo:regions:seed` / `geo:features:import` **не нужна** — всё делает `geo catalog:import`.
 
 Ingest manifest **не** удаляется `system wipe` — каналы и bindings остаются в БД.

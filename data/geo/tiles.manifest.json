@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 1,
+  "id": "rf_ua_v1",
+  "title": "РФ + Украина (operational area)",
+  "odpMigration": {
+    "targetProfileId": "uav_osint_ru_v1",
+    "futureField": "geoBasemapPackId",
+    "note": "после ODP D2 → data/domains/{profileId}/geo-basemap.v1.json или ссылка сюда"
+  },
+  "sources": [
+    {
+      "id": "russia",
+      "url": "https://download.geofabrik.de/russia-latest.osm.pbf",
+      "filename": "russia-latest.osm.pbf"
+    },
+    {
+      "id": "ukraine",
+      "url": "https://download.geofabrik.de/europe/ukraine-latest.osm.pbf",
+      "filename": "ukraine-latest.osm.pbf"
+    }
+  ],
+  "merge": {
+    "tool": "osmium",
+    "inputs": ["russia", "ukraine"],
+    "outputPath": "data/tiles/merged/rf-ua.osm.pbf"
+  },
+  "tilemaker": {
+    "configPath": "data/geo/tilemaker-rf-ua.json",
+    "bbox": [19, 41, 180, 82]
+  },
+  "labelLocales": {
+    "priority": ["name:ru", "name", "name:en", "name:uk"]
+  },
+  "themes": {
+    "dark": {
+      "mbtiles": "data/tiles/output/rf-ua-dark.mbtiles",
+      "styleId": "dark"
+    },
+    "light": {
+      "mbtiles": "data/tiles/output/rf-ua-light.mbtiles",
+      "styleId": "light"
+    }
+  },
+  "tileserver": {
+    "configPath": "data/tiles/output/config.json",
+    "port": 8081
+  },
+  "docker": {
+    "osmium": "iboates/osmium:latest",
+    "tilemaker": "ghcr.io/systemed/tilemaker:master"
+  }
+}

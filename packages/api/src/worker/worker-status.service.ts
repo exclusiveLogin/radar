@@ -3,6 +3,7 @@ import { InjectDataSource } from "@nestjs/typeorm";
 import {
   workerProbeStatusSchema,
   workerStatusResponseSchema,
+  type WorkerProbeStatus,
   type WorkerStatusResponse,
 } from "@radar/shared";
 import type { DataSource } from "typeorm";
@@ -19,21 +20,43 @@ export class WorkerStatusService {
 
   /** Статус worker: HTTP probe + подсказки из БД (если probe недоступен). */
   async getStatus(): Promise<WorkerStatusResponse> {
-    const probeUrl = this.resolveProbeUrl();
-    const worker = await this.fetchProbe(probeUrl);
+    const probeUrls = this.resolveProbeUrls();
+    const worker = await this.fetchFirstProbe(probeUrls);
     const db = await this.loadDbHints();
 
     return workerStatusResponseSchema.parse({
       reachable: worker !== null,
-      probeUrl,
+      probeUrl: probeUrls[0] ?? this.buildProbeUrl("127.0.0.1", DEFAULT_PROBE_PORT),
       worker,
       db,
     });
   }
 
-  private resolveProbeUrl(): string {
+  private resolveProbeUrls(): string[] {
+    const targets = process.env.WORKER_PROBE_TARGETS?.trim();
+    if (targets) {
+      return targets
+        .split(",")
+        .map((t) => t.trim())
+        .filter(Boolean)
+        .map((t) => (t.includes("://") ? `${t.replace(/\/$/, "")}/status` : `http://${t}/status`));
+    }
+
+    const host = process.env.WORKER_PROBE_HOST?.trim() || "127.0.0.1";
     const port = process.env.WORKER_PROBE_PORT?.trim() || String(DEFAULT_PROBE_PORT);
-    return `http://127.0.0.1:${port}/status`;
+    return [this.buildProbeUrl(host, port)];
+  }
+
+  private buildProbeUrl(host: string, port: string | number): string {
+    return `http://${host}:${port}/status`;
+  }
+
+  private async fetchFirstProbe(urls: string[]): Promise<WorkerProbeStatus | null> {
+    for (const url of urls) {
+      const result = await this.fetchProbe(url);
+      if (result) return result;
+    }
+    return null;
   }
 
   private async fetchProbe(url: string) {

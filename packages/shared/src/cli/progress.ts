@@ -94,7 +94,12 @@ export function createProgress(
       bar.update(value, { countersText: formatCounters(counters) });
     },
     setTotal(newTotal) {
-      if (indeterminate || newTotal <= barTotal) return;
+      if (indeterminate) {
+        barTotal = newTotal;
+        bar.setTotal(newTotal);
+        return;
+      }
+      if (newTotal <= barTotal) return;
       barTotal = newTotal;
       bar.setTotal(newTotal);
     },
@@ -115,6 +120,8 @@ export type StageProgressReporter = {
 
 export type StageProgressHandle = {
   tick(delta?: number, counters?: ProgressCounters): void;
+  update(counters: ProgressCounters): void;
+  setTotal(total: number): void;
   done(): void;
 };
 
@@ -130,6 +137,12 @@ export function createStageProgressReporter(
       return {
         tick(delta, counters) {
           active?.tick(delta, counters);
+        },
+        update(counters) {
+          active?.update(counters);
+        },
+        setTotal(total) {
+          active?.setTotal(total);
         },
         done() {
           active?.stop();

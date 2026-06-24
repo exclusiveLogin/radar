@@ -1,56 +1,89 @@
 /**
- * Poll domain_events → InProcessEventBus. События worker-handlers сюда не пишутся.
+ * Poll domain_events → InProcessEventBus. Атомарный claim в транзакции (FOR UPDATE SKIP LOCKED).
  * @see ../../../../../docs/domain/domain-events-and-outbox.md
- * @see ../../../../../docs/domain/architecture-recommendations.md
  */
-import type { IEventPublisher } from "@radar/shared";
-import type { DataSource } from "typeorm";
-import { IsNull } from "typeorm";
-import { DomainEventEntity } from "../../events/entities";
+import type { DomainEvent, IEventPublisher } from "@radar/shared";
+import type { DataSource, EntityManager } from "typeorm";
+
+/** Строка claim из domain_events (FOR UPDATE SKIP LOCKED). */
+type DomainEventRow = {
+  id: string;
+  type: string;
+  version: number;
+  aggregate_type: string;
+  aggregate_id: string | null;
+  payload: Record<string, unknown>;
+  occurred_at: Date;
+  trace_id: string | null;
+};
+
+const CLAIM_UNPUBLISHED_SQL = `
+  SELECT id, type, version, aggregate_type, aggregate_id, payload, occurred_at, trace_id
+  FROM domain_events
+  WHERE published_at IS NULL
+  ORDER BY occurred_at ASC
+  LIMIT 100
+  FOR UPDATE SKIP LOCKED
+`;
+
+/** TypeORM setLock(…, ["skip_locked"]) — это FOR UPDATE OF, не SKIP LOCKED; только raw SQL. */
+async function claimUnpublishedEvents(manager: EntityManager): Promise<DomainEventRow[]> {
+  return manager.query<DomainEventRow[]>(CLAIM_UNPUBLISHED_SQL);
+}
 
 export class OutboxRelay {
   private timer: NodeJS.Timeout | null = null;
+  private ticking = false;
 
   constructor(
     private readonly dataSource: DataSource,
     private readonly bus: IEventPublisher,
     private readonly pollMs = 1000,
   ) {}
-start(): void {
+
+  start(): void {
     if (this.timer) return;
     this.timer = setInterval(() => {
       void this.tick();
     }, this.pollMs);
   }
-stop(): void {
+
+  stop(): void {
     if (!this.timer) return;
     clearInterval(this.timer);
     this.timer = null;
   }
-async tick(): Promise<void> {
-    const repo = this.dataSource.getRepository(DomainEventEntity);
-    const rows = await repo.find({
-      where: { publishedAt: IsNull() },
-      order: { occurredAt: "ASC" },
-      take: 100,
-    });
-    if (rows.length === 0) return;
-    await this.bus.publish(
-      rows.map((row) => ({
-        id: row.id,
-        type: row.type as never,
-        version: row.version,
-        occurredAt: row.occurredAt.toISOString(),
-        aggregateType: row.aggregateType as never,
-        aggregateId: row.aggregateId,
-        payload: row.payload,
-        traceId: row.traceId ?? undefined,
-      })),
-    );
-    const now = new Date();
-    for (const row of rows) {
-      row.publishedAt = now;
+
+  async tick(): Promise<void> {
+    if (this.ticking) return;
+    this.ticking = true;
+    try {
+      await this.dataSource.transaction(async (manager) => {
+        const rows = await claimUnpublishedEvents(manager);
+
+        if (rows.length === 0) return;
+
+        const events: DomainEvent[] = rows.map((row) => ({
+          id: row.id,
+          type: row.type as DomainEvent["type"],
+          version: row.version,
+          occurredAt: row.occurred_at.toISOString(),
+          aggregateType: row.aggregate_type as DomainEvent["aggregateType"],
+          aggregateId: row.aggregate_id,
+          payload: row.payload as Record<string, unknown>,
+          traceId: row.trace_id ?? undefined,
+        }));
+
+        await this.bus.publish(events);
+
+        const now = new Date();
+        await manager.query(
+          `UPDATE domain_events SET published_at = $1 WHERE id = ANY($2::uuid[])`,
+          [now, rows.map((row) => row.id)],
+        );
+      });
+    } finally {
+      this.ticking = false;
     }
-    await repo.save(rows);
   }
 }

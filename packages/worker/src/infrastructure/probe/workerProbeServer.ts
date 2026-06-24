@@ -3,6 +3,11 @@ import { workerRuntimeStatus } from "../../application/workerRuntimeStatus.js";
 
 const DEFAULT_PORT = 3010;
 
+function readProbeHost(): string {
+  const host = process.env.WORKER_PROBE_HOST?.trim();
+  return host && host.length > 0 ? host : "127.0.0.1";
+}
+
 function readProbePort(): number {
   const raw = process.env.WORKER_PROBE_PORT?.trim();
   const port = raw ? Number(raw) : DEFAULT_PORT;
@@ -22,6 +27,7 @@ export type WorkerProbeHandle = {
  */
 export function startWorkerProbeServer(): WorkerProbeHandle {
   const port = readProbePort();
+  const host = readProbeHost();
 
   const server = createServer((req, res) => {
     if (req.method === "GET" && (req.url === "/status" || req.url === "/health")) {
@@ -51,9 +57,9 @@ export function startWorkerProbeServer(): WorkerProbeHandle {
     console.error("Worker probe:", err);
   });
 
-  server.listen(port, "127.0.0.1", () => {
+  server.listen(port, host, () => {
     enabled = true;
-    console.log(`Worker probe: http://127.0.0.1:${port}/status`);
+    console.log(`Worker probe: http://${host}:${port}/status`);
   });
 
   return { port, server, enabled };

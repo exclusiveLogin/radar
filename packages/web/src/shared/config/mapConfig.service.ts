@@ -1,5 +1,6 @@
 import type { ThemeMode } from "../state/themeStore";
 import type { StateLevel } from "@radar/shared";
+import { createLocalBasemapStyle } from "./localBasemapStyle";
 
 /**
  * Конфиг карты и темы: SSOT цветов уровней состояния (используется и схемой, и MapLibre, и бейджами).
@@ -41,7 +42,56 @@ export function regionStateLevelColorExpression(): unknown[] {
 }
 
 /** Режим подложки гео-карты (VITE_MAP_BASEMAP_STYLE). */
-export type MapBasemapMode = "openfreemap" | "carto" | "minimal";
+export type MapBasemapMode = "openfreemap" | "carto" | "minimal" | "local";
+
+/** Относительный путь к TileServer в env (без host/port). */
+function readLocalTilesPath(): string {
+  const fromEnv = import.meta.env.VITE_MAP_TILES_URL?.trim();
+  if (!fromEnv) return "/tiles";
+
+  const trimmed = fromEnv.replace(/\/$/, "");
+  if (trimmed.startsWith("/")) return trimmed;
+
+  try {
+    const { hostname } = new URL(trimmed);
+    if (hostname === "127.0.0.1" || hostname === "localhost") return "/tiles";
+  } catch {
+    /* не URL */
+  }
+
+  return trimmed;
+}
+
+/** Прямой TileServer на хосте (localhost без Vite proxy). */
+function readDirectTileServerUrl(): string {
+  const port = import.meta.env.VITE_MAP_TILES_PORT?.trim() || "8081";
+  return `http://127.0.0.1:${port}`;
+}
+
+/**
+ * База URL тайлов для MapLibre.
+ * Dev/tunnel: `{origin}/tiles` через Vite proxy; localhost prod — прямой :8081.
+ */
+export function resolveLocalTilesBase(): string {
+  const path = readLocalTilesPath();
+
+  if (typeof window === "undefined") return path;
+  if (!path.startsWith("/")) return path;
+
+  const { origin, hostname } = window.location;
+  const isLocalHost = hostname === "localhost" || hostname === "127.0.0.1";
+
+  if (import.meta.env.DEV || !isLocalHost) {
+    return `${origin}${path}`;
+  }
+
+  return readDirectTileServerUrl();
+}
+
+/** Локальная vector-подложка — URL тайлов вычисляется при открытии карты (не при import). */
+export function buildLocalBasemapStyleForTheme(theme: "dark" | "light") {
+  return createLocalBasemapStyle(theme, resolveLocalTilesBase());
+}
 
 const CARTO_DARK_TILES = [
   "https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png",
@@ -156,7 +206,7 @@ export function resolveMapBasemapFallbackForTheme(
 
 function readBasemapMode(): MapBasemapMode {
   const raw = import.meta.env.VITE_MAP_BASEMAP_STYLE?.trim().toLowerCase();
-  if (raw === "carto" || raw === "minimal" || raw === "openfreemap") {
+  if (raw === "carto" || raw === "minimal" || raw === "openfreemap" || raw === "local") {
     return raw;
   }
   return "openfreemap";
@@ -189,9 +239,17 @@ export function resolveMapBasemapStyle(): string | typeof MAP_STYLE_CARTO_DARK |
  */
 export function resolveMapBasemapStyleForTheme(
   theme: ThemeMode,
-): string | typeof MAP_STYLE_CARTO_DARK | typeof MAP_STYLE_CARTO_LIGHT | typeof MAP_STYLE_MINIMAL {
+):
+  | string
+  | typeof MAP_STYLE_CARTO_DARK
+  | typeof MAP_STYLE_CARTO_LIGHT
+  | typeof MAP_STYLE_MINIMAL
+  | ReturnType<typeof buildLocalBasemapStyleForTheme> {
   const mode = readBasemapMode();
   if (mode === "minimal") return MAP_STYLE_MINIMAL;
+  if (mode === "local") {
+    return buildLocalBasemapStyleForTheme(theme === "light" ? "light" : "dark");
+  }
   if (mode === "carto") return theme === "light" ? MAP_STYLE_CARTO_LIGHT : MAP_STYLE_CARTO_DARK;
   return theme === "light" ? MAP_BASEMAP_STYLE_URL_LIGHT : MAP_BASEMAP_STYLE_URL_DEFAULT;
 }

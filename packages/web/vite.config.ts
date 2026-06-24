@@ -6,6 +6,17 @@ import { defineConfig } from "vite";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const repoRoot = path.resolve(__dirname, "../..");
+const apiProxyTarget = process.env.VITE_DEV_PROXY_API ?? "http://127.0.0.1:3000";
+const tilesProxyTarget =
+  process.env.VITE_DEV_PROXY_TILES ?? "http://127.0.0.1:8081";
+const apiWsTarget = apiProxyTarget.replace(/^http/, "ws");
+
+/** Прокси /tiles → TileServer (dev + preview). */
+const tilesProxy = {
+  target: tilesProxyTarget,
+  changeOrigin: true,
+  rewrite: (p: string) => p.replace(/^\/tiles/, ""),
+};
 
 export default defineConfig({
   /** VITE_* из корневого `.env` монорепы. */
@@ -34,14 +45,21 @@ export default defineConfig({
      */
     proxy: {
       "/api": {
-        target: "http://127.0.0.1:3000",
+        target: apiProxyTarget,
         changeOrigin: true,
       },
       "/ws": {
-        target: "ws://127.0.0.1:3000",
+        target: apiWsTarget,
         ws: true,
         changeOrigin: true,
       },
+      "/tiles": tilesProxy,
+    },
+  },
+  preview: {
+    port: 4173,
+    proxy: {
+      "/tiles": tilesProxy,
     },
   },
 });

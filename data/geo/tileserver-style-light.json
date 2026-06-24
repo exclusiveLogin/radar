@@ -1,0 +1,74 @@
+{
+  "version": 8,
+  "name": "radar-light",
+  "sources": {
+    "light": {
+      "type": "vector",
+      "url": "mbtiles://light"
+    }
+  },
+  "layers": [
+    {
+      "id": "background",
+      "type": "background",
+      "paint": { "background-color": "#e8eaed" }
+    },
+    {
+      "id": "landcover",
+      "type": "fill",
+      "source": "light",
+      "source-layer": "landcover",
+      "paint": { "fill-color": "#e2e8d8", "fill-opacity": 0.9 }
+    },
+    {
+      "id": "landuse",
+      "type": "fill",
+      "source": "light",
+      "source-layer": "landuse",
+      "minzoom": 4,
+      "paint": { "fill-color": "#ebe9e4", "fill-opacity": 0.85 }
+    },
+    {
+      "id": "water",
+      "type": "fill",
+      "source": "light",
+      "source-layer": "water",
+      "minzoom": 4,
+      "paint": { "fill-color": "#aad3df" }
+    },
+    {
+      "id": "waterway",
+      "type": "line",
+      "source": "light",
+      "source-layer": "waterway",
+      "minzoom": 8,
+      "paint": { "line-color": "#7eb8cc", "line-width": 1 }
+    },
+    {
+      "id": "transportation",
+      "type": "line",
+      "source": "light",
+      "source-layer": "transportation",
+      "minzoom": 4,
+      "paint": {
+        "line-color": "#ffffff",
+        "line-width": ["interpolate", ["linear"], ["zoom"], 4, 0.3, 10, 1.5, 14, 3]
+      }
+    },
+    {
+      "id": "building",
+      "type": "fill",
+      "source": "light",
+      "source-layer": "building",
+      "minzoom": 12,
+      "paint": { "fill-color": "#d9d5d0", "fill-opacity": 0.8 }
+    },
+    {
+      "id": "boundary",
+      "type": "line",
+      "source": "light",
+      "source-layer": "boundary",
+      "paint": { "line-color": "#9aa0a6", "line-width": 1, "line-dasharray": [2, 2] }
+    }
+  ]
+}

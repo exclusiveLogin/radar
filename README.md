@@ -331,6 +331,9 @@ node scripts/query-ingest-status.mjs
 | **`stack up`** | `up` | shared + API + web | UI без Telegram |
 | **`stack dev --full`** | `dev` | + worker | полный стек |
 | **`stack dev`** | `dev:app` | без worker | отладка карты/API |
+| **`stack docker-dev`** | `docker:dev` | api/web/worker в Docker | изолированный dev-стек |
+
+Подробнее: [docs/docker-dev-stack.md](docs/docker-dev-stack.md).
 
 Перед `dev` / `dev:app` скрипты **`predev`** собирают `@radar/shared` и `@radar/api`. Web стартует **после** `http://127.0.0.1:3000/api/ready` (`scripts/dev-stack.mjs`).
 
@@ -349,6 +352,8 @@ npm run radar -- stack dev
 | Флаг | Эффект |
 |------|--------|
 | **`-Geo`** | `geo:vendor` → `geo:sync` → `geo:seed` → `geo:db:apply` (долго, нужен интернет) |
+| **`-Tiles`** | self-host OSM basemap (`tiles:init`, 30–90 мин, ≥30 GB) — [map-tiles-selfhost.md](docs/map-tiles-selfhost.md) |
+| **`-Verbose`** | подробный вывод CLI (`RADAR_CLI_VERBOSE`) |
 | **`-Dev`** | сразу запустить dev-стек после cold |
 | **`-Llm`** | Docker profile `llm` + `ollama pull` |
 | **`-LlmUi`** | + Open WebUI |
