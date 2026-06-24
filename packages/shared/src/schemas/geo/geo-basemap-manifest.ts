@@ -29,17 +29,39 @@ export const geoBasemapManifestSchema = z.object({
   /** tilemaker: без shapefile-слоёв + bbox operational area. */
   tilemaker: z
     .object({
-      configPath: z.string().min(1),
+      configPath: z.string().min(1).optional(),
       /** minLon, minLat, maxLon, maxLat */
-      bbox: z.tuple([z.number(), z.number(), z.number(), z.number()]),
+      bbox: z.tuple([z.number(), z.number(), z.number(), z.number()]).optional(),
+      /** Обзорка на всю зону (города, z≤11). */
+      overview: z
+        .object({
+          configPath: z.string().min(1),
+          bbox: z.tuple([z.number(), z.number(), z.number(), z.number()]),
+        })
+        .optional(),
+      /** Детализация западной зоны (НП, z≤13). */
+      detail: z
+        .object({
+          configPath: z.string().min(1),
+          bbox: z.tuple([z.number(), z.number(), z.number(), z.number()]),
+        })
+        .optional(),
     })
     .optional(),
   labelLocales: z.object({
     priority: z.array(z.string().min(1)).min(1),
   }),
   themes: z.object({
-    dark: z.object({ mbtiles: z.string().min(1), styleId: z.string().min(1) }),
-    light: z.object({ mbtiles: z.string().min(1), styleId: z.string().min(1) }),
+    dark: z.object({
+      mbtiles: z.string().min(1),
+      mbtilesDetail: z.string().min(1).optional(),
+      styleId: z.string().min(1),
+    }),
+    light: z.object({
+      mbtiles: z.string().min(1),
+      mbtilesDetail: z.string().min(1).optional(),
+      styleId: z.string().min(1),
+    }),
   }),
   tileserver: z.object({
     configPath: z.string().min(1),

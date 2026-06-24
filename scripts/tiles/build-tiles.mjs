@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 /**
- * Сборка vector mbtiles через tilemaker (Docker) + TileServer GL (рендер PNG из vector).
+ * Сборка vector mbtiles через tilemaker (Docker) + TileServer GL.
+ * Двухуровневый режим: overview (вся зона, z≤11) + detail-west (запад, z≤13).
  */
+import { basename } from 'node:path';
 import { copyFileSync, existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -17,26 +19,53 @@ const tilemakerImage = resolveTilesDockerImage(manifest, 'tilemaker');
 
 const mergedPath = join(repoRoot, manifest.merge.outputPath);
 const outputDir = join(repoRoot, 'data', 'tiles', 'output');
-const storeDir = join(repoRoot, 'data', 'tiles', 'store');
-const lightPath = join(repoRoot, manifest.themes.light.mbtiles);
-const darkPath = join(repoRoot, manifest.themes.dark.mbtiles);
+const storeRoot = join(repoRoot, 'data', 'tiles', 'store');
 
 const DEFAULT_TILEMAKER_CONFIG = 'data/geo/tilemaker-rf-ua.json';
-const DEFAULT_BBOX = [19, 41, 180, 82];
+const DEFAULT_BBOX = [19, 41, 60, 82];
 const TILESERVER_STYLE = {
   light: 'data/geo/tileserver-style-light.json',
   dark: 'data/geo/tileserver-style-dark.json',
 };
 
-/** @returns {{ configHost: string, configInContainer: string, bbox: [number, number, number, number] }} */
-function resolveTilemakerOptions() {
-  const configRel = manifest.tilemaker?.configPath?.trim() || DEFAULT_TILEMAKER_CONFIG;
-  const configHost = join(repoRoot, configRel);
-  if (!existsSync(configHost)) {
-    throw new Error(`Нет tilemaker config: ${configRel}`);
+/**
+ * @typedef {{ id: string, configPath: string, bbox: [number, number, number, number], outputRel: string }} TilemakerPlan
+ */
+
+/** @returns {TilemakerPlan[]} */
+function resolveTilemakerPlans() {
+  const tm = manifest.tilemaker;
+  if (tm?.overview && tm?.detail) {
+    const detailRel = manifest.themes.light.mbtilesDetail;
+    if (!detailRel) {
+      throw new Error('tilemaker.detail задан, но themes.light.mbtilesDetail отсутствует');
+    }
+    return [
+      {
+        id: 'overview',
+        configPath: tm.overview.configPath,
+        bbox: tm.overview.bbox,
+        outputRel: manifest.themes.light.mbtiles,
+      },
+      {
+        id: 'detail-west',
+        configPath: tm.detail.configPath,
+        bbox: tm.detail.bbox,
+        outputRel: detailRel,
+      },
+    ];
   }
-  const bbox = manifest.tilemaker?.bbox ?? DEFAULT_BBOX;
-  return { configHost, configInContainer: '/data/tilemaker-config.json', bbox };
+
+  const configPath = tm?.configPath?.trim() || DEFAULT_TILEMAKER_CONFIG;
+  const bbox = tm?.bbox ?? DEFAULT_BBOX;
+  return [
+    {
+      id: 'single',
+      configPath,
+      bbox,
+      outputRel: manifest.themes.light.mbtiles,
+    },
+  ];
 }
 
 /** @param {[number, number, number, number]} bbox */
@@ -51,33 +80,40 @@ function tilemakerExtraArgs() {
   return raw.split(/\s+/).filter(Boolean);
 }
 
-function runTilemaker(outputFile) {
-  const stage = reporter.startStage(`tilemaker:${outputFile}`, 0);
-  const { configHost, configInContainer, bbox } = resolveTilemakerOptions();
-  reporter.log(`[tiles:build] tilemaker → ${outputFile}`);
-  reporter.logVerbose(`image: ${tilemakerImage}`);
-  reporter.logVerbose(`bbox: ${formatBboxArg(bbox)}`);
-
-  mkdirSync(storeDir, { recursive: true });
-  if (existsSync(storeDir)) {
-    rmSync(storeDir, { recursive: true, force: true });
-    mkdirSync(storeDir, { recursive: true });
+/** @param {TilemakerPlan} plan */
+function runTilemaker(plan) {
+  const outputFile = basename(plan.outputRel);
+  const configHost = join(repoRoot, plan.configPath);
+  if (!existsSync(configHost)) {
+    throw new Error(`Нет tilemaker config: ${plan.configPath}`);
   }
 
-  /** Entrypoint образа уже вызывает /usr/src/app/tilemaker — не дублировать argv[0] «tilemaker». */
+  const configMount = `/data/tilemaker-config-${plan.id}.json`;
+  const storeDir = join(storeRoot, plan.id);
+  const stage = reporter.startStage(`tilemaker:${plan.id}`, 0);
+
+  reporter.log(`[tiles:build] tilemaker:${plan.id} → ${outputFile}`);
+  reporter.logVerbose(`image: ${tilemakerImage}`);
+  reporter.logVerbose(`bbox: ${formatBboxArg(plan.bbox)}`);
+  reporter.logVerbose(`config: ${plan.configPath}`);
+
+  mkdirSync(storeDir, { recursive: true });
+  rmSync(storeDir, { recursive: true, force: true });
+  mkdirSync(storeDir, { recursive: true });
+
   const tilemakerArgs = [
     '--input',
     `/data/merged/${mergedPath.split(/[/\\]/).pop()}`,
     '--output',
     `/data/output/${outputFile}`,
     '--bbox',
-    formatBboxArg(bbox),
+    formatBboxArg(plan.bbox),
     '--config',
-    configInContainer,
+    configMount,
     '--process',
     '/usr/src/app/resources/process-openmaptiles.lua',
     '--store',
-    '/data/store',
+    `/data/store/${plan.id}`,
     '--shard-stores',
     ...tilemakerExtraArgs(),
   ];
@@ -90,7 +126,7 @@ function runTilemaker(outputFile) {
       '-v',
       `${join(repoRoot, 'data', 'tiles')}:/data`,
       '-v',
-      `${configHost}:${configInContainer}:ro`,
+      `${configHost}:${configMount}:ro`,
       tilemakerImage,
       ...tilemakerArgs,
     ],
@@ -100,12 +136,34 @@ function runTilemaker(outputFile) {
   if (result.status !== 0) {
     const err = result.stderr?.toString() ?? 'tilemaker failed';
     console.error(err);
-    throw new Error(
-      `tilemaker exit ${result.status}\n` +
-        `Проверьте bbox/config (shapefile-слои убраны в data/geo/tilemaker-rf-ua.json).`,
-    );
+    throw new Error(`tilemaker:${plan.id} exit ${result.status}`);
   }
   stage.done();
+}
+
+/** @param {string} rel */
+function ensureMbtiles(rel, plan) {
+  const abs = join(repoRoot, rel);
+  if (existsSync(abs)) {
+    reporter.log(`[tiles:build] skip ${basename(rel)} (уже есть)`);
+    return;
+  }
+  runTilemaker({ ...plan, outputRel: rel });
+}
+
+/** @param {string} targetRel @param {string} sourceRel */
+function copyThemeMbtiles(targetRel, sourceRel) {
+  const target = join(repoRoot, targetRel);
+  if (existsSync(target)) {
+    reporter.log(`[tiles:build] skip ${basename(targetRel)} (уже есть)`);
+    return;
+  }
+  const source = join(repoRoot, sourceRel);
+  if (!existsSync(source)) {
+    throw new Error(`Нет исходника для копии: ${sourceRel}`);
+  }
+  reporter.log(`[tiles:build] ${basename(targetRel)} ← копия ${basename(sourceRel)}`);
+  copyFileSync(source, target);
 }
 
 const TILESERVER_GL_IMAGE = 'maptiler/tileserver-gl:latest';
@@ -147,9 +205,25 @@ function ensureTileserverFonts() {
 }
 
 function writeTileserverConfig() {
-  const { bbox } = resolveTilemakerOptions();
-  const lightName = lightPath.split(/[/\\]/).pop();
-  const darkName = darkPath.split(/[/\\]/).pop();
+  const tm = manifest.tilemaker;
+  const bbox = tm?.overview?.bbox ?? tm?.bbox ?? DEFAULT_BBOX;
+  const overviewLight = basename(manifest.themes.light.mbtiles);
+  const overviewDark = basename(manifest.themes.dark.mbtiles);
+  const detailLight = manifest.themes.light.mbtilesDetail
+    ? basename(manifest.themes.light.mbtilesDetail)
+    : null;
+  const detailDark = manifest.themes.dark.mbtilesDetail
+    ? basename(manifest.themes.dark.mbtilesDetail)
+    : null;
+
+  /** @type {Record<string, { mbtiles: string }>} */
+  const data = {
+    light: { mbtiles: overviewLight },
+    dark: { mbtiles: overviewDark },
+  };
+  if (detailLight) data['light-detail'] = { mbtiles: detailLight };
+  if (detailDark) data['dark-detail'] = { mbtiles: detailDark };
+
   const config = {
     options: {
       paths: {
@@ -159,13 +233,9 @@ function writeTileserverConfig() {
         styles: '/data/styles',
         mbtiles: '/data',
       },
-      // MapLibre glyphs (/fonts/...) — иначе 400 «Font not allowed» (шрифт не в server style).
       serveAllFonts: true,
     },
-    data: {
-      light: { mbtiles: lightName },
-      dark: { mbtiles: darkName },
-    },
+    data,
     styles: {
       light: {
         style: 'light.json',
@@ -201,26 +271,38 @@ function main() {
   }
 
   mkdirSync(outputDir, { recursive: true });
+  if (existsSync(storeRoot)) {
+    reporter.log('[tiles:build] cleanup store/ перед сборкой (mmap ≠ mbtiles)');
+    rmSync(storeRoot, { recursive: true, force: true });
+  }
+  const plans = resolveTilemakerPlans();
+  const overviewPlan = plans.find((p) => p.id === 'overview' || p.id === 'single');
+  const detailPlan = plans.find((p) => p.id === 'detail-west');
 
-  if (!existsSync(lightPath)) {
-    runTilemaker(lightPath.split(/[/\\]/).pop());
-  } else {
-    reporter.log(`[tiles:build] skip light (уже есть)`);
+  if (!overviewPlan) {
+    throw new Error('Нет плана overview/single для сборки');
   }
 
-  if (!existsSync(darkPath)) {
-    if (existsSync(lightPath)) {
-      reporter.log('[tiles:build] dark ← копия light (временно; отдельный night-профиль — позже)');
-      copyFileSync(lightPath, darkPath);
-    } else {
-      runTilemaker(darkPath.split(/[/\\]/).pop());
-    }
-  } else {
-    reporter.log(`[tiles:build] skip dark (уже есть)`);
+  ensureMbtiles(manifest.themes.light.mbtiles, overviewPlan);
+  if (detailPlan && manifest.themes.light.mbtilesDetail) {
+    ensureMbtiles(manifest.themes.light.mbtilesDetail, detailPlan);
+  }
+
+  copyThemeMbtiles(manifest.themes.dark.mbtiles, manifest.themes.light.mbtiles);
+  if (manifest.themes.dark.mbtilesDetail && manifest.themes.light.mbtilesDetail) {
+    copyThemeMbtiles(manifest.themes.dark.mbtilesDetail, manifest.themes.light.mbtilesDetail);
   }
 
   writeTileserverConfig();
+  cleanupTilemakerStore();
   reporter.log(`\x1b[32mtiles:build → ${manifest.tileserver.configPath}\x1b[0m`);
+}
+
+/** Промежуточный store tilemaker (mmap_*.dat) — не артефакт; после сборки сотни GB. */
+function cleanupTilemakerStore() {
+  if (!existsSync(storeRoot)) return;
+  reporter.log('[tiles:build] cleanup store/ (промежуточные mmap, не mbtiles)');
+  rmSync(storeRoot, { recursive: true, force: true });
 }
 
 try {

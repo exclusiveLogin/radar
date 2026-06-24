@@ -30,6 +30,12 @@ async function main() {
     manifest.themes.dark.mbtiles,
     manifest.tileserver.configPath,
   ];
+  if (manifest.themes.light.mbtilesDetail) {
+    files.push(manifest.themes.light.mbtilesDetail);
+  }
+  if (manifest.themes.dark.mbtilesDetail) {
+    files.push(manifest.themes.dark.mbtilesDetail);
+  }
 
   const entries = [];
   for (const rel of files) {

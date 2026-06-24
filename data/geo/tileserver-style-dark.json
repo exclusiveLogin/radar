@@ -33,7 +33,7 @@
       "type": "fill",
       "source": "dark",
       "source-layer": "water",
-      "minzoom": 4,
+      "minzoom": 2,
       "paint": { "fill-color": "#0f2d45" }
     },
     {

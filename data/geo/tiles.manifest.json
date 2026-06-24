@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "rf_ua_v1",
-  "title": "РФ + Украина (operational area)",
+  "title": "РФ (до Урала) + Украина",
   "odpMigration": {
     "targetProfileId": "uav_osint_ru_v1",
     "futureField": "geoBasemapPackId",
@@ -25,19 +25,28 @@
     "outputPath": "data/tiles/merged/rf-ua.osm.pbf"
   },
   "tilemaker": {
-    "configPath": "data/geo/tilemaker-rf-ua.json",
-    "bbox": [19, 41, 180, 82]
+    "bbox": [19, 41, 60, 82],
+    "overview": {
+      "configPath": "data/geo/tilemaker-rf-ua-overview.json",
+      "bbox": [19, 41, 60, 82]
+    },
+    "detail": {
+      "configPath": "data/geo/tilemaker-rf-ua-detail-west.json",
+      "bbox": [19, 41, 42, 82]
+    }
   },
   "labelLocales": {
     "priority": ["name:ru", "name", "name:en", "name:uk"]
   },
   "themes": {
     "dark": {
-      "mbtiles": "data/tiles/output/rf-ua-dark.mbtiles",
+      "mbtiles": "data/tiles/output/rf-ua-overview-dark.mbtiles",
+      "mbtilesDetail": "data/tiles/output/rf-ua-detail-west-dark.mbtiles",
       "styleId": "dark"
     },
     "light": {
-      "mbtiles": "data/tiles/output/rf-ua-light.mbtiles",
+      "mbtiles": "data/tiles/output/rf-ua-overview-light.mbtiles",
+      "mbtilesDetail": "data/tiles/output/rf-ua-detail-west-light.mbtiles",
       "styleId": "light"
     }
   },
