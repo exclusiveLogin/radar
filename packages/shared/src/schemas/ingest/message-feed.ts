@@ -31,6 +31,8 @@ export const messageFeedItemSchema = z.object({
   uncertain: z.boolean().optional(),
   /** Множественная фиксация (multiple-processor). */
   multiple: z.boolean().optional(),
+  /** Массовость (trait mass). */
+  mass: z.boolean().optional(),
 });
 
 export const messageFeedResponseSchema = z.object({

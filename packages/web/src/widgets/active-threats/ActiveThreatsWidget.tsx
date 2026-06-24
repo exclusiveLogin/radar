@@ -2,11 +2,14 @@ import { useMemo } from "react";
 import type { MapPlaceSnapshot, MapRegionSnapshot, StateLevel } from "@radar/shared";
 import { Accordion, Badge, Panel } from "../../shared/ds";
 import type { AccordionItem } from "../../shared/ds";
+import { ThreatIcon } from "../../shared/ds/ThreatIcon";
+import { EventTraitIcons } from "../../shared/components/EventTraitIcons";
 import { SourceMessageBlock } from "../../shared/components/SourceMessageBlock";
 import { formatDateTime, formatTimeShort } from "../../shared/format/dateTime";
 import { useBehaviorSubject } from "../../shared/hooks/useBehaviorSubject";
 import { placesById$, regionsByCode$ } from "../../shared/state/mapStore";
 import { selectRegion, selectedRegion$ } from "../../shared/state/selectionStore";
+import { statusTitle } from "../../shared/state/statusDictionaryStore";
 import type { WidgetProps } from "../widgetProps";
 
 const LEVEL_RANK: Record<StateLevel, number> = {
@@ -62,7 +65,19 @@ export function ActiveThreatsWidget({ defaultCollapsed = false }: WidgetProps) {
       head: (
         <>
           <Badge level={row.stateLevel} />
-          <span>{row.name}</span>
+          <ThreatIcon
+            compact
+            statusCode={row.statusCode}
+            traits={row.traits}
+            eventSubject={row.eventSubject}
+            title={statusTitle(row.statusCode)}
+          />
+          <EventTraitIcons
+            compact
+            mass={row.traits?.mass}
+            uncertain={row.traits?.uncertain}
+          />
+          <span title={statusTitle(row.statusCode)}>{row.name}</span>
           <span className="ds-muted">{row.regionCode}</span>
           {row.activity > 0 && (
             <span className="ds-muted" style={{ marginLeft: "auto" }}>

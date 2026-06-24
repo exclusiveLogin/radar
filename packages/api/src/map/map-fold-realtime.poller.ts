@@ -98,6 +98,9 @@ export class MapFoldRealtimePoller {
         && prev.stateLevel === region.stateLevel
         && prev.statusEventAt === region.statusEventAt
         && prev.statusAction === region.statusAction
+        && prev.statusCode === region.statusCode
+        && prev.traits?.mass === region.traits?.mass
+        && prev.traits?.uncertain === region.traits?.uncertain
       ) {
         continue;
       }
@@ -117,6 +120,9 @@ export class MapFoldRealtimePoller {
           centroidLat: region.centroidLat,
           centroidLon: region.centroidLon,
           layout: region.layout ?? layoutTiles[region.regionCode],
+          statusCode: region.statusCode,
+          traits: region.traits,
+          eventSubject: region.eventSubject,
         },
       });
 
@@ -148,7 +154,7 @@ export class MapFoldRealtimePoller {
           activity: 0,
           changedAt: prev.statusEventAt ?? atIso,
           statusEventAt: prev.statusEventAt,
-          statusAction: prev.statusAction,
+          statusAction: "clear",
           centroidLat: prev.centroidLat,
           centroidLon: prev.centroidLon,
           layout: prev.layout ?? layoutTiles[prev.regionCode],

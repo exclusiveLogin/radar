@@ -1,5 +1,9 @@
 import type { MapPlaceSnapshot, MapRegionSnapshot, MapVicinityScopeSnapshot, StateLevel } from "@radar/shared";
 import {
+  resolveThreatVisual,
+  shouldShowRegionThreatMarker,
+} from "@radar/shared";
+import {
   GEO_MAP_PLACE_FILL_OPACITY,
   GEO_MAP_REGION_FILL_OPACITY,
   GEO_MAP_STROKE_FILL_RATIO,
@@ -10,12 +14,44 @@ import {
   REGION_MAP_INSET_FACTOR,
 } from "../../shared/config/mapConfig.service";
 import { effectivePlaceLevel, isPlaceVisibleOnMap, isRegionVisibleOnMap } from "../../shared/state/derivations";
+import { getRegionFeature } from "../../shared/state/geoGeometryStore";
 import { geoMapFillOpacity, geoMapStrokeOpacity } from "../../shared/utils/regionFade";
 import { insetRegionGeometry } from "./regionInsetOutline";
 import type { GeoJsonCollection, PointFeature, PolygonFeature } from "./geoMapTypes";
 
 const VICINITY_RING_COLOR = "#FFD54F";
 const EARTH_RADIUS_M = 6371000;
+
+/** Центроид региона: snapshot → fallback bbox контура из geo-кеша. */
+function resolveRegionMarkerCoords(region: MapRegionSnapshot): [number, number] | null {
+  if (region.centroidLat != null && region.centroidLon != null) {
+    return [region.centroidLon, region.centroidLat];
+  }
+
+  const feature = getRegionFeature(region.regionCode);
+  if (!feature) return null;
+
+  let minLon = Infinity;
+  let maxLon = -Infinity;
+  let minLat = Infinity;
+  let maxLat = -Infinity;
+
+  const walk = (coords: unknown): void => {
+    if (!Array.isArray(coords)) return;
+    if (typeof coords[0] === "number" && typeof coords[1] === "number") {
+      minLon = Math.min(minLon, coords[0]);
+      maxLon = Math.max(maxLon, coords[0]);
+      minLat = Math.min(minLat, coords[1]);
+      maxLat = Math.max(maxLat, coords[1]);
+      return;
+    }
+    for (const part of coords) walk(part);
+  };
+
+  walk(feature.geometry.coordinates);
+  if (!Number.isFinite(minLon)) return null;
+  return [(minLon + maxLon) / 2, (minLat + maxLat) / 2];
+}
 
 /** Точка на окружности (метры, bearing deg). */
 function destinationPoint(
@@ -109,6 +145,9 @@ export function geoJsonFingerprint(data: unknown): string {
       props.circleOpacity,
       props.circleStrokeOpacity,
       props.color,
+      props.threatGlyph,
+      props.threatKey,
+      props.haloRadius,
     ].join(":");
   });
   return `${features.length}|${parts.join(";")}`;
@@ -219,6 +258,65 @@ export function placesCollection(
   return {
     type: "FeatureCollection" as const,
     features: placesToFeatures(places, regions, now),
+  };
+}
+
+/** Centroid-маркеры типа угрозы (symbol layer). Производные yellow — без иконки. */
+export function regionThreatMarkersToFeatures(
+  regions: Map<string, MapRegionSnapshot>,
+  derivedCodes: Set<string>,
+  now: number,
+): PointFeature[] {
+  const features: PointFeature[] = [];
+  for (const region of regions.values()) {
+    if (derivedCodes.has(region.regionCode)) continue;
+    if (!isRegionVisibleOnMap(region, now)) continue;
+    const coords = resolveRegionMarkerCoords(region);
+    if (!coords) continue;
+    if (!shouldShowRegionThreatMarker({
+      statusCode: region.statusCode,
+      traits: region.traits,
+      eventSubject: region.eventSubject,
+      stateLevel: region.stateLevel,
+    })) continue;
+
+    const visual = resolveThreatVisual({
+      statusCode: region.statusCode,
+      traits: region.traits,
+      eventSubject: region.eventSubject,
+    });
+    if (!visual) continue;
+
+    const baseOpacity = geoMapFillOpacity(region.statusEventAt, now, 1);
+    const markerOpacity = visual.dimmed ? baseOpacity * 0.55 : baseOpacity;
+    features.push({
+      type: "Feature",
+      geometry: {
+        type: "Point",
+        coordinates: coords,
+      },
+      properties: {
+        kind: "region-threat",
+        regionCode: region.regionCode,
+        threatKey: visual.key,
+        threatGlyph: visual.mapGlyph,
+        threatColor: visual.accentColor,
+        textOpacity: markerOpacity,
+        haloRadius: visual.key === "rocket" ? 14 : 10,
+      },
+    });
+  }
+  return features;
+}
+
+export function regionThreatMarkersCollection(
+  regions: Map<string, MapRegionSnapshot>,
+  derivedCodes: Set<string>,
+  now = Date.now(),
+): GeoJsonCollection {
+  return {
+    type: "FeatureCollection",
+    features: regionThreatMarkersToFeatures(regions, derivedCodes, now),
   };
 }
 

@@ -1,5 +1,12 @@
 import { z } from "zod";
+import { eventSubjectSchema } from "../ingest/event-type";
 import { stateLevelSchema } from "./state-level";
+
+/** Traits победителя fold для UI (PE 2.0). */
+export const mapRegionTraitsSchema = z.object({
+  mass: z.boolean().optional(),
+  uncertain: z.boolean().optional(),
+});
 
 /**
  * Контракты операционного состояния регионов: проекция, доменное событие смены,
@@ -42,6 +49,10 @@ export const regionStateEventSchema = z.object({
   centroidLon: z.number().finite().optional(),
   /** Тайл-координаты схемы (layout.json) — чтобы схема не ждала полного snapshot. */
   layout: layoutTileSchema.optional(),
+  /** Код статуса-победителя (status_dictionary). */
+  statusCode: z.string().min(1).optional(),
+  traits: mapRegionTraitsSchema.optional(),
+  eventSubject: eventSubjectSchema.optional(),
 });
 
 /** Регион в лёгком снапшоте карты (без тяжёлой геометрии). */
@@ -57,6 +68,9 @@ export const mapRegionSnapshotSchema = z.object({
   statusEventAt: z.string().datetime().optional(),
   /** raise/clear последнего winner региона (read-model). */
   statusAction: z.enum(["raise", "clear"]).optional(),
+  statusCode: z.string().min(1).optional(),
+  traits: mapRegionTraitsSchema.optional(),
+  eventSubject: eventSubjectSchema.optional(),
 });
 
 /** Населённый пункт на гео-карте: активный статус ≠ grey и есть координаты. */
@@ -163,6 +177,7 @@ export const sourceMessageResponseSchema = z.object({
 
 export type RegionStateRecord = z.infer<typeof regionStateRecordSchema>;
 export type RegionStateEvent = z.infer<typeof regionStateEventSchema>;
+export type MapRegionTraits = z.infer<typeof mapRegionTraitsSchema>;
 export type LayoutTile = z.infer<typeof layoutTileSchema>;
 export type MapRegionSnapshot = z.infer<typeof mapRegionSnapshotSchema>;
 export type MapPlaceSnapshot = z.infer<typeof mapPlaceSnapshotSchema>;

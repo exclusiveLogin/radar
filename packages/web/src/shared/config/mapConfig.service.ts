@@ -118,10 +118,15 @@ const CARTO_LIGHT_TILES = [
   "https://d.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png",
 ] as const;
 
+/** Шрифты symbol-слоёв (иконки угроз на гео-карте). */
+export const MAP_GLYPHS_URL = "https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf";
+export const MAP_SYMBOL_FONT = ["Noto Sans Regular"] as const;
+
 /** Растровая подложка Carto Light (запасной режим `carto`, светлая тема). */
 export const MAP_STYLE_CARTO_LIGHT = {
   version: 8 as const,
   name: "radar-carto-light",
+  glyphs: MAP_GLYPHS_URL,
   sources: {
     "carto-light": {
       type: "raster" as const,
@@ -150,6 +155,7 @@ export const MAP_STYLE_CARTO_LIGHT = {
 export const MAP_STYLE_CARTO_DARK = {
   version: 8 as const,
   name: "radar-carto-dark",
+  glyphs: MAP_GLYPHS_URL,
   sources: {
     "carto-dark": {
       type: "raster" as const,
@@ -174,6 +180,7 @@ export const MAP_STYLE_CARTO_DARK = {
 /** Только тёмный фон, без внешних тайлов (режим `minimal`). */
 export const MAP_STYLE_MINIMAL = {
   version: 8 as const,
+  glyphs: MAP_GLYPHS_URL,
   sources: {},
   layers: [
     {
@@ -187,6 +194,7 @@ export const MAP_STYLE_MINIMAL = {
 /** Светлый фон без тайлов — fallback при недоступности CDN подложки. */
 export const MAP_STYLE_MINIMAL_LIGHT = {
   version: 8 as const,
+  glyphs: MAP_GLYPHS_URL,
   sources: {},
   layers: [
     {

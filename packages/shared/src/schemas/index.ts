@@ -273,6 +273,7 @@ export type {
   RegionStateEvent,
   LayoutTile,
   MapRegionSnapshot,
+  MapRegionTraits,
   MapPlaceSnapshot,
   MapVicinityScopeSnapshot,
   PlaceStateEvent,

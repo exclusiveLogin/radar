@@ -24,8 +24,8 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
-      // Только zod-схемы: главный barrel тянет node:crypto/node:util и ломает браузер.
-      "@radar/shared": path.resolve(__dirname, "../shared/src/schemas/index.ts"),
+      // Browser-safe barrel: zod-схемы + visual без node:crypto (не src/index.ts).
+      "@radar/shared": path.resolve(__dirname, "../shared/src/browser.ts"),
     },
   },
   server: {

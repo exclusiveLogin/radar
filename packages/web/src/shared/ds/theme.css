@@ -688,6 +688,34 @@ body {
   font-size: 9px;
 }
 
+.ds-event-trait--mass {
+  color: #e8a317;
+  font-weight: 700;
+}
+
+/* Иконки типа угрозы (ракета / БПЛА / ПВО) — SSOT через ThreatIcon */
+.ds-threat-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  line-height: 1;
+  flex-shrink: 0;
+  text-shadow: 0 0 4px rgba(0, 0, 0, 0.45);
+}
+
+.ds-threat-icon--compact {
+  font-size: 12px;
+}
+
+.ds-threat-icon--dimmed {
+  opacity: 0.55;
+}
+
+.ds-threat-icon--critical {
+  filter: drop-shadow(0 0 4px rgba(217, 53, 53, 0.55));
+}
+
 .ds-message-feed__uncertain {
   color: var(--text-muted);
   font-size: 12px;

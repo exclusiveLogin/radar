@@ -6,6 +6,7 @@ import type {
   MapPlaceSnapshot,
   MapPlacesStateResponse,
   MapRegionSnapshot,
+  MapRegionTraits,
   MapRegionsStateResponse,
   MapSnapshot,
   MapVicinityScopeSnapshot,
@@ -18,6 +19,7 @@ import {
   maxStateLevel,
   resolveMapStateTtlMs,
   type EventLocationFact,
+  type MapEntityWinner,
 } from "@radar/shared";
 import { GeoFeatureEntity, PlaceEntity, RegionEntity } from "../geo/entities";
 import { StatusDictionaryEntity } from "../events/entities";
@@ -164,13 +166,7 @@ export class MapSnapshotQueryService {
   }
 
   private async buildRegionSnapshots(
-    winners: Array<{
-      regionId: string;
-      regionCode: string;
-      stateLevel: StateLevel;
-      action: "raise" | "clear";
-      occurredAt: string;
-    }>,
+    winners: MapEntityWinner[],
     _asOf: Date,
   ): Promise<MapRegionSnapshot[]> {
     const regions = await this.dataSource.getRepository(RegionEntity).find({
@@ -178,6 +174,7 @@ export class MapSnapshotQueryService {
       order: { name: "ASC" },
     });
     const winnerByRegionId = new Map(winners.map((winner) => [winner.regionId, winner]));
+    const winnerMeta = await this.loadRegionWinnerMeta(winners);
     const placeCentroidByRegion = await this.loadPlaceCentroidByRegion();
     const layout = loadLayout();
 
@@ -192,6 +189,12 @@ export class MapSnapshotQueryService {
         region,
         placeFallback: placeCentroidByRegion.get(region.id),
       });
+      const meta = winnerMeta.get(winner.regionId);
+      const traits: MapRegionTraits | undefined =
+        meta?.mass || meta?.uncertain
+          ? { mass: meta.mass || undefined, uncertain: meta.uncertain || undefined }
+          : undefined;
+
       regionItems.push({
         regionId: region.id,
         regionCode: code,
@@ -203,9 +206,58 @@ export class MapSnapshotQueryService {
         centroidLon: centroid?.lon,
         statusEventAt: winner.occurredAt,
         statusAction: winner.action,
+        statusCode: winner.statusCode,
+        traits,
+        eventSubject: meta?.eventSubject,
       });
     }
     return regionItems;
+  }
+
+  /** Traits и subject победителя из parsed_event, привязанного к winner fact. */
+  private async loadRegionWinnerMeta(
+    winners: MapEntityWinner[],
+  ): Promise<Map<string, { mass: boolean; uncertain: boolean; eventSubject?: MapRegionSnapshot["eventSubject"] }>> {
+    if (winners.length === 0) return new Map();
+
+    const regionIds = winners.map((w) => w.regionId);
+    const occurredAts = winners.map((w) => w.occurredAt);
+
+    const rows = (await this.dataSource.query(
+      `SELECT el.region_id,
+              COALESCE((pe.extras->>'mass')::boolean, false) AS mass,
+              COALESCE((pe.extras->>'uncertain')::boolean, false) AS uncertain,
+              pe.event_subject AS event_subject
+       FROM event_locations el
+       INNER JOIN parsed_events pe ON pe.id = el.parsed_event_id
+       WHERE el.region_id = ANY($1::uuid[])
+         AND el.occurred_at = ANY($2::timestamptz[])
+         AND COALESCE(el.entity_kind, 'region') <> 'place'`,
+      [regionIds, occurredAts],
+    )) as Array<{
+      region_id: string;
+      mass: boolean;
+      uncertain: boolean;
+      event_subject: string | null;
+    }>;
+
+    const meta = new Map<string, { mass: boolean; uncertain: boolean; eventSubject?: MapRegionSnapshot["eventSubject"] }>();
+    for (const row of rows) {
+      const subject = row.event_subject;
+      meta.set(row.region_id, {
+        mass: row.mass,
+        uncertain: row.uncertain,
+        eventSubject:
+          subject === "drone"
+          || subject === "rocket"
+          || subject === "mws"
+          || subject === "aviation"
+          || subject === "other"
+            ? subject
+            : undefined,
+      });
+    }
+    return meta;
   }
 
   private async buildPlaceSnapshots(

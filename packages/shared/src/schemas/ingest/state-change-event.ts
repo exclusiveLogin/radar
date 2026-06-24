@@ -22,6 +22,8 @@ export const stateChangeEventItemSchema = z.object({
   uncertain: z.boolean().optional(),
   /** Множественная фиксация (multiple-processor). */
   multiple: z.boolean().optional(),
+  /** Массовость (trait mass), ортогональна event_type. */
+  mass: z.boolean().optional(),
 });
 
 export const stateChangeEventsResponseSchema = z.object({

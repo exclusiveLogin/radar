@@ -1,5 +1,5 @@
 import type { GeoJSONSource, Map as MapLibreMap } from "maplibre-gl";
-import { animationFrames, timer } from "rxjs";
+import { animationFrames, timer, type Subscription } from "rxjs";
 import { take } from "rxjs/operators";
 import type { SourceMessage } from "@radar/shared";
 import { resolveMapBasemapFallbackForTheme } from "../../shared/config/mapConfig.service";
@@ -34,21 +34,7 @@ function retrySourcePush(
   onCommitted?: () => void,
 ): void {
   let settled = false;
-  const attempt = (): boolean => {
-    if (settled || !push()) return settled;
-    settled = true;
-    onCommitted?.();
-    cleanup();
-    return true;
-  };
-
-  if (attempt()) return;
-
-  let frameAttempts = 0;
-  const frameSub = animationFrames().subscribe(() => {
-    attempt();
-    if (!settled && ++frameAttempts >= 60) cleanup();
-  });
+  let frameSub: Subscription | undefined;
 
   const onIdle = (): void => {
     attempt();
@@ -57,14 +43,30 @@ function retrySourcePush(
     if (event.isSourceLoaded) attempt();
   };
 
-  map.on("idle", onIdle);
-  map.on("sourcedata", onSourceData);
-
-  const cleanup = (): void => {
-    frameSub.unsubscribe();
+  function cleanup(): void {
+    frameSub?.unsubscribe();
     map.off("idle", onIdle);
     map.off("sourcedata", onSourceData);
-  };
+  }
+
+  function attempt(): boolean {
+    if (settled || !push()) return settled;
+    settled = true;
+    onCommitted?.();
+    cleanup();
+    return true;
+  }
+
+  if (attempt()) return;
+
+  let frameAttempts = 0;
+  frameSub = animationFrames().subscribe(() => {
+    attempt();
+    if (!settled && ++frameAttempts >= 60) cleanup();
+  });
+
+  map.on("idle", onIdle);
+  map.on("sourcedata", onSourceData);
 }
 
 /** Доступ к MapLibre-инстансу из closure useEffect. */

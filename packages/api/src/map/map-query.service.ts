@@ -556,6 +556,7 @@ export class MapQueryService {
               pe.repeat,
               COALESCE((pe.extras->>'uncertain')::boolean, false) AS uncertain,
               COALESCE((pe.extras->>'multiple')::boolean, false) AS multiple,
+              COALESCE((pe.extras->>'mass')::boolean, false) AS mass,
               sd.state_level,
               array_agg(DISTINCT r.iso ORDER BY r.iso)
                 FILTER (WHERE r.iso IS NOT NULL) AS region_codes,
@@ -586,6 +587,7 @@ export class MapQueryService {
       repeat: boolean | null;
       uncertain: boolean | null;
       multiple: boolean | null;
+      mass: boolean | null;
       state_level: StateLevel | null;
       region_codes: string[];
       region_names: string[];
@@ -604,6 +606,7 @@ export class MapQueryService {
       repeat: row.repeat ?? undefined,
       uncertain: row.uncertain ? true : undefined,
       multiple: row.multiple ? true : undefined,
+      mass: row.mass ? true : undefined,
       stateLevel: (row.state_level ?? "grey") as StateLevel,
       regionCodes: row.region_codes ?? [],
       regionNames: row.region_names ?? [],
@@ -626,6 +629,7 @@ export class MapQueryService {
               stats.repeat,
               stats.uncertain,
               stats.multiple,
+              stats.mass,
               stats.state_level,
               COALESCE(stats.region_codes, '{}') AS region_codes
        FROM raw_messages rm
@@ -638,6 +642,7 @@ export class MapQueryService {
                 bool_or(pe.repeat) AS repeat,
                 bool_or(COALESCE((pe.extras->>'uncertain')::boolean, false)) AS uncertain,
                 bool_or(COALESCE((pe.extras->>'multiple')::boolean, false)) AS multiple,
+                bool_or(COALESCE((pe.extras->>'mass')::boolean, false)) AS mass,
                 (array_agg(sd.state_level ORDER BY pe.parsed_at DESC))[1] AS state_level,
                 array_agg(DISTINCT r.iso) FILTER (WHERE r.iso IS NOT NULL) AS region_codes
          FROM parsed_events pe
@@ -663,6 +668,7 @@ export class MapQueryService {
       repeat: boolean | null;
       uncertain: boolean | null;
       multiple: boolean | null;
+      mass: boolean | null;
       state_level: StateLevel | null;
       region_codes: string[] | null;
     }>;
@@ -688,6 +694,7 @@ export class MapQueryService {
         row.multiple || extractMultipleFixationFlag(row.raw_text)
           ? true
           : undefined,
+      mass: row.mass ? true : undefined,
       stateLevel: row.state_level ?? undefined,
       regionCodes: row.region_codes ?? [],
     }));
@@ -793,6 +800,7 @@ export class MapQueryService {
               pe.repeat,
               COALESCE((pe.extras->>'uncertain')::boolean, false) AS uncertain,
               COALESCE((pe.extras->>'multiple')::boolean, false) AS multiple,
+              COALESCE((pe.extras->>'mass')::boolean, false) AS mass,
               sd.state_level,
               array_agg(DISTINCT r.iso ORDER BY r.iso)
                 FILTER (WHERE r.iso IS NOT NULL) AS region_codes,
@@ -825,6 +833,7 @@ export class MapQueryService {
       repeat: boolean | null;
       uncertain: boolean | null;
       multiple: boolean | null;
+      mass: boolean | null;
       state_level: StateLevel;
       region_codes: string[];
       region_names: string[];
@@ -842,6 +851,7 @@ export class MapQueryService {
       repeat: row.repeat ?? undefined,
       uncertain: row.uncertain ? true : undefined,
       multiple: row.multiple ? true : undefined,
+      mass: row.mass ? true : undefined,
       stateLevel: row.state_level,
       regionCodes: row.region_codes ?? [],
       regionNames: row.region_names ?? [],

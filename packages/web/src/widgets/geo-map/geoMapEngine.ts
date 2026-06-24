@@ -1,7 +1,8 @@
 import type { Map as MapLibreMap } from "maplibre-gl";
 import { timer, type Subscription } from "rxjs";
 import { take } from "rxjs/operators";
-import type { SourceMessage } from "@radar/shared";
+import type { MapRegionSnapshot, SourceMessage } from "@radar/shared";
+import { resolveThreatVisual } from "@radar/shared";
 import {
   EVENTS_HEATMAP_LAYER,
   EVENTS_HEATMAP_POINTS_LAYER,
@@ -15,6 +16,7 @@ import { effectivePlaceLevel } from "../../shared/state/derivations";
 import { derivedRegionCodes$, placesById$, regionsByCode$, resolveMapViewAnchorMs } from "../../shared/state/mapStore";
 import type { GeoMapLayerId } from "../../shared/state/mapLayerStore";
 import { stateChangesFeed$ } from "../../shared/state/stateChangesFeedStore";
+import { statusTitle } from "../../shared/state/statusDictionaryStore";
 import type { ThemeMode } from "../../shared/state/themeStore";
 import {
   DISTRICTS_FILL,
@@ -73,25 +75,100 @@ export function hasChildEntityAtPointer(
   }).length > 0;
 }
 
+/** Подпись уровня региона; ×N — счётчик activity (fold пока не считает → скрываем при 0). */
+function formatRegionLevelLine(
+  region: MapRegionSnapshot | undefined,
+  isDerived: boolean,
+): string | null {
+  if (!region) return null;
+  const levelLabel = LEVEL_LABELS[region.stateLevel];
+  if (isDerived) return `${levelLabel} (производный)`;
+  if (region.activity > 0) return `${levelLabel} · ×${region.activity}`;
+  return levelLabel;
+}
+
 /** Текст тултипа региона: уровень, время статуса, тип и фрагмент raw. */
 export function buildRegionPopupLines(code: string): string[] {
   const region = regionsByCode$.value.get(code);
   const isDerived = derivedRegionCodes$.value.has(code);
   const recentEvent = stateChangesFeed$.value.find((e) => e.regionCodes.includes(code));
-  const levelLabel = region ? LEVEL_LABELS[region.stateLevel] : null;
+  const levelLine = formatRegionLevelLine(region, isDerived);
   return [
     `${code} — ${region?.name ?? code}`,
-    isDerived && levelLabel
-      ? `${levelLabel} (производный)`
-      : levelLabel
-        ? `${levelLabel} · ×${region?.activity ?? 0}`
-        : null,
+    levelLine,
     recentEvent?.eventType ? `тип: ${recentEvent.eventType}` : null,
     region?.statusEventAt ? `статус с ${formatDateTime(region.statusEventAt)}` : null,
     recentEvent?.displayText ?? recentEvent?.rawText
       ? (recentEvent.displayText ?? recentEvent.rawText).slice(0, 80)
       : null,
   ].filter((line): line is string => !!line);
+}
+
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function traitGlyphs(traits?: { mass?: boolean; uncertain?: boolean }): string {
+  const parts: string[] = [];
+  if (traits?.uncertain) parts.push('<span class="ds-event-trait ds-event-trait--uncertain" title="Неподтверждённый">?</span>');
+  if (traits?.mass) parts.push('<span class="ds-event-trait ds-event-trait--mass" title="Массовость">⚡</span>');
+  if (parts.length === 0) return "";
+  return `<span class="ds-event-traits ds-event-traits--compact">${parts.join("")}</span>`;
+}
+
+/** HTML тултипа региона: иконка угрозы, уровень, traits, время. */
+export function buildRegionPopupHtml(code: string): string {
+  const region = regionsByCode$.value.get(code);
+  const isDerived = derivedRegionCodes$.value.has(code);
+  const recentEvent = stateChangesFeed$.value.find((e) => e.regionCodes.includes(code));
+  const visual = region
+    ? resolveThreatVisual({
+        statusCode: region.statusCode,
+        traits: region.traits,
+        eventSubject: region.eventSubject,
+      })
+    : null;
+
+  const titleLine = region
+    ? `${escapeHtml(code)} — ${escapeHtml(region.name)}`
+    : escapeHtml(code);
+
+  const iconHtml = visual
+    ? `<span class="ds-threat-icon ds-threat-icon--compact ds-threat-icon--${visual.key}${visual.dimmed ? " ds-threat-icon--dimmed" : ""}" style="color:${visual.accentColor}" aria-hidden="true">${visual.glyph}</span>`
+    : "";
+
+  const statusLabel = region?.statusCode
+    ? escapeHtml(statusTitle(region.statusCode))
+    : recentEvent?.eventType
+      ? escapeHtml(recentEvent.eventType)
+      : "";
+
+  const levelLine = formatRegionLevelLine(region, isDerived);
+  const levelHtml = levelLine ? escapeHtml(levelLine) : "";
+
+  const traitsHtml = traitGlyphs(region?.traits);
+
+  const timeLine = region?.statusEventAt
+    ? `статус с ${escapeHtml(formatDateTime(region.statusEventAt))}`
+    : "";
+
+  const textSnippet = recentEvent?.displayText ?? recentEvent?.rawText
+    ? escapeHtml((recentEvent.displayText ?? recentEvent.rawText).slice(0, 80))
+    : "";
+
+  return [
+    `<div class="geo-map-region-popup__head">${iconHtml}<strong>${titleLine}</strong></div>`,
+    statusLabel ? `<div class="geo-map-region-popup__type">${statusLabel}${traitsHtml ? ` ${traitsHtml}` : ""}</div>` : traitsHtml ? `<div>${traitsHtml}</div>` : "",
+    levelHtml ? `<div class="geo-map-region-popup__level">${levelHtml}</div>` : "",
+    timeLine ? `<div class="geo-map-region-popup__time ds-muted">${timeLine}</div>` : "",
+    textSnippet ? `<div class="geo-map-region-popup__text">${textSnippet}</div>` : "",
+  ]
+    .filter(Boolean)
+    .join("");
 }
 
 /** Текст тултипа place: уровень, код статуса, время и фрагмент raw (как у региона). */

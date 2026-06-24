@@ -214,6 +214,9 @@ function isSameRegionSnapshotMap(
       || region.activity !== other.activity
       || region.statusEventAt !== other.statusEventAt
       || region.statusAction !== other.statusAction
+      || region.statusCode !== other.statusCode
+      || region.traits?.mass !== other.traits?.mass
+      || region.traits?.uncertain !== other.traits?.uncertain
       || region.centroidLat !== other.centroidLat
       || region.centroidLon !== other.centroidLon
     ) {
@@ -298,6 +301,7 @@ function applyRegionState(event: RegionStateEvent): void {
   const raw = new Map(regionsByCode$.value);
   const existing = raw.get(event.regionCode);
   const layout = event.layout ?? existing?.layout;
+  const calm = event.stateLevel === "grey" || event.stateLevel === "green";
   const updated: MapRegionSnapshot = {
     regionId: event.regionId,
     regionCode: event.regionCode,
@@ -309,6 +313,9 @@ function applyRegionState(event: RegionStateEvent): void {
     centroidLon: event.centroidLon ?? existing?.centroidLon,
     statusEventAt: event.statusEventAt ?? existing?.statusEventAt,
     statusAction: event.statusAction ?? existing?.statusAction,
+    statusCode: event.statusCode ?? (calm ? undefined : existing?.statusCode),
+    traits: event.traits ?? (calm ? undefined : existing?.traits),
+    eventSubject: event.eventSubject ?? (calm ? undefined : existing?.eventSubject),
   };
   if (
     existing
@@ -316,6 +323,10 @@ function applyRegionState(event: RegionStateEvent): void {
     && existing.activity === updated.activity
     && existing.statusEventAt === updated.statusEventAt
     && existing.statusAction === updated.statusAction
+    && existing.statusCode === updated.statusCode
+    && existing.traits?.mass === updated.traits?.mass
+    && existing.traits?.uncertain === updated.traits?.uncertain
+    && existing.eventSubject === updated.eventSubject
     && existing.centroidLat === updated.centroidLat
     && existing.centroidLon === updated.centroidLon
   ) {

@@ -26,8 +26,10 @@ export function wireLayerFetchStreams<T>(options: {
   streams: FetchStreams<T>;
   fallbackError: string;
   onData: (data: T) => void;
+  /** Fetch завершился ошибкой — paint не будет, но initial-fit не должен висеть. */
+  onFetchError?: () => void;
 }): void {
-  const { sub, destroy$, layerId, streams, fallbackError, onData } = options;
+  const { sub, destroy$, layerId, streams, fallbackError, onData, onFetchError } = options;
   const label = LAYER_LABELS[layerId];
 
   sub.add(
@@ -44,6 +46,7 @@ export function wireLayerFetchStreams<T>(options: {
       const message = formatFetchError(error, fallbackError);
       patchGeoMapLayerFetchStatus(layerId, { error: message });
       reportAppError(label, error, fallbackError);
+      onFetchError?.();
     }),
   );
 

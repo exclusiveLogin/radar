@@ -106,7 +106,7 @@ export const mapApi = {
     );
   },
   statusDictionary: (): Promise<StatusDictionary> =>
-    getJson("/api/status-dictionary", statusDictionarySchema),
+    getJson("/api/map/status-dictionary", statusDictionarySchema),
   warnings: (params?: { regionId?: string; since?: string }): Promise<Warning[]> => {
     const query = new URLSearchParams();
     if (params?.since) query.set("since", params.since);

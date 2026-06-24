@@ -7,10 +7,12 @@ import { startStateChangesFeedStore } from "../shared/state/stateChangesFeedStor
 import { startProvidersStore } from "../shared/state/providersStore";
 import { startPvoReportsStore } from "../shared/state/pvoReportsStore";
 import { startTopActivityStore } from "../shared/state/topActivityStore";
+import { startStatusDictionaryStore } from "../shared/state/statusDictionaryStore";
 import { RegionDetailWidget } from "../widgets/region-detail/RegionDetailWidget";
 import { MapTimelineBar } from "../widgets/map-timeline/MapTimelineBar";
 import { MapLayersPanel } from "../widgets/map-layers/MapLayersPanel";
 import { GeoMapOverlays } from "../widgets/map-overlays/GeoMapOverlays";
+import { CriticalThreatsBar } from "../widgets/critical-threats/CriticalThreatsBar";
 import { useObservable } from "../shared/hooks/useObservable";
 import { geoMapLayers$ } from "../shared/state/mapLayerStore";
 import { WIDGETS, type WidgetZone } from "./widgetRegistry";
@@ -40,6 +42,7 @@ export function AppShell() {
     startStateChangesFeedStore();
     startPvoReportsStore();
     startTopActivityStore();
+    startStatusDictionaryStore();
   }, []);
 
   const toggle = (id: string): void =>
@@ -106,6 +109,10 @@ export function AppShell() {
 
         <GeoMapOverlays />
         <MapLayersPanel />
+
+        <div className="map-top-dock">
+          <CriticalThreatsBar />
+        </div>
 
         <aside className="shell__rail shell__rail--left">
           {left.map(({ id, component: Widget }) => (

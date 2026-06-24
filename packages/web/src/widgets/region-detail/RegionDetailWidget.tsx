@@ -135,6 +135,7 @@ export function RegionDetailWidget() {
                   repeat={evt.repeat}
                   uncertain={evt.uncertain}
                   multiple={evt.multiple}
+                  mass={evt.mass}
                 />
               </li>
             ))}

@@ -192,6 +192,23 @@ export type {
   FoldVicinityScopeMapStateInput,
 } from "./domain/region-state/mapStateFold";
 export {
+  CRITICAL_WINDOW_MS,
+  THREAT_MAP_STATUS_CODES,
+  isCriticalTopBarThreat,
+  isThreatMapStatusCode,
+  isWithinCriticalWindow,
+  resolveThreatVisual,
+  resolveThreatVisualKey,
+  shouldShowRegionThreatMarker,
+} from "./visual/threat-visual";
+export type {
+  ResolveThreatVisualInput,
+  ThreatTraits,
+  ThreatVisual,
+  ThreatVisualKey,
+  ThreatMapStatusCode,
+} from "./visual/threat-visual";
+export {
   isMassClearTextEligible,
   normalizeClearHaystack,
   resolveMassClearTargets,
@@ -378,6 +395,7 @@ export type {
   RegionStateEvent,
   LayoutTile,
   MapRegionSnapshot,
+  MapRegionTraits,
   MapPlaceSnapshot,
   MapVicinityScopeSnapshot,
   PlaceStateEvent,

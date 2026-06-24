@@ -203,7 +203,7 @@ export class MapController {
     return regionGeometrySchema.parse(geometry);
   }
 
-  @Get("status-dictionary")
+  @Get("map/status-dictionary")
   @ApiOperation({ summary: "Словарь статусов (stateLevel → label, color)", description: "Справочник уровней опасности для легенды карты. Стабильный эндпоинт — можно кешировать." })
   @ApiResponse({ status: 200, description: "StatusDictionary { levels: { code, label, color }[] }" })
   async statusDictionary() {

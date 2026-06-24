@@ -328,6 +328,102 @@
   pointer-events: auto;
 }
 
+/* ── Top dock: критические угрозы (rocket / warning+mass ≤3ч) ── */
+.map-top-dock {
+  position: absolute;
+  left: 50%;
+  top: 12px;
+  transform: translateX(-50%);
+  z-index: 20;
+  width: min(720px, calc(100% - 2 * var(--rail-width) - 48px));
+  pointer-events: none;
+}
+
+.map-top-dock > * {
+  pointer-events: auto;
+}
+
+.critical-threats-bar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  padding: 6px 8px;
+  background: var(--glass-bg);
+  border: 1px solid rgba(217, 53, 53, 0.45);
+  border-radius: 4px;
+  backdrop-filter: blur(12px);
+  box-shadow: 0 4px 24px rgba(217, 53, 53, 0.15);
+}
+
+.critical-threats-bar__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: 1px solid rgba(217, 53, 53, 0.35);
+  border-radius: 3px;
+  background: rgba(217, 53, 53, 0.12);
+  color: var(--text);
+  font-size: 11px;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.critical-threats-bar__chip:hover {
+  background: rgba(217, 53, 53, 0.22);
+  border-color: rgba(217, 53, 53, 0.6);
+}
+
+.critical-threats-bar__name {
+  font-weight: 600;
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.critical-threats-bar__code {
+  font-size: 9px;
+  letter-spacing: 0.04em;
+}
+
+.critical-threats-bar__time {
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-left: 2px;
+}
+
+/* Popup региона на гео-карте */
+.geo-map-region-popup .maplibregl-popup-content {
+  padding: 8px 10px;
+  font-size: 11px;
+  line-height: 1.4;
+  max-width: 260px;
+}
+
+.geo-map-region-popup__head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.geo-map-region-popup__type {
+  color: var(--text-muted);
+  margin-bottom: 2px;
+}
+
+.geo-map-region-popup__level {
+  margin-bottom: 2px;
+}
+
+.geo-map-region-popup__text {
+  margin-top: 4px;
+  color: var(--text-muted);
+  word-break: break-word;
+}
+
 /* ── Панель слоёв (боковая) ── */
 .map-layers-panel {
   position: absolute;

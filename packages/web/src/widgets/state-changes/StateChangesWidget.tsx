@@ -65,6 +65,7 @@ export function StateChangesWidget({ defaultCollapsed = false }: WidgetProps) {
             repeat={row.repeat}
             uncertain={row.uncertain}
             multiple={row.multiple}
+            mass={row.mass}
           />
           <RegionCodeChips codes={regionCodes} inline />
           <span className="ds-muted ds-accordion__head-time">

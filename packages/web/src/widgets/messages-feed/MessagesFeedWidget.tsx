@@ -157,6 +157,7 @@ export function MessagesFeedWidget({ defaultCollapsed = false }: WidgetProps) {
                     repeat={row.repeat}
                     uncertain={row.uncertain}
                     multiple={row.multiple}
+                    mass={row.mass}
                   />
                 </div>
                 <Tip label={messageTip(row)} className="ds-tip--hint">

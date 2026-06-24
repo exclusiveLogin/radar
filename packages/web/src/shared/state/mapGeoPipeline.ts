@@ -12,6 +12,7 @@ import { geoGeometryRevision$ } from "./geoGeometryStore";
 import { geoMapLayers$ } from "./mapLayerStore";
 import {
   historicalAsOf$,
+  derivedRegionCodes$,
   mapViewAnchor$,
   placesById$,
   regionsByCode$,
@@ -32,7 +33,8 @@ export const mapCanvasReady$ = new BehaviorSubject(false);
 
 export function regionsFingerprint(regions: Map<string, MapRegionSnapshot>): string {
   const parts = [...regions.values()].map(
-    (r) => `${r.regionCode}:${r.stateLevel}:${r.statusEventAt}`,
+    (r) =>
+      `${r.regionCode}:${r.stateLevel}:${r.statusEventAt}:${r.statusCode ?? ""}:${r.traits?.mass ? "m" : ""}:${r.traits?.uncertain ? "u" : ""}:${r.centroidLat ?? ""}:${r.centroidLon ?? ""}`,
   );
   return `${regions.size}|${parts.sort().join(";")}`;
 }
@@ -61,6 +63,28 @@ export function placesPaint$(): Observable<void> {
     mapCanvasReady$,
   ]).pipe(
     filter(([, , , enabled, ready]) => enabled && ready),
+    debouncePaint,
+    map(() => undefined),
+  );
+}
+
+/** Иконки угроз в centroid: fold statusCode + traits. */
+export function threatIconsPaint$(): Observable<void> {
+  return combineLatest([
+    regionsByCode$.pipe(map(regionsFingerprint), distinctUntilChanged()),
+    derivedRegionCodes$.pipe(
+      map((codes) => [...codes].sort().join(",")),
+      distinctUntilChanged(),
+    ),
+    geoGeometryRevision$,
+    mapViewAnchor$,
+    geoMapLayers$.pipe(
+      map((layers) => layers.threatIcons),
+      distinctUntilChanged(),
+    ),
+    mapCanvasReady$,
+  ]).pipe(
+    filter(([, , , , enabled, ready]) => enabled && ready),
     debouncePaint,
     map(() => undefined),
   );
