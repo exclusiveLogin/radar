@@ -5,52 +5,64 @@ import { Button } from "../../shared/ds";
 import { formatDateTime } from "../../shared/format/dateTime";
 import { useObservable } from "../../shared/hooks/useObservable";
 import {
-  clearHistoricalView,
   historicalAsOf$,
   isHistoricalMapView,
   mapHistoricalLoading$,
   setHistoricalAsOf,
 } from "../../shared/state/mapStore";
+import {
+  isoFromSliderStep,
+  isTimelineLiveButtonVisible,
+  resolveTimelineWindowEnd,
+  resolveTimelineWindowStart,
+  returnTimelineToLive,
+  setTimelineScale,
+  sliderStepFromIso,
+  timelineAnchorEnd$,
+  timelineScale$,
+  TIMELINE_SLIDER_STEPS,
+  type TimelineScale,
+} from "../../shared/state/timelineStore";
+import { TimelineCalendarButton } from "./TimelineCalendarButton";
+import { TimelineTrack } from "./TimelineTrack";
 
-/** Окно fold на карте (совпадает с DEFAULT_MAP_STATE_TTL_MS на API). */
-const MAP_TTL_MS = 24 * 60 * 60 * 1000;
-
-const SLIDER_STEPS = 1000;
 const SCRUB_DEBOUNCE_MS = 350;
 
-/** ISO из позиции ползунка: 0 — начало окна TTL, max — live (now). */
-function isoFromSliderStep(step: number, windowStartMs: number, windowEndMs: number): string {
-  const ratio = step / SLIDER_STEPS;
-  const ms = windowStartMs + ratio * (windowEndMs - windowStartMs);
-  return new Date(ms).toISOString();
-}
+const SCALE_OPTIONS: Array<{ id: TimelineScale; label: string }> = [
+  { id: "24h", label: "24ч" },
+  { id: "7d", label: "7д" },
+  { id: "30d", label: "30д" },
+];
 
-/** Позиция ползунка из ISO маркера asOf. */
-function sliderStepFromIso(iso: string, windowStartMs: number, windowEndMs: number): number {
-  const ms = Date.parse(iso);
-  if (!Number.isFinite(ms)) return SLIDER_STEPS;
-  const span = windowEndMs - windowStartMs;
-  if (span <= 0) return SLIDER_STEPS;
-  const ratio = (ms - windowStartMs) / span;
-  return Math.min(SLIDER_STEPS, Math.max(0, Math.round(ratio * SLIDER_STEPS)));
+function formatEdgeLabel(isoMs: number): string {
+  return new Date(isoMs).toLocaleString("ru-RU", {
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "Europe/Moscow",
+  });
 }
 
 /**
- * Ползунок таймлайна карты: scrub по окну TTL, live на правом краю.
+ * Ползунок таймлайна карты: масштаб 24ч/7д/30д, календарь, scrub по окну.
  * Рендерится поверх карты в AppShell.
  */
 export function MapTimelineBar() {
   const historicalAsOf = useObservable(historicalAsOf$, null);
+  const scale = useObservable(timelineScale$, "24h");
+  const anchorEnd = useObservable(timelineAnchorEnd$, null);
   const loading = useObservable(mapHistoricalLoading$, false);
   const [nowMs, setNowMs] = useState(() => Date.now());
-  const [sliderStep, setSliderStep] = useState(SLIDER_STEPS);
+  const [sliderStep, setSliderStep] = useState(TIMELINE_SLIDER_STEPS);
   const { scrub$, flush$ } = useMemo(
     () => ({ scrub$: new Subject<number>(), flush$: new Subject<number>() }),
     [],
   );
 
-  const windowEndMs = nowMs;
-  const windowStartMs = windowEndMs - MAP_TTL_MS;
+  const windowEndMs = resolveTimelineWindowEnd(nowMs);
+  const windowStartMs = resolveTimelineWindowStart(windowEndMs, scale);
+  const isLiveRightEdge = anchorEnd === null;
 
   const markerIso = useMemo(() => {
     if (!isHistoricalMapView()) {
@@ -59,17 +71,17 @@ export function MapTimelineBar() {
     return historicalAsOf ?? new Date(windowEndMs).toISOString();
   }, [historicalAsOf, windowEndMs]);
 
-  // Тик «now» только в live mode — в replay маркер не уплывает.
+  // Тик «now» только когда правая граница = сейчас и не replay.
   useEffect(() => {
-    if (historicalAsOf !== null) return;
+    if (historicalAsOf !== null || anchorEnd !== null) return;
     const sub = interval(1000).subscribe(() => setNowMs(Date.now()));
     return () => sub.unsubscribe();
-  }, [historicalAsOf]);
+  }, [historicalAsOf, anchorEnd]);
 
   // Синхронизация ползунка с store (клик из ленты событий и т.п.).
   useEffect(() => {
     if (historicalAsOf === null) {
-      setSliderStep(SLIDER_STEPS);
+      setSliderStep(TIMELINE_SLIDER_STEPS);
       return;
     }
     setSliderStep(sliderStepFromIso(historicalAsOf, windowStartMs, windowEndMs));
@@ -77,8 +89,14 @@ export function MapTimelineBar() {
 
   const applyStep = useCallback(
     (step: number) => {
-      if (step >= SLIDER_STEPS) {
-        clearHistoricalView();
+      if (step >= TIMELINE_SLIDER_STEPS) {
+        if (isLiveRightEdge) {
+          returnTimelineToLive();
+          return;
+        }
+        const iso = new Date(windowEndMs).toISOString();
+        if (iso === historicalAsOf$.value) return;
+        setHistoricalAsOf(iso);
         return;
       }
 
@@ -86,7 +104,7 @@ export function MapTimelineBar() {
       if (iso === historicalAsOf$.value) return;
       setHistoricalAsOf(iso);
     },
-    [windowStartMs, windowEndMs],
+    [windowStartMs, windowEndMs, isLiveRightEdge],
   );
 
   useEffect(() => {
@@ -96,53 +114,74 @@ export function MapTimelineBar() {
     return () => sub.unsubscribe();
   }, [applyStep, flush$, scrub$]);
 
-  const onSliderInput = (step: number): void => {
+  const onStepChange = (step: number): void => {
     setSliderStep(step);
     scrub$.next(step);
   };
 
+  const onStepCommit = (step: number): void => {
+    setSliderStep(step);
+    flush$.next(step);
+  };
+
   const modeLabel = historicalAsOf !== null ? "REPLAY" : "LIVE";
+  const showLiveButton = isTimelineLiveButtonVisible(nowMs);
+  const leftLabel = formatEdgeLabel(windowStartMs);
+  const rightLabel = isLiveRightEdge ? "сейчас" : formatEdgeLabel(windowEndMs);
 
   return (
     <div className="map-timeline" aria-label="Таймлайн карты">
-      <div className="map-timeline__header">
-        <span className={`map-timeline__mode map-timeline__mode--${modeLabel.toLowerCase()}`}>
-          {modeLabel}
-        </span>
-        <span className="map-timeline__marker" title={markerIso}>
-          {formatDateTime(markerIso)}
-        </span>
-        {loading && <span className="map-timeline__loading">загрузка…</span>}
+      <div className="map-timeline__toolbar">
+        <div className="map-timeline__scales" role="group" aria-label="Масштаб таймлайна">
+          {SCALE_OPTIONS.map((option) => (
+            <Button
+              key={option.id}
+              variant={scale === option.id ? "primary" : "ghost"}
+              disabled={loading}
+              title={`Окно ${option.label}`}
+              onClick={() => setTimelineScale(option.id)}
+            >
+              {option.label}
+            </Button>
+          ))}
+        </div>
+
+        <TimelineCalendarButton disabled={loading} />
+
+        <div className="map-timeline__header">
+          <span className={`map-timeline__mode map-timeline__mode--${modeLabel.toLowerCase()}`}>
+            {modeLabel}
+          </span>
+          <span className="map-timeline__marker" title={markerIso}>
+            {formatDateTime(markerIso)}
+          </span>
+          {loading && <span className="map-timeline__loading">загрузка…</span>}
+        </div>
+
+        {showLiveButton && (
+          <Button
+            variant="primary"
+            disabled={loading}
+            title="Вернуться к live-карте"
+            onClick={() => void returnTimelineToLive()}
+          >
+            Live
+          </Button>
+        )}
       </div>
 
-      <div className="map-timeline__track">
-        <span className="map-timeline__edge">−24ч</span>
-        <input
-          type="range"
-          className="map-timeline__slider"
-          min={0}
-          max={SLIDER_STEPS}
-          step={1}
-          value={sliderStep}
-          disabled={loading}
-          aria-valuetext={formatDateTime(markerIso)}
-          onChange={(event) => onSliderInput(Number(event.target.value))}
-          onMouseUp={(event) => flush$.next(Number((event.target as HTMLInputElement).value))}
-          onTouchEnd={(event) => flush$.next(Number((event.target as HTMLInputElement).value))}
-        />
-        <span className="map-timeline__edge">сейчас</span>
-      </div>
-
-      {historicalAsOf !== null && (
-        <Button
-          variant="primary"
-          disabled={loading}
-          title="Вернуться к live-карте"
-          onClick={() => void clearHistoricalView()}
-        >
-          Live
-        </Button>
-      )}
+      <TimelineTrack
+        sliderStep={sliderStep}
+        windowStartMs={windowStartMs}
+        windowEndMs={windowEndMs}
+        scale={scale}
+        leftLabel={leftLabel}
+        rightLabel={rightLabel}
+        ariaValueText={formatDateTime(markerIso)}
+        disabled={loading}
+        onStepChange={onStepChange}
+        onStepCommit={onStepCommit}
+      />
     </div>
   );
 }
