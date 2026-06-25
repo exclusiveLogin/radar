@@ -5,12 +5,13 @@ import {
   type EventHeatmapMeta,
   type EventHeatmapPeriod,
 } from "@radar/shared";
+import { readHeatmapPreferences, writeHeatmapPreferences } from "./uiPreferencesStore";
 
 /** Период live-polling теплокарты (пока слой включён; replay — только по смене asOf). */
 export const HEATMAP_LIVE_POLL_MS = 15_000;
 
 /** Пресет окна выборки событий. */
-export const heatmapPeriod$ = new BehaviorSubject<EventHeatmapPeriod>("24h");
+export const heatmapPeriod$ = new BehaviorSubject<EventHeatmapPeriod>(readPersistedHeatmapPeriod());
 
 /** Мета последней успешной выборки (count, since/until). */
 export const heatmapMeta$ = new BehaviorSubject<EventHeatmapMeta | null>(null);
@@ -23,11 +24,42 @@ export type HeatmapEventTypesFilter =
 export const HEATMAP_EVENT_TYPES_FILTER_ALL: HeatmapEventTypesFilter = { mode: "all" };
 
 export const heatmapEventTypesFilter$ = new BehaviorSubject<HeatmapEventTypesFilter>(
-  HEATMAP_EVENT_TYPES_FILTER_ALL,
+  readPersistedHeatmapEventTypesFilter(),
 );
+
+function isEventHeatmapPeriod(value: string): value is EventHeatmapPeriod {
+  return value === "24h" || value === "7d" || value === "30d" || value === "all";
+}
+
+function readPersistedHeatmapPeriod(): EventHeatmapPeriod {
+  const raw = readHeatmapPreferences().period;
+  return raw && isEventHeatmapPeriod(raw) ? raw : "24h";
+}
+
+function readPersistedHeatmapEventTypesFilter(): HeatmapEventTypesFilter {
+  const persisted = readHeatmapPreferences();
+  if (persisted.filterMode !== "custom") return HEATMAP_EVENT_TYPES_FILTER_ALL;
+  const allowed = new Set(EVENT_HEATMAP_FILTER_TYPES);
+  const selected = (persisted.filterTypes ?? []).filter((type): type is EventHeatmapFilterType =>
+    allowed.has(type as EventHeatmapFilterType),
+  );
+  return { mode: "custom", types: new Set(selected) };
+}
+
+function persistHeatmapFilter(filter: HeatmapEventTypesFilter): void {
+  if (filter.mode === "all") {
+    writeHeatmapPreferences({ filterMode: "all", filterTypes: [] });
+    return;
+  }
+  writeHeatmapPreferences({
+    filterMode: "custom",
+    filterTypes: EVENT_HEATMAP_FILTER_TYPES.filter((type) => filter.types.has(type)),
+  });
+}
 
 export function setHeatmapPeriod(period: EventHeatmapPeriod): void {
   heatmapPeriod$.next(period);
+  writeHeatmapPreferences({ period });
 }
 
 export function setHeatmapMeta(meta: EventHeatmapMeta | null): void {
@@ -52,10 +84,13 @@ export function hasActiveHeatmapEventTypesFilter(
 export function toggleHeatmapEventTypesAll(): void {
   const filter = heatmapEventTypesFilter$.value;
   if (filter.mode === "all") {
-    heatmapEventTypesFilter$.next({ mode: "custom", types: new Set() });
+    const next = { mode: "custom", types: new Set<EventHeatmapFilterType>() } as const;
+    heatmapEventTypesFilter$.next(next);
+    persistHeatmapFilter(next);
     return;
   }
   heatmapEventTypesFilter$.next(HEATMAP_EVENT_TYPES_FILTER_ALL);
+  persistHeatmapFilter(HEATMAP_EVENT_TYPES_FILTER_ALL);
 }
 
 /** Клик по типу: гасит «все», переключает тип в custom. */
@@ -71,7 +106,9 @@ export function toggleHeatmapEventType(type: EventHeatmapFilterType): void {
   } else {
     types.add(type);
   }
-  heatmapEventTypesFilter$.next({ mode: "custom", types });
+  const next = { mode: "custom", types } as const;
+  heatmapEventTypesFilter$.next(next);
+  persistHeatmapFilter(next);
 }
 
 /**

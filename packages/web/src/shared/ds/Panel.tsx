@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { ReactNode } from "react";
+import { readPanelCollapsed, writePanelCollapsed } from "../state/uiPreferencesStore";
 
 type PanelVariant = "default" | "glass" | "bare";
 
@@ -14,6 +15,8 @@ type PanelProps = {
   collapsible?: boolean;
   /** Начальное состояние свёрнутости. */
   defaultCollapsed?: boolean;
+  /** Ключ персистентности fold-состояния панели. */
+  persistenceKey?: string;
 };
 
 const variantClass: Record<PanelVariant, string> = {
@@ -31,8 +34,18 @@ export function Panel({
   variant = "default",
   collapsible = false,
   defaultCollapsed = false,
+  persistenceKey,
 }: PanelProps) {
-  const [collapsed, setCollapsed] = useState(defaultCollapsed);
+  const [collapsed, setCollapsed] = useState(() =>
+    persistenceKey ? readPanelCollapsed(persistenceKey, defaultCollapsed) : defaultCollapsed,
+  );
+
+  const toggleCollapsed = () =>
+    setCollapsed((prev) => {
+      const next = !prev;
+      if (persistenceKey) writePanelCollapsed(persistenceKey, next);
+      return next;
+    });
 
   const showHead = (title || actions || collapsible) && variant !== "bare";
 
@@ -49,7 +62,7 @@ export function Panel({
               <button
                 type="button"
                 className="ds-panel__collapse-btn"
-                onClick={() => setCollapsed((v) => !v)}
+                onClick={toggleCollapsed}
                 aria-label={collapsed ? "Развернуть" : "Свернуть"}
               >
                 {collapsed ? "▸" : "▾"}

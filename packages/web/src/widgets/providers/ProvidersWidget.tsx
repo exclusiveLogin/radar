@@ -12,7 +12,10 @@ import {
 import type { WidgetProps } from "../widgetProps";
 
 /** Статус ingest-провайдеров: live probe + heartbeat, не только поле status в БД. */
-export function ProvidersWidget({ defaultCollapsed = false }: WidgetProps) {
+export function ProvidersWidget({
+  defaultCollapsed = false,
+  panelPersistenceKey,
+}: WidgetProps) {
   const providers = useObservable(providers$, []);
   const health = useObservable(systemHealth$, {
     apiOk: false,
@@ -29,7 +32,13 @@ export function ProvidersWidget({ defaultCollapsed = false }: WidgetProps) {
   };
 
   return (
-    <Panel title="Каналы" variant="glass" collapsible defaultCollapsed={defaultCollapsed}>
+    <Panel
+      title="Каналы"
+      variant="glass"
+      collapsible
+      defaultCollapsed={defaultCollapsed}
+      persistenceKey={panelPersistenceKey}
+    >
       {providers.length === 0 ? (
         <p className="ds-muted">
           {!health.apiOk

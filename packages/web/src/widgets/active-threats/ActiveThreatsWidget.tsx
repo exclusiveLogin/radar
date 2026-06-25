@@ -35,7 +35,10 @@ function placeStatusAt(row: MapPlaceSnapshot): string {
 }
 
 /** Текущие активные угрозы: регионы/места из mapStore (fold snapshot + WS). */
-export function ActiveThreatsWidget({ defaultCollapsed = false }: WidgetProps) {
+export function ActiveThreatsWidget({
+  defaultCollapsed = false,
+  panelPersistenceKey,
+}: WidgetProps) {
   const regions = useBehaviorSubject(regionsByCode$);
   const places = useBehaviorSubject(placesById$);
   const selected = useBehaviorSubject(selectedRegion$);
@@ -149,7 +152,14 @@ export function ActiveThreatsWidget({ defaultCollapsed = false }: WidgetProps) {
   ) : null;
 
   return (
-    <Panel title="Активные угрозы" actions={filterAction} variant="glass" collapsible defaultCollapsed={defaultCollapsed}>
+    <Panel
+      title="Активные угрозы"
+      actions={filterAction}
+      variant="glass"
+      collapsible
+      defaultCollapsed={defaultCollapsed}
+      persistenceKey={panelPersistenceKey}
+    >
       {items.length === 0 ? (
         <p className="ds-muted">Нет активных угроз.</p>
       ) : (

@@ -22,6 +22,8 @@ export type WidgetDescriptor = {
   zone: WidgetZone;
   /** Панель виджета свёрнута при первом рендере. */
   defaultCollapsed?: boolean;
+  /** Ключ fold-состояния панели для localStorage. */
+  panelPersistenceKey?: string;
 };
 
 /** Декларативный реестр виджетов: оболочка раскладывает по зонам. */
@@ -39,6 +41,7 @@ export const WIDGETS: WidgetDescriptor[] = [
     component: OverviewStatsWidget,
     defaultVisible: true,
     zone: "left",
+    panelPersistenceKey: "widget.overview-stats",
   },
   {
     id: "schematic-map",
@@ -46,6 +49,7 @@ export const WIDGETS: WidgetDescriptor[] = [
     component: SchematicMapWidget,
     defaultVisible: true,
     zone: "left",
+    panelPersistenceKey: "widget.schematic-map",
   },
   {
     id: "active-threats",
@@ -54,6 +58,7 @@ export const WIDGETS: WidgetDescriptor[] = [
     defaultVisible: true,
     zone: "right",
     defaultCollapsed: true,
+    panelPersistenceKey: "widget.active-threats",
   },
   {
     id: "state-changes",
@@ -62,6 +67,7 @@ export const WIDGETS: WidgetDescriptor[] = [
     defaultVisible: true,
     zone: "right",
     defaultCollapsed: true,
+    panelPersistenceKey: "widget.state-changes",
   },
   {
     id: "messages-feed",
@@ -70,6 +76,7 @@ export const WIDGETS: WidgetDescriptor[] = [
     defaultVisible: true,
     zone: "right",
     defaultCollapsed: true,
+    panelPersistenceKey: "widget.messages-feed",
   },
   {
     id: "pvo-reports",
@@ -78,6 +85,7 @@ export const WIDGETS: WidgetDescriptor[] = [
     defaultVisible: true,
     zone: "right",
     defaultCollapsed: true,
+    panelPersistenceKey: "widget.pvo-reports",
   },
   {
     id: "top-activity",
@@ -86,6 +94,7 @@ export const WIDGETS: WidgetDescriptor[] = [
     defaultVisible: true,
     zone: "right",
     defaultCollapsed: true,
+    panelPersistenceKey: "widget.top-activity",
   },
   {
     id: "level-trend",
@@ -94,6 +103,7 @@ export const WIDGETS: WidgetDescriptor[] = [
     defaultVisible: true,
     zone: "right",
     defaultCollapsed: true,
+    panelPersistenceKey: "widget.level-trend",
   },
   {
     id: "providers",
@@ -102,6 +112,7 @@ export const WIDGETS: WidgetDescriptor[] = [
     defaultVisible: true,
     zone: "right",
     defaultCollapsed: true,
+    panelPersistenceKey: "widget.providers",
   },
   {
     id: "system-status",
@@ -110,6 +121,7 @@ export const WIDGETS: WidgetDescriptor[] = [
     defaultVisible: true,
     zone: "right",
     defaultCollapsed: true,
+    panelPersistenceKey: "widget.system-status",
   },
 ];
 

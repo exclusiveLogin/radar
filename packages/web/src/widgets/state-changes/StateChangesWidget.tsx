@@ -32,7 +32,10 @@ function regionsTip(row: StateChangeEventItem): string {
 /**
  * Лента изменений: 1 parsed_event = 1 карточка, регионы видны в свёрнутой строке.
  */
-export function StateChangesWidget({ defaultCollapsed = false }: WidgetProps) {
+export function StateChangesWidget({
+  defaultCollapsed = false,
+  panelPersistenceKey,
+}: WidgetProps) {
   const events = useObservable(stateChangesFeed$, []);
   const selected = useObservable(selectedRegion$, null);
 
@@ -135,6 +138,7 @@ export function StateChangesWidget({ defaultCollapsed = false }: WidgetProps) {
       variant="glass"
       collapsible
       defaultCollapsed={defaultCollapsed}
+      persistenceKey={panelPersistenceKey}
     >
       {items.length === 0 ? (
         <p className="ds-muted">Нет событий с привязкой к регионам на карте.</p>

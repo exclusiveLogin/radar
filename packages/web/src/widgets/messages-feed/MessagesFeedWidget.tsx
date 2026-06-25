@@ -102,7 +102,10 @@ function messageStatusBadge(row: MessageFeedItem): ReactNode {
 }
 
 /** Лента ingest: все raw, независимо от parse/loc. */
-export function MessagesFeedWidget({ defaultCollapsed = false }: WidgetProps) {
+export function MessagesFeedWidget({
+  defaultCollapsed = false,
+  panelPersistenceKey,
+}: WidgetProps) {
   const messages = useObservable(messagesFeed$, []);
   const selected = useObservable(selectedRegion$, null);
 
@@ -123,7 +126,14 @@ export function MessagesFeedWidget({ defaultCollapsed = false }: WidgetProps) {
   ) : null;
 
   return (
-    <Panel title="Сообщения" actions={filterAction} variant="glass" collapsible defaultCollapsed={defaultCollapsed}>
+    <Panel
+      title="Сообщения"
+      actions={filterAction}
+      variant="glass"
+      collapsible
+      defaultCollapsed={defaultCollapsed}
+      persistenceKey={panelPersistenceKey}
+    >
       {visible.length === 0 ? (
         <p className="ds-muted">Нет сообщений или API недоступен.</p>
       ) : (

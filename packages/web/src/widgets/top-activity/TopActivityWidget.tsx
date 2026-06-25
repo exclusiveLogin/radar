@@ -10,7 +10,10 @@ import type { WidgetProps } from "../widgetProps";
 const BAR_MAX_PX = 48;
 
 /** Топ-10 регионов по количеству danger-событий за последние 7 дней. */
-export function TopActivityWidget({ defaultCollapsed = false }: WidgetProps) {
+export function TopActivityWidget({
+  defaultCollapsed = false,
+  panelPersistenceKey,
+}: WidgetProps) {
   const top = useBehaviorSubject(topActivity$);
   const regions = useBehaviorSubject(regionsByCode$);
 
@@ -20,7 +23,13 @@ export function TopActivityWidget({ defaultCollapsed = false }: WidgetProps) {
   );
 
   return (
-    <Panel title="Топ активности (7д)" variant="glass" collapsible defaultCollapsed={defaultCollapsed}>
+    <Panel
+      title="Топ активности (7д)"
+      variant="glass"
+      collapsible
+      defaultCollapsed={defaultCollapsed}
+      persistenceKey={panelPersistenceKey}
+    >
       {top.length === 0 ? (
         <p className="ds-muted">Нет данных.</p>
       ) : (

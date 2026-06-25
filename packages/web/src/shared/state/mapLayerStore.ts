@@ -1,6 +1,7 @@
 import { BehaviorSubject } from "rxjs";
 import { setHeatmapMeta } from "./heatmapStore";
 import { resetGeoMapLayerFetchStatus } from "./geoMapLayerFetchStore";
+import { readMapLayers, writeMapLayers } from "./uiPreferencesStore";
 
 /** Оверлейные слои гео-карты (видимость + вложенные панели). */
 export const GEO_MAP_LAYER_ORDER = [
@@ -46,9 +47,21 @@ const DEFAULT_GEO_MAP_LAYERS: Record<GeoMapLayerId, boolean> = {
   timeline: true,
 };
 
+function readPersistedGeoMapLayers(): Record<GeoMapLayerId, boolean> {
+  const persisted = readMapLayers(DEFAULT_GEO_MAP_LAYERS);
+  return {
+    regions: persisted.regions ?? DEFAULT_GEO_MAP_LAYERS.regions,
+    threatIcons: persisted.threatIcons ?? DEFAULT_GEO_MAP_LAYERS.threatIcons,
+    districts: persisted.districts ?? DEFAULT_GEO_MAP_LAYERS.districts,
+    places: persisted.places ?? DEFAULT_GEO_MAP_LAYERS.places,
+    heatmap: persisted.heatmap ?? DEFAULT_GEO_MAP_LAYERS.heatmap,
+    timeline: persisted.timeline ?? DEFAULT_GEO_MAP_LAYERS.timeline,
+  };
+}
+
 /** SSOT видимости слоёв карты. */
 export const geoMapLayers$ = new BehaviorSubject<Record<GeoMapLayerId, boolean>>(
-  DEFAULT_GEO_MAP_LAYERS,
+  readPersistedGeoMapLayers(),
 );
 
 export function isGeoMapLayerEnabled(id: GeoMapLayerId): boolean {
@@ -56,7 +69,9 @@ export function isGeoMapLayerEnabled(id: GeoMapLayerId): boolean {
 }
 
 export function setGeoMapLayer(id: GeoMapLayerId, enabled: boolean): void {
-  geoMapLayers$.next({ ...geoMapLayers$.value, [id]: enabled });
+  const next = { ...geoMapLayers$.value, [id]: enabled };
+  geoMapLayers$.next(next);
+  writeMapLayers(next);
   if (id === "heatmap" && !enabled) {
     setHeatmapMeta(null);
     resetGeoMapLayerFetchStatus("heatmap");

@@ -5,7 +5,7 @@ import { Panel } from "../../shared/ds";
 import { LEVEL_COLORS, LEVEL_LABELS } from "../../shared/config/mapConfig.service";
 import { formatDateTime } from "../../shared/format/dateTime";
 import { isRegionVisibleOnMap } from "../../shared/state/derivations";
-import { derivedRegionCodes$, historicalAsOf$, mapViewAnchor$, regionsByCode$ } from "../../shared/state/mapStore";
+import { derivedRegionCodes$, mapViewAnchor$, regionsByCode$ } from "../../shared/state/mapStore";
 import { selectRegion, selectedRegion$ } from "../../shared/state/selectionStore";
 import { stateChangesFeed$ } from "../../shared/state/stateChangesFeedStore";
 import { regionFadeFactor } from "../../shared/utils/regionFade";
@@ -72,27 +72,18 @@ type HoverTip = {
 };
 
 /** Схема: уплотнённый honeycomb, подсказка в portal (не режется glass-панелью). */
-export function SchematicMapWidget(_props: WidgetProps) {
+export function SchematicMapWidget({ panelPersistenceKey }: WidgetProps) {
   // Прямая подписка — инициализируется текущим значением, обновляется при каждой эмиссии.
   const [regions, setRegions] = useState(() => regionsByCode$.getValue());
   const [selected, setSelected] = useState(() => selectedRegion$.getValue());
   const [hoverTip, setHoverTip] = useState<HoverTip | null>(null);
   const [derivedCodes, setDerivedCodes] = useState(() => derivedRegionCodes$.getValue());
   const [feedItems, setFeedItems] = useState(() => stateChangesFeed$.getValue());
-  const [historicalAsOf, setHistoricalAsOf] = useState(() => historicalAsOf$.getValue());
   // SSOT fade-якоря — mapViewAnchor$ (live-тик 60с в startMapStore).
   const [now, setNow] = useState(() => mapViewAnchor$.getValue());
 
   useEffect(() => {
     const sub = mapViewAnchor$.subscribe(setNow);
-    return () => sub.unsubscribe();
-  }, []);
-
-  useEffect(() => {
-    setHistoricalAsOf(historicalAsOf$.getValue());
-    const sub = historicalAsOf$.subscribe((asOf) => {
-      setHistoricalAsOf(asOf);
-    });
     return () => sub.unsubscribe();
   }, []);
 
@@ -199,7 +190,13 @@ export function SchematicMapWidget(_props: WidgetProps) {
     );
 
   return (
-    <Panel title="Схема обстановки" variant="glass" className="schematic-panel" collapsible>
+    <Panel
+      title="Схема обстановки"
+      variant="glass"
+      className="schematic-panel"
+      collapsible
+      persistenceKey={panelPersistenceKey}
+    >
       {layoutRegions.length === 0 || !compactGrid ? (
         <p className="ds-muted">Нет регионов в layout.json.</p>
       ) : (

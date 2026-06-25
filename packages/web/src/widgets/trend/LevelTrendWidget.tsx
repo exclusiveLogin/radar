@@ -18,7 +18,10 @@ function levelBarLabel(level: StateLevel): string {
 import type { WidgetProps } from "../widgetProps";
 
 /** Sparkline событий по времени из warnings (окно до 200 записей). */
-export function LevelTrendWidget({ defaultCollapsed = false }: WidgetProps) {
+export function LevelTrendWidget({
+  defaultCollapsed = false,
+  panelPersistenceKey,
+}: WidgetProps) {
   const changes = useObservable(stateChanges$, []);
 
   const buckets = useMemo(() => warningsTimeBuckets(changes, 24), [changes]);
@@ -39,7 +42,13 @@ export function LevelTrendWidget({ defaultCollapsed = false }: WidgetProps) {
   }, [changes]);
 
   return (
-    <Panel title="Динамика событий" variant="glass" collapsible defaultCollapsed={defaultCollapsed}>
+    <Panel
+      title="Динамика событий"
+      variant="glass"
+      collapsible
+      defaultCollapsed={defaultCollapsed}
+      persistenceKey={panelPersistenceKey}
+    >
       <p className="ds-muted" style={{ margin: "0 0 6px", fontSize: 11 }}>
         Окно: {changes.length} записей (макс. 200)
       </p>

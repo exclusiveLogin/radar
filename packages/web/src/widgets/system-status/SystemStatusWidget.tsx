@@ -17,7 +17,10 @@ import { systemHealth$, workerStatus$ } from "../../shared/state/providersStore"
 import type { WidgetProps } from "../widgetProps";
 
 /** WS-соединение, DB ready, счётчики активных регионов/мест. */
-export function SystemStatusWidget({ defaultCollapsed = false }: WidgetProps) {
+export function SystemStatusWidget({
+  defaultCollapsed = false,
+  panelPersistenceKey,
+}: WidgetProps) {
   const wsStatus = useBehaviorSubject(connectionStatus$);
   const health = useBehaviorSubject(systemHealth$);
   const workerStatus = useBehaviorSubject(workerStatus$);
@@ -54,7 +57,13 @@ export function SystemStatusWidget({ defaultCollapsed = false }: WidgetProps) {
     : "Worker недоступен";
 
   return (
-    <Panel title="Система" variant="glass" collapsible defaultCollapsed={defaultCollapsed}>
+    <Panel
+      title="Система"
+      variant="glass"
+      collapsible
+      defaultCollapsed={defaultCollapsed}
+      persistenceKey={panelPersistenceKey}
+    >
       <div className="ds-metric-row">
         <span className="ds-metric-row__label">WebSocket</span>
         <StatusDot kind={wsKind} label={wsLabel} pulse={wsStatus === "open"} />

@@ -18,7 +18,7 @@ import type { WidgetProps } from "../widgetProps";
 /** KPI-плитки по уровням + donut распределения регионов. */
 const PLACE_LEVELS: StateLevel[] = ["red", "orange", "yellow", "green"];
 
-export function OverviewStatsWidget(_props: WidgetProps) {
+export function OverviewStatsWidget({ panelPersistenceKey }: WidgetProps) {
   const regions = useBehaviorSubject(regionsByCode$);
   const places = useBehaviorSubject(placesById$);
 
@@ -42,7 +42,7 @@ export function OverviewStatsWidget(_props: WidgetProps) {
   );
 
   return (
-    <Panel title="Обзор" variant="glass" collapsible>
+    <Panel title="Обзор" variant="glass" collapsible persistenceKey={panelPersistenceKey}>
       <p className="ds-muted" style={{ margin: "0 0 6px", fontSize: 11 }}>
         Регионы
       </p>

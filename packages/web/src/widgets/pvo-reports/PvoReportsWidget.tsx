@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { Accordion, Panel } from "../../shared/ds";
 import type { AccordionItem } from "../../shared/ds";
-import { formatDateTime, formatTimeShort } from "../../shared/format/dateTime";
+import { formatDateTime } from "../../shared/format/dateTime";
 import { useObservable } from "../../shared/hooks/useObservable";
 import { pvoReports$ } from "../../shared/state/pvoReportsStore";
 import type { PvoReportItem } from "../../shared/api/mapApi";
@@ -53,7 +53,10 @@ function ByRegionList({ item }: { item: PvoReportItem }) {
  * Виджет сводок ПВО — информационная лента без влияния на карту.
  * Отображает сводные отчёты за периоды с разбивкой по БПЛА / ракетам / МВШ.
  */
-export function PvoReportsWidget({ defaultCollapsed = true }: WidgetProps) {
+export function PvoReportsWidget({
+  defaultCollapsed = true,
+  panelPersistenceKey,
+}: WidgetProps) {
   const reports = useObservable(pvoReports$, []);
 
   const items: AccordionItem[] = useMemo(
@@ -115,6 +118,7 @@ export function PvoReportsWidget({ defaultCollapsed = true }: WidgetProps) {
       variant="glass"
       collapsible
       defaultCollapsed={defaultCollapsed}
+      persistenceKey={panelPersistenceKey}
     >
       {items.length === 0 ? (
         <p className="ds-muted">Нет сводок ПВО.</p>

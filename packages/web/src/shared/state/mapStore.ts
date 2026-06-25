@@ -65,6 +65,13 @@ let adjacency: Record<string, string[]> = {};
 let started = false;
 let liveAnchorSub: { unsubscribe(): void } | undefined;
 
+/** Хук перед установкой asOf (подгонка окна таймлайна). */
+let beforeHistoricalSetHook: ((iso: string) => void) | null = null;
+
+export function registerBeforeHistoricalSet(hook: (iso: string) => void): void {
+  beforeHistoricalSetHook = hook;
+}
+
 /** Якорь времени для visibility/fade: replay → asOf, иначе now. */
 export function resolveMapViewAnchorMs(): number {
   const asOf = historicalAsOf$.value;
@@ -80,6 +87,7 @@ function refreshMapViewAnchor(): void {
 /** Установить asOf — REST загрузка в mapStateEffects (switchMap). */
 export function setHistoricalAsOf(iso: string | null): void {
   if (iso === historicalAsOf$.value) return;
+  if (iso) beforeHistoricalSetHook?.(iso);
   historicalAsOf$.next(iso);
 }
 
