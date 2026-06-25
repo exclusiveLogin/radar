@@ -141,11 +141,12 @@ export function buildRegionPopupHtml(code: string): string {
     ? `<span class="ds-threat-icon ds-threat-icon--compact ds-threat-icon--${visual.key}${visual.dimmed ? " ds-threat-icon--dimmed" : ""}" style="color:${visual.accentColor}" aria-hidden="true">${visual.glyph}</span>`
     : "";
 
-  const statusLabel = region?.statusCode
-    ? escapeHtml(statusTitle(region.statusCode))
+  const statusText = region?.statusCode
+    ? `${statusTitle(region.statusCode)} (${region.statusCode})`
     : recentEvent?.eventType
-      ? escapeHtml(recentEvent.eventType)
+      ? recentEvent.eventType
       : "";
+  const statusLabel = statusText ? escapeHtml(statusText) : "";
 
   const levelLine = formatRegionLevelLine(region, isDerived);
   const levelHtml = levelLine ? escapeHtml(levelLine) : "";
@@ -153,19 +154,30 @@ export function buildRegionPopupHtml(code: string): string {
   const traitsHtml = traitGlyphs(region?.traits);
 
   const timeLine = region?.statusEventAt
-    ? `статус с ${escapeHtml(formatDateTime(region.statusEventAt))}`
+    ? escapeHtml(formatDateTime(region.statusEventAt))
     : "";
 
   const textSnippet = recentEvent?.displayText ?? recentEvent?.rawText
     ? escapeHtml((recentEvent.displayText ?? recentEvent.rawText).slice(0, 80))
     : "";
+  const channel = recentEvent?.channelTitle ?? recentEvent?.channelKey ?? "—";
+  const eventType = recentEvent?.eventType ?? "—";
+  const area = region?.name ?? "—";
+  const regionLabel = region?.name ?? code;
 
   return [
     `<div class="geo-map-region-popup__head">${iconHtml}<strong>${titleLine}</strong></div>`,
-    statusLabel ? `<div class="geo-map-region-popup__type">${statusLabel}${traitsHtml ? ` ${traitsHtml}` : ""}</div>` : traitsHtml ? `<div>${traitsHtml}</div>` : "",
+    `<div><strong>Область:</strong> ${escapeHtml(area)}</div>`,
+    `<div><strong>Код:</strong> ${escapeHtml(code)}</div>`,
+    `<div><strong>Регион:</strong> ${escapeHtml(regionLabel)}</div>`,
+    statusLabel
+      ? `<div class="geo-map-region-popup__type"><strong>Статус:</strong> ${statusLabel}${traitsHtml ? ` ${traitsHtml}` : ""}</div>`
+      : `<div><strong>Статус:</strong> —${traitsHtml ? ` ${traitsHtml}` : ""}</div>`,
+    `<div><strong>Тип последнего сообщения:</strong> ${escapeHtml(eventType)}</div>`,
+    `<div><strong>Канал:</strong> ${escapeHtml(channel)}</div>`,
+    timeLine ? `<div class="geo-map-region-popup__time ds-muted"><strong>Время статуса:</strong> ${timeLine}</div>` : `<div class="geo-map-region-popup__time ds-muted"><strong>Время статуса:</strong> —</div>`,
+    textSnippet ? `<div class="geo-map-region-popup__text"><strong>Сообщение:</strong> ${textSnippet}</div>` : `<div class="geo-map-region-popup__text"><strong>Сообщение:</strong> —</div>`,
     levelHtml ? `<div class="geo-map-region-popup__level">${levelHtml}</div>` : "",
-    timeLine ? `<div class="geo-map-region-popup__time ds-muted">${timeLine}</div>` : "",
-    textSnippet ? `<div class="geo-map-region-popup__text">${textSnippet}</div>` : "",
   ]
     .filter(Boolean)
     .join("");
@@ -182,15 +194,24 @@ export function buildPlacePopupLines(
   const region = regionsByCode$.value.get(place.regionCode);
   const regionLevel = region?.stateLevel ?? "grey";
   const level = effectivePlaceLevel(place.stateLevel, regionLevel);
+  const recentEvent = stateChangesFeed$.value.find((e) => e.regionCodes.includes(place.regionCode));
+  const statusText = place.statusCode
+    ? `${statusTitle(place.statusCode)} (${place.statusCode})`
+    : "—";
+  const eventType = recentEvent?.eventType ?? "—";
+  const channel = recentEvent?.channelTitle ?? recentEvent?.channelKey ?? sourceMessage?.channelKey ?? "—";
+  const message = (sourceMessage?.displayText ?? sourceMessage?.rawText ?? recentEvent?.displayText ?? recentEvent?.rawText ?? "—").slice(0, 120);
 
   return [
-    `${place.placeName} · ${place.regionCode}`,
-    LEVEL_LABELS[level],
-    place.statusCode ? `тип: ${place.statusCode}` : null,
-    place.statusEventAt ? `статус с ${formatDateTime(place.statusEventAt)}` : null,
-    sourceMessage?.displayText ?? sourceMessage?.rawText
-      ? (sourceMessage.displayText ?? sourceMessage.rawText).slice(0, 80)
-      : null,
+    `Область: ${region?.name ?? "—"}`,
+    `Код: ${place.regionCode}`,
+    `Регион: ${place.placeName}`,
+    `Статус: ${statusText}`,
+    `Уровень: ${LEVEL_LABELS[level]}`,
+    `Тип последнего сообщения: ${eventType}`,
+    `Канал: ${channel}`,
+    place.statusEventAt ? `Время статуса: ${formatDateTime(place.statusEventAt)}` : "Время статуса: —",
+    `Сообщение: ${message}`,
   ].filter((line): line is string => !!line);
 }
 

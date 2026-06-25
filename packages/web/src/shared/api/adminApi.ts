@@ -162,6 +162,13 @@ export const adminApi = {
       }),
     ),
 
+  phasesResetFailed: (phaseId: string): Promise<{ ok: true; reset: number }> =>
+    postJson(
+      `/api/admin/phases/${encodeURIComponent(phaseId)}/reset-failed`,
+      undefined,
+      z.object({ ok: z.literal(true), reset: z.number().int().nonnegative() }),
+    ),
+
   phasesCancelRun: (runId: string): Promise<{ ok: true }> =>
     postJson(`/api/admin/phases/runs/${encodeURIComponent(runId)}/cancel`, undefined, z.object({ ok: z.literal(true) })),
 

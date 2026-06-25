@@ -119,6 +119,20 @@ export class PhasesAdminService {
     return { ok: true, cleared, runsCanceled };
   }
 
+  /** Ручной retry: failed jobs geo-фазы → pending (одна попытка по умолчанию, без auto re-queue). */
+  async resetFailedJobs(phaseId: string): Promise<{ ok: true; reset: number }> {
+    const phase = await this.getPhase(phaseId);
+    if (phase.scope !== "geoParse") {
+      throw new BadRequestException("reset-failed only for geoParse phases");
+    }
+    const provider = resolveGeoEnrichmentProvider(phase);
+    if (!provider) {
+      throw new BadRequestException(`phase ${phaseId} has no geo provider`);
+    }
+    const reset = await this.placeJobs.resetFailedForProvider(provider);
+    return { ok: true, reset };
+  }
+
   /** Catch-up очереди по scope фазы (ingest → coverage, geo → place jobs). */
   private async enqueueCatchUpForPhase(phase: PhaseDefinitionRecord): Promise<void> {
     if (phase.scope === "geoParse") {

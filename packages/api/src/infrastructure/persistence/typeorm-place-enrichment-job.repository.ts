@@ -18,7 +18,7 @@ type Row = {
   updated_at: Date;
 };
 
-/** SSOT: kinds с rank ≥ city — не тянем locality/settlement в pull-batch. */
+/** SSOT: kinds с rank ≥ city, без region — не тянем locality/settlement в pull-batch. */
 const ENRICH_ELIGIBLE_KIND_SQL = GEO_ENRICH_ELIGIBLE_KINDS.map((k) => `'${k}'`).join(", ");
 
 /** SSOT фильтр eligible places для geo enrich (pull batch). */
@@ -38,36 +38,14 @@ const ELIGIBLE_PLACE_WHERE = `
     SELECT 1 FROM place_enrichment_jobs j
     WHERE j.place_id = p.id
       AND j.provider = $1
-      AND j.status = 'done'
-      AND p.centroid_lat IS NOT NULL
-      AND p.centroid_lon IS NOT NULL
+      AND j.status IN ('done', 'failed')
   )
 `;
 
-/** Промах геокодера (`nominatim:miss`) — терминальный failed, без auto re-queue в drain/catch-up. */
-const TERMINAL_MISS_JOB_WHERE = `
-  NOT EXISTS (
-    SELECT 1 FROM place_enrichment_jobs j
-    WHERE j.place_id = p.id
-      AND j.provider = $1
-      AND j.status = 'failed'
-      AND j.last_error LIKE '%:miss'
-  )
-`;
-
-/** ON CONFLICT: done с coords и terminal miss не трогаем, остальное → pending. */
+/** ON CONFLICT: терминальные done/failed не трогаем, остальное → pending. */
 const UPSERT_JOB_STATUS_SQL = `
   CASE
-    WHEN place_enrichment_jobs.status = 'done'
-      AND EXISTS (
-        SELECT 1 FROM places pp
-        WHERE pp.id = place_enrichment_jobs.place_id
-          AND pp.centroid_lat IS NOT NULL
-          AND pp.centroid_lon IS NOT NULL
-      )
-    THEN place_enrichment_jobs.status
-    WHEN place_enrichment_jobs.status = 'failed'
-      AND place_enrichment_jobs.last_error LIKE '%:miss'
+    WHEN place_enrichment_jobs.status IN ('done', 'failed')
     THEN place_enrichment_jobs.status
     ELSE 'pending'
   END
@@ -83,10 +61,7 @@ implements IPlaceEnrichmentJobRepository {
       INSERT INTO place_enrichment_jobs (place_id, provider, status, attempts, updated_at)
       VALUES ($1, $2, 'pending', 0, now())
       ON CONFLICT (place_id, provider) DO UPDATE
-      SET status = CASE
-            WHEN place_enrichment_jobs.status = 'done' THEN place_enrichment_jobs.status
-            ELSE 'pending'
-          END,
+      SET status = ${UPSERT_JOB_STATUS_SQL},
           updated_at = now()
       `,
       [placeId, provider],
@@ -101,7 +76,6 @@ implements IPlaceEnrichmentJobRepository {
       FROM places p
       LEFT JOIN geo_feature gf ON gf.id = p.geo_feature_id
       WHERE ${ELIGIBLE_PLACE_WHERE}
-        AND ${TERMINAL_MISS_JOB_WHERE}
       ON CONFLICT (place_id, provider) DO UPDATE
       SET status = ${UPSERT_JOB_STATUS_SQL},
           updated_at = now()
@@ -118,7 +92,7 @@ implements IPlaceEnrichmentJobRepository {
     provider: PlaceEnrichmentProvider,
     limit: number,
   ): Promise<PlaceEnrichmentJobRecord[]> {
-    // Legacy pending по locality/settlement — не claim'ить, пометить done.
+    // Legacy pending по ineligible kind — не claim'ить, пометить done.
     await this.dataSource.query(
       `
       UPDATE place_enrichment_jobs j
@@ -140,7 +114,6 @@ implements IPlaceEnrichmentJobRepository {
       FROM places p
       LEFT JOIN geo_feature gf ON gf.id = p.geo_feature_id
       WHERE ${ELIGIBLE_PLACE_WHERE}
-        AND ${TERMINAL_MISS_JOB_WHERE}
       ORDER BY p.updated_at ASC
       LIMIT $2
       ON CONFLICT (place_id, provider) DO UPDATE
@@ -151,7 +124,6 @@ implements IPlaceEnrichmentJobRepository {
     );
 
     // Шаг 2: claim pending только для eligible places.
-    // Нельзя INSERT+UPDATE place_enrichment_jobs в одном WITH — PG не видит upsert в UPDATE (claimed=0).
     const rows = readTypeOrmQueryRows<Row>(
       await this.dataSource.query(
         `
@@ -237,6 +209,19 @@ implements IPlaceEnrichmentJobRepository {
         `UPDATE place_enrichment_jobs
          SET status='pending', last_error=NULL, updated_at=now()
          WHERE provider = $1 AND status = 'processing'
+         RETURNING id`,
+        [provider],
+      ),
+    );
+    return rows.length;
+  }
+
+  async resetFailedForProvider(provider: PlaceEnrichmentProvider): Promise<number> {
+    const rows = readTypeOrmQueryRows<{ id: string }>(
+      await this.dataSource.query(
+        `UPDATE place_enrichment_jobs
+         SET status='pending', last_error=NULL, updated_at=now()
+         WHERE provider = $1 AND status = 'failed'
          RETURNING id`,
         [provider],
       ),

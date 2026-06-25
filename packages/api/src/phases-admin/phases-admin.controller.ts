@@ -69,6 +69,12 @@ export class PhasesAdminController {
     return this.phases.clearPhaseQueue(id);
   }
 
+  @Post(":id/reset-failed")
+  @ApiOperation({ summary: "Сбросить failed place_enrichment_jobs → pending (ручной retry)" })
+  resetFailedJobs(@Param("id") id: string) {
+    return this.phases.resetFailedJobs(id);
+  }
+
   @Post("runs/stop-all")
   @ApiOperation({ summary: "Отменить все активные runs (running/paused/pending)" })
   stopAllRuns() {

@@ -184,7 +184,7 @@ implements IPlaceEnrichmentJobRepository {
   async enqueue(placeId: string, provider: PlaceEnrichmentProvider): Promise<void> {
     const key = `${placeId}:${provider}`;
     const existing = this.rows.get(key);
-    if (existing?.status === "done") return;
+    if (existing?.status === "done" || existing?.status === "failed") return;
     const now = new Date().toISOString();
     this.rows.set(key, {
       id: existing?.id ?? randomUUID(),
@@ -273,6 +273,21 @@ implements IPlaceEnrichmentJobRepository {
     let reset = 0;
     for (const [key, row] of this.rows) {
       if (row.provider !== provider || row.status !== "processing") continue;
+      this.rows.set(key, {
+        ...row,
+        status: "pending",
+        lastError: undefined,
+        updatedAt: new Date().toISOString(),
+      });
+      reset += 1;
+    }
+    return reset;
+  }
+
+  async resetFailedForProvider(provider: PlaceEnrichmentProvider): Promise<number> {
+    let reset = 0;
+    for (const [key, row] of this.rows) {
+      if (row.provider !== provider || row.status !== "failed") continue;
       this.rows.set(key, {
         ...row,
         status: "pending",

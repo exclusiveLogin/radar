@@ -413,6 +413,8 @@ export interface IPlaceEnrichmentJobRepository {
   releaseToPending(ids: string[]): Promise<number>;
   /** Сброс всех processing → pending для провайдера (сиротский run после рестарта worker). */
   resetProcessingForProvider(provider: PlaceEnrichmentProvider): Promise<number>;
+  /** Ручной retry: failed → pending (админка). */
+  resetFailedForProvider(provider: PlaceEnrichmentProvider): Promise<number>;
   countByStatus(provider: PlaceEnrichmentProvider): Promise<Record<PlaceEnrichmentJobStatus, number>>;
   clearQueuedWork(provider?: PlaceEnrichmentProvider): Promise<number>;
 }

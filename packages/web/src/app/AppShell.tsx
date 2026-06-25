@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { LiveBadge, LiveClock, ThemeToggle } from "../shared/ds";
 import { startMapStore } from "../shared/state/mapStore";
+import "../shared/state/timelineStore";
 import { startMapStateEffects } from "../shared/state/mapStateEffects";
 import { startMessagesStore } from "../shared/state/messagesStore";
 import { startStateChangesFeedStore } from "../shared/state/stateChangesFeedStore";
@@ -15,11 +16,13 @@ import { GeoMapOverlays } from "../widgets/map-overlays/GeoMapOverlays";
 import { CriticalThreatsBar } from "../widgets/critical-threats/CriticalThreatsBar";
 import { useObservable } from "../shared/hooks/useObservable";
 import { geoMapLayers$ } from "../shared/state/mapLayerStore";
+import { readWidgetVisibility, writeWidgetVisibility } from "../shared/state/uiPreferencesStore";
 import { WIDGETS, type WidgetZone } from "./widgetRegistry";
 
 /** Начальная видимость виджетов из реестра. */
 function initialVisibility(): Record<string, boolean> {
-  return Object.fromEntries(WIDGETS.map((w) => [w.id, w.defaultVisible]));
+  const defaults = Object.fromEntries(WIDGETS.map((w) => [w.id, w.defaultVisible]));
+  return readWidgetVisibility(defaults);
 }
 
 function widgetsByZone(zone: WidgetZone, visible: Record<string, boolean>) {
@@ -47,7 +50,11 @@ export function AppShell() {
   }, []);
 
   const toggle = (id: string): void =>
-    setVisible((prev) => ({ ...prev, [id]: !prev[id] }));
+    setVisible((prev) => {
+      const next = { ...prev, [id]: !prev[id] };
+      writeWidgetVisibility(next);
+      return next;
+    });
 
   const background = widgetsByZone("background", visible);
   const left = widgetsByZone("left", visible);
@@ -113,8 +120,8 @@ export function AppShell() {
         <RegionDetailWidget />
 
         <div className="shell__map-layer">
-          {background.map(({ id, component: Widget }) => (
-            <Widget key={id} />
+          {background.map(({ id, component: Widget, panelPersistenceKey }) => (
+            <Widget key={id} panelPersistenceKey={panelPersistenceKey} />
           ))}
         </div>
 
@@ -128,17 +135,23 @@ export function AppShell() {
         </div>
 
         <aside className="shell__rail shell__rail--left">
-          {left.map(({ id, component: Widget }) => (
-            <div key={id} className="shell__rail-item">
-              <Widget />
+          {left.map(({ id, component: Widget, panelPersistenceKey }) => (
+            <div
+              key={id}
+              className={`shell__rail-item${id === "overview-stats" ? " shell__rail-item--overview" : ""}`}
+            >
+              <Widget panelPersistenceKey={panelPersistenceKey} />
             </div>
           ))}
         </aside>
 
         <aside className="shell__rail shell__rail--right">
-          {right.map(({ id, component: Widget, defaultCollapsed }) => (
+          {right.map(({ id, component: Widget, defaultCollapsed, panelPersistenceKey }) => (
             <div key={id} className="shell__rail-item">
-              <Widget defaultCollapsed={defaultCollapsed} />
+              <Widget
+                defaultCollapsed={defaultCollapsed}
+                panelPersistenceKey={panelPersistenceKey}
+              />
             </div>
           ))}
         </aside>

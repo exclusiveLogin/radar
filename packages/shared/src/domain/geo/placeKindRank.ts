@@ -25,10 +25,10 @@ export function kindMeetsFloor(
 /** Минимальный kind для nominatim/geo enrich (SSOT для SQL pull-batch). */
 export const GEO_ENRICH_MIN_KIND: PlaceRecord["kind"] = "city";
 
-/** Kinds с rank ≥ city — eligible для geo enrich queue. */
+/** Kinds с rank ≥ city, кроме region — eligible для geo enrich queue. */
 export const GEO_ENRICH_ELIGIBLE_KINDS = (
   Object.keys(KIND_RANK) as PlaceRecord["kind"][]
-).filter((kind) => kindMeetsFloor(kind, GEO_ENRICH_MIN_KIND));
+).filter((kind) => kind !== "region" && kindMeetsFloor(kind, GEO_ENRICH_MIN_KIND));
 
 export function isGeoEnrichEligibleKind(kind: PlaceRecord["kind"]): boolean {
   return kindMeetsFloor(kind, GEO_ENRICH_MIN_KIND);

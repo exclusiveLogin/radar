@@ -1,9 +1,11 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import type { GeoEnrichmentCounts, PhaseCoverageCounts, StatsOverview } from "@radar/shared";
-import { Panel, StatTile } from "../../shared/ds";
+import { Button, Panel, StatTile } from "../../shared/ds";
 import { useObservable } from "../../shared/hooks/useObservable";
+import { adminApi } from "../../shared/api/adminApi";
 import { formatAge } from "../../shared/state/derivations";
 import { statsOverview$ } from "../../shared/state/adminStore";
+import { reportAppError } from "../../shared/state/appLogStore";
 import { formatDateTime } from "../format";
 
 function fmt(n: number): string {
@@ -159,9 +161,23 @@ function GeoPhaseCard({
   counts: GeoEnrichmentCounts;
   placesCatalog: number;
 }) {
+  const [resetting, setResetting] = useState(false);
   const jobsTotal = queueTotal(counts);
   const jobsClosed = counts.done + counts.failed;
+  const jobsSuccessful = counts.done;
   const queueActive = counts.pending + counts.processing > 0;
+
+  const onResetFailed = async (): Promise<void> => {
+    setResetting(true);
+    try {
+      await adminApi.phasesResetFailed(phaseId);
+      statsOverview$.next(await adminApi.statsOverview());
+    } catch (error) {
+      reportAppError("Geo retry", error);
+    } finally {
+      setResetting(false);
+    }
+  };
 
   return (
     <div className="admin-phase-enrich-card" style={{ opacity: enabled ? 1 : 0.55 }}>
@@ -178,25 +194,48 @@ function GeoPhaseCard({
         value={counts.doneWithEvidence}
         max={placesCatalog}
         tone="ok"
-        title="place с coords после job done"
+        title="places с координатами после done (doneWithEvidence / placesCatalog)"
       />
 
       <MetricBar
-        label="jobs закрыты"
+        label="jobs завершены (done+failed)"
         value={jobsClosed}
         max={jobsTotal}
         tone={counts.failed > 0 ? "warn" : "accent"}
+        title="терминальные jobs: done + failed"
+      />
+
+      <MetricBar
+        label="успешность jobs (done)"
+        value={jobsSuccessful}
+        max={Math.max(jobsClosed, 1)}
+        tone={counts.failed > 0 ? "warn" : "ok"}
+        title="done / (done + failed)"
       />
 
       <div className="admin-phase-enrich-card__stats">
-        <span>enriched★ {fmt(counts.doneWithEvidence)}</span>
-        <span>осталось {fmt(counts.catalogRemaining)}</span>
-        <span>jobs {fmt(counts.done)}</span>
-        <span>fail {fmt(counts.failed)}</span>
-        <span>pend {fmt(counts.pending)}</span>
+        <span title="doneWithEvidence">enriched★ {fmt(counts.doneWithEvidence)}</span>
+        <span title="catalogRemaining">осталось {fmt(counts.catalogRemaining)}</span>
+        <span title="успешные jobs">done {fmt(counts.done)}</span>
+        <span title="терминальные miss/error">failed {fmt(counts.failed)}</span>
+        <span title="очередь к выполнению">pending {fmt(counts.pending)}</span>
       </div>
 
-      <div className="admin-phase-enrich-card__hint">{provider ?? "—"}</div>
+      <div className="admin-phase-enrich-card__hint">
+        <span title="формула: done + failed + pending + processing">
+          {provider ?? "—"} · total={fmt(jobsTotal)} = done {fmt(counts.done)} + failed {fmt(counts.failed)} + pending {fmt(counts.pending)} + processing {fmt(counts.processing)}
+        </span>
+        {counts.failed > 0 && (
+          <Button
+            variant="ghost"
+            disabled={resetting}
+            title="Вернуть failed jobs в pending для повторной попытки"
+            onClick={() => void onResetFailed()}
+          >
+            retry failed ({counts.failed})
+          </Button>
+        )}
+      </div>
     </div>
   );
 }
@@ -332,8 +371,8 @@ export function MessagesStatsWidget() {
         <section className="admin-dashboard-block">
           <h3 className="admin-dashboard-block__title">Geo · place_enrichment_jobs</h3>
           <p className="admin-dashboard-block__lead">
-            <strong>enriched★</strong> — job done и place получил coords. Знаменатель — активные places
-            каталога ({fmt(stats.placesCatalogActive)}).
+            <strong>enriched★</strong> = doneWithEvidence / placesCatalog.{" "}
+            <strong>jobs завершены</strong> = (done + failed) / totalJobs, это показатель закрытия очереди, а не качества геокодинга.
           </p>
           <div className="admin-phase-enrich-grid admin-phase-enrich-grid--wide">
             {stats.geoEnrichment.map(({ phaseId, provider, enabled, counts }) => (
