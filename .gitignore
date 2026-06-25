@@ -158,6 +158,9 @@ data/geo/vendor/
 data/tiles/sources/
 data/tiles/merged/
 data/tiles/output/
+data/tiles/store/
+data/tiles/build.manifest.json
+data/tiles/tilemaker-config*.json
 
 # Локальные отчёты и диагностика (не коммитить)
 reports/
