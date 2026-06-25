@@ -322,7 +322,7 @@ export class GeoValidationService {
 
     if (location.placeId) {
       const byId = await this.places.findById(location.placeId);
-      if (byId && byId.kind !== "region") {
+      if (byId && byId.kind !== "region" && byId.trustState !== "rejected") {
         const placeRegion = await this.regions.findById(byId.regionId);
         if (placeRegion) {
           return {

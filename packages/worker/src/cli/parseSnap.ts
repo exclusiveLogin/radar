@@ -180,6 +180,7 @@ export async function runParseSnap(
 
       for (const location of resolved.locations) {
         const decision = await validation.validate(row.block, location, {
+          catalogHeal: true,
           multiPlaceContext,
         });
         if (decision.decision === "matched_existing") {

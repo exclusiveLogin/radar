@@ -131,3 +131,39 @@ test("PlaceScanIndex: «Меры безопасности» не матчит lo
   const hits = index.matchPlacesByPhrase(text);
   assert.equal(hits.length, 0);
 });
+
+const UDMURTIA_REGION: PlaceScanEntry[] = [
+  {
+    placeId: "udm-region-place-id",
+    regionId: "udm-region-id",
+    regionIso: "RU-UD",
+    kind: "region",
+    name: "Удмуртская Республика",
+    nameStem: "удмурт",
+    regionShortName: "Удмуртия",
+  },
+  {
+    placeId: "junk-resp-locality-id",
+    regionId: "mos-region-id",
+    regionIso: "RU-MOS",
+    kind: "locality",
+    name: "Республика",
+    nameStem: "республик",
+  },
+];
+
+test("PlaceScanIndex: субъект матчится по short_name «Удмуртия» и полному имени", () => {
+  const index = new PlaceScanIndex(UDMURTIA_REGION);
+  assert.ok(
+    index.matchRegions("Республика Удмуртия — отбой").some((h) => h.entry.regionIso === "RU-UD"),
+  );
+  assert.ok(
+    index.matchRegions("Удмуртская Республика — отбой").some((h) => h.entry.regionIso === "RU-UD"),
+  );
+});
+
+test("PlaceScanIndex: голое «Республика» не матчит junk-locality без scope (нет city+)", () => {
+  const index = new PlaceScanIndex(UDMURTIA_REGION);
+  const hits = index.matchPlacesByPhrase("Республика Удмуртия — отбой");
+  assert.equal(hits.find((h) => h.entry.name === "Республика"), undefined);
+});

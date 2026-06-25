@@ -51,6 +51,7 @@ test("isGarbageIngestPlaceName: служебные строки канала", (
   assert.equal(isGarbageIngestPlaceName("Повторно"), true);
   assert.equal(isGarbageIngestPlaceName("Ещё группа летит"), true);
   assert.equal(isGarbageIngestPlaceName("Чувашия"), true);
+  assert.equal(isGarbageIngestPlaceName("Республика"), true);
   assert.equal(isGarbageIngestPlaceName("Мариуполь Невский дрон в небе"), true);
   assert.equal(isGarbageIngestPlaceName("Все цели уничтожены"), true);
   assert.equal(isGarbageIngestPlaceName("И далее в направлении Азовского моря"), true);

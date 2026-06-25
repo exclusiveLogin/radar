@@ -15,6 +15,9 @@ function countPlaceAnchors(candidates: EventCandidate[]): number {
   return candidates.filter((c) => c.anchor.kind === "place").length;
 }
 
+/** ADR-012: parse материализует только каталог; runtime upsert places запрещён. */
+const PARSE_CATALOG_VALIDATION_CTX = { catalogHeal: true } as const;
+
 /** Подтянуть lat/lon из places если anchor пуст. */
 async function enrichDraftCoords(
   draft: EventLocation,
@@ -44,7 +47,7 @@ async function deriveRegionFromPlace(
   for (const candidate of materialized) {
     if (candidate.anchor.kind !== "place" || !candidate.anchor.placeId) continue;
     const place = await places.findById(candidate.anchor.placeId);
-    if (place) regionIds.add(place.regionId);
+    if (place && place.trustState !== "rejected") regionIds.add(place.regionId);
   }
 
   const derived: EventLocation[] = [];
@@ -88,7 +91,10 @@ export async function buildMaterializedEventLocations(input: {
     const validated: EventLocation[] = [];
     for (const rawDraft of drafts) {
       const draft = await enrichDraftCoords(rawDraft, candidate, input.places);
-      const decision = await input.validation.validate(rawText, draft, { multiPlaceContext });
+      const decision = await input.validation.validate(rawText, draft, {
+        ...PARSE_CATALOG_VALIDATION_CTX,
+        multiPlaceContext,
+      });
       if (decision.decision === "rejected" || !decision.location) continue;
       validated.push(decision.location);
     }
@@ -103,7 +109,10 @@ export async function buildMaterializedEventLocations(input: {
     if (target) {
       const validatedFacets: EventLocation[] = [];
       for (const draft of regionFacets) {
-        const decision = await input.validation.validate(rawText, draft, { multiPlaceContext });
+        const decision = await input.validation.validate(rawText, draft, {
+          ...PARSE_CATALOG_VALIDATION_CTX,
+          multiPlaceContext,
+        });
         if (decision.decision !== "rejected" && decision.location) {
           validatedFacets.push(decision.location);
         }

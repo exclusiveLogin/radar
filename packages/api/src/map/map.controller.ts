@@ -246,9 +246,13 @@ export class MapController {
   @Get("map/regions/by-code/:code/source-message")
   @ApiOperation({ summary: "Исходное сообщение, породившее статус региона", description: "Возвращает текст raw-сообщения и канал для отображения в боковой панели." })
   @ApiParam({ name: "code", description: "ISO 3166-2:RU код региона, напр. RU-MOW" })
+  @ApiQuery({ name: "statusEventAt", required: false, description: "ISO8601 — occurred_at winner-статуса на карте" })
   @ApiResponse({ status: 200, description: "{ message: SourceMessage | null }" })
-  async regionSourceMessage(@Param("code") code: string) {
-    const message = await this.map.getRegionSourceMessage(code);
+  async regionSourceMessage(
+    @Param("code") code: string,
+    @Query("statusEventAt") statusEventAt?: string,
+  ) {
+    const message = await this.map.getRegionSourceMessage(code, { statusEventAt });
     return sourceMessageResponseSchema.parse({ message });
   }
 

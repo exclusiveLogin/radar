@@ -366,3 +366,38 @@ test("geo validation: created_new alias не ломает FK при dedup upsert
   );
   assert.equal(second.location?.placeId, firstId);
 });
+
+test("geo validation: catalogHeal запрещает created_new на parse-path", async () => {
+  const regions = new InMemoryRegionRepository();
+  const places = new InMemoryPlaceRepository();
+  const aliases = new InMemoryPlaceAliasRepository();
+  const service = new GeoValidationService(regions, places, aliases);
+
+  const mosId = "29251dcf-00a1-4e34-98d4-5c47484a36d4";
+  await regions.upsertMany([
+    {
+      id: mosId,
+      code: "RU-MOS",
+      iso: "RU-MOS",
+      name: "Московская",
+      frontRegion: false,
+      borderRegion: false,
+    },
+  ]);
+
+  const result = await service.validate(
+    "Новый НП без каталога",
+    {
+      regionId: mosId,
+      regionCode: "RU-MOS",
+      placeName: "Новый НП без каталога",
+      precision: "city",
+      source: "llm",
+    },
+    { catalogHeal: true },
+  );
+
+  assert.equal(result.decision, "rejected");
+  assert.equal(result.location, null);
+  assert.equal((await places.listActive()).length, 0);
+});

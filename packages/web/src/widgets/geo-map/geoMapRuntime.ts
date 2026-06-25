@@ -338,6 +338,31 @@ export function createGeoMapRuntime(host: GeoMapRuntimeHost) {
       popups.sourcePending.delete(placeId);
       return message;
     },
+
+    /** Raw winner-сообщение региона (по statusEventAt с карты). */
+    async resolveRegionSource(
+      regionCode: string,
+      statusEventAt?: string,
+    ): Promise<SourceMessage | null> {
+      const cacheKey = `${regionCode}:${statusEventAt ?? ""}`;
+      if (popups.sourceCache.has(cacheKey)) {
+        return popups.sourceCache.get(cacheKey) ?? null;
+      }
+
+      let pending = popups.sourcePending.get(cacheKey);
+      if (!pending) {
+        pending = mapApi
+          .regionSourceMessage(regionCode, statusEventAt ? { statusEventAt } : undefined)
+          .then((response) => response.message)
+          .catch(() => null);
+        popups.sourcePending.set(cacheKey, pending);
+      }
+
+      const message = await pending;
+      popups.sourceCache.set(cacheKey, message);
+      popups.sourcePending.delete(cacheKey);
+      return message;
+    },
   };
 
   const selection = {

@@ -5,6 +5,7 @@ import {
   placeStem,
   sortPlaceScanEntriesStable,
 } from "@radar/shared";
+import { isGarbageIngestPlaceName } from "../../parsing/channelCityListPromo.js";
 
 type PhraseIndexRow = {
   phrase: string;
@@ -26,6 +27,11 @@ function resolvePhraseCandidates(
   if (cityPlus.length > 0) return cityPlus;
 
   if (isGeoPhraseStopword(phraseLower) || phraseLower.length < 4) {
+    return [];
+  }
+
+  // Голое «Республика» и прочий ingest-мусор — не locality fallback (субъекты — kind=region, другой путь).
+  if (isGarbageIngestPlaceName(phraseLower)) {
     return [];
   }
 

@@ -87,20 +87,72 @@ function formatRegionLevelLine(
   return levelLabel;
 }
 
+/** Берём событие из ленты, ближайшее к winner-статусу региона. */
+function pickRegionEvent(code: string, region?: MapRegionSnapshot) {
+  const byCode = stateChangesFeed$.value.filter((row) => row.regionCodes.includes(code));
+  if (byCode.length === 0) return undefined;
+  if (!region) return byCode[0];
+
+  if (region.statusEventAt) {
+    const exactByTime = byCode.find((row) => row.postedAt === region.statusEventAt);
+    if (exactByTime) return exactByTime;
+
+    const targetMs = Date.parse(region.statusEventAt);
+    if (Number.isFinite(targetMs)) {
+      const pool = region.statusCode
+        ? byCode.filter((row) => row.eventType === region.statusCode)
+        : byCode;
+      const nearest = [...pool].sort(
+        (a, b) =>
+          Math.abs(Date.parse(a.postedAt) - targetMs) - Math.abs(Date.parse(b.postedAt) - targetMs),
+      )[0];
+      if (nearest && Math.abs(Date.parse(nearest.postedAt) - targetMs) <= 120_000) {
+        return nearest;
+      }
+    }
+  }
+
+  if (region.statusCode) {
+    const exactByType = byCode.find((row) => row.eventType === region.statusCode);
+    if (exactByType) return exactByType;
+  }
+
+  return byCode[0];
+}
+
+function regionPopupMessageText(
+  recentEvent: ReturnType<typeof pickRegionEvent>,
+  sourceMessage?: SourceMessage | null,
+): string {
+  const text =
+    sourceMessage?.displayText
+    ?? sourceMessage?.rawText
+    ?? recentEvent?.displayText
+    ?? recentEvent?.rawText;
+  return text ? text.slice(0, 120) : "";
+}
+
 /** Текст тултипа региона: уровень, время статуса, тип и фрагмент raw. */
-export function buildRegionPopupLines(code: string): string[] {
+export function buildRegionPopupLines(
+  code: string,
+  sourceMessage?: SourceMessage | null,
+): string[] {
   const region = regionsByCode$.value.get(code);
   const isDerived = derivedRegionCodes$.value.has(code);
-  const recentEvent = stateChangesFeed$.value.find((e) => e.regionCodes.includes(code));
+  const recentEvent = pickRegionEvent(code, region);
   const levelLine = formatRegionLevelLine(region, isDerived);
+  const message = regionPopupMessageText(recentEvent, sourceMessage);
   return [
     `${code} — ${region?.name ?? code}`,
     levelLine,
-    recentEvent?.eventType ? `тип: ${recentEvent.eventType}` : null,
-    region?.statusEventAt ? `статус с ${formatDateTime(region.statusEventAt)}` : null,
-    recentEvent?.displayText ?? recentEvent?.rawText
-      ? (recentEvent.displayText ?? recentEvent.rawText).slice(0, 80)
+    (region?.statusCode ?? recentEvent?.eventType)
+      ? `тип: ${region?.statusCode ?? recentEvent?.eventType}`
       : null,
+    region?.statusEventAt ? `статус с ${formatDateTime(region.statusEventAt)}` : null,
+    sourceMessage?.channelKey ?? recentEvent?.channelTitle ?? recentEvent?.channelKey
+      ? `канал: ${sourceMessage?.channelKey ?? recentEvent?.channelTitle ?? recentEvent?.channelKey}`
+      : null,
+    message ? message.slice(0, 80) : null,
   ].filter((line): line is string => !!line);
 }
 
@@ -121,10 +173,13 @@ function traitGlyphs(traits?: { mass?: boolean; uncertain?: boolean }): string {
 }
 
 /** HTML тултипа региона: иконка угрозы, уровень, traits, время. */
-export function buildRegionPopupHtml(code: string): string {
+export function buildRegionPopupHtml(
+  code: string,
+  sourceMessage?: SourceMessage | null,
+): string {
   const region = regionsByCode$.value.get(code);
   const isDerived = derivedRegionCodes$.value.has(code);
-  const recentEvent = stateChangesFeed$.value.find((e) => e.regionCodes.includes(code));
+  const recentEvent = pickRegionEvent(code, region);
   const visual = region
     ? resolveThreatVisual({
         statusCode: region.statusCode,
@@ -157,11 +212,14 @@ export function buildRegionPopupHtml(code: string): string {
     ? escapeHtml(formatDateTime(region.statusEventAt))
     : "";
 
-  const textSnippet = recentEvent?.displayText ?? recentEvent?.rawText
-    ? escapeHtml((recentEvent.displayText ?? recentEvent.rawText).slice(0, 80))
-    : "";
-  const channel = recentEvent?.channelTitle ?? recentEvent?.channelKey ?? "—";
-  const eventType = recentEvent?.eventType ?? "—";
+  const textSnippet = regionPopupMessageText(recentEvent, sourceMessage);
+  const textHtml = textSnippet ? escapeHtml(textSnippet) : "";
+  const channel =
+    sourceMessage?.channelKey
+    ?? recentEvent?.channelTitle
+    ?? recentEvent?.channelKey
+    ?? "—";
+  const eventType = region?.statusCode ?? recentEvent?.eventType ?? "—";
   const area = region?.name ?? "—";
   const regionLabel = region?.name ?? code;
 
@@ -176,7 +234,7 @@ export function buildRegionPopupHtml(code: string): string {
     `<div><strong>Тип последнего сообщения:</strong> ${escapeHtml(eventType)}</div>`,
     `<div><strong>Канал:</strong> ${escapeHtml(channel)}</div>`,
     timeLine ? `<div class="geo-map-region-popup__time ds-muted"><strong>Время статуса:</strong> ${timeLine}</div>` : `<div class="geo-map-region-popup__time ds-muted"><strong>Время статуса:</strong> —</div>`,
-    textSnippet ? `<div class="geo-map-region-popup__text"><strong>Сообщение:</strong> ${textSnippet}</div>` : `<div class="geo-map-region-popup__text"><strong>Сообщение:</strong> —</div>`,
+    textHtml ? `<div class="geo-map-region-popup__text"><strong>Сообщение:</strong> ${textHtml}</div>` : `<div class="geo-map-region-popup__text"><strong>Сообщение:</strong> —</div>`,
     levelHtml ? `<div class="geo-map-region-popup__level">${levelHtml}</div>` : "",
   ]
     .filter(Boolean)

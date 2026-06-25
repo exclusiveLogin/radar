@@ -9,7 +9,6 @@ import type { DataSource } from "typeorm";
 import { isGarbageIngestPlaceName } from "../../domain/parsing/channelCityListPromo.js";
 import {
   isPlaceCatalogHealCandidate,
-  isVendorCatalogPlace,
   type PlaceCatalogHealScope,
 } from "../../domain/parsing/placeCatalogHealRule.js";
 import {
@@ -129,7 +128,7 @@ export async function purgeGarbageCatalogPlaces(input: {
   };
 
   for (const place of input.places) {
-    if (place.kind === "region" || isVendorCatalogPlace(place)) continue;
+    if (place.kind === "region") continue;
     if (!isGarbageIngestPlaceName(place.name)) continue;
 
     summary.purged += 1;

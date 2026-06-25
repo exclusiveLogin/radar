@@ -135,6 +135,7 @@ export function useGeoMapLifecycle(containerRef: RefObject<HTMLDivElement | null
     let placePopup: Popup | null = null;
     let regionPopup: Popup | null = null;
     let activePlacePopupId: string | null = null;
+    let activeRegionPopupKey: string | null = null;
     /** Пользователь сдвинул карту до прихода geojson — не делаем auto-fit/stop. */
     let userAdjustedViewBeforeGeo = false;
     /** Программный fitBounds/flyTo — не считаем ручным pan. */
@@ -681,6 +682,7 @@ export function useGeoMapLifecycle(containerRef: RefObject<HTMLDivElement | null
       const showPlacePopup = (lngLat: MapLayerMouseEvent["lngLat"], placeId: string): void => {
         if (!map) return;
         activePlacePopupId = placeId;
+        activeRegionPopupKey = null;
         regionPopup?.remove();
         regionPopup = null;
         map.getCanvas().style.cursor = "pointer";
@@ -731,19 +733,19 @@ export function useGeoMapLifecycle(containerRef: RefObject<HTMLDivElement | null
       };
 
       /**
-       * Hover по региону: tooltip с уровнем и последним событием.
+       * Hover по региону: tooltip с уровнем и winner-сообщением (API + лента).
        * Под place/районом — не показываем (дочерняя сущность перекрывает регион).
        */
-      const onRegionHover = (event: MapLayerMouseEvent): void => {
+      const showRegionPopup = (lngLat: MapLayerMouseEvent["lngLat"], code: string): void => {
         if (!map) return;
-        if (hasChildEntityAtPointer(map, event.point)) {
-          regionPopup?.remove();
-          regionPopup = null;
-          return;
-        }
+        const region = regionsByCode$.value.get(code);
+        const popupKey = `${code}:${region?.statusEventAt ?? ""}`;
+        activeRegionPopupKey = popupKey;
+        placePopup?.remove();
+        placePopup = null;
+        activePlacePopupId = null;
         map.getCanvas().style.cursor = "pointer";
-        const code = event.features?.[0]?.properties?.regionCode;
-        if (typeof code !== "string" || !code) return;
+
         regionPopup?.remove();
         regionPopup = new ml.Popup({
           closeButton: false,
@@ -751,15 +753,34 @@ export function useGeoMapLifecycle(containerRef: RefObject<HTMLDivElement | null
           className: "geo-map-region-popup",
           offset: 12,
         })
-          .setLngLat(event.lngLat)
+          .setLngLat(lngLat)
           .setHTML(buildRegionPopupHtml(code))
           .addTo(map);
+
+        void runtime.popups.resolveRegionSource(code, region?.statusEventAt).then((sourceMessage) => {
+          if (!map || !regionPopup || activeRegionPopupKey !== popupKey) return;
+          regionPopup.setHTML(buildRegionPopupHtml(code, sourceMessage));
+        });
+      };
+
+      const onRegionHover = (event: MapLayerMouseEvent): void => {
+        if (!map) return;
+        if (hasChildEntityAtPointer(map, event.point)) {
+          regionPopup?.remove();
+          regionPopup = null;
+          activeRegionPopupKey = null;
+          return;
+        }
+        const code = event.features?.[0]?.properties?.regionCode;
+        if (typeof code !== "string" || !code) return;
+        showRegionPopup(event.lngLat, code);
       };
 
       /** Уход курсора с региона — скрываем region popup. */
       const onRegionHoverEnd = (): void => {
         if (!map) return;
         map.getCanvas().style.cursor = "";
+        activeRegionPopupKey = null;
         regionPopup?.remove();
         regionPopup = null;
       };

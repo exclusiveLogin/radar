@@ -430,18 +430,40 @@ export class MapQueryService {
     }));
   }
 
-  /** Последнее raw-сообщение, привязанное к региону (по ISO-коду). */
-  async getRegionSourceMessage(regionCode: string): Promise<SourceMessage | null> {
+  /** Raw-сообщение winner-статуса региона; при statusEventAt — точный матч по occurred_at. */
+  async getRegionSourceMessage(
+    regionCode: string,
+    options?: { statusEventAt?: string },
+  ): Promise<SourceMessage | null> {
+    const atStatus = options?.statusEventAt?.trim() || null;
+    const primary = await this.queryRegionSourceMessage(regionCode, atStatus);
+    if (primary || !atStatus) return primary;
+    return this.queryRegionSourceMessage(regionCode, null);
+  }
+
+  /** Region-level EL (не place): последний или на маркер statusEventAt. */
+  private async queryRegionSourceMessage(
+    regionCode: string,
+    statusEventAt: string | null,
+  ): Promise<SourceMessage | null> {
     const rows = (await this.dataSource.query(
       `WITH hit AS (
-         SELECT rm.id AS raw_id, pe.id AS parsed_id, rm.raw_text, rm.posted_at, c.key AS channel_key
+         SELECT rm.id AS raw_id,
+                pe.id AS parsed_id,
+                rm.raw_text,
+                rm.posted_at,
+                c.key AS channel_key,
+                COALESCE(el.occurred_at, rm.posted_at) AS event_at
          FROM raw_messages rm
          INNER JOIN channels c ON c.id = rm.channel_id
          INNER JOIN parsed_events pe ON pe.raw_message_id = rm.id AND pe.is_active = true
          INNER JOIN event_locations el ON el.parsed_event_id = pe.id
-         INNER JOIN regions r ON r.id = el.region_id
-         WHERE r.iso = $1 AND r.is_active = true
-         ORDER BY rm.posted_at DESC
+         INNER JOIN regions r ON r.id = el.region_id AND r.is_active = true
+         WHERE r.iso = $1
+           AND COALESCE(el.entity_kind, 'region') <> 'place'
+           AND ($2::timestamptz IS NULL
+                OR COALESCE(el.occurred_at, rm.posted_at) = $2::timestamptz)
+         ORDER BY COALESCE(el.occurred_at, rm.posted_at) DESC
          LIMIT 1
        )
        SELECT hit.raw_text,
@@ -455,7 +477,7 @@ export class MapQueryService {
        INNER JOIN event_locations el2 ON el2.parsed_event_id = hit.parsed_id
        INNER JOIN regions r2 ON r2.id = el2.region_id AND r2.is_active = true
        GROUP BY hit.raw_text, hit.posted_at, hit.channel_key`,
-      [regionCode],
+      [regionCode, statusEventAt],
     )) as Array<{
       raw_text: string;
       posted_at: Date;

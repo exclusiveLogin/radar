@@ -154,11 +154,16 @@ export const mapApi = {
     getJson(`/api/map/events/recent?limit=${limit}`, stateChangeEventsResponseSchema),
   regionSourceMessage: (
     regionCode: string,
-  ): Promise<{ message: SourceMessage | null }> =>
-    getJson(
-      `/api/map/regions/by-code/${encodeURIComponent(regionCode)}/source-message`,
+    query?: { statusEventAt?: string },
+  ): Promise<{ message: SourceMessage | null }> => {
+    const params = new URLSearchParams();
+    if (query?.statusEventAt) params.set("statusEventAt", query.statusEventAt);
+    const qs = params.toString();
+    return getJson(
+      `/api/map/regions/by-code/${encodeURIComponent(regionCode)}/source-message${qs ? `?${qs}` : ""}`,
       sourceMessageResponse,
-    ),
+    );
+  },
   placeSourceMessage: (
     placeId: string,
   ): Promise<{ message: SourceMessage | null }> =>
