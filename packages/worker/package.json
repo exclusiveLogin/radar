@@ -61,6 +61,10 @@
     "parse-engine:manifest:export": "tsx src/cli/phaseManifestCli.ts export",
     "worker:map-state:diagnose": "tsx src/cli/mapStateDiagnoseCli.ts",
     "map:fold:status": "tsx src/cli/mapStateFoldDiffCli.ts",
+    "tracking:status": "tsx src/cli/trackingCli.ts status",
+    "tracking:rebuild": "tsx src/cli/trackingCli.ts rebuild",
+    "tracking:reset": "tsx src/cli/trackingCli.ts reset",
+    "tracking:enable": "tsx src/cli/trackingCli.ts enable",
     "verify:parse-threads": "tsx scripts/verify-parse-threads.mjs",
     "verify:bootstrap": "tsx scripts/verify-worker-bootstrap.mjs"
   },

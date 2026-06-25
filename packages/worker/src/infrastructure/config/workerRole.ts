@@ -2,9 +2,9 @@
  * SSOT роли worker-процесса (монолит или docker split).
  * `all` — поведение по умолчанию (один процесс на хосте).
  */
-export type WorkerRole = "all" | "ingest" | "backfill" | "phase";
+export type WorkerRole = "all" | "ingest" | "backfill" | "phase" | "tracking";
 
-const VALID_ROLES = new Set<WorkerRole>(["all", "ingest", "backfill", "phase"]);
+const VALID_ROLES = new Set<WorkerRole>(["all", "ingest", "backfill", "phase", "tracking"]);
 
 /** Читает RADAR_WORKER_ROLE из env; невалидное значение → `all`. */
 export function resolveWorkerRoleFromEnv(env: NodeJS.ProcessEnv = process.env): WorkerRole {
@@ -25,6 +25,10 @@ export function roleRunsBackfill(role: WorkerRole): boolean {
 
 export function roleRunsPhaseDaemons(role: WorkerRole): boolean {
   return role === "all" || role === "phase";
+}
+
+export function roleRunsTrackingDaemon(role: WorkerRole): boolean {
+  return role === "all" || role === "tracking";
 }
 
 /** OutboxRelay нужен phase-worker (cross-process) и монолиту (события API). */

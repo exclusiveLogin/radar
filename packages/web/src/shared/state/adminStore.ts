@@ -9,6 +9,7 @@ import type {
   PhaseRun,
   PhaseRunsOverview,
   StatsOverview,
+  TrackingStatusResponse,
 } from "@radar/shared";
 import {
   computeBackfillPercentApprox,
@@ -37,6 +38,8 @@ export const selectedChannelStats$ = new BehaviorSubject<ChannelStats | null>(nu
 export const phasesOverview$ = new BehaviorSubject<PhaseRunsOverview | null>(null);
 /** Последние запуски фаз (realtime через WS phases-update). */
 export const phaseRuns$ = new BehaviorSubject<PhaseRun[]>([]);
+/** Статус пайплайна треков (WS tracking-status). */
+export const trackingStatus$ = new BehaviorSubject<TrackingStatusResponse | null>(null);
 
 const CHANNELS_POLL_MS = 30_000;
 const STATS_POLL_MS = 30_000;
@@ -59,6 +62,7 @@ export function startAdminStore(): void {
   startIntervalPoll(STATS_POLL_MS, refreshStats);
   startIntervalPoll(TELEMETRY_POLL_MS, refreshTelemetry);
   startIntervalPoll(BACKFILL_POLL_MS, refreshBackfill);
+  void refreshTrackingStatus();
 
   selectedChannelKey$.subscribe((key) => void refreshChannelStats(key));
 
@@ -71,6 +75,8 @@ export function startAdminStore(): void {
       upsertBackfillJob(message.payload);
     } else if (message.type === "phases-update") {
       applyPhasesUpdate(message.payload);
+    } else if (message.type === "tracking-status") {
+      trackingStatus$.next(message.payload);
     }
   });
 }
@@ -211,4 +217,12 @@ function upsertBackfillJob(job: BackfillJobListItem): void {
 function applyPhasesUpdate(payload: PhasesUpdatePayload): void {
   phasesOverview$.next(payload.overview);
   phaseRuns$.next(payload.runs);
+}
+
+export async function refreshTrackingStatus(): Promise<void> {
+  try {
+    trackingStatus$.next(await adminApi.trackingGetStatus());
+  } catch (error) {
+    reportAppError("Треки", error);
+  }
 }

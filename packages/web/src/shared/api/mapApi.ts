@@ -11,6 +11,10 @@ import {
   statusDictionarySchema,
   warningSchema,
   eventHeatmapResponseSchema,
+  tracksListQuerySchema,
+  tracksListResponseSchema,
+  tracksFlowQuerySchema,
+  tracksFlowResponseSchema,
 } from "@radar/shared";
 import type {
   MapPlacesStateResponse,
@@ -24,6 +28,8 @@ import type {
   EventHeatmapFilterType,
   EventHeatmapPeriod,
   EventHeatmapResponse,
+  TracksListResponse,
+  TracksFlowResponse,
 } from "@radar/shared";
 import { z } from "zod";
 
@@ -204,6 +210,40 @@ export const mapApi = {
     if (params.limit !== undefined) qs.set("limit", String(params.limit));
     if (params.eventTypes?.length) qs.set("eventTypes", params.eventTypes.join(","));
     return getJson(`/api/map/events/heatmap?${qs}`, eventHeatmapResponseSchema);
+  },
+
+  tracksList: (params?: {
+    asOf?: string;
+    since?: string;
+    threatProfile?: string;
+    limit?: number;
+    includeNodes?: boolean;
+  }): Promise<TracksListResponse> => {
+    const qs = new URLSearchParams();
+    if (params?.asOf) qs.set("asOf", params.asOf);
+    if (params?.since) qs.set("since", params.since);
+    if (params?.threatProfile) qs.set("threatProfile", params.threatProfile);
+    if (params?.limit !== undefined) qs.set("limit", String(params.limit));
+    if (params?.includeNodes) qs.set("includeNodes", "true");
+    const query = qs.toString();
+    return getJson(`/api/map/tracks${query ? `?${query}` : ""}`, tracksListResponseSchema);
+  },
+
+  tracksFlow: (params?: {
+    asOf?: string;
+    since?: string;
+    threatProfile?: string;
+    minCount?: number;
+    limit?: number;
+  }): Promise<TracksFlowResponse> => {
+    const qs = new URLSearchParams();
+    if (params?.asOf) qs.set("asOf", params.asOf);
+    if (params?.since) qs.set("since", params.since);
+    if (params?.threatProfile) qs.set("threatProfile", params.threatProfile);
+    if (params?.minCount !== undefined) qs.set("minCount", String(params.minCount));
+    if (params?.limit !== undefined) qs.set("limit", String(params.limit));
+    const query = qs.toString();
+    return getJson(`/api/map/tracks/flow${query ? `?${query}` : ""}`, tracksFlowResponseSchema);
   },
 };
 

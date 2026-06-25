@@ -6,6 +6,7 @@ import { AdminModule } from "./admin/admin.module";
 import { HealthModule } from "./health/health.module";
 import { IngestAdminModule } from "./ingest-admin/ingest-admin.module";
 import { PhasesAdminModule } from "./phases-admin/phases-admin.module";
+import { TrackingAdminModule } from "./tracking-admin/tracking-admin.module";
 import { MapModule } from "./map/map.module";
 import { ReadSideModule } from "./read-side/read-side.module";
 import { WorkerModule } from "./worker/worker.module";
@@ -34,6 +35,7 @@ import { WorkerModule } from "./worker/worker.module";
     IngestAdminModule,
     MapModule,
     PhasesAdminModule,
+    TrackingAdminModule,
     ReadSideModule,
     WorkerModule,
   ],

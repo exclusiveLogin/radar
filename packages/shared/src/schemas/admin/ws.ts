@@ -13,12 +13,14 @@ import { backfillJobListItemSchema } from "./backfill";
 import { parseAttemptItemSchema } from "./parse-attempt";
 import { phaseRunsOverviewSchema } from "../enrichment/phase-admin";
 import { phaseRunSchema } from "../enrichment/phase-run";
+import { trackingStatusResponseSchema } from "./tracking";
 
 export const adminWsChannelSchema = z.enum([
   "worker-status",
   "parse-log",
   "backfill-progress",
   "phases-update",
+  "tracking-status",
 ]);
 
 /** Сообщение клиента: подписка/отписка на набор каналов админки. */
@@ -40,6 +42,7 @@ export const adminWsServerMessageSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("parse-log"), payload: parseAttemptItemSchema }),
   z.object({ type: z.literal("backfill-progress"), payload: backfillJobListItemSchema }),
   z.object({ type: z.literal("phases-update"), payload: phasesUpdatePayloadSchema }),
+  z.object({ type: z.literal("tracking-status"), payload: trackingStatusResponseSchema }),
 ]);
 
 export type AdminWsChannel = z.infer<typeof adminWsChannelSchema>;

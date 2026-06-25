@@ -215,12 +215,12 @@ export type ProfileKinematics = {
 export const PROFILE_KINEMATICS: Record<ThreatProfile, ProfileKinematics>;
 ```
 
-| Profile | maxVelocityMs | maxLinkDistanceM | maxGapMs | staleAfterMs |
-|---------|---------------|------------------|----------|--------------|
-| uav | 80 | 15_000 | 30 min | 2h |
-| rocket | 600 | 100_000 | 10 min | 1h |
-| balloon | 15 | 5_000 | 60 min | 4h |
-| unknown | 80 | 15_000 | 30 min | 2h |
+| Profile | maxVelocityMs | maxLinkDistanceM | maxGapMs | staleAfterMs | ref |
+|---------|---------------|------------------|----------|--------------|-----|
+| uav | 70 | 100_000 | 60 min | 4h | FP-1 / Лютый |
+| rocket | 290 | 250_000 | 15 min | 1.5h | FP-5 / Storm Shadow |
+| balloon | 15 | 5_000 | 60 min | 4h | МВШ |
+| unknown | 70 | 100_000 | 60 min | 4h | = uav |
 
 ### 4.3 `resolveNodeMode.ts` (ADR-008)
 

@@ -18,8 +18,12 @@ import {
   phaseRunsOverviewSchema,
   type PhaseRunsOverview,
   phaseRunSchema,
+  trackingStatusResponseSchema,
+  trackingRebuildRunSchema,
+  trackingPipelineConfigSchema,
+  type TrackingPipelineConfig,
 } from "@radar/shared";
-import type { PhaseDefinition, PhaseRun } from "@radar/shared";
+import type { PhaseDefinition, PhaseRun, TrackingStatusResponse, TrackingRebuildRun } from "@radar/shared";
 import { z } from "zod";
 
 const channelsSchema = z.array(channelAdminItemSchema);
@@ -27,6 +31,7 @@ const backfillJobsSchema = z.array(backfillJobListItemSchema);
 const parseAttemptsSchema = z.array(parseAttemptItemSchema);
 const phasesSchema = z.array(phaseDefinitionSchema);
 const phaseRunsSchema = z.array(phaseRunSchema);
+const trackingRunsSchema = z.array(trackingRebuildRunSchema);
 
 async function getJson<T>(url: string, schema: { parse: (data: unknown) => T }): Promise<T> {
   const response = await fetch(url);
@@ -191,4 +196,31 @@ export const adminApi = {
         processingReleased: z.number().int().nonnegative(),
       }),
     ),
+
+  trackingGetStatus: (): Promise<TrackingStatusResponse> =>
+    getJson("/api/admin/tracking/status", trackingStatusResponseSchema),
+
+  trackingGetRuns: (limit = 20): Promise<TrackingRebuildRun[]> =>
+    getJson(`/api/admin/tracking/runs?limit=${limit}`, trackingRunsSchema),
+
+  trackingPatchEnabled: (enabled: boolean): Promise<{ ok: true; enabled: boolean }> =>
+    sendJson("PATCH", "/api/admin/tracking/enabled", { enabled }, z.object({ ok: z.literal(true), enabled: z.boolean() })),
+
+  trackingPatchConfig: (patch: Partial<TrackingPipelineConfig>): Promise<TrackingPipelineConfig> =>
+    sendJson("PATCH", "/api/admin/tracking/config", patch, trackingPipelineConfigSchema),
+
+  trackingRebuild: (): Promise<{ ok: true; runId: string }> =>
+    postJson("/api/admin/tracking/rebuild", undefined, z.object({ ok: z.literal(true), runId: z.string().uuid() })),
+
+  trackingReset: (): Promise<{ ok: true }> =>
+    postJson("/api/admin/tracking/reset", undefined, z.object({ ok: z.literal(true) })),
+
+  trackingPause: (): Promise<{ ok: true }> =>
+    postJson("/api/admin/tracking/pause", undefined, z.object({ ok: z.literal(true) })),
+
+  trackingResume: (): Promise<{ ok: true }> =>
+    postJson("/api/admin/tracking/resume", undefined, z.object({ ok: z.literal(true) })),
+
+  trackingCancel: (): Promise<{ ok: true }> =>
+    postJson("/api/admin/tracking/cancel", undefined, z.object({ ok: z.literal(true) })),
 };

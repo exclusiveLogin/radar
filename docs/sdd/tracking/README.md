@@ -10,6 +10,7 @@
 | Фаза | SDD | Критерий входа | Коммиты (ориентир) |
 |------|-----|----------------|---------------------|
 | **1** | [phase-1-l1-mvp.md](./phase-1-l1-mvp.md) | facts в БД | 3–4 |
+| **1b** | [phase-1-round2-incremental-admin.md](./phase-1-round2-incremental-admin.md) | миграция trajectory_* | Round 2 |
 | **2** | [phase-2-ellipse-prediction.md](./phase-2-ellipse-prediction.md) | фаза 1 stable | 2 |
 | **2b** | [phase-2b-flow-corridors.md](./phase-2b-flow-corridors.md) | фаза 1 + place_id | 2–3 |
 | **2c** | [phase-2c-path-fan.md](./phase-2c-path-fan.md) | фаза 2b или 1+index | 2 |

@@ -22,3 +22,8 @@ export type {
   ThreatVisual,
   ThreatVisualKey,
 } from "./visual/threat-visual";
+
+export {
+  PROFILE_KINEMATICS,
+  resolveProfileKinematics,
+} from "./domain/tracking/profileKinematics";

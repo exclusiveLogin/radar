@@ -101,6 +101,13 @@ map — read-side fold
   fold            fold snapshot status
   diagnose        map state debug
 `,
+  tracking: `
+tracking — L1 треки (ST-DBSCAN + Kalman)
+  status          watermark, counts, enabled
+  rebuild         full rebuild [--since=ISO] [--until=ISO] [--dry-run]
+  reset           truncate trajectory_* + watermark
+  enable          --on | --off daemon flag
+`,
   data: `
 data — миграции и полный сброс
   migrate         migration:run
@@ -122,9 +129,9 @@ function printHelp(topic) {
 radar — операции Radar (корень репо)
 
   npm run radar -- <domain> <action> [-- флаги...]
-  npm run radar -- help [stack|pipeline|ingest|parse|geo|phase|system|map|data|dev]
+  npm run radar -- help [stack|pipeline|ingest|parse|geo|phase|system|map|tracking|data|dev]
 
-Домены: stack pipeline ingest parse geo phase system map data dev
+Домены: stack pipeline ingest parse geo phase system map tracking data dev
 
 Примеры:
   npm run radar -- stack dev --full
@@ -245,6 +252,12 @@ const ACTIONS = {
   map: {
     fold: (p) => npmW('@radar/worker', 'map:fold:status', p),
     diagnose: (p) => npmW('@radar/worker', 'worker:map-state:diagnose', p),
+  },
+  tracking: {
+    status: (p) => npmW('@radar/worker', 'tracking:status', p),
+    rebuild: (p) => npmW('@radar/worker', 'tracking:rebuild', p),
+    reset: (p) => npmW('@radar/worker', 'tracking:reset', p),
+    enable: (p) => npmW('@radar/worker', 'tracking:enable', p),
   },
   data: {
     migrate: () => npm('migration:run'),

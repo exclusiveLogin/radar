@@ -16,6 +16,7 @@ import { WebSocket } from "ws";
 import type { RawData, Server } from "ws";
 import { WorkerStatusService } from "../worker/worker-status.service";
 import { PhasesAdminService } from "../phases-admin/phases-admin.service";
+import { TrackingAdminService } from "../tracking-admin/tracking-admin.service";
 import { listParseAttemptsSince } from "../read-side/parse-attempt-admin.query";
 import {
   listActiveBackfillJobs,
@@ -28,12 +29,14 @@ const ALL_CHANNELS: AdminWsChannel[] = [
   "parse-log",
   "backfill-progress",
   "phases-update",
+  "tracking-status",
 ];
 
 const WORKER_STATUS_POLL_MS = 5000;
 const PARSE_LOG_POLL_MS = 2000;
 const BACKFILL_POLL_MS = 2000;
 const PHASES_POLL_MS = 3000;
+const TRACKING_POLL_MS = 3000;
 
 /** Канал, к которому относится серверное сообщение админ-WS. */
 function channelOf(message: AdminWsServerMessage): AdminWsChannel {
@@ -64,6 +67,7 @@ export class AdminGateway
     @InjectDataSource() private readonly dataSource: DataSource,
     private readonly workerStatus: WorkerStatusService,
     private readonly phasesAdmin: PhasesAdminService,
+    private readonly trackingAdmin: TrackingAdminService,
   ) {}
 
   onModuleInit(): void {
@@ -73,6 +77,7 @@ export class AdminGateway
       setInterval(() => void this.pollParseLog(), PARSE_LOG_POLL_MS),
       setInterval(() => void this.pollBackfill(), BACKFILL_POLL_MS),
       setInterval(() => void this.pollPhasesUpdate(), PHASES_POLL_MS),
+      setInterval(() => void this.pollTrackingStatus(), TRACKING_POLL_MS),
     );
   }
 
@@ -184,6 +189,15 @@ export class AdminGateway
       this.broadcast({ type: "phases-update", payload: { overview, runs } });
     } catch {
       // Пропускаем тик — сервис недоступен.
+    }
+  }
+
+  private async pollTrackingStatus(): Promise<void> {
+    try {
+      const payload = await this.trackingAdmin.getStatus();
+      this.broadcast({ type: "tracking-status", payload });
+    } catch {
+      // Пропускаем тик.
     }
   }
 

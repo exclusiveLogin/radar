@@ -9,6 +9,7 @@ import { MapFoldRealtimePoller } from "./map-fold-realtime.poller";
 import { MapFactsRepository } from "./map-facts.repository";
 import { MapSnapshotQueryService } from "./map-snapshot-query.service";
 import { MapRealtimeBroadcastService } from "./map-realtime-broadcast.service";
+import { MapTracksService } from "./map-tracks.service";
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { MapRealtimeBroadcastService } from "./map-realtime-broadcast.service";
     MapFoldRealtimePoller,
     MapQueryService,
     MapRealtimeBroadcastService,
+    MapTracksService,
     MapGateway,
   ],
   controllers: [MapController],

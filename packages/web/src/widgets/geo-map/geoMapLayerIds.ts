@@ -25,7 +25,23 @@ export const REGIONS_THREAT_HALO = "regions-threat-halo";
 export const VICINITY_SCOPES_FILL = "vicinity-scopes-fill";
 export const VICINITY_SCOPES_OUTLINE = "vicinity-scopes-outline";
 
-/** Z-order (снизу вверх): region → district → heatmap → vicinity → place. */
+// ── Tracking layers ──────────────────────────────────────────────────────────
+
+/** GeoJSON source: L1 треки (LineString + origin Point). */
+export const TRACKS_SOURCE = "tracks";
+/** GeoJSON source: L2 flow-коридоры (LineString с весом). */
+export const TRACKS_FLOW_SOURCE = "tracks-flow";
+
+/** Слой линий треков. */
+export const TRACKS_LINES_LAYER = "tracks-lines";
+/** Слой маркеров начала трека (origin). */
+export const TRACKS_ORIGIN_LAYER = "tracks-origin";
+/** Слой линий flow-коридоров (толщина ∝ weight). */
+export const TRACKS_FLOW_LAYER = "tracks-flow-lines";
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Z-order (снизу вверх): region → district → heatmap → tracks → vicinity → place. */
 export const GEO_ENTITY_LAYER_ORDER = [
   REGIONS_FILL,
   REGIONS_OUTLINE,
@@ -34,6 +50,9 @@ export const GEO_ENTITY_LAYER_ORDER = [
   DISTRICTS_OUTLINE,
   EVENTS_HEATMAP_LAYER,
   EVENTS_HEATMAP_POINTS_LAYER,
+  TRACKS_FLOW_LAYER,
+  TRACKS_LINES_LAYER,
+  TRACKS_ORIGIN_LAYER,
   VICINITY_SCOPES_FILL,
   VICINITY_SCOPES_OUTLINE,
   REGIONS_THREAT_HALO,
@@ -51,6 +70,8 @@ export const GEO_OVERLAY_LAYERS: Record<
   districts: [DISTRICTS_FILL, DISTRICTS_OUTLINE],
   places: [PLACES_LAYER],
   heatmap: [EVENTS_HEATMAP_LAYER, EVENTS_HEATMAP_POINTS_LAYER],
+  tracks: [TRACKS_LINES_LAYER, TRACKS_ORIGIN_LAYER],
+  tracksFlow: [TRACKS_FLOW_LAYER],
 };
 
 /** promoteId — MapLibre использует regionCode как id для setFeatureState. */
@@ -75,6 +96,8 @@ export const USER_SOURCE_IDS = [
   PLACES_SOURCE,
   REGIONS_THREAT_SOURCE,
   VICINITY_SCOPES_SOURCE,
+  TRACKS_SOURCE,
+  TRACKS_FLOW_SOURCE,
 ] as const;
 
 /** Наши слои оверлея — сохраняются поверх тайловой подложки. */
@@ -91,4 +114,7 @@ export const USER_LAYER_IDS = new Set([
   REGIONS_THREAT_HALO,
   REGIONS_THREAT_LAYER,
   PLACES_LAYER,
+  TRACKS_LINES_LAYER,
+  TRACKS_ORIGIN_LAYER,
+  TRACKS_FLOW_LAYER,
 ]);

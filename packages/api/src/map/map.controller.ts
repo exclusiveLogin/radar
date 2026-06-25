@@ -12,6 +12,10 @@ import {
   eventHeatmapPeriodSchema,
   eventHeatmapResponseSchema,
   eventTypeSchema,
+  tracksListQuerySchema,
+  tracksListResponseSchema,
+  tracksFlowQuerySchema,
+  tracksFlowResponseSchema,
   type EventType,
 } from "@radar/shared";
 import { z } from "zod";
@@ -22,6 +26,7 @@ import {
 } from "./map.dto";
 import { MapQueryService } from "./map-query.service";
 import { MapRealtimeBroadcastService } from "./map-realtime-broadcast.service";
+import { MapTracksService } from "./map-tracks.service";
 
 function parseLimit(value: string | undefined, fallback: number): number {
   const parsed = Number(value ?? fallback);
@@ -54,6 +59,7 @@ export class MapController {
   constructor(
     private readonly map: MapQueryService,
     private readonly mapRealtime: MapRealtimeBroadcastService,
+    private readonly mapTracks: MapTracksService,
   ) {}
 
   /** После operational reset в worker — разослать актуальный snapshot открытым клиентам. */
@@ -393,5 +399,38 @@ export class MapController {
         eventTypes: parseHeatmapEventTypes(eventTypesRaw),
       }),
     );
+  }
+
+  // ── Tracking endpoints ────────────────────────────────────────────────────
+
+  /** GET /map/tracks — список L1 треков с опциональными нодами. */
+  @Get("map/tracks")
+  @ApiOperation({ summary: "L1 треки за период с фильтром по профилю угрозы и asOf" })
+  @ApiQuery({ name: "asOf", required: false, description: "ISO8601 cursor (Time Machine)" })
+  @ApiQuery({ name: "since", required: false })
+  @ApiQuery({ name: "until", required: false })
+  @ApiQuery({ name: "status", required: false, enum: ["active", "closed", "stale"] })
+  @ApiQuery({ name: "threatProfile", required: false, enum: ["uav", "rocket", "balloon", "unknown"] })
+  @ApiQuery({ name: "limit", required: false })
+  @ApiQuery({ name: "includeNodes", required: false })
+  @ApiResponse({ status: 200, description: "TracksListResponse" })
+  async getTracks(@Query() rawQuery: Record<string, string>) {
+    const query = tracksListQuerySchema.parse(rawQuery);
+    return tracksListResponseSchema.parse(await this.mapTracks.listTracks(query));
+  }
+
+  /** GET /map/tracks/flow — L2 flow-коридоры (GeoJSON FeatureCollection). */
+  @Get("map/tracks/flow")
+  @ApiOperation({ summary: "L2 P2P segment rollup (flow corridors), толщина ∝ weight" })
+  @ApiQuery({ name: "asOf", required: false })
+  @ApiQuery({ name: "since", required: false })
+  @ApiQuery({ name: "until", required: false })
+  @ApiQuery({ name: "threatProfile", required: false, enum: ["uav", "rocket", "balloon", "unknown"] })
+  @ApiQuery({ name: "minCount", required: false, description: "Мин. число треков через сегмент (default 2)" })
+  @ApiQuery({ name: "splitByProfile", required: false })
+  @ApiResponse({ status: 200, description: "GeoJSON FeatureCollection flow corridors" })
+  async getTracksFlow(@Query() rawQuery: Record<string, string>) {
+    const query = tracksFlowQuerySchema.parse(rawQuery);
+    return tracksFlowResponseSchema.parse(await this.mapTracks.getTracksFlow(query));
   }
 }

@@ -14,6 +14,15 @@ export {
   adminWsServerMessageSchema,
   phasesUpdatePayloadSchema,
 } from "./ws";
+export {
+  trackingRebuildStageSchema,
+  trackingWatermarkSchema,
+  trackingRebuildStatsSchema,
+  trackingRebuildRunSchema,
+  trackingPipelineConfigSchema,
+  trackingPipelineMetricsSchema,
+  trackingStatusResponseSchema,
+} from "./tracking";
 
 // --- type-only exports ---
 export type {
@@ -31,3 +40,11 @@ export type {
   AdminWsServerMessage,
   PhasesUpdatePayload,
 } from "./ws";
+export type {
+  TrackingRebuildStage,
+  TrackingWatermark,
+  TrackingRebuildStats,
+  TrackingRebuildRun,
+  TrackingPipelineConfig,
+  TrackingStatusResponse,
+} from "./tracking";

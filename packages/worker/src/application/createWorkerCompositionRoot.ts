@@ -69,6 +69,10 @@ import {
   isBackfillDaemonEnabled,
 } from "./ingest/backfillDaemonService.js";
 import {
+  TrackingRebuildDaemon,
+  isTrackingDaemonEnabled,
+} from "./tracking/trackingRebuildDaemon.js";
+import {
   WorkerStorageMode,
   resolveWorkerStorageModeFromEnv,
 } from "../infrastructure/persistence/storageMode.js";
@@ -92,6 +96,7 @@ import {
   roleRunsLiveIngest,
   roleRunsOutboxRelay,
   roleRunsPhaseDaemons,
+  roleRunsTrackingDaemon,
   roleSubscribesPhaseIngestOnBus,
   type WorkerRole,
 } from "../infrastructure/config/workerRole.js";
@@ -140,6 +145,7 @@ export async function createWorkerCompositionRoot(
   let outboxRelay: { start: () => void; stop: () => void } | undefined;
   let ingestOrchestrator: IngestOrchestrator | undefined;
   let backfillDaemon: BackfillDaemonService | undefined;
+  let trackingRebuildDaemon: TrackingRebuildDaemon | undefined;
   let ingestParseDaemon: IngestParseDaemonService | undefined;
   let placeEnrichmentDaemon: PlaceEnrichmentDaemonService | undefined;
   let phaseManualRunPoller: PhaseManualRunPoller | undefined;
@@ -206,6 +212,7 @@ export async function createWorkerCompositionRoot(
       ingestParseDaemon?.stop();
       placeEnrichmentDaemon?.stop();
       await backfillDaemon?.stop();
+      await trackingRebuildDaemon?.stop();
       await parseWorkerPool?.shutdown();
       await ingestOrchestrator?.stop();
       if (dataSource?.isInitialized) {
@@ -398,6 +405,10 @@ export async function createWorkerCompositionRoot(
       );
     }
 
+    if (roleRunsTrackingDaemon(workerRole) && dataSource && isTrackingDaemonEnabled()) {
+      trackingRebuildDaemon = new TrackingRebuildDaemon(dataSource);
+    }
+
   }
 
   return {
@@ -414,6 +425,7 @@ export async function createWorkerCompositionRoot(
     parseRawMessageHandler,
     ingestOrchestrator,
     backfillDaemon,
+    trackingRebuildDaemon,
     ingestParseDaemon,
     placeEnrichmentDaemon,
     placeEnrichmentRunner,

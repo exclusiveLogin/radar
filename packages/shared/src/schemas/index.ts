@@ -179,6 +179,13 @@ export {
   adminWsClientMessageSchema,
   adminWsServerMessageSchema,
   phasesUpdatePayloadSchema,
+  trackingRebuildStageSchema,
+  trackingWatermarkSchema,
+  trackingRebuildStatsSchema,
+  trackingRebuildRunSchema,
+  trackingPipelineConfigSchema,
+  trackingPipelineMetricsSchema,
+  trackingStatusResponseSchema,
 } from "./admin";
 
 // --- type-only exports ---
@@ -346,6 +353,12 @@ export type {
   AdminWsClientMessage,
   AdminWsServerMessage,
   PhasesUpdatePayload,
+  TrackingRebuildStage,
+  TrackingWatermark,
+  TrackingRebuildStats,
+  TrackingRebuildRun,
+  TrackingPipelineConfig,
+  TrackingStatusResponse,
 } from "./admin";
 
 export {
@@ -362,6 +375,35 @@ export type {
   EventHeatmapMeta,
   EventHeatmapResponse,
 } from "./map/event-heatmap";
+
+export {
+  nodeModeSchema,
+  trackStatusSchema,
+  threatProfileSchema,
+  sourceRefSchema,
+  trajectoryNodeSchema,
+  trajectoryTrackSchema,
+  tracksListQuerySchema,
+  tracksListResponseSchema,
+} from "./map/tracks";
+export type {
+  NodeMode,
+  TrackStatus,
+  ThreatProfile,
+  TrajectoryNode,
+  TrajectoryTrack,
+  TracksListQuery,
+  TracksListResponse,
+} from "./map/tracks";
+
+export {
+  tracksFlowQuerySchema,
+  tracksFlowResponseSchema,
+} from "./map/tracks-flow";
+export type {
+  TracksFlowQuery,
+  TracksFlowResponse,
+} from "./map/tracks-flow";
 
 export {
   geoBasemapManifestSchema,

@@ -3,6 +3,7 @@ import { LiveBadge, LiveClock, ThemeToggle } from "../shared/ds";
 import { startMapStore } from "../shared/state/mapStore";
 import "../shared/state/timelineStore";
 import { startMapStateEffects } from "../shared/state/mapStateEffects";
+import { startTrackStoreEffects } from "../shared/state/trackStoreEffects";
 import { startMessagesStore } from "../shared/state/messagesStore";
 import { startStateChangesFeedStore } from "../shared/state/stateChangesFeedStore";
 import { startProvidersStore } from "../shared/state/providersStore";
@@ -41,6 +42,7 @@ export function AppShell() {
   useEffect(() => {
     startMapStore();
     startMapStateEffects();
+    startTrackStoreEffects();
     startProvidersStore();
     startMessagesStore();
     startStateChangesFeedStore();

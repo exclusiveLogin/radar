@@ -4,7 +4,7 @@ PowerShell, корень репо:
 
 ```powershell
 npm run radar -- <domain> <action> [-- флаги...]
-npm run radar -- help [stack|pipeline|ingest|parse|geo|phase|map|data|dev]
+npm run radar -- help [stack|pipeline|ingest|parse|geo|phase|map|tracking|data|dev]
 ```
 
 **SSOT таблиц «radar ↔ legacy»** — только этот файл. Остальные доки ссылаются сюда, не дублируют.
@@ -20,6 +20,9 @@ npm run radar -- help [stack|pipeline|ingest|parse|geo|phase|map|data|dev]
 | Первый запуск | `npm run radar -- stack cold-up` |
 | Dev UI+API+worker | `npm run radar -- stack dev --full` |
 | Миграции после pull | `npm run radar -- stack migrate` |
+| **Треки: миграция + dev** | `stack migrate` → `stack dev --full` → Admin **Треки** → ВКЛ |
+| **Треки: статус** | `npm run radar -- tracking status` |
+| **Треки: rebuild** | `npm run radar -- tracking rebuild -- --since=2024-01-01T00:00:00Z` |
 | Импорт geo-каталога | `npm run radar -- geo catalog:import` |
 | Backfill архива | `npm run radar -- ingest backfill -- --all-bindings --batch-size=100` |
 | **Reparse / карта после ingest** | `npm run radar -- parse run` |
@@ -44,6 +47,7 @@ npm run radar -- help [stack|pipeline|ingest|parse|geo|phase|map|data|dev]
 | `phase` | wipe / reset / clear по фазам |
 | `system` | полный wipe контента БД (`system wipe`) |
 | `map` | fold status, diagnose |
+| `tracking` | L1 треки: status, rebuild, reset, enable |
 | `data` | system reset, migrate |
 | `dev` | ws-smoke, heap diff |
 
@@ -195,6 +199,23 @@ Legacy по шагам (не SSOT): `geo:regions:seed`, `geo:features:import`, `
 |-------|--------|------------|
 | `map fold` | `map:fold:status` | Диагностика fold snapshot |
 | `map diagnose` | `worker:map-state:diagnose`, `map:diagnose` | Debug map state |
+
+### tracking — L1 треки (Round 2)
+
+| radar | legacy | Назначение |
+|-------|--------|------------|
+| `tracking status` | `tracking:status` | Watermark, counts, enabled |
+| `tracking rebuild -- --since=ISO` | `tracking:rebuild` | Full rebuild за период |
+| `tracking reset` | `tracking:reset` | Truncate `trajectory_*` + watermark |
+| `tracking enable -- --on` | `tracking:enable` | ВКЛ/ВЫКЛ daemon (`--off`) |
+
+**Admin UI:** `/admin` → секция **Треки** (ВКЛ, Rebuild, Pause, настройки кинематики).
+
+**API read-side:** `GET /api/map/tracks`, `GET /api/map/tracks/flow`.
+
+**Env:** `TRACKING_DAEMON_INTERVAL_MS` (default 10000), `TRACKING_DAEMON_ENABLED` (default true), `RADAR_WORKER_ROLE=tracking` — только tracking daemon.
+
+Runbook: [runbook/tracking-pipeline.md](./runbook/tracking-pipeline.md).
 
 ### data — системный сброс
 

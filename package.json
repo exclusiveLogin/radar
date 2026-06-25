@@ -113,7 +113,11 @@
     "parse-engine:phase:stop": "npm run parse-engine:phase:stop -w @radar/worker",
     "parse-engine:manifest:import": "npm run parse-engine:manifest:import -w @radar/worker",
     "parse-engine:manifest:export": "npm run parse-engine:manifest:export -w @radar/worker",
-    "map:fold:status": "npm run map:fold:status -w @radar/worker"
+    "map:fold:status": "npm run map:fold:status -w @radar/worker",
+    "tracking:status": "npm run tracking:status -w @radar/worker",
+    "tracking:rebuild": "npm run tracking:rebuild -w @radar/worker --",
+    "tracking:reset": "npm run tracking:reset -w @radar/worker --",
+    "tracking:enable": "npm run tracking:enable -w @radar/worker --"
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",

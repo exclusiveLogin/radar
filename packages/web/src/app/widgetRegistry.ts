@@ -11,6 +11,7 @@ import { ProvidersWidget } from "../widgets/providers/ProvidersWidget";
 import { SystemStatusWidget } from "../widgets/system-status/SystemStatusWidget";
 import { MessagesFeedWidget } from "../widgets/messages-feed/MessagesFeedWidget";
 import { PvoReportsWidget } from "../widgets/pvo-reports/PvoReportsWidget";
+import { TrackCardWidget } from "../widgets/track-card/TrackCardWidget";
 
 export type WidgetZone = "background" | "left" | "right" | "overlay";
 
@@ -122,6 +123,15 @@ export const WIDGETS: WidgetDescriptor[] = [
     zone: "right",
     defaultCollapsed: true,
     panelPersistenceKey: "widget.system-status",
+  },
+  {
+    id: "track-card",
+    title: "Карточка трека",
+    component: TrackCardWidget,
+    defaultVisible: true,
+    zone: "overlay",
+    defaultCollapsed: false,
+    panelPersistenceKey: "widget.track-card",
   },
 ];
 

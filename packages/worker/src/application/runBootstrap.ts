@@ -6,6 +6,7 @@ import {
   roleRunsBackfill,
   roleRunsLiveIngest,
   roleRunsPhaseDaemons,
+  roleRunsTrackingDaemon,
 } from "../infrastructure/config/workerRole.js";
 import { isDadataConfigured } from "../infrastructure/enrichers/dadataConfig.js";
 import { loadLlmRuntimeConfig } from "../infrastructure/enrichers/llmRuntimeConfig.js";
@@ -57,6 +58,11 @@ export async function runWorkerBootstrap(): Promise<void> {
       console.log(
         "GeoParseDaemon запущен (scheduled geoParse → place_enrichment_jobs; в консоль: [geo:nominatim] ok|miss|fail, подробно: RADAR_VERBOSE_GEO_LOG=1).",
       );
+    }
+
+    if (roleRunsTrackingDaemon(workerRole) && runtime.trackingRebuildDaemon) {
+      runtime.trackingRebuildDaemon.start();
+      console.log("TrackingRebuildDaemon запущен (trajectory_tracks).");
     }
 
     workerRuntimeStatus.setRunning();

@@ -9,7 +9,7 @@ import type {
   MapLibreEvent,
   Popup,
 } from "maplibre-gl";
-import { Subject, Subscription, takeUntil } from "rxjs";
+import { Subject, Subscription, combineLatest, takeUntil } from "rxjs";
 import {
   DISTRICT_MAP_MIN_ZOOM,
   DISTRICT_MAP_STROKE_WIDTH,
@@ -48,6 +48,7 @@ import { visibleRegionCodes } from "../../shared/state/derivations";
 import { resetAllGeoMapLayerFetchStatus } from "../../shared/state/geoMapLayerFetchStore";
 import { resetGeoMapStats, setGeoMapStats } from "../../shared/state/geoMapStatsStore";
 import { selectRegion, selectedRegion$ } from "../../shared/state/selectionStore";
+import { tracksFlow$, tracksList$, tracksLoading$ } from "../../shared/state/trackStore";
 import { theme$ } from "../../shared/state/themeStore";
 import {
   DISTRICTS_FILL,
@@ -68,6 +69,11 @@ import {
   VICINITY_SCOPES_FILL,
   VICINITY_SCOPES_OUTLINE,
   VICINITY_SCOPES_SOURCE,
+  TRACKS_FLOW_LAYER,
+  TRACKS_FLOW_SOURCE,
+  TRACKS_LINES_LAYER,
+  TRACKS_ORIGIN_LAYER,
+  TRACKS_SOURCE,
 } from "./geoMapLayerIds";
 import {
   paintActiveDistricts,
@@ -108,6 +114,16 @@ import {
   preserveUserLayers,
   syncGeoOverlayLayers,
 } from "./geoMapEngine";
+import {
+  emptyTracksFeatureCollection,
+  tracksFlowToGeoJson,
+  tracksListToGeoJson,
+} from "./tracksGeoJson";
+import {
+  tracksFlowLinesPaint,
+  tracksLinesPaint,
+  tracksOriginPaint,
+} from "./tracksMapPaint";
 import type { GeoJsonCollection } from "./geoMapTypes";
 
 /** MapLibre lifecycle: init, fetch-потоки, store-подписки, cleanup. */
@@ -260,6 +276,8 @@ export function useGeoMapLifecycle(containerRef: RefObject<HTMLDivElement | null
         if (!map || disposed) return;
         syncGeoOverlayLayers(map, layers);
         if (!layers.heatmap) hideEventsHeatmap();
+        if (!layers.tracks) markGeoMapLayerPainted("tracks");
+        if (!layers.tracksFlow) markGeoMapLayerPainted("tracksFlow");
       });
     };
 
@@ -421,6 +439,39 @@ export function useGeoMapLifecycle(containerRef: RefObject<HTMLDivElement | null
       setHeatmapMeta(null);
     };
 
+    /** L1/L2 треки: GeoJSON в source + mark painted для initial fit. */
+    const applyTracksLayers = (): void => {
+      if (!map) return;
+      const layers = geoMapLayers$.value;
+
+      if (!layers.tracks) {
+        markGeoMapLayerPainted("tracks");
+      }
+      if (!layers.tracksFlow) {
+        markGeoMapLayerPainted("tracksFlow");
+      }
+      if (!layers.tracks && !layers.tracksFlow) return;
+
+      whenStyleReady(map, () => {
+        if (!map || disposed) return;
+
+        if (layers.tracks) {
+          runtime.sources.apply(TRACKS_SOURCE, tracksListToGeoJson(tracksList$.value));
+          markGeoMapLayerPainted("tracks");
+        }
+
+        if (layers.tracksFlow) {
+          runtime.sources.apply(
+            TRACKS_FLOW_SOURCE,
+            tracksFlowToGeoJson(tracksFlow$.value),
+          );
+          markGeoMapLayerPainted("tracksFlow");
+        }
+
+        syncLayerVisibility();
+      });
+    };
+
     /**
      * Добавляет источники, слои и обработчики событий на карту.
      * Вызывается при начальной загрузке и при каждой смене стиля (map.setStyle).
@@ -547,6 +598,49 @@ export function useGeoMapLifecycle(containerRef: RefObject<HTMLDivElement | null
           minzoom: EVENTS_HEATMAP_ZOOM_POINTS_MIN,
           layout: { visibility: "none" },
           paint: eventsHeatmapPointsPaint(theme$.value) as never,
+        });
+      }
+
+      // --- Треки (debug MVP: линии + origin, flow-коридоры) ---
+      if (!map.getSource(TRACKS_SOURCE)) {
+        map.addSource(TRACKS_SOURCE, {
+          type: "geojson",
+          data: emptyTracksFeatureCollection(),
+        });
+      }
+      if (!map.getLayer(TRACKS_LINES_LAYER)) {
+        map.addLayer({
+          id: TRACKS_LINES_LAYER,
+          type: "line",
+          source: TRACKS_SOURCE,
+          filter: ["==", ["get", "kind"], "track-line"],
+          layout: { visibility: "none" },
+          paint: tracksLinesPaint() as never,
+        });
+      }
+      if (!map.getLayer(TRACKS_ORIGIN_LAYER)) {
+        map.addLayer({
+          id: TRACKS_ORIGIN_LAYER,
+          type: "circle",
+          source: TRACKS_SOURCE,
+          filter: ["==", ["get", "kind"], "track-origin"],
+          layout: { visibility: "none" },
+          paint: tracksOriginPaint() as never,
+        });
+      }
+      if (!map.getSource(TRACKS_FLOW_SOURCE)) {
+        map.addSource(TRACKS_FLOW_SOURCE, {
+          type: "geojson",
+          data: emptyTracksFeatureCollection(),
+        });
+      }
+      if (!map.getLayer(TRACKS_FLOW_LAYER)) {
+        map.addLayer({
+          id: TRACKS_FLOW_LAYER,
+          type: "line",
+          source: TRACKS_FLOW_SOURCE,
+          layout: { visibility: "none" },
+          paint: tracksFlowLinesPaint() as never,
         });
       }
 
@@ -923,6 +1017,14 @@ export function useGeoMapLifecycle(containerRef: RefObject<HTMLDivElement | null
         );
 
         storeSubscriptions.add(
+          combineLatest([tracksList$, tracksFlow$, tracksLoading$])
+            .pipe(takeUntil(destroy$))
+            .subscribe(() => {
+              applyTracksLayers();
+            }),
+        );
+
+        storeSubscriptions.add(
           heatmapEventTypesFilter$.pipe(takeUntil(destroy$)).subscribe((filter) => {
             if (!map || disposed || !geoMapLayers$.value.heatmap) return;
             if (!hasActiveHeatmapEventTypesFilter(filter)) hideEventsHeatmap();
@@ -938,11 +1040,18 @@ export function useGeoMapLifecycle(containerRef: RefObject<HTMLDivElement | null
         ) {
           markGeoMapLayerPainted("heatmap");
         }
+        if (!geoMapLayers$.value.tracks) {
+          markGeoMapLayerPainted("tracks");
+        }
+        if (!geoMapLayers$.value.tracksFlow) {
+          markGeoMapLayerPainted("tracksFlow");
+        }
 
         // Догоняем paint, если fold/geo уже в store; resize после layout-pass.
         syncRegionsFromStores(true);
         syncPlacesFromStores();
         syncThreatIconsFromStores();
+        applyTracksLayers();
         requestAnimationFrame(() => {
           if (!map || disposed) return;
           map.resize();
@@ -971,6 +1080,7 @@ export function useGeoMapLifecycle(containerRef: RefObject<HTMLDivElement | null
             applyDistrictsLayer(buildDistrictsCollection());
             applyPlacesCentroids();
             applyEventsHeatmapPaint(map, theme);
+            applyTracksLayers();
             syncGeoOverlayLayers(map, geoMapLayers$.value);
             if (geoMapLayers$.value.heatmap) heatmapManualRefresh$.next();
           }, {
