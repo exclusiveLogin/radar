@@ -1,8 +1,44 @@
-import type { EventCandidate, IPlaceScanPort, ParseWorkspace } from "@radar/shared";
+import type { EventCandidate, IPlaceScanPort, ParseWorkspace, PlaceScanHit } from "@radar/shared";
 import { appendCandidate, rejectOwnCandidates } from "./parseProcessorContract.js";
 
 const AUTHOR = "geo-processor";
 const ENRICHER = "catalog";
+
+/**
+ * Co-mention disambiguation: если среди хитов есть definite anchors (geoImprecise=false),
+ * переразрешает imprecise-хиты внутри anchor-регионов.
+ * Если место не найдено ни в одном anchor-регионе — хит дропается.
+ *
+ * Пример: «Приморск — Мангуш»
+ *   Мангуш → RU-ZP (definite anchor)
+ *   Приморск → RU-KGD (imprecise, несколько кандидатов)
+ *   matchPlaces("Приморск", { regionScopeIso: "RU-ZP" }) → [] → drop
+ */
+function inferScopeFromCompanions(
+  hits: PlaceScanHit[],
+  placeScan: IPlaceScanPort,
+): PlaceScanHit[] {
+  const anchorRegions = hits
+    .filter((h) => !h.geoImprecise && h.entry.regionIso)
+    .map((h) => h.entry.regionIso);
+
+  if (anchorRegions.length === 0) return hits;
+
+  return hits.flatMap((hit) => {
+    if (!hit.geoImprecise) return [hit];
+
+    for (const regionIso of anchorRegions) {
+      const scoped = placeScan.matchPlaces(hit.span.matchedText, { regionScopeIso: regionIso });
+      if (scoped.length > 0) {
+        // Нашли в anchor-регионе → уточнённый хит без флага неопределённости
+        return [{ ...scoped[0]!, span: hit.span, geoImprecise: false }];
+      }
+    }
+
+    // Нет ни в одном anchor-регионе → дропаем неопределённый хит
+    return [];
+  });
+}
 
 /** GeoProcessor: DB-backed spawn через IPlaceScanPort (ADR-012 P6). */
 export function runGeoProcessor(input: {
@@ -24,8 +60,15 @@ export function runGeoProcessor(input: {
     : unscopedPlaceHits;
 
   detectGeoConflict(workspace, regionHits, unscopedPlaceHits);
-  const placeHits =
+  const rawPlaceHits =
     workspace.namespaces.geoConflict === true ? unscopedPlaceHits : scopedPlaceHits;
+
+  // Co-mention disambiguation: применяем только когда нет явного региона в тексте и нет конфликта,
+  // то есть именно в случаях когда оба места «свободно» матчились без контекста.
+  const placeHits =
+    !regionScopeIso && workspace.namespaces.geoConflict !== true
+      ? inferScopeFromCompanions(rawPlaceHits, placeScan)
+      : rawPlaceHits;
 
   for (const hit of regionHits) {
     appendCandidate({
