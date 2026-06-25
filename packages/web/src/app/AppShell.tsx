@@ -32,6 +32,7 @@ function widgetsByZone(zone: WidgetZone, visible: Record<string, boolean>) {
 export function AppShell() {
   const [visible, setVisible] = useState<Record<string, boolean>>(initialVisibility);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [layersPanelOpen, setLayersPanelOpen] = useState(false);
   const geoLayers = useObservable(geoMapLayers$, geoMapLayers$.value);
 
   useEffect(() => {
@@ -68,6 +69,16 @@ export function AppShell() {
         </div>
 
         <div className="shell__header-actions">
+          <button
+            type="button"
+            className={`shell__layers-toggle${layersPanelOpen ? " is-open" : ""}`}
+            onClick={() => setLayersPanelOpen((v) => !v)}
+            aria-expanded={layersPanelOpen}
+            aria-controls="map-layers-panel"
+            title="Слои карты"
+          >
+            Слои
+          </button>
           <LiveBadge />
           <ThemeToggle />
           <button
@@ -108,7 +119,9 @@ export function AppShell() {
         </div>
 
         <GeoMapOverlays />
-        <MapLayersPanel />
+        {layersPanelOpen && (
+          <MapLayersPanel onClose={() => setLayersPanelOpen(false)} />
+        )}
 
         <div className="map-top-dock">
           <CriticalThreatsBar />

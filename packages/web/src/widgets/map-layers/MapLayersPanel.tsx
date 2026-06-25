@@ -67,7 +67,7 @@ function TimelineLayerHint() {
 /**
  * Боковая панель слоёв: toggle каждого слоя + вложенная панель настроек при включении.
  */
-export function MapLayersPanel() {
+export function MapLayersPanel({ onClose }: { onClose?: () => void }) {
   const layers = useObservable(geoMapLayers$, geoMapLayers$.value);
   const fetchStatuses = useObservable(geoMapFetchStatuses$, {
     regions: GEO_MAP_LAYER_FETCH_IDLE,
@@ -76,8 +76,24 @@ export function MapLayersPanel() {
   });
 
   return (
-    <aside className="map-layers-panel" aria-label="Слои карты">
-      <header className="map-layers-panel__title">Слои</header>
+    <aside
+      id="map-layers-panel"
+      className="map-layers-panel"
+      aria-label="Слои карты"
+    >
+      <header className="map-layers-panel__head">
+        <span className="map-layers-panel__title">Слои</span>
+        {onClose ? (
+          <button
+            type="button"
+            className="map-layers-panel__close"
+            onClick={onClose}
+            aria-label="Закрыть панель слоёв"
+          >
+            ×
+          </button>
+        ) : null}
+      </header>
       <div className="map-layers-panel__list">
         {GEO_MAP_LAYER_ORDER.map((id) => {
           const enabled = layers[id];

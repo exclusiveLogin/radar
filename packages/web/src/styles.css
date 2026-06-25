@@ -71,6 +71,28 @@
   justify-content: flex-end;
 }
 
+/** Тоглер панели слоёв в хедере. */
+.shell__layers-toggle {
+  padding: 4px 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: 3px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+
+.shell__layers-toggle:hover,
+.shell__layers-toggle.is-open {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: rgba(106, 172, 202, 0.08);
+}
+
 /* ── Панель настроек видимости ── */
 .shell__settings {
   display: flex;
@@ -424,14 +446,15 @@
   word-break: break-word;
 }
 
-/* ── Панель слоёв (боковая) ── */
+/* ── Панель слоёв (dropdown из хедера, между рейлами) ── */
 .map-layers-panel {
   position: absolute;
-  right: calc(var(--rail-width) + 20px);
+  left: 50%;
   top: 12px;
+  transform: translateX(-50%);
   z-index: 30;
-  width: 200px;
-  max-height: calc(100% - 100px);
+  width: min(240px, calc(100% - 2 * var(--rail-width) - 48px));
+  max-height: min(70vh, calc(100% - 120px));
   overflow-y: auto;
   padding: 10px 12px;
   background: var(--glass-bg);
@@ -442,13 +465,35 @@
   pointer-events: auto;
 }
 
+.map-layers-panel__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
 .map-layers-panel__title {
-  margin: 0 0 8px;
+  margin: 0;
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--text-muted);
+}
+
+.map-layers-panel__close {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 2px;
+}
+
+.map-layers-panel__close:hover {
+  color: var(--text);
 }
 
 .map-layers-panel__list {
@@ -742,11 +787,16 @@
   }
 
   .map-layers-panel {
-    right: 8px;
-    top: auto;
-    bottom: 8px;
-    width: min(200px, calc(100% - 16px));
-    max-height: 40vh;
+    left: 50%;
+    top: 8px;
+    transform: translateX(-50%);
+    width: min(240px, calc(100% - 16px));
+    max-height: 45vh;
+  }
+
+  .region-detail-panel {
+    width: min(400px, calc(100% - 24px));
+    max-height: min(60vh, calc(100% - 120px));
   }
 
   .map-timeline {
