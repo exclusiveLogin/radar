@@ -400,7 +400,6 @@ export function useGeoMapLifecycle(containerRef: RefObject<HTMLDivElement | null
         if (!map) return;
         const collection = vicinityScopesCollection(
           vicinityScopesById$.value,
-          regionsByCode$.value,
           mapViewAnchor$.value,
         );
         runtime.sources.apply(VICINITY_SCOPES_SOURCE, collection);
@@ -648,7 +647,7 @@ export function useGeoMapLifecycle(containerRef: RefObject<HTMLDivElement | null
       if (!map.getSource(VICINITY_SCOPES_SOURCE)) {
         map.addSource(VICINITY_SCOPES_SOURCE, {
           type: "geojson",
-          data: vicinityScopesCollection(new Map(), new Map()),
+          data: vicinityScopesCollection(new Map()),
         });
       }
       if (!map.getLayer(VICINITY_SCOPES_FILL)) {
@@ -659,7 +658,7 @@ export function useGeoMapLifecycle(containerRef: RefObject<HTMLDivElement | null
           filter: ["==", ["get", "kind"], "vicinity-scope"],
           paint: {
             "fill-color": ["coalesce", ["get", "color"], "#FFD54F"],
-            "fill-opacity": ["coalesce", ["get", "fillOpacity"], 0.08],
+            "fill-opacity": ["coalesce", ["get", "fillOpacity"], 0.2],
           },
         });
       }
@@ -672,7 +671,7 @@ export function useGeoMapLifecycle(containerRef: RefObject<HTMLDivElement | null
           paint: {
             "line-color": ["coalesce", ["get", "color"], "#FFD54F"],
             "line-width": 2,
-            "line-opacity": ["coalesce", ["get", "lineOpacity"], 0.6],
+            "line-opacity": ["coalesce", ["get", "lineOpacity"], 0.85],
           },
         });
       }

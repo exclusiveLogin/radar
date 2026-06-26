@@ -191,10 +191,30 @@ export type FoldVicinityScopeMapStateInput = {
   regionWinners: MapEntityWinner[];
 };
 
-/** Vicinity scope winners: point + scopeRadiusM, suppress по region clear. */
+/**
+ * Vicinity scope winner: несёт собственную геометрию (lat/lon/radius) и factId,
+ * чтобы read-side не пере-джойнил факт по occurredAt (хрупко).
+ */
+export type VicinityScopeWinner = {
+  factId: string;
+  regionId: string;
+  regionCode: string;
+  statusCode: string;
+  stateLevel: StateLevel;
+  occurredAt: string;
+  lat: number;
+  lon: number;
+  scopeRadiusM: number;
+};
+
+/**
+ * Vicinity scope winners: point + scopeRadiusM.
+ * Гасит только при наличии region-winner с clear новее (region clear → отбой и vicinity);
+ * отсутствие region-winner НЕ скрывает кольцо (раньше так терялись все scope).
+ */
 export function foldVicinityScopeMapState(
   input: FoldVicinityScopeMapStateInput,
-): MapEntityWinner[] {
+): VicinityScopeWinner[] {
   const asOfMs = input.asOf.getTime();
   const inWindow = filterInWindow(input.facts, asOfMs, input.ttlMs);
   const scopeFacts = inWindow.filter(
@@ -204,17 +224,19 @@ export function foldVicinityScopeMapState(
       && fact.lat != null
       && fact.lon != null,
   );
-  const scopeWinners = foldEntityWinners(scopeFacts, (fact) => fact.factId, false);
+  const winnersByFact = foldEntityWinners(scopeFacts, (fact) => fact.factId, false);
+  const factById = new Map(scopeFacts.map((fact) => [fact.factId, fact]));
   const regionById = new Map(input.regionWinners.map((r) => [r.regionId, r]));
 
-  const scopes: MapEntityWinner[] = [];
-  for (const [, winner] of scopeWinners) {
+  const scopes: VicinityScopeWinner[] = [];
+  for (const [factId, winner] of winnersByFact) {
     if (winner.action !== "raise") continue;
     if (winner.stateLevel === "grey") continue;
+
     const regionWinner = regionById.get(winner.regionId);
-    if (!regionWinner) continue;
     if (
-      isPlaceSuppressedByRegionClear({
+      regionWinner
+      && isPlaceSuppressedByRegionClear({
         placeStatusEventAt: winner.occurredAt,
         regionStatusEventAt: regionWinner.occurredAt,
         regionAction: regionWinner.action,
@@ -222,7 +244,21 @@ export function foldVicinityScopeMapState(
     ) {
       continue;
     }
-    scopes.push(winner);
+
+    const fact = factById.get(factId);
+    if (!fact?.lat || !fact.lon || !fact.scopeRadiusM) continue;
+
+    scopes.push({
+      factId,
+      regionId: winner.regionId,
+      regionCode: winner.regionCode,
+      statusCode: winner.statusCode,
+      stateLevel: winner.stateLevel,
+      occurredAt: winner.occurredAt,
+      lat: fact.lat,
+      lon: fact.lon,
+      scopeRadiusM: fact.scopeRadiusM,
+    });
   }
   return scopes;
 }

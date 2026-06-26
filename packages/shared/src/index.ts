@@ -232,6 +232,7 @@ export type {
   MapStateFoldResult,
   FoldPlaceMapStateInput,
   FoldVicinityScopeMapStateInput,
+  VicinityScopeWinner,
 } from "./domain/region-state/mapStateFold";
 export {
   CRITICAL_WINDOW_MS,

@@ -87,41 +87,36 @@ function circleRing(lat: number, lon: number, radiusM: number, steps = 64): [num
 /** Vicinity scope → polygon ring features (жёлтое кольцо). */
 export function vicinityScopesToFeatures(
   scopes: Map<string, MapVicinityScopeSnapshot>,
-  regions: Map<string, MapRegionSnapshot>,
   now: number,
 ): PolygonFeature[] {
-  return [...scopes.values()]
-    .filter((scope) => {
-      const region = regions.get(scope.regionCode);
-      return region && isRegionVisibleOnMap(region, now);
-    })
-    .map((scope) => ({
-      type: "Feature" as const,
-      geometry: {
-        type: "Polygon" as const,
-        coordinates: [circleRing(scope.lat, scope.lon, scope.radiusM)],
-      },
-      properties: {
-        kind: "vicinity-scope",
-        scopeId: scope.scopeId,
-        regionCode: scope.regionCode,
-        radiusM: scope.radiusM,
-        statusEventAt: scope.statusEventAt ?? "",
-        fillOpacity: geoMapFillOpacity(scope.statusEventAt, now, 0.08),
-        lineOpacity: geoMapStrokeOpacity(scope.statusEventAt, now, 0.08, 0.5),
-        color: VICINITY_RING_COLOR,
-      },
-    }));
+  // Гейт по region-clear уже применён на read-side (foldVicinityScopeMapState);
+  // здесь только fade по statusEventAt — кольцо не привязываем к видимости региона.
+  return [...scopes.values()].map((scope) => ({
+    type: "Feature" as const,
+    geometry: {
+      type: "Polygon" as const,
+      coordinates: [circleRing(scope.lat, scope.lon, scope.radiusM)],
+    },
+    properties: {
+      kind: "vicinity-scope",
+      scopeId: scope.scopeId,
+      regionCode: scope.regionCode,
+      radiusM: scope.radiusM,
+      statusEventAt: scope.statusEventAt ?? "",
+      fillOpacity: geoMapFillOpacity(scope.statusEventAt, now, 0.2),
+      lineOpacity: geoMapStrokeOpacity(scope.statusEventAt, now, 0.55, 1.6),
+      color: VICINITY_RING_COLOR,
+    },
+  }));
 }
 
 export function vicinityScopesCollection(
   scopes: Map<string, MapVicinityScopeSnapshot>,
-  regions: Map<string, MapRegionSnapshot>,
   now = Date.now(),
 ): GeoJsonCollection {
   return {
     type: "FeatureCollection",
-    features: vicinityScopesToFeatures(scopes, regions, now),
+    features: vicinityScopesToFeatures(scopes, now),
   };
 }
 

@@ -20,6 +20,7 @@ import {
   resolveMapStateTtlMs,
   type EventLocationFact,
   type MapEntityWinner,
+  type VicinityScopeWinner,
 } from "@radar/shared";
 import { GeoFeatureEntity, PlaceEntity, RegionEntity } from "../geo/entities";
 import { StatusDictionaryEntity } from "../events/entities";
@@ -122,41 +123,26 @@ export class MapSnapshotQueryService {
       regionWinners,
     });
     const levelByStatus = await this.loadStatusLevels();
-    return this.buildVicinityScopeSnapshots(scopeWinners, levelByStatus, asOf, vicinityFacts);
+    return this.buildVicinityScopeSnapshots(scopeWinners, levelByStatus, asOf);
   }
 
+  /** Winner уже несёт factId + геометрию — без пере-джойна факта по occurredAt. */
   private buildVicinityScopeSnapshots(
-    winners: Array<{
-      regionId: string;
-      regionCode: string;
-      statusCode: string;
-      stateLevel: StateLevel;
-      occurredAt: string;
-    }>,
+    winners: VicinityScopeWinner[],
     levelByStatus: Map<string, StateLevel>,
     asOf: Date,
-    facts: EventLocationFact[],
   ): MapVicinityScopeSnapshot[] {
     const items: MapVicinityScopeSnapshot[] = [];
     for (const winner of winners) {
-      const scopeFact = facts.find(
-        (f) =>
-          f.regionId === winner.regionId
-          && f.occurredAt === winner.occurredAt
-          && f.scopeRadiusM != null
-          && f.lat != null
-          && f.lon != null,
-      );
-      if (!scopeFact?.lat || !scopeFact.lon || !scopeFact.scopeRadiusM) continue;
       const stateLevel = maxStateLevel([winner.statusCode], levelByStatus);
       if (stateLevel === "grey") continue;
       items.push({
-        scopeId: scopeFact.factId,
+        scopeId: winner.factId,
         regionId: winner.regionId,
         regionCode: winner.regionCode,
-        lat: scopeFact.lat,
-        lon: scopeFact.lon,
-        radiusM: scopeFact.scopeRadiusM,
+        lat: winner.lat,
+        lon: winner.lon,
+        radiusM: winner.scopeRadiusM,
         stateLevel,
         statusEventAt: winner.occurredAt,
         updatedAt: asOf.toISOString(),
