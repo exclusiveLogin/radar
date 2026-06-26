@@ -52,6 +52,7 @@ const EVENT_HINTS = [
   /тревога/i,
   /опасност/i,
   /внимани/i,
+  /меры\s+безопасности/i,
 ];
 
 function countCity247Lines(text: string): number {
@@ -83,7 +84,7 @@ function isChannelCityListPromo(input: string): boolean {
 
 function isRadarChannelLaunchPromo(text: string): boolean {
   if (!/радар\s+по\s+всей\s+россии/i.test(text)) return false;
-  if (/бпла|дрон|прол[её]т|тревог|опасност|пво|фиксац/i.test(text)) return false;
+  if (/бпла|дрон|прол[её]т|тревог|опасност|пво|фиксац|меры\s+безопасности/i.test(text)) return false;
   return true;
 }
 

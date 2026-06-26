@@ -31,21 +31,26 @@ export function tracksListToGeoJson(
 
   for (const track of response.tracks) {
     const nodes = [...(track.nodes ?? [])].sort((a, b) => a.seq - b.seq);
+    let hasMovement = false;
 
     if (nodes.length >= 2) {
-      features.push({
-        type: "Feature",
-        geometry: {
-          type: "LineString",
-          coordinates: nodes.map((n) => [n.lon, n.lat]),
-        },
-        properties: {
-          kind: "track-line",
-          trackId: track.id,
-          threatProfile: track.threatProfile,
-          status: track.status,
-        },
-      });
+      const coordinates = nodes.map((n) => [n.lon, n.lat] as [number, number]);
+      const [firstLon, firstLat] = coordinates[0]!;
+      hasMovement = coordinates.some(
+        ([lon, lat], i) => i > 0 && (lon !== firstLon || lat !== firstLat),
+      );
+      if (hasMovement) {
+        features.push({
+          type: "Feature",
+          geometry: { type: "LineString", coordinates },
+          properties: {
+            kind: "track-line",
+            trackId: track.id,
+            threatProfile: track.threatProfile,
+            status: track.status,
+          },
+        });
+      }
     }
 
     const origin = nodes[0] ?? { lon: track.lastLon, lat: track.lastLat };
@@ -57,6 +62,8 @@ export function tracksListToGeoJson(
         trackId: track.id,
         threatProfile: track.threatProfile,
         status: track.status,
+        nodeCount: String(track.nodeCount),
+        stationary: nodes.length >= 2 && !hasMovement ? "true" : "false",
       },
     });
   }

@@ -16,6 +16,12 @@ export type NodeMode = "correct" | "attach_only";
 /** Статус трека после rebuild. */
 export type TrackStatus = "active" | "closed" | "stale";
 
+/** Состояние fork-convergence (Phase C): expanded Q после soft-assign. */
+export type MutationState = {
+  phase: "stable" | "expanded";
+  consecutiveSoftAssigns: number;
+};
+
 /** Состояние фильтра Калмана: позиция + скорость + ковариационная матрица 4×4. */
 export type KalmanStateJson = {
   /** Позиция X (метры в локальной проекции). */
@@ -65,6 +71,15 @@ export type TrackingCandidate = {
   affectsKinematics: boolean | null;
   /** Фронтовой регион — даёт boost при выборе seed. */
   isFrontRegion: boolean;
+  /** Глубина РФ (не фронт) — штраф seed, bias attach. */
+  isInteriorRf?: boolean;
+  /**
+   * Гео-дистанция (км) от центроида региона точки до ближайшего фронт-региона.
+   * Precomputed в regions.front_distance_km. null → coeff падает на boolean-фолбэк.
+   */
+  frontDistanceKm?: number | null;
+  /** Размер ST-DBSCAN кластера (для tie-break). */
+  clusterSize?: number;
   threatProfile: ThreatProfile;
   mode: NodeMode;
   sourceRefs: SourceRef[];

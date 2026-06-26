@@ -184,3 +184,22 @@ test("GF-P6-07: Tuapse one-liner — groom, places, vicinity trait", () => {
   const blockKinds = groomed.blocks.map((b) => b.kind);
   assert.ok(blockKinds.includes("signal"));
 });
+
+test("Radar Russia one-liner: «Меры безопасности» — сигнал, не inline-noise", () => {
+  const raw =
+    "ГО Коломна Московская область Меры безопасности ❗️Радар по всей России - @radarrussiia";
+  const groomed = groomMessage(raw);
+  assert.equal(groomed.kind, "event");
+  if (groomed.kind !== "event") return;
+  assert.match(groomed.groomedText, /меры безопасности/i);
+  assert.doesNotMatch(groomed.groomedText, /@radar/i);
+});
+
+test("Radar Russia one-liner: фиксации после «Меры безопасности» не обрезаются", () => {
+  const raw =
+    "Новомосковск Тульская область Меры безопасности Продолжаются фиксации в вашем направлении ❗️Радар";
+  const groomed = groomMessage(raw);
+  assert.equal(groomed.kind, "event");
+  if (groomed.kind !== "event") return;
+  assert.match(groomed.groomedText, /фиксаци/i);
+});

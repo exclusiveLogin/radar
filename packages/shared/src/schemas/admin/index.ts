@@ -28,6 +28,9 @@ export {
   trackingPipelineConfigSchema,
   trackingPipelineMetricsSchema,
   trackingStatusResponseSchema,
+  trackingTuneRunSchema,
+  trackingTuneRunStatusSchema,
+  trackingTuneStartRequestSchema,
 } from "./tracking";
 
 // --- type-only exports ---
@@ -58,5 +61,8 @@ export type {
   TrackingRebuildStats,
   TrackingRebuildRun,
   TrackingPipelineConfig,
+  TrackingPipelineMetrics,
   TrackingStatusResponse,
+  TrackingTuneRun,
+  TrackingTuneStartRequest,
 } from "./tracking";

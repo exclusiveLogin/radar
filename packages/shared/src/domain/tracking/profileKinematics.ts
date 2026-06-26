@@ -73,8 +73,10 @@ export const PROFILE_KINEMATICS: Record<ThreatProfile, ProfileKinematics> = {
    */
   uav: {
     maxVelocityMs: 70, // 250 км/ч
-    maxLinkDistanceM: 100_000, // ~40 мин при 150 км/ч между разреженными репортами
-    maxGapMs: 60 * 60 * 1000, // 1 ч
+    // Реальный шаг между разрежёнными OSINT-репортами p50≈142км (см. tracking:kinematics).
+    // 100км отрезал >50% настоящих переходов → 250км ≈ maxVelocity×1ч.
+    maxLinkDistanceM: 250_000,
+    maxGapMs: 3 * 60 * 60 * 1000, // 3 ч — реальный p90 gap ≈ 5ч, дефолт 1ч рвал цепи
     staleAfterMs: 4 * 60 * 60 * 1000, // 4 ч тишины на длинном маршруте
     maxTrackDurationMs: 10 * 60 * 60 * 1000, // 10 ч (Лютый)
     maxRangeFromOriginM: 1_600_000, // FP-1
@@ -122,8 +124,8 @@ export const PROFILE_KINEMATICS: Record<ThreatProfile, ProfileKinematics> = {
   },
   unknown: {
     maxVelocityMs: 70,
-    maxLinkDistanceM: 100_000,
-    maxGapMs: 60 * 60 * 1000,
+    maxLinkDistanceM: 250_000,
+    maxGapMs: 3 * 60 * 60 * 1000,
     staleAfterMs: 4 * 60 * 60 * 1000,
     maxTrackDurationMs: 10 * 60 * 60 * 1000,
     maxRangeFromOriginM: 1_600_000,

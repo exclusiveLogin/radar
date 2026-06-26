@@ -3,49 +3,39 @@
  * layer: worker/application
  * domain: tracking
  * purpose: Загрузка кандидатов для rebuild-пайплайна треков из БД.
- *          Выбираем event_locations + parsed_events в временном окне,
- *          обогащаем is_front_region, threat_profile, аффектус кинематики.
  * ---
  */
 import type { DataSource } from "typeorm";
 import {
   resolveThreatProfile,
   resolveNodeMode,
-  trackingTargetEventTypesSqlIn,
+  trackingPipelineTypesSqlIn,
+  canEnterPipeline,
   type TrackingCandidate,
   type TrackingWatermark,
 } from "@radar/shared";
 
-/** SSOT выражения времени события — как в map-query.service. */
 const EVENT_AT_SQL = "COALESCE(el.occurred_at, rm.posted_at, pe.parsed_at)";
+
+const PIPELINE_TYPES_IN = trackingPipelineTypesSqlIn();
+
+/** Guard: точка ещё не потреблена в trajectory_nodes. */
+const NOT_CONSUMED_SQL = `
+  AND NOT EXISTS (
+    SELECT 1 FROM trajectory_nodes tn
+    WHERE tn.source_refs @> jsonb_build_array(
+      jsonb_build_object('eventLocationId', el.id::text)
+    )
+  )`;
 
 const CANDIDATES_FROM_SQL = `
     FROM event_locations el
     JOIN parsed_events pe ON pe.id = el.parsed_event_id
     LEFT JOIN raw_messages rm ON rm.id = pe.raw_message_id
-    LEFT JOIN status_dictionary sd ON sd.code = pe.event_type`;
+    LEFT JOIN status_dictionary sd ON sd.code = pe.event_type
+    LEFT JOIN regions r ON r.id = el.region_id`;
 
-type LoadCandidatesOptions = {
-  since: Date;
-  until: Date;
-  /** Опционально ограничить по bbox: [minLon, minLat, maxLon, maxLat]. */
-  bbox?: [number, number, number, number];
-};
-
-/**
- * Загружает и нормализует кандидатов для tracking rebuild.
- *
- * SQL сортирует по occurred_at ASC — гарантирует хронологический порядок для Kalman.
- * Включает только события с coords или placeId (есть геолокация для трека).
- */
-export async function loadTrackingCandidates(
-  ds: DataSource,
-  opts: LoadCandidatesOptions,
-): Promise<TrackingCandidate[]> {
-  const { since, until, bbox } = opts;
-
-  const rows = await ds.query<RawRow[]>(
-    `
+const CANDIDATES_SELECT = `
     SELECT
       el.id                   AS event_location_id,
       pe.id                   AS parsed_event_id,
@@ -60,33 +50,52 @@ export async function loadTrackingCandidates(
       pe.event_subject,
       pe.extras,
       sd.affects_kinematics,
-      false AS is_front_region
+      COALESCE(r.front_region, false) AS is_front_region,
+      (el.region_id IS NOT NULL AND COALESCE(r.front_region, false) IS DISTINCT FROM true) AS is_interior_rf,
+      r.front_distance_km AS front_distance_km`;
+
+type LoadCandidatesOptions = {
+  since: Date;
+  until: Date;
+  bbox?: [number, number, number, number];
+  /** false — загрузить все (включая уже в nodes), для диагностики. */
+  excludeConsumed?: boolean;
+};
+
+export async function loadTrackingCandidates(
+  ds: DataSource,
+  opts: LoadCandidatesOptions,
+): Promise<TrackingCandidate[]> {
+  const { since, until, bbox, excludeConsumed = true } = opts;
+
+  const rows = await ds.query<RawRow[]>(
+    `
+    ${CANDIDATES_SELECT}
     ${CANDIDATES_FROM_SQL}
     WHERE
       ${EVENT_AT_SQL} BETWEEN $1 AND $2
       AND el.lat IS NOT NULL
       AND el.lon IS NOT NULL
       AND pe.is_active IS DISTINCT FROM false
+      AND pe.event_type IN (${PIPELINE_TYPES_IN})
+      ${excludeConsumed ? NOT_CONSUMED_SQL : ""}
       ${bbox ? `AND el.lon BETWEEN ${bbox[0]} AND ${bbox[2]} AND el.lat BETWEEN ${bbox[1]} AND ${bbox[3]}` : ""}
     ORDER BY ${EVENT_AT_SQL} ASC
     `,
     [since.toISOString(), until.toISOString()],
   );
 
-  return rows.map(toCandidate);
+  return rows.map(toCandidate).filter(canEnterPipeline);
 }
 
 type BatchOptions = {
   after?: TrackingWatermark | null;
   until: Date;
   limit: number;
-  /** Overlap для ST-DBSCAN на границе батча. */
   overlapMs: number;
+  excludeConsumed?: boolean;
 };
 
-/**
- * Инкрементальная загрузка кандидатов после watermark с overlap-окном.
- */
 export async function loadTrackingCandidatesBatch(
   ds: DataSource,
   opts: BatchOptions,
@@ -95,23 +104,11 @@ export async function loadTrackingCandidatesBatch(
     ? new Date(new Date(opts.after.lastOccurredAt).getTime() - opts.overlapMs)
     : new Date(0);
 
+  const excludeConsumed = opts.excludeConsumed !== false;
+
   const rows = await ds.query<RawRow[]>(
     `
-    SELECT
-      el.id                   AS event_location_id,
-      pe.id                   AS parsed_event_id,
-      pe.raw_message_id       AS raw_message_id,
-      ${EVENT_AT_SQL} AS occurred_at,
-      el.lat,
-      el.lon,
-      el.place_id,
-      el.precision,
-      el.confidence           AS trust,
-      pe.event_type,
-      pe.event_subject,
-      pe.extras,
-      sd.affects_kinematics,
-      false AS is_front_region
+    ${CANDIDATES_SELECT}
     ${CANDIDATES_FROM_SQL}
     WHERE
       ${EVENT_AT_SQL} <= $1
@@ -127,6 +124,8 @@ export async function loadTrackingCandidatesBatch(
       AND el.lat IS NOT NULL
       AND el.lon IS NOT NULL
       AND pe.is_active IS DISTINCT FROM false
+      AND pe.event_type IN (${PIPELINE_TYPES_IN})
+      ${excludeConsumed ? NOT_CONSUMED_SQL : ""}
     ORDER BY ${EVENT_AT_SQL} ASC, el.id ASC
     LIMIT $5
     `,
@@ -139,10 +138,58 @@ export async function loadTrackingCandidatesBatch(
     ],
   );
 
-  return rows.map(toCandidate);
+  return rows.map(toCandidate).filter(canEnterPipeline);
 }
 
-/** Подсчёт кандидатов для progress bar. */
+type CountRemainingOptions = {
+  after?: TrackingWatermark | null;
+  until: Date;
+  overlapMs?: number;
+  excludeConsumed?: boolean;
+};
+
+/** Оставшиеся pipeline-кандидаты после watermark — знаменатель прогресса rebuild. */
+export async function countTrackingPipelineRemaining(
+  ds: DataSource,
+  opts: CountRemainingOptions,
+): Promise<number> {
+  const overlapMs = opts.overlapMs ?? 0;
+  const overlapSince = opts.after?.lastOccurredAt
+    ? new Date(new Date(opts.after.lastOccurredAt).getTime() - overlapMs)
+    : new Date(0);
+  const excludeConsumed = opts.excludeConsumed !== false;
+
+  const [{ count }] = await ds.query<{ count: string }[]>(
+    `
+    SELECT COUNT(*)::text AS count
+    ${CANDIDATES_FROM_SQL}
+    WHERE
+      ${EVENT_AT_SQL} <= $1
+      AND (
+        $2::timestamptz IS NULL
+        OR ${EVENT_AT_SQL} > $2
+        OR (
+          ${EVENT_AT_SQL} = $2
+          AND el.id > $3::uuid
+        )
+      )
+      AND ${EVENT_AT_SQL} >= $4
+      AND el.lat IS NOT NULL
+      AND el.lon IS NOT NULL
+      AND pe.is_active IS DISTINCT FROM false
+      AND pe.event_type IN (${PIPELINE_TYPES_IN})
+      ${excludeConsumed ? NOT_CONSUMED_SQL : ""}
+    `,
+    [
+      opts.until.toISOString(),
+      opts.after?.lastOccurredAt ?? null,
+      opts.after?.lastEventLocationId ?? "00000000-0000-0000-0000-000000000000",
+      overlapSince.toISOString(),
+    ],
+  );
+  return Number(count);
+}
+
 export async function countTrackingCandidates(ds: DataSource, until: Date): Promise<number> {
   const [{ count }] = await ds.query<{ count: string }[]>(
     `
@@ -168,16 +215,16 @@ export type TrackingCandidateStats = {
   tracksClosed: number;
   tracksStale: number;
   tracksTotal: number;
+  attentionConflicts?: number;
+  softAssigns?: number;
 };
 
-/** Сводка для админки: гео-точки, целевые типы, треки в БД. */
 export async function countTrackingCandidateStats(
   ds: DataSource,
   until: Date,
 ): Promise<TrackingCandidateStats> {
   const totalCandidatesGeo = await countTrackingCandidates(ds, until);
 
-  const targetIn = trackingTargetEventTypesSqlIn();
   const [{ count: targetCount }] = await ds.query<{ count: string }[]>(
     `
     SELECT COUNT(*)::text AS count
@@ -188,7 +235,7 @@ export async function countTrackingCandidateStats(
       ${EVENT_AT_SQL} <= $1
       AND el.lat IS NOT NULL AND el.lon IS NOT NULL
       AND pe.is_active IS DISTINCT FROM false
-      AND pe.event_type IN (${targetIn})
+      AND pe.event_type IN (${PIPELINE_TYPES_IN})
     `,
     [until.toISOString()],
   );
@@ -232,6 +279,8 @@ type RawRow = {
   extras: Record<string, unknown> | null;
   affects_kinematics: boolean | null;
   is_front_region: boolean;
+  is_interior_rf: boolean;
+  front_distance_km: number | null;
 };
 
 function toCandidate(row: RawRow): TrackingCandidate {
@@ -261,6 +310,8 @@ function toCandidate(row: RawRow): TrackingCandidate {
     eventCategory: null,
     affectsKinematics: row.affects_kinematics,
     isFrontRegion: row.is_front_region,
+    isInteriorRf: row.is_interior_rf,
+    frontDistanceKm: row.front_distance_km,
     threatProfile,
     mode,
     sourceRefs: [

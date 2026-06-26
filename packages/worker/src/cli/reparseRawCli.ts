@@ -16,6 +16,7 @@ async function main(): Promise<void> {
   loadRootEnv(MONOREPO_ROOT);
   const flags = parseLongFlagsMap(process.argv);
   const drainScheduled = hasAnyFlag(flags, ["drain-scheduled", "drainScheduled"]);
+  const forceLocks = !hasAnyFlag(flags, ["no-force-locks", "noForceLocks"]);
   const runtime = await createWorkerCompositionRoot({
     storageMode: WorkerStorageMode.Db,
     startIngestParseDaemon: false,
@@ -35,6 +36,14 @@ async function main(): Promise<void> {
   console.log(
     `Map state reset: places=${resetResult.placesCleared}, regions=${resetResult.regionsGrey}`,
   );
+  if (forceLocks) {
+    console.log(
+      "forceLocks: при lock timeout закроем блокирующие сессии dev/API (отключить: --no-force-locks)",
+    );
+  }
+  console.log(
+    "reparse: остановите stack dev / worker с IngestParseDaemon — параллельный llm-drain даёт duplicate workspace.",
+  );
 
   const countRows = (await runtime.dataSource.query(
     `SELECT COUNT(*)::int AS count FROM raw_messages`,
@@ -45,6 +54,7 @@ async function main(): Promise<void> {
   const result = await runFullReparseLikeIngest({
     dataSource: runtime.dataSource,
     repos,
+    forceLocks,
     ingestFlow: {
       rawMessages: repos.rawMessages,
       phases: repos.phaseDefinitions,

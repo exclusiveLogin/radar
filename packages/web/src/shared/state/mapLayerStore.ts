@@ -51,7 +51,7 @@ const DEFAULT_GEO_MAP_LAYERS: Record<GeoMapLayerId, boolean> = {
   places: true,
   vicinity: true,
   heatmap: false,
-  tracks: false,
+  tracks: true,
   tracksFlow: false,
   timeline: true,
 };

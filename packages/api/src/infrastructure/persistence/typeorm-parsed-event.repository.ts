@@ -181,29 +181,51 @@ export class TypeOrmMessageParseWorkspaceRepository implements IMessageParseWork
     spawnedEventIds: string[];
     candidateEventMap: Record<string, string>;
   }): Promise<MessageParseWorkspaceRecord> {
-    await this.supersedeActiveForRaw(input.rawMessageId);
     const id = randomUUID();
     const now = new Date().toISOString();
-    const rows = (await this.dataSource.query(
-      `
-        INSERT INTO message_parse_workspace (
-          id, raw_message_id, parser_revision, status, groomed_text, workspace,
-          spawned_event_ids, candidate_event_map, finalized_at, created_at
-        )
-        VALUES ($1, $2, $3, 'finalized', $4, $5::jsonb, $6::uuid[], $7::jsonb, $8, $8)
-        RETURNING *
-      `,
-      [
-        id,
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+    try {
+      // Сериализуем concurrent finalize (reparse CLI + ingestParse daemon).
+      await queryRunner.query(`SELECT pg_advisory_xact_lock(hashtext($1::text))`, [
         input.rawMessageId,
-        input.parserRevision,
-        input.groomedText,
-        JSON.stringify(input.workspace),
-        input.spawnedEventIds,
-        JSON.stringify(input.candidateEventMap),
-        now,
-      ],
-    )) as WorkspaceRow[];
-    return toWorkspaceRecord(rows[0]!);
+      ]);
+      await queryRunner.query(
+        `
+          UPDATE message_parse_workspace
+          SET status = 'superseded'
+          WHERE raw_message_id = $1 AND status = 'finalized'
+        `,
+        [input.rawMessageId],
+      );
+      const rows = (await queryRunner.query(
+        `
+          INSERT INTO message_parse_workspace (
+            id, raw_message_id, parser_revision, status, groomed_text, workspace,
+            spawned_event_ids, candidate_event_map, finalized_at, created_at
+          )
+          VALUES ($1, $2, $3, 'finalized', $4, $5::jsonb, $6::uuid[], $7::jsonb, $8, $8)
+          RETURNING *
+        `,
+        [
+          id,
+          input.rawMessageId,
+          input.parserRevision,
+          input.groomedText,
+          JSON.stringify(input.workspace),
+          input.spawnedEventIds,
+          JSON.stringify(input.candidateEventMap),
+          now,
+        ],
+      )) as WorkspaceRow[];
+      await queryRunner.commitTransaction();
+      return toWorkspaceRecord(rows[0]!);
+    } catch (err) {
+      await queryRunner.rollbackTransaction();
+      throw err;
+    } finally {
+      await queryRunner.release();
+    }
   }
 }

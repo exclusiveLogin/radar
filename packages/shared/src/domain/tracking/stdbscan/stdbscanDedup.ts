@@ -105,13 +105,16 @@ export function stdbscanDedup(
 
     result.push({
       ...winner,
+      clusterSize: indices.length,
       sourceRefs: [...winner.sourceRefs, ...mergedRefs],
     });
   }
 
   // Добавляем noise-точки без изменений
   for (let i = 0; i < n; i++) {
-    if (labels[i] === NOISE) result.push(candidates[i]);
+    if (labels[i] === NOISE) {
+      result.push({ ...candidates[i], clusterSize: 1 });
+    }
   }
 
   // Сортируем по времени для Kalman

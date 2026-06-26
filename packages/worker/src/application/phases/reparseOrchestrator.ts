@@ -5,7 +5,6 @@ import type { PhaseIngestFlowDeps } from "./phaseIngestFlow.js";
 import { runPostIngestPhaseFlow } from "./phaseIngestFlow.js";
 import { MapStateFullReset } from "../map-state/mapStateFullReset.js";
 import { clearParseLayerArtifacts, clearParsedArtifacts } from "./pipelineOperationalReset.js";
-import { sortPhasesByOrder } from "./phaseOrder.js";
 
 export { clearParsedArtifacts } from "./pipelineOperationalReset.js";
 
@@ -14,6 +13,8 @@ export type FullReparseInput = {
   repos: WorkerDbRepositories;
   ingestFlow: PhaseIngestFlowDeps;
   onMessage?: (index: number, total: number, rawMessageId: string) => void;
+  /** По умолчанию true — при lock timeout закрываем блокирующие dev/API сессии. */
+  forceLocks?: boolean;
 };
 
 /**
@@ -25,26 +26,24 @@ export async function runFullReparseLikeIngest(input: FullReparseInput): Promise
   messages: number;
   phasesInvalidated: number;
 }> {
-  const [eager, scheduled] = await Promise.all([
+  const [, scheduled] = await Promise.all([
     input.repos.phaseDefinitions.listEnabled("eager", "ingestParse"),
     input.repos.phaseDefinitions.listEnabled("scheduled", "ingestParse"),
   ]);
-  const autoPhases = sortPhasesByOrder([...eager, ...scheduled]);
-  const phaseIds = autoPhases.map((p) => p.id);
+  const scheduledIds = scheduled.map((p) => p.id);
 
   const mapReset = new MapStateFullReset({
     dataSource: input.dataSource,
   });
   await mapReset.run(new Date(), "reparse:invalidate");
 
-  await clearParseLayerArtifacts(input.dataSource);
-  const phasesInvalidated =
-    phaseIds.length > 0
-      ? await input.repos.phaseCoverage.invalidateForPhases(phaseIds)
-      : 0;
+  await clearParseLayerArtifacts(input.dataSource, {
+    forceLocks: input.forceLocks,
+  });
 
-  for (const phaseId of phaseIds) {
-    await input.repos.phaseCoverage.enqueueCatchUp(phaseId);
+  // Не открываем scheduled-очередь до конца bulk reparse — иначе daemon гоняется с CLI.
+  if (scheduledIds.length > 0) {
+    await input.repos.phaseCoverage.clearQueuedWork(scheduledIds);
   }
 
   const postedOrder = resolveRawMessagePostedAtOrder();
@@ -55,8 +54,16 @@ export async function runFullReparseLikeIngest(input: FullReparseInput): Promise
   let index = 0;
   for (const row of rows) {
     input.onMessage?.(index, rows.length, row.id);
-    await runPostIngestPhaseFlow(input.ingestFlow, row.id);
+    await runPostIngestPhaseFlow(input.ingestFlow, row.id, { skipCoverageEnqueue: true });
     index += 1;
+  }
+
+  let phasesInvalidated = 0;
+  if (scheduledIds.length > 0) {
+    phasesInvalidated = await input.repos.phaseCoverage.invalidateForPhases(scheduledIds);
+    for (const phaseId of scheduledIds) {
+      await input.repos.phaseCoverage.enqueueCatchUp(phaseId);
+    }
   }
 
   return { messages: rows.length, phasesInvalidated };

@@ -1031,6 +1031,8 @@ body {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  /* Без scroll anchoring: WS/poll обновления сверху не сдвигают viewport вниз. */
+  overflow-anchor: none;
   padding: 14px 16px 20px;
   display: flex;
   flex-direction: column;

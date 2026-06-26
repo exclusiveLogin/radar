@@ -62,6 +62,13 @@ export const derivedRegionCodes$ = new BehaviorSubject<Set<string>>(new Set());
 /** Смежность регионов — загружается однократно, используется для производного yellow. */
 let adjacency: Record<string, string[]> = {};
 
+/**
+ * Справочник имён регионов по ISO-коду (SSOT — /api/geo/regions).
+ * Нужен, чтобы производно «проявившийся» регион получил человекочитаемое имя,
+ * а не ISO-код в попапе (фолбэк на код — только если имя реально неизвестно).
+ */
+let regionNamesByCode: Map<string, string> = new Map();
+
 let started = false;
 let liveAnchorSub: { unsubscribe(): void } | undefined;
 
@@ -135,15 +142,26 @@ export function startMapStore(): void {
         regionsByCode$.next(derived);
       }
 
-      // derive раскрыл соседей — пересинхронизируем places (prune при seed мог отрезать точки)
-      if (!regionsChanged || historicalAsOf$.value !== null) return;
+      // Всегда подгружаем места через быстрый placesState после adjacency:
+      // WS snapshot отдаёт places=[] (только регионы), а /api/map/snapshot медленный.
+      // Если regionsChanged — используем derived (с раскрытыми соседями-yellow),
+      // иначе — текущий regionsByCode$ (без изменений).
+      if (historicalAsOf$.value !== null) return;
       try {
+        const regionsForPrune = regionsChanged ? derived : regionsByCode$.value;
         const placesResp = await mapApi.placesState();
         const rawPlaces = new Map(placesResp.places.map((place) => [place.placeId, place]));
-        placesById$.next(prunePlacesForRegions(rawPlaces, derived));
+        placesById$.next(prunePlacesForRegions(rawPlaces, regionsForPrune));
       } catch (error) {
         reportError(error);
       }
+    })
+    .catch(reportError);
+
+  // Однократно грузим справочник имён регионов — SSOT для имени производного региона
+  void mapApi.geoRegions()
+    .then((regions) => {
+      regionNamesByCode = new Map(regions.map((region) => [region.regionCode, region.name]));
     })
     .catch(reportError);
 
@@ -189,6 +207,31 @@ function prunePlacesForRegions(
       continue;
     }
     next.set(place.placeId, place);
+  }
+  return next;
+}
+
+/** Убирает vicinity-кольца в grey-регионах и под более свежим региональным clear. */
+function pruneVicinityScopesForRegions(
+  scopes: Map<string, MapVicinityScopeSnapshot>,
+  regions: Map<string, MapRegionSnapshot>,
+): Map<string, MapVicinityScopeSnapshot> {
+  const viewNow = resolveMapViewAnchorMs();
+  const next = new Map<string, MapVicinityScopeSnapshot>();
+  for (const scope of scopes.values()) {
+    if (scope.stateLevel === "grey") continue;
+    const region = regions.get(scope.regionCode);
+    if (!region || !isRegionVisibleOnMap(region, viewNow)) continue;
+    if (
+      isPlaceSuppressedByRegionClear({
+        placeStatusEventAt: scope.statusEventAt,
+        regionStatusEventAt: region.statusEventAt,
+        regionAction: region.statusAction,
+      })
+    ) {
+      continue;
+    }
+    next.set(scope.scopeId, scope);
   }
   return next;
 }
@@ -252,7 +295,7 @@ function seedSnapshot(
 
   const rawScopes = new Map<string, MapVicinityScopeSnapshot>();
   for (const scope of vicinityScopes) rawScopes.set(scope.scopeId, scope);
-  vicinityScopesById$.next(rawScopes);
+  vicinityScopesById$.next(pruneVicinityScopesForRegions(rawScopes, nextRegions));
 
   lastSnapshotAt$.next(generatedAt ?? new Date().toISOString());
 }
@@ -274,6 +317,20 @@ function applyRegionsSnapshotOnly(
   }
 
   lastSnapshotAt$.next(generatedAt ?? new Date().toISOString());
+
+  // WS snapshot отдаёт places=[] (только регионы). Если места ещё не загружены,
+  // сразу тянем их через быстрый REST-эндпоинт (/api/map/places-state).
+  // Условие size===0: избегаем повторных fetch при обычных WS-обновлениях регионов.
+  if (placesById$.value.size === 0 && historicalAsOf$.value === null) {
+    void mapApi.placesState()
+      .then((resp) => {
+        const rawPlaces = new Map<string, MapPlaceSnapshot>(
+          resp.places.map((place) => [place.placeId, place]),
+        );
+        placesById$.next(prunePlacesForRegions(rawPlaces, regionsByCode$.value));
+      })
+      .catch(reportError);
+  }
 }
 
 function applyMessage(message: WsServerMessage): void {
@@ -313,7 +370,7 @@ function applyRegionState(event: RegionStateEvent): void {
   const updated: MapRegionSnapshot = {
     regionId: event.regionId,
     regionCode: event.regionCode,
-    name: existing?.name ?? event.regionCode,
+    name: existing?.name ?? regionNamesByCode.get(event.regionCode) ?? event.regionCode,
     stateLevel: event.stateLevel,
     activity: event.activity,
     layout,
@@ -350,6 +407,10 @@ function applyRegionState(event: RegionStateEvent): void {
   const pruned = prunePlacesForRegions(placesById$.value, next);
   if (pruned !== placesById$.value) {
     placesById$.next(pruned);
+  }
+  const prunedScopes = pruneVicinityScopesForRegions(vicinityScopesById$.value, next);
+  if (prunedScopes !== vicinityScopesById$.value) {
+    vicinityScopesById$.next(prunedScopes);
   }
 }
 

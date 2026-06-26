@@ -10,6 +10,11 @@ export type PhaseIngestFlowDeps = {
   runner: PhaseRunner;
 };
 
+export type PhaseIngestFlowOptions = {
+  /** Bulk reparse: не ставить llm/scheduled в очередь на каждое сообщение. */
+  skipCoverageEnqueue?: boolean;
+};
+
 /**
  * Тот же путь, что после ingest: coverage pending + inline eager по order.
  * Reparse и RawMessageIngested используют эту функцию (SSOT).
@@ -17,11 +22,14 @@ export type PhaseIngestFlowDeps = {
 export async function runPostIngestPhaseFlow(
   deps: PhaseIngestFlowDeps,
   rawMessageId: string,
+  options: PhaseIngestFlowOptions = {},
 ): Promise<void> {
   const raw = await deps.rawMessages.findById(rawMessageId);
   if (!raw?.id) return;
 
-  await deps.enqueuer.onNewRawMessage(rawMessageId);
+  if (!options.skipCoverageEnqueue) {
+    await deps.enqueuer.onNewRawMessage(rawMessageId);
+  }
 
   const eagerPhases = sortPhasesByOrder(
     (await deps.phases.listEnabled("eager", "ingestParse")).filter(

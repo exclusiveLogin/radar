@@ -111,8 +111,10 @@ export class TypeOrmPhaseCoverageRepository implements IPhaseCoverageRepository 
 
   async markDoneForMessage(rawMessageId: string, phaseId: string): Promise<void> {
     await this.dataSource.query(
-      `UPDATE phase_coverage SET status = 'done', processed_at = now(), updated_at = now()
-       WHERE raw_message_id = $1 AND phase_id = $2`,
+      `INSERT INTO phase_coverage (raw_message_id, phase_id, status, processed_at)
+       VALUES ($1, $2, 'done', now())
+       ON CONFLICT (raw_message_id, phase_id) DO UPDATE
+         SET status = 'done', processed_at = now(), updated_at = now(), last_error = NULL`,
       [rawMessageId, phaseId],
     );
   }

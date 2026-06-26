@@ -10,7 +10,7 @@ import {
 } from "@radar/shared";
 import { randomUUID } from "crypto";
 import {
-  countTrackingCandidates,
+  countTrackingPipelineRemaining,
   loadTrackingCandidatesBatch,
   maxEpsilonTemporalMs,
   runIncrementalBatch,
@@ -106,16 +106,22 @@ export class TrackingRebuildDaemon {
     }
 
     const totalCandidates =
-      Number(state.total_candidates) || (await countTrackingCandidates(this.ds, until));
+      Number((await this.readRunStats(run.id))?.totalCandidates)
+      || (await countTrackingPipelineRemaining(this.ds, {
+        after: watermark,
+        until,
+        overlapMs,
+      }));
     let processed = Number((await this.readRunStats(run.id))?.processedCandidates ?? 0);
 
     let collapsedTotal = 0;
+    let lastScannerStats: Partial<TrackingRebuildStats> = {};
     const result = await runIncrementalBatch(this.ds, {
       candidates: batch,
       rebuildGen: run.rebuildGen,
       config,
       onProgress: async stats => {
-        processed += batch.length;
+        lastScannerStats = stats;
         const nextStats: Partial<TrackingRebuildStats> = {
           ...stats,
           batchSize,
@@ -123,13 +129,23 @@ export class TrackingRebuildDaemon {
           totalCandidates,
           percentApprox:
             totalCandidates > 0 ? Math.min(100, Math.round((processed / totalCandidates) * 100)) : 0,
-          stdbscanCollapsed: collapsedTotal,
           elapsedMs: Date.now() - runStartedMs,
         };
         await this.updateRunStats(run.id, nextStats);
       },
     });
     collapsedTotal = result.collapsedByDedup;
+    processed += batch.length;
+
+    await this.updateRunStats(run.id, {
+      ...lastScannerStats,
+      processedCandidates: processed,
+      totalCandidates,
+      percentApprox:
+        totalCandidates > 0 ? Math.min(100, Math.round((processed / totalCandidates) * 100)) : 0,
+      stdbscanCollapsed: collapsedTotal,
+      elapsedMs: Date.now() - runStartedMs,
+    });
 
     if (result.watermark) {
       await this.advanceWatermark(result.watermark, run.id, totalCandidates);

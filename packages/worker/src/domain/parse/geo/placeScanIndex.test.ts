@@ -69,20 +69,32 @@ test("PlaceScanIndex: без области — locality «Самара» не �
   assert.equal(samara!.geoImprecise, false);
 });
 
-test("PlaceScanIndex: уникальный locality «Курумоч» матчится без области", () => {
+test("PlaceScanIndex: голый locality «Курумоч» без маркера/скоупа НЕ матчится (ADR-012 ужесточение)", () => {
   const index = new PlaceScanIndex(SAMARA_HOMONYM_ENTRIES);
   const hits = index.matchPlacesByPhrase("– САМАРА (Курумоч)");
+  assert.equal(hits.find((h) => h.entry.name === "Курумоч"), undefined);
+});
+
+test("PlaceScanIndex: locality «Курумоч» с гео-маркером «д.» — матчится", () => {
+  const index = new PlaceScanIndex(SAMARA_HOMONYM_ENTRIES);
+  const hits = index.matchPlacesByPhrase("д. Курумоч");
   assert.ok(hits.some((h) => h.entry.name === "Курумоч" && h.entry.regionIso === "RU-SAM"));
 });
 
-test("PlaceScanService: аэропортный digest без области → Самара RU-SAM + Курумоч", () => {
+test("PlaceScanService: аэропортный digest без области → Самара RU-SAM (city); голый Курумоч не поднимается", () => {
   const scan = new PlaceScanService(SAMARA_HOMONYM_ENTRIES, "test");
   const text = "▫️Аэропорты\n– САМАРА (Курумоч)\n– УЛЬЯНОВСК (Баратаевка)";
   const hits = scan.matchPlaces(text, {});
   const samara = hits.find((h) => h.entry.name === "Самара");
   assert.ok(samara);
   assert.equal(samara!.entry.regionIso, "RU-SAM");
-  assert.ok(hits.some((h) => h.entry.name === "Курумоч"));
+  assert.equal(hits.find((h) => h.entry.name === "Курумоч"), undefined);
+});
+
+test("PlaceScanService: с regionScope голый Курумоч резолвится (scope разрешает locality)", () => {
+  const scan = new PlaceScanService(SAMARA_HOMONYM_ENTRIES, "test");
+  const hits = scan.matchPlaces("– САМАРА (Курумоч)", { regionScopeId: "sam-region-id" });
+  assert.ok(hits.some((h) => h.entry.name === "Курумоч" && h.entry.regionIso === "RU-SAM"));
 });
 
 const ILI_LOCALITY: PlaceScanEntry[] = [

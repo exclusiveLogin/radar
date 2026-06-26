@@ -36,6 +36,8 @@ export const trackingRebuildStatsSchema = z.object({
   kalmanTracksOpen: z.number().int().nonnegative().optional(),
   kalmanTracksClosed: z.number().int().nonnegative().optional(),
   kalmanNodesAdded: z.number().int().nonnegative().optional(),
+  attentionConflicts: z.number().int().nonnegative().optional(),
+  softAssigns: z.number().int().nonnegative().optional(),
   elapsedMs: z.number().int().nonnegative().optional(),
 });
 
@@ -51,6 +53,8 @@ export const trackingPipelineMetricsSchema = z.object({
   tracksClosed: z.number().int().nonnegative(),
   tracksStale: z.number().int().nonnegative(),
   tracksTotal: z.number().int().nonnegative(),
+  attentionConflicts: z.number().int().nonnegative().optional(),
+  softAssigns: z.number().int().nonnegative().optional(),
   elapsedMs: z.number().int().nonnegative().optional(),
   runStartedAt: z.string().datetime().nullable().optional(),
 });
@@ -72,6 +76,11 @@ export const trackingRebuildRunSchema = z.object({
 export const trackingPipelineConfigSchema = z.object({
   batchSize: z.number().int().min(100).max(5000).default(1000),
   daemonIntervalMs: z.number().int().min(5000).max(300000).optional(),
+  seedMin: z.number().min(0.1).max(1).default(0.45),
+  tieEpsilon: z.number().positive().default(0.5),
+  maxTuneEpochs: z.number().int().min(1).max(50).default(12),
+  initialStepFraction: z.number().min(0.1).max(1).default(0.5),
+  minStepFraction: z.number().min(0.01).max(0.5).default(0.05),
   profiles: z
     .record(
       threatProfileSchema,
@@ -118,3 +127,28 @@ export type TrackingRebuildStats = z.infer<typeof trackingRebuildStatsSchema>;
 export type TrackingRebuildRun = z.infer<typeof trackingRebuildRunSchema>;
 export type TrackingPipelineConfig = z.infer<typeof trackingPipelineConfigSchema>;
 export type TrackingStatusResponse = z.infer<typeof trackingStatusResponseSchema>;
+
+export const trackingTuneRunStatusSchema = z.enum(["running", "done", "failed", "cancelled"]);
+
+export const trackingTuneRunSchema = z.object({
+  id: z.string().uuid(),
+  status: trackingTuneRunStatusSchema,
+  paramsIn: z.record(z.unknown()),
+  epochsDone: z.number().int().nonnegative(),
+  maxEpochs: z.number().int().positive(),
+  bestConfig: z.record(z.unknown()).nullable(),
+  bestFitness: z.number().nullable(),
+  grid: z.array(z.record(z.unknown())),
+  error: z.string().nullable().optional(),
+  createdAt: z.string().datetime(),
+  finishedAt: z.string().datetime().nullable(),
+});
+
+export const trackingTuneStartRequestSchema = z.object({
+  profile: threatProfileSchema.default("uav"),
+  maxEpochs: z.number().int().min(1).max(50).optional(),
+  sampleLimit: z.number().int().min(100).max(5000).optional(),
+});
+
+export type TrackingTuneRun = z.infer<typeof trackingTuneRunSchema>;
+export type TrackingTuneStartRequest = z.infer<typeof trackingTuneStartRequestSchema>;

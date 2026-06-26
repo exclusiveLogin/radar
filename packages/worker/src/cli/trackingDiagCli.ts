@@ -98,7 +98,7 @@ async function main(): Promise<void> {
       ),
     );
   } finally {
-    await runtime.shutdown();
+    await runtime.shutdown?.();
   }
 }
 

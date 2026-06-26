@@ -27,6 +27,7 @@ function toRegionRecord(row: RegionEntity): RegionRecord {
     lastSourceRevision: row.lastSourceRevision ?? undefined,
     frontRegion: row.frontRegion,
     borderRegion: row.borderRegion,
+    frontDistanceKm: row.frontDistanceKm ?? undefined,
   };
 }
 
@@ -84,6 +85,7 @@ export class TypeOrmRegionRepository implements IRegionRepository {
       isActive: true,
       frontRegion: record.frontRegion,
       borderRegion: record.borderRegion,
+      frontDistanceKm: record.frontDistanceKm ?? null,
     });
   }
 

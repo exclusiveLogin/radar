@@ -3,7 +3,11 @@
  */
 import { BehaviorSubject, combineLatest, type Observable } from "rxjs";
 import { debounceTime, distinctUntilChanged, exhaustMap, filter, map, switchMap } from "rxjs/operators";
-import type { MapPlaceSnapshot, MapRegionSnapshot } from "@radar/shared";
+import type {
+  MapPlaceSnapshot,
+  MapRegionSnapshot,
+  MapVicinityScopeSnapshot,
+} from "@radar/shared";
 import {
   activeDistrictIdsFingerprint,
   visibleRegionCodesFingerprint,
@@ -16,7 +20,9 @@ import {
   mapViewAnchor$,
   placesById$,
   regionsByCode$,
+  vicinityScopesById$,
 } from "./mapStore";
+import { tracksFlow$, tracksList$, tracksLoading$ } from "./trackStore";
 import type {
   DistrictsFetchData,
   FetchPhase,
@@ -47,80 +53,49 @@ export function placesFingerprint(places: Map<string, MapPlaceSnapshot>): string
   return `${places.size}|${parts.sort().join(";")}`;
 }
 
+export function vicinityFingerprint(
+  scopes: Map<string, MapVicinityScopeSnapshot>,
+): string {
+  const parts = [...scopes.values()].map(
+    (s) =>
+      `${s.scopeId}:${s.stateLevel}:${s.statusEventAt ?? ""}:${s.lat}:${s.lon}:${s.radiusM}`,
+  );
+  return `${scopes.size}|${parts.sort().join(";")}`;
+}
+
 const debouncePaint = debounceTime(50);
 const debounceGeo = debounceTime(80);
 
-/** Centroids: только fold-state, без geo HTTP. */
-export function placesPaint$(): Observable<void> {
+/**
+ * ЕДИНЫЙ render-тик карты (SSOT перерисовки).
+ *
+ * Подписан на ВСЕ источники данных слоёв сразу: fold (регионы/места/около/угрозы),
+ * lazy-геометрию (revision), треки и тоглы видимости. Любое изменение любого
+ * активного слоя → один debounced emit → один renderActiveLayers() в lifecycle →
+ * один кадр со всеми слоями. Это убирает рейсы раздельных setData/repaint, когда
+ * каждый слой рендерился в свой тик и кадры мигали частичным состоянием.
+ *
+ * Сами apply-функции слоёв гейтятся по своему тоглу и fingerprint-skip'ятся, поэтому
+ * «применить все» на каждый тик дёшево и идемпотентно.
+ */
+export function geoRenderTick$(): Observable<void> {
   return combineLatest([
+    regionsByCode$.pipe(map(regionsFingerprint), distinctUntilChanged()),
     placesById$.pipe(map(placesFingerprint), distinctUntilChanged()),
-    regionsByCode$.pipe(map(regionsFingerprint), distinctUntilChanged()),
-    mapViewAnchor$,
-    geoMapLayers$.pipe(
-      map((layers) => layers.places),
-      distinctUntilChanged(),
-    ),
-    mapCanvasReady$,
-  ]).pipe(
-    filter(([, , , enabled, ready]) => enabled && ready),
-    debouncePaint,
-    map(() => undefined),
-  );
-}
-
-/** Иконки угроз в centroid: fold statusCode + traits. */
-export function threatIconsPaint$(): Observable<void> {
-  return combineLatest([
-    regionsByCode$.pipe(map(regionsFingerprint), distinctUntilChanged()),
+    vicinityScopesById$.pipe(map(vicinityFingerprint), distinctUntilChanged()),
     derivedRegionCodes$.pipe(
       map((codes) => [...codes].sort().join(",")),
       distinctUntilChanged(),
     ),
-    geoGeometryRevision$,
+    geoGeometryRevision$.pipe(distinctUntilChanged()),
+    tracksList$.pipe(distinctUntilChanged()),
+    tracksFlow$.pipe(distinctUntilChanged()),
+    tracksLoading$.pipe(distinctUntilChanged()),
+    geoMapLayers$,
     mapViewAnchor$,
-    geoMapLayers$.pipe(
-      map((layers) => layers.threatIcons),
-      distinctUntilChanged(),
-    ),
     mapCanvasReady$,
   ]).pipe(
-    filter(([, , , , enabled, ready]) => enabled && ready),
-    debouncePaint,
-    map(() => undefined),
-  );
-}
-
-/** Контуры регионов: fold + lazy geo. */
-export function regionsPaint$(): Observable<void> {
-  return combineLatest([
-    regionsByCode$.pipe(map(regionsFingerprint), distinctUntilChanged()),
-    geoGeometryRevision$,
-    mapViewAnchor$,
-    geoMapLayers$.pipe(
-      map((layers) => layers.regions),
-      distinctUntilChanged(),
-    ),
-    mapCanvasReady$,
-  ]).pipe(
-    filter(([, , , enabled, ready]) => enabled && ready),
-    debouncePaint,
-    map(() => undefined),
-  );
-}
-
-/** Полигоны районов: geoFeatureId + lazy geo. */
-export function districtsPaint$(): Observable<void> {
-  return combineLatest([
-    placesById$.pipe(map(placesFingerprint), distinctUntilChanged()),
-    regionsByCode$.pipe(map(regionsFingerprint), distinctUntilChanged()),
-    geoGeometryRevision$,
-    geoMapLayers$.pipe(
-      map((layers) => layers.districts),
-      distinctUntilChanged(),
-    ),
-    mapCanvasReady$,
-  ]).pipe(
-    filter(([, , , enabled, ready]) => enabled && ready),
+    filter((values) => values[values.length - 1] === true),
     debouncePaint,
     map(() => undefined),
   );

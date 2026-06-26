@@ -21,6 +21,7 @@ const ATTACH_ONLY_CATEGORIES = new Set([
 const ATTACH_ONLY_EVENT_TYPES = new Set([
   "pvo_report",
   "pvo_work",
+  "intercept",
   "safety_measures",
   "cleared",
 ]);

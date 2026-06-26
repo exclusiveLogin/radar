@@ -73,6 +73,13 @@ test("extractEventType: тревога + осколки сбитых — warning
   );
 });
 
+test("extractEventType: «под осколки» без «сохраняется» — pvo_work (осколки = ПВО отработала)", () => {
+  assert.equal(
+    extractEventType("Новороссийск тревога по БПЛА. Не попадите под осколки"),
+    "pvo_work",
+  );
+});
+
 test("extractEventType: МО + фиксация — fixation", () => {
   assert.equal(extractEventType("МО Серебряные Пруды Московская область Фиксация БПЛА"), "fixation");
 });
@@ -84,4 +91,11 @@ test("extractEventType: «возможно бпла» без фиксации �
 test("extractEventType: дрон в небе / бпла над городом — fixation", () => {
   assert.equal(extractEventType("дрон в небе над районом"), "fixation");
   assert.equal(extractEventType("БПЛА над городом"), "fixation");
+});
+
+test("extractEventType: «Группа БПЛА … в направлении» (обратный порядок) — fixation", () => {
+  assert.equal(
+    extractEventType("Московская область Группа БПЛА на стыке Тульской и Калужской области в направлении"),
+    "fixation",
+  );
 });

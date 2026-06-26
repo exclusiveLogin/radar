@@ -3,23 +3,20 @@
  * layer: shared
  * kind: domain
  * domain: tracking
- * purpose: Политика автозавершения трека по лимитам профиля модели.
- *          Три независимые оси завершения:
- *          1. maxTrackDurationMs — физический lifetime
- *          2. maxRangeFromOriginM — радиус действия
- *          3. maxGapMs / staleAfterMs — обрабатывается в buildTrackMetadata
+ * purpose: Политика автозавершения трека по лимитам профиля и intercept.
  * ---
  */
 import type { ProfileKinematics } from "./profileKinematics";
 
-export type TerminationReason = "max_duration" | "max_range" | null;
+export type TerminationReason = "max_duration" | "max_range" | "intercept" | null;
 
 type TerminationCheckInput = {
   firstAt: Date;
   currentAt: Date;
-  /** Накопленная дальность от origin (м). */
   totalDistanceM: number;
   profile: ProfileKinematics;
+  /** Принудительное закрытие после intercept attach. */
+  forceIntercept?: boolean;
 };
 
 type TerminationResult = {
@@ -27,15 +24,20 @@ type TerminationResult = {
   reason: TerminationReason;
 };
 
+/** Закрытие трека по intercept-событию. */
+export function terminateByIntercept(): TerminationResult {
+  return { shouldClose: true, reason: "intercept" };
+}
+
 /**
  * Проверяет, должен ли трек быть закрыт по физическим лимитам профиля.
- * Вызывается после каждого добавления ноды.
  */
-export function checkTrackTermination(
-  input: TerminationCheckInput,
-): TerminationResult {
-  const { firstAt, currentAt, totalDistanceM, profile } = input;
+export function checkTrackTermination(input: TerminationCheckInput): TerminationResult {
+  if (input.forceIntercept) {
+    return terminateByIntercept();
+  }
 
+  const { firstAt, currentAt, totalDistanceM, profile } = input;
   const lifetimeMs = currentAt.getTime() - firstAt.getTime();
 
   if (lifetimeMs > profile.maxTrackDurationMs) {

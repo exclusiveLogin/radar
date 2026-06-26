@@ -1,4 +1,5 @@
 import type { ParseAttemptItem } from "@radar/shared";
+import { useLayoutEffect, useRef } from "react";
 import { Panel } from "../../shared/ds";
 import { useObservable } from "../../shared/hooks/useObservable";
 import { parseLog$ } from "../../shared/state/adminStore";
@@ -23,6 +24,22 @@ function outcomeText(row: ParseAttemptItem): string {
 /** Лог парсинга: все каналы (не фильтруется picker'ом). Parse только на insert, не на dup. */
 export function BackfillJobLogWidget() {
   const log = useObservable(parseLog$, []);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const scrollSnapshotRef = useRef({ height: 0, top: 0 });
+
+  // Новые строки приходят сверху (WS). Если пользователь листал историю — не прыгаем.
+  useLayoutEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+
+    const prev = scrollSnapshotRef.current;
+    const heightDelta = el.scrollHeight - prev.height;
+    if (heightDelta > 0 && prev.top > 0) {
+      el.scrollTop = prev.top + heightDelta;
+    }
+
+    scrollSnapshotRef.current = { height: el.scrollHeight, top: el.scrollTop };
+  }, [log]);
 
   return (
     <Panel title="Лог парсинга (PE workspace)">
@@ -33,10 +50,12 @@ export function BackfillJobLogWidget() {
         <p className="ds-muted">Нет записей парсинга.</p>
       ) : (
         <div
+          ref={scrollRef}
           style={{
             maxHeight: LOG_SCROLL_MAX_HEIGHT,
             overflowY: "auto",
             overflowX: "auto",
+            overflowAnchor: "none",
             border: "1px solid var(--border-subtle)",
             borderRadius: 4,
           }}

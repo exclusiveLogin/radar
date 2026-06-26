@@ -1,5 +1,6 @@
 import type { EventCandidate, IPlaceScanPort, ParseWorkspace, PlaceScanHit } from "@radar/shared";
 import { appendCandidate, rejectOwnCandidates } from "./parseProcessorContract.js";
+import { stripConsequencePhrases } from "../parsing/consequencePhrases.js";
 
 const AUTHOR = "geo-processor";
 const ENRICHER = "catalog";
@@ -46,7 +47,10 @@ export function runGeoProcessor(input: {
   placeScan: IPlaceScanPort;
 }): void {
   const { workspace, placeScan } = input;
-  const text = workspace.groomedText;
+  // Срезаем фразы-последствия (омонимы НП: «осколки» → д. Осколки) ДО гео-скана.
+  // Тип события извлекается отдельно из полного groomedText (event-type-processor),
+  // поэтому маскировка спанов здесь не влияет на классификацию.
+  const text = stripConsequencePhrases(workspace.groomedText);
 
   const regionHits = placeScan.matchRegions(text);
   const explicitRegionIsos = regionHits.map((h) => h.entry.regionIso);

@@ -38,7 +38,7 @@ export function startTrackStoreEffects(): void {
           mapApi.tracksList({
             asOf: asOf ?? undefined,
             threatProfile,
-            limit: 500,
+            limit: 5000,
             includeNodes: true,
           }),
         ).pipe(

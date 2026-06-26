@@ -15,6 +15,8 @@ import { TypeOrmPlaceAliasRepository } from "../infrastructure/persistence/typeo
 import { TypeOrmPlaceRepository } from "../infrastructure/persistence/typeorm-place.repository";
 import { TypeOrmRegionRepository } from "../infrastructure/persistence/typeorm-region.repository";
 import { syncRegionCanonicalPlaces } from "../application/geo-sync/region-place-mirror";
+import { computeFrontDistancesKm } from "../application/geo-sync/region-front-distance";
+import { RegionGeometryCatalog } from "../map/region-geometry.catalog";
 import { repoDataPath } from "../monorepo-root";
 
 dotenv.config({ path: path.resolve(__dirname, "../../../../.env") });
@@ -33,8 +35,16 @@ type CatalogRegionEntry = {
   centroidLon?: number | null;
 };
 
-/** Преобразует запись из catalog/regions.json в доменный RegionRecord. */
-function toRegionRecord(entry: CatalogRegionEntry): RegionRecord {
+/** Центроид субъекта по ISO; computed из геометрии приоритетнее значения каталога. */
+type CentroidByIso = Map<string, { centroidLat: number; centroidLon: number }>;
+
+/**
+ * Преобразует запись каталога в RegionRecord.
+ * Центроид: из геометрии (SSOT data/geo) с фолбэком на значение каталога (фронт-
+ * регионы без OSM-контура). frontDistanceKm проставляется вторым проходом.
+ */
+function toRegionRecord(entry: CatalogRegionEntry, centroids: CentroidByIso): RegionRecord {
+  const fromGeometry = centroids.get(entry.iso);
   return {
     id: randomUUID(),
     code: entry.fiasId ?? entry.iso,
@@ -45,8 +55,8 @@ function toRegionRecord(entry: CatalogRegionEntry): RegionRecord {
     nameWithType: entry.nameWithType,
     shortName: entry.shortName,
     federalDistrict: entry.federalDistrict,
-    centroidLat: entry.centroidLat ?? undefined,
-    centroidLon: entry.centroidLon ?? undefined,
+    centroidLat: fromGeometry?.centroidLat ?? entry.centroidLat ?? undefined,
+    centroidLon: fromGeometry?.centroidLon ?? entry.centroidLon ?? undefined,
     frontRegion: entry.frontRegion ?? false,
     borderRegion: entry.borderRegion ?? false,
     sourceMeta: { source: "catalog/regions.json" },
@@ -75,7 +85,33 @@ async function main(): Promise<void> {
     const places  = new TypeOrmPlaceRepository(dataSource);
     const aliases = new TypeOrmPlaceAliasRepository(dataSource);
 
-    const records = entries.map(toRegionRecord);
+    // Центроиды из геометрии контуров (Russia_regions.geojson + supplemental).
+    const geometryCatalog = RegionGeometryCatalog.getInstance();
+    geometryCatalog.bindRegions([]); // ISO-индекс наполнится из catalog/regions.json
+    const centroids = geometryCatalog.centroidByIso();
+
+    const records = entries.map((entry) => toRegionRecord(entry, centroids));
+
+    // Второй проход: дистанция до ближайшего фронт-региона по центроидам.
+    const distances = computeFrontDistancesKm(
+      records.map((r) => ({
+        iso: r.iso ?? r.code,
+        centroidLat: r.centroidLat,
+        centroidLon: r.centroidLon,
+        frontRegion: r.frontRegion,
+      })),
+    );
+    for (const record of records) {
+      record.frontDistanceKm = distances.get(record.iso ?? record.code) ?? null;
+    }
+
+    const withCentroid = records.filter((r) => r.centroidLat !== undefined).length;
+    const withDistance = records.filter((r) => r.frontDistanceKm != null).length;
+    console.log(
+      `[geo:regions:seed] Центроиды: ${withCentroid}/${records.length}, ` +
+        `front_distance_km: ${withDistance}/${records.length}`,
+    );
+
     await regions.upsertMany(records);
     console.log(`[geo:regions:seed] Upserted регионов: ${records.length}`);
 

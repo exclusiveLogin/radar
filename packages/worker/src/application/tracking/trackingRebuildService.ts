@@ -16,8 +16,6 @@ import {
   resolveProfileKinematics,
   maxEpsilonTemporalMs,
   stdbscanDedup,
-  scoreSeedCandidate,
-  isNearAnyOpenTrack,
   checkTrackTermination,
   haversineDistanceM,
   kalmanStep,
@@ -26,6 +24,9 @@ import {
   scaleObservationCovariance,
   innovationGate,
   buildTrackMetadata,
+  canEnterAttention,
+  resolveAssignments,
+  DEFAULT_SEED_MIN,
   type ProfileKinematics,
   type TrackingCandidate,
   type TrackingDomainNode as TrajectoryNode,
@@ -34,6 +35,9 @@ import {
   type TrackingWatermark,
   type TrackingPipelineConfig,
   type TrackingRebuildStats,
+  type MutationState,
+  type TrackAttentionTarget,
+  type AssignStats,
 } from "@radar/shared";
 import {
   loadTrackingCandidates,
@@ -72,8 +76,8 @@ export async function runTrackingRebuild(
   const { since, until, persist = true } = opts;
   const rebuildGen = opts.rebuildGen ?? randomUUID();
 
-  // 1. Загружаем все кандидаты за период (ORDER BY occurred_at ASC)
-  const allCandidates = await loadTrackingCandidates(ds, { since, until });
+  // 1. Загружаем все кандидаты за период (full rebuild — без consumed guard)
+  const allCandidates = await loadTrackingCandidates(ds, { since, until, excludeConsumed: false });
 
   // 2. Разбиваем по профилю угрозы для независимого DBSCAN dedup
   const byProfile = groupByProfile(allCandidates);
@@ -134,9 +138,13 @@ export async function runIncrementalBatch(
   const profileOverrides = opts.config?.profiles;
   opts.onProgress?.({ stage: "loading" });
 
-  const openTracks = await loadOpenTracksFromDb(ds);
+  const openTracks = await loadOpenTracksFromDb(ds, rebuildAt, opts.config);
   const byProfile = groupByProfile(opts.candidates);
   let collapsedByDedup = 0;
+  let stdbscanClusters = 0;
+  let kalmanTracksOpen = 0;
+  let kalmanTracksClosed = 0;
+  let kalmanNodesAdded = 0;
   const built: BuiltTracks = { tracks: [], nodes: [] };
 
   for (const profile of Object.keys(byProfile) as ThreatProfile[]) {
@@ -148,21 +156,54 @@ export async function runIncrementalBatch(
       minPts: kin.stdbscanMinPts,
     });
     collapsedByDedup += collapsedCount;
+    stdbscanClusters += deduplicated.length;
+
+    opts.onProgress?.({
+      stage: "stdbscan",
+      stdbscanClusters,
+      stdbscanCollapsed: collapsedByDedup,
+    });
 
     opts.onProgress?.({ stage: "kalman" });
     const profileOpen = openTracks.filter(t => t.profile === profile && !t.closed);
     const profileBuilt = buildTracksForProfile(deduplicated, profileOpen, rebuildAt, kin);
     built.tracks.push(...profileBuilt.tracks);
     built.nodes.push(...profileBuilt.nodes);
+    kalmanTracksOpen += profileBuilt.tracks.filter(t => t.status === "active").length;
+    kalmanTracksClosed += profileBuilt.tracks.filter(t => t.status === "closed").length;
+    kalmanNodesAdded += profileBuilt.nodes.length;
+
+    opts.onProgress?.({
+      stage: "kalman",
+      stdbscanClusters,
+      stdbscanCollapsed: collapsedByDedup,
+      kalmanTracksOpen,
+      kalmanTracksClosed,
+      kalmanNodesAdded,
+    });
   }
 
-  opts.onProgress?.({ stage: "persisting" });
+  opts.onProgress?.({
+    stage: "persisting",
+    stdbscanClusters,
+    stdbscanCollapsed: collapsedByDedup,
+    kalmanTracksOpen,
+    kalmanTracksClosed,
+    kalmanNodesAdded,
+  });
   if (built.tracks.length > 0 || built.nodes.length > 0) {
     await persistTracks(ds, built, opts.rebuildGen);
   }
 
   const watermark = computeWatermark(opts.candidates);
-  opts.onProgress?.({ stage: "done" });
+  opts.onProgress?.({
+    stage: "done",
+    stdbscanClusters,
+    stdbscanCollapsed: collapsedByDedup,
+    kalmanTracksOpen,
+    kalmanTracksClosed,
+    kalmanNodesAdded,
+  });
 
   return {
     tracksCount: built.tracks.length,
@@ -175,11 +216,32 @@ export async function runIncrementalBatch(
 export {
   loadTrackingCandidatesBatch,
   countTrackingCandidates,
+  countTrackingPipelineRemaining,
   countTrackingCandidateStats,
 } from "./loadTrackingCandidates.js";
 export { maxEpsilonTemporalMs };
 
-async function loadOpenTracksFromDb(ds: DataSource): Promise<MutableTrack[]> {
+/** Макс. окно «продолжения» недавно закрытого трека (staleAfterMs по профилям). */
+function maxStaleWindowMs(config?: TrackingPipelineConfig): number {
+  const overrides = config?.profiles;
+  return Math.max(
+    ...(Object.keys(PROFILE_KINEMATICS) as ThreatProfile[]).map(p =>
+      resolveProfileKinematics(p, overrides).staleAfterMs,
+    ),
+  );
+}
+
+/**
+ * Загружает треки, к которым можно прилинковать новые точки:
+ * active + недавно closed/stale (в пределах staleAfterMs) — иначе каждый burst даёт 2-нодовую цепочку.
+ */
+async function loadOpenTracksFromDb(
+  ds: DataSource,
+  rebuildAt: Date,
+  config?: TrackingPipelineConfig,
+): Promise<MutableTrack[]> {
+  const continuableSince = new Date(rebuildAt.getTime() - maxStaleWindowMs(config));
+
   const trackRows = await ds.query<
     {
       id: string;
@@ -190,7 +252,10 @@ async function loadOpenTracksFromDb(ds: DataSource): Promise<MutableTrack[]> {
     }[]
   >(
     `SELECT id, threat_profile, total_distance_m, last_lat, last_lon
-     FROM trajectory_tracks WHERE status = 'active'`,
+     FROM trajectory_tracks
+     WHERE status = 'active'
+        OR (status IN ('closed', 'stale') AND last_at >= $1)`,
+    [continuableSince.toISOString()],
   );
   if (trackRows.length === 0) return [];
 
@@ -245,10 +310,29 @@ async function loadOpenTracksFromDb(ds: DataSource): Promise<MutableTrack[]> {
         refLat: first.lat,
         refLon: first.lon,
         closed: false,
+        mutationState: { phase: "stable", consecutiveSoftAssigns: 0 },
       };
       return track;
     })
     .filter((t): t is MutableTrack => t !== null);
+}
+
+/**
+ * SSOT in-memory assign-движок (Kalman): seed/link/intercept без БД.
+ * Используется и продовым rebuild, и offline-тюнером — единая физика линковки,
+ * поэтому chi2/processNoise/rear реально влияют на результат.
+ */
+export function buildMutableTracks(
+  candidates: TrackingCandidate[],
+  kin: ProfileKinematics,
+  rebuildAt: Date,
+  seedMin = DEFAULT_SEED_MIN,
+  seedOpen: MutableTrack[] = [],
+): MutableTrack[] {
+  const openTracks = [...seedOpen];
+  const closedTracks: MutableTrack[] = [];
+  assignBatch(candidates, openTracks, closedTracks, kin, rebuildAt, seedMin);
+  return [...openTracks, ...closedTracks];
 }
 
 function buildTracksForProfile(
@@ -256,40 +340,12 @@ function buildTracksForProfile(
   seedOpen: MutableTrack[],
   rebuildAt: Date,
   kin: ProfileKinematics,
+  seedMin = DEFAULT_SEED_MIN,
 ): BuiltTracks {
-  const openTracks = [...seedOpen];
-  const closedTracks: MutableTrack[] = [];
-
-  for (const candidate of candidates) {
-    const linkedTrack = tryLink(candidate, openTracks, kin);
-    if (linkedTrack) {
-      appendNode(linkedTrack, candidate, kin, rebuildAt);
-      const term = checkTrackTermination({
-        firstAt: linkedTrack.nodes[0].occurredAt,
-        currentAt: candidate.occurredAt,
-        totalDistanceM: linkedTrack.totalDistanceM,
-        profile: kin,
-      });
-      if (term.shouldClose) {
-        linkedTrack.closed = true;
-        closedTracks.push(linkedTrack);
-        openTracks.splice(openTracks.indexOf(linkedTrack), 1);
-      }
-      continue;
-    }
-
-    const openSummaries = openTracks
-      .filter(t => t.profile === candidate.threatProfile)
-      .map(t => {
-        const last = t.nodes[t.nodes.length - 1]!;
-        return { lastLat: last.lat, lastLon: last.lon, lastAt: last.occurredAt, profile: t.profile };
-      });
-
-    if (isNearAnyOpenTrack(candidate, openSummaries, kin)) continue;
-    openTracks.push(startTrack(candidate, kin));
-  }
-
-  return finalizeMutableTracks([...openTracks, ...closedTracks], rebuildAt);
+  return finalizeMutableTracks(
+    buildMutableTracks(candidates, kin, rebuildAt, seedMin, seedOpen),
+    rebuildAt,
+  );
 }
 
 function finalizeMutableTracks(allMutable: MutableTrack[], rebuildAt: Date): BuiltTracks {
@@ -333,7 +389,7 @@ type BuiltTracks = {
   nodes: TrajectoryNode[];
 };
 
-type MutableTrack = {
+export type MutableTrack = {
   id: string;
   nodes: TrajectoryNode[];
   profile: ThreatProfile;
@@ -341,110 +397,145 @@ type MutableTrack = {
   refLat: number;
   refLon: number;
   closed: boolean;
+  mutationState: MutationState;
 };
 
-/** Строит треки из дедуплицированных кандидатов через Kalman. */
+/** Attention assign batch — Phase A/B/C через resolveAssignments. */
+function assignBatch(
+  candidates: TrackingCandidate[],
+  openTracks: MutableTrack[],
+  closedTracks: MutableTrack[],
+  kin: ProfileKinematics,
+  rebuildAt: Date,
+  seedMin: number,
+): AssignStats {
+  const consumed = new Set<string>();
+  const stats: AssignStats = {
+    links: 0,
+    softLinks: 0,
+    seeds: 0,
+    intercepts: 0,
+    skips: 0,
+    attentionConflicts: 0,
+  };
+
+  for (const candidate of candidates) {
+    if (!canEnterAttention(candidate)) continue;
+
+    const targets = openTracks
+      .filter(t => !t.closed)
+      .map(t => toAttentionTarget(t));
+
+    const { decisions, stats: stepStats } = resolveAssignments(
+      [candidate],
+      targets,
+      kin,
+      { consumed, seedMin },
+    );
+
+    stats.links += stepStats.links;
+    stats.softLinks += stepStats.softLinks;
+    stats.seeds += stepStats.seeds;
+    stats.intercepts += stepStats.intercepts;
+    stats.skips += stepStats.skips;
+    stats.attentionConflicts += stepStats.attentionConflicts;
+
+    const decision = decisions[0];
+    if (!decision) continue;
+
+    switch (decision.kind) {
+      case "link": {
+        const track = openTracks.find(t => t.id === decision.trackId);
+        if (!track) break;
+        appendNode(track, candidate, kin, rebuildAt, decision.soft);
+        updateMutationState(track, decision.soft, candidate);
+        maybeCloseTrack(track, candidate, kin, openTracks, closedTracks, false);
+        break;
+      }
+      case "seed":
+        openTracks.push(startTrack(candidate, kin));
+        break;
+      case "intercept": {
+        const track = openTracks.find(t => t.id === decision.trackId);
+        if (!track) break;
+        appendNode(track, candidate, kin, rebuildAt, false);
+        maybeCloseTrack(track, candidate, kin, openTracks, closedTracks, true);
+        break;
+      }
+      case "skip":
+        break;
+    }
+  }
+
+  return stats;
+}
+
+function toAttentionTarget(track: MutableTrack): TrackAttentionTarget {
+  const last = track.nodes[track.nodes.length - 1]!;
+  return {
+    trackId: track.id,
+    profile: track.profile,
+    lastAt: last.occurredAt,
+    lastLat: last.lat,
+    lastLon: last.lon,
+    kalmanState: last.kalmanState,
+    refLat: track.refLat,
+    refLon: track.refLon,
+    mutationState: track.mutationState,
+  };
+}
+
+function updateMutationState(
+  track: MutableTrack,
+  soft: boolean,
+  candidate: TrackingCandidate,
+): void {
+  if (soft) {
+    track.mutationState = {
+      phase: "expanded",
+      consecutiveSoftAssigns: track.mutationState.consecutiveSoftAssigns + 1,
+    };
+    return;
+  }
+  if (candidate.mode === "correct") {
+    track.mutationState = { phase: "stable", consecutiveSoftAssigns: 0 };
+  }
+}
+
+function maybeCloseTrack(
+  track: MutableTrack,
+  candidate: TrackingCandidate,
+  kin: ProfileKinematics,
+  openTracks: MutableTrack[],
+  closedTracks: MutableTrack[],
+  forceIntercept: boolean,
+): void {
+  const term = checkTrackTermination({
+    firstAt: track.nodes[0]!.occurredAt,
+    currentAt: candidate.occurredAt,
+    totalDistanceM: track.totalDistanceM,
+    profile: kin,
+    forceIntercept,
+  });
+  if (!term.shouldClose) return;
+  track.closed = true;
+  closedTracks.push(track);
+  const idx = openTracks.indexOf(track);
+  if (idx >= 0) openTracks.splice(idx, 1);
+}
+
+/** Строит треки из дедуплицированных кандидатов через attention assign. */
 function buildTracks(candidates: TrackingCandidate[], rebuildAt: Date): BuiltTracks {
   const openTracks: MutableTrack[] = [];
   const closedTracks: MutableTrack[] = [];
 
-  for (const candidate of candidates) {
-    const kin = PROFILE_KINEMATICS[candidate.threatProfile];
-
-    // Пробуем прилинковать к открытому треку того же профиля
-    const linkedTrack = tryLink(candidate, openTracks, kin);
-
-    if (linkedTrack) {
-      appendNode(linkedTrack, candidate, kin, rebuildAt);
-      // Проверяем termination после добавления
-      const term = checkTrackTermination({
-        firstAt: linkedTrack.nodes[0].occurredAt,
-        currentAt: candidate.occurredAt,
-        totalDistanceM: linkedTrack.totalDistanceM,
-        profile: kin,
-      });
-      if (term.shouldClose) {
-        linkedTrack.closed = true;
-        closedTracks.push(linkedTrack);
-        openTracks.splice(openTracks.indexOf(linkedTrack), 1);
-      }
-    } else {
-      // Проверяем origin gate — можно ли стартовать новый трек
-      const openSummaries = openTracks
-        .filter(t => t.profile === candidate.threatProfile)
-        .map(t => {
-          const last = t.nodes[t.nodes.length - 1];
-          return { lastLat: last.lat, lastLon: last.lon, lastAt: last.occurredAt, profile: t.profile };
-        });
-
-      const tooCloseToExisting = isNearAnyOpenTrack(candidate, openSummaries, kin);
-      if (tooCloseToExisting) continue; // не стартуем новый, не линкуем
-
-      // Стартуем новый трек
-      const newTrack = startTrack(candidate, kin);
-      openTracks.push(newTrack);
-    }
+  const byProfile = groupByProfile(candidates.filter(canEnterAttention));
+  for (const profile of Object.keys(byProfile) as ThreatProfile[]) {
+    const kin = PROFILE_KINEMATICS[profile];
+    assignBatch(byProfile[profile]!, openTracks, closedTracks, kin, rebuildAt, DEFAULT_SEED_MIN);
   }
 
-  // Все оставшиеся open tracks → финализируем
-  const allMutable = [...openTracks, ...closedTracks];
-  const tracks: TrajectoryTrack[] = [];
-  const nodes: TrajectoryNode[] = [];
-
-  for (const mt of allMutable) {
-    if (mt.nodes.length < 2) continue; // минимум 2 ноды для трека
-
-    const kin = PROFILE_KINEMATICS[mt.profile];
-    const meta = buildTrackMetadata(mt.nodes, kin, rebuildAt);
-
-    tracks.push({
-      id: mt.id,
-      status: mt.closed ? "closed" : meta.status,
-      threatProfile: mt.profile,
-      firstAt: meta.firstAt,
-      lastAt: meta.lastAt,
-      lastLat: meta.lastLat,
-      lastLon: meta.lastLon,
-      velocityMs: meta.velocityMs,
-      bearingDeg: meta.bearingDeg,
-      nodeCount: meta.nodeCount,
-      totalDistanceM: mt.totalDistanceM,
-    });
-
-    nodes.push(...mt.nodes.map((n, i) => ({ ...n, seq: i })));
-  }
-
-  return { tracks, nodes };
-}
-
-/** Находит открытый трек, к которому можно прилинковать кандидата. */
-function tryLink(
-  candidate: TrackingCandidate,
-  openTracks: MutableTrack[],
-  kin: ProfileKinematics,
-): MutableTrack | null {
-  let best: MutableTrack | null = null;
-  let bestDist = Infinity;
-
-  for (const track of openTracks) {
-    if (track.profile !== candidate.threatProfile) continue;
-    if (track.closed) continue;
-
-    const lastNode = track.nodes[track.nodes.length - 1];
-    const gapMs = candidate.occurredAt.getTime() - lastNode.occurredAt.getTime();
-
-    if (gapMs < 0 || gapMs > kin.maxGapMs) continue;
-
-    const dist = haversineDistanceM(candidate.lat, candidate.lon, lastNode.lat, lastNode.lon);
-    if (dist > kin.maxLinkDistanceM) continue;
-
-    if (dist < bestDist) {
-      bestDist = dist;
-      best = track;
-    }
-  }
-
-  return best;
+  return finalizeMutableTracks([...openTracks, ...closedTracks], rebuildAt);
 }
 
 /** Добавляет ноду к треку с Kalman-шагом. */
@@ -453,8 +544,9 @@ function appendNode(
   candidate: TrackingCandidate,
   kin: ProfileKinematics,
   _rebuildAt: Date,
+  soft = false,
 ): void {
-  const lastNode = track.nodes[track.nodes.length - 1];
+  const lastNode = track.nodes[track.nodes.length - 1]!;
   const dtSeconds = (candidate.occurredAt.getTime() - lastNode.occurredAt.getTime()) / 1000;
   const R = scaleObservationCovariance(
     observationCovarianceMeters(candidate.precision, candidate.trust),
@@ -462,6 +554,7 @@ function appendNode(
   );
 
   let kalmanState = lastNode.kalmanState;
+  const noiseScale = soft ? kin.processNoiseScale * 4 : kin.processNoiseScale;
 
   if (candidate.mode === "correct" && kalmanState) {
     const gate = innovationGate({
@@ -470,19 +563,23 @@ function appendNode(
       observationLon: candidate.lon,
       observedAt: candidate.occurredAt,
       R,
+      refLat: track.refLat,
+      refLon: track.refLon,
       maxVelocityMs: kin.maxVelocityMs,
       chi2Threshold: kin.chi2Threshold,
       rearThresholdM: kin.rearThresholdM,
+      processNoiseScale: noiseScale,
+      dtSeconds,
     });
 
-    if (gate.accept) {
+    if (gate.accept || soft) {
       kalmanState = kalmanStep(
         kalmanState,
         candidate.lat,
         candidate.lon,
         dtSeconds,
         R,
-        kin.processNoiseScale,
+        noiseScale,
         track.refLat,
         track.refLon,
       );
@@ -542,6 +639,7 @@ function startTrack(seed: TrackingCandidate, kin: ProfileKinematics): MutableTra
     refLat: seed.lat,
     refLon: seed.lon,
     closed: false,
+    mutationState: { phase: "stable", consecutiveSoftAssigns: 0 },
   };
 }
 

@@ -14,11 +14,9 @@ const INLINE_NOISE_PATTERNS: RegExp[] = [
   /@[\w_]+/i,
   /t\.me\//i,
   /подпис/i,
-  /меры\s+безопасности/i,
   /24\/7/i,
   /промокод/i,
   /подписывайтесь/i,
-  /меры\s+безопасности/i,
   /чат[-\s]?бот/i,
   /сообщить\s+в\s+(?:чат[-\s]?)?бот/i,
   /@\w+_bot/i,
@@ -46,7 +44,8 @@ function loadYamlInlinePatterns(): RegExp[] {
       }
       return patterns.map((p) => new RegExp(p, "i"));
     };
-    return [...parseSection("promoPatterns"), ...parseSection("footerPatterns")];
+    // Footer-паттерны (в т.ч. «Меры безопасности») — только segmenter; здесь только promo/CTA.
+    return parseSection("promoPatterns");
   } catch {
     return [];
   }
@@ -62,8 +61,9 @@ function allInlinePatterns(): RegExp[] {
 }
 
 /**
- * Обрезает promo/footer канала по первому inline-совпадению (any position).
- * One-liner и multiline — одинаково.
+ * Обрезает promo/CTA канала по первому inline-совпадению (❗️Радар, @bot, t.me).
+ * Footer-строки («Меры безопасности» на отдельной строке) — только segmenter, не здесь:
+ * в one-liner «Город … Меры безопасности» это сигнал, а не хвост.
  */
 export function stripInlineChannelNoise(text: string): string {
   let earliest = text.length;

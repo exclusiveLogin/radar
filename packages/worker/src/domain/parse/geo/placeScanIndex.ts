@@ -14,17 +14,30 @@ type PhraseIndexRow = {
 };
 
 /**
- * ADR-012: без regionScope — kind ≥ city; locality/settlement только если имя уникально в каталоге.
+ * Гео-маркер перед фразой: «г./с./д./пос./город/село/деревня/станица/хутор».
+ * Сигнал, что голое имя — это НП, а не нарицательное слово.
+ */
+const GEO_MARKER_BEFORE =
+  /(?:^|[\s.,;:(«"'\-—])(?:г|с|д|п|пос|пгт|ст|х|город|село|деревня|пос[её]лок|станица|хутор)\.?\s*$/i;
+
+/**
+ * ADR-012 (ужесточено): без regionScope — kind ≥ city.
+ * Одиночный locality/settlement по ГОЛОМУ имени поднимаем только при regionScope ИЛИ гео-маркере
+ * (г./с./д./пос.). Иначе нарицательное-омоним (д. Осколки) ложно матчится.
  */
 function resolvePhraseCandidates(
   entries: PlaceScanEntry[],
   minKind: PlaceRecord["kind"],
   phraseLower: string,
+  allowBareLocality: boolean,
 ): PlaceScanEntry[] {
   const cityPlus = entries.filter(
     (e) => e.kind !== "region" && kindMeetsFloor(e.kind, minKind),
   );
   if (cityPlus.length > 0) return cityPlus;
+
+  // Без скоупа/маркера голое имя НП не поднимаем — корневое правило (дух ADR-012).
+  if (!allowBareLocality) return [];
 
   if (isGeoPhraseStopword(phraseLower) || phraseLower.length < 4) {
     return [];
@@ -115,6 +128,7 @@ export class PlaceScanIndex {
     text: string,
     kindFilter?: (e: PlaceScanEntry) => boolean,
     phraseMinKind: PlaceRecord["kind"] = "city",
+    regionScoped = false,
   ): PlaceScanHit[] {
     const lower = text.toLowerCase();
     const hits: PlaceScanHit[] = [];
@@ -139,9 +153,12 @@ export class PlaceScanIndex {
         }
         if (!overlaps(start, end)) {
           const filtered = kindFilter ? row.entries.filter(kindFilter) : row.entries;
+          // Гео-маркер ищем в коротком префиксе перед фразой («д. Осколки» → деревня).
+          const hasGeoMarker = GEO_MARKER_BEFORE.test(lower.slice(Math.max(0, start - 14), start));
+          const allowBareLocality = regionScoped || hasGeoMarker;
           const candidates =
             kindFilter && filtered.length > 0 && filtered.every((e) => e.kind !== "region")
-              ? resolvePhraseCandidates(filtered, phraseMinKind, row.phraseLower)
+              ? resolvePhraseCandidates(filtered, phraseMinKind, row.phraseLower, allowBareLocality)
               : filtered;
           if (candidates.length > 0) {
             const sorted = sortPlaceScanEntriesStable(candidates);
@@ -167,14 +184,14 @@ export class PlaceScanIndex {
 
   /**
    * Phrase-match для place: ADR-012 — без regionScope только kind ≥ city
-   * (locality/settlement не матчатся по голому имени).
+   * (locality/settlement по голому имени — только при regionScoped или гео-маркере в тексте).
    */
   matchPlacesByPhrase(
     text: string,
-    options?: { minKind?: PlaceRecord["kind"] },
+    options?: { minKind?: PlaceRecord["kind"]; regionScoped?: boolean },
   ): PlaceScanHit[] {
     const minKind = options?.minKind ?? "city";
-    return this.matchPhrases(text, (e) => e.kind !== "region", minKind);
+    return this.matchPhrases(text, (e) => e.kind !== "region", minKind, options?.regionScoped ?? false);
   }
 }
 

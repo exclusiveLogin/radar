@@ -64,6 +64,8 @@
     "tracking:status": "tsx src/cli/trackingCli.ts status",
     "tracking:rebuild": "tsx src/cli/trackingCli.ts rebuild",
     "tracking:reset": "tsx src/cli/trackingCli.ts reset",
+    "tracking:sweep": "tsx src/cli/trackingSweepCli.ts",
+    "tracking:kinematics": "tsx src/cli/trackingKinematicsCli.ts",
     "tracking:enable": "tsx src/cli/trackingCli.ts enable",
     "verify:parse-threads": "tsx scripts/verify-parse-threads.mjs",
     "verify:bootstrap": "tsx scripts/verify-worker-bootstrap.mjs"

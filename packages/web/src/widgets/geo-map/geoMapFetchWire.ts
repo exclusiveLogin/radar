@@ -25,11 +25,10 @@ export function wireLayerFetchStreams<T>(options: {
   layerId: GeoMapFetchLayerId;
   streams: FetchStreams<T>;
   fallbackError: string;
-  onData: (data: T) => void;
-  /** Fetch завершился ошибкой — paint не будет, но initial-fit не должен висеть. */
-  onFetchError?: () => void;
+  /** Прямое применение данных слоя. Необязательно: слои тика красятся через geoRenderTick$. */
+  onData?: (data: T) => void;
 }): void {
-  const { sub, destroy$, layerId, streams, fallbackError, onData, onFetchError } = options;
+  const { sub, destroy$, layerId, streams, fallbackError, onData } = options;
   const label = LAYER_LABELS[layerId];
 
   sub.add(
@@ -46,7 +45,6 @@ export function wireLayerFetchStreams<T>(options: {
       const message = formatFetchError(error, fallbackError);
       patchGeoMapLayerFetchStatus(layerId, { error: message });
       reportAppError(label, error, fallbackError);
-      onFetchError?.();
     }),
   );
 
@@ -58,7 +56,7 @@ export function wireLayerFetchStreams<T>(options: {
           ? "точек загружено"
           : `features: ${(data as { features?: unknown[] }).features?.length ?? "?"}`;
       pushAppLog("info", `Загружено (${detail})`, { source: label });
-      onData(data);
+      onData?.(data);
     }),
   );
 }

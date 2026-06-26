@@ -48,6 +48,8 @@ export type RegionRecord = {
   lastSourceRevision?: string;
   frontRegion: boolean;
   borderRegion: boolean;
+  /** Precomputed дистанция (км) до ближайшего фронт-региона (regions.front_distance_km). */
+  frontDistanceKm?: number | null;
 };
 
 export type PlaceRecord = {

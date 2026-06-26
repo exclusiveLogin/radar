@@ -26,14 +26,25 @@ function ScannerCard({
 /** Карточки ST-DBSCAN и Kalman с прогрессом текущего батча. */
 export function TrackingScannersWidget() {
   const status = useObservable(trackingStatus$, null);
-  const stats = status?.activeRun?.stats;
+  const stats = status?.activeRun?.stats ?? status?.lastRun?.stats;
   const cfg = status?.config;
+  const runStatus = status?.activeRun?.status ?? status?.lastRun?.status ?? "idle";
+
+  const stageLabel = (() => {
+    if (!stats?.stage) return runStatus === "running" ? "ожидание батча" : "idle";
+    if (stats.stage === "done") return runStatus === "running" ? "между батчами" : "done";
+    return stats.stage;
+  })();
+
+  const isStdbscanActive = stats?.stage === "stdbscan";
+  const isKalmanActive =
+    stats?.stage === "kalman" || stats?.stage === "persisting" || stats?.stage === "loading";
 
   return (
     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
       <ScannerCard
         title="ST-DBSCAN"
-        stage={stats?.stage === "stdbscan" ? "running" : "idle"}
+        stage={isStdbscanActive ? "running" : stageLabel}
         lines={[
           `Батч: ${stats?.batchSize ?? cfg?.batchSize ?? 1000}`,
           `Кластеров: ${stats?.stdbscanClusters ?? 0}`,
@@ -42,7 +53,7 @@ export function TrackingScannersWidget() {
       />
       <ScannerCard
         title="Kalman Builder"
-        stage={stats?.stage === "kalman" || stats?.stage === "persisting" ? "running" : "idle"}
+        stage={isKalmanActive ? "running" : stageLabel}
         lines={[
           `Open tracks: ${stats?.kalmanTracksOpen ?? 0}`,
           `Closed в батче: ${stats?.kalmanTracksClosed ?? 0}`,

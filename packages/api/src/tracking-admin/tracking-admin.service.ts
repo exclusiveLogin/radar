@@ -1,13 +1,16 @@
-import { BadRequestException, Injectable } from "@nestjs/common";
+import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
 import { InjectDataSource } from "@nestjs/typeorm";
 import {
   trackingPipelineConfigSchema,
   trackingStatusResponseSchema,
   trackingTargetEventTypesSqlIn,
+  trackingTuneRunSchema,
+  trackingTuneStartRequestSchema,
   type TrackingPipelineConfig,
   type TrackingPipelineMetrics,
   type TrackingRebuildRun,
   type TrackingStatusResponse,
+  type TrackingTuneRun,
   type TrackingWatermark,
 } from "@radar/shared";
 import type { DataSource } from "typeorm";
@@ -34,6 +37,20 @@ type RunRow = {
   checkpoint: TrackingWatermark | null;
   control: { pause?: boolean; cancel?: boolean } | null;
   error: string | null;
+};
+
+type TuneRunRow = {
+  id: string;
+  status: string;
+  params_in: Record<string, unknown>;
+  epochs_done: number;
+  max_epochs: number;
+  best_config: Record<string, unknown> | null;
+  best_fitness: number | null;
+  grid: Record<string, unknown>[];
+  error: string | null;
+  created_at: string;
+  finished_at: string | null;
 };
 
 const DEFAULT_CONFIG = trackingPipelineConfigSchema.parse({});
@@ -179,6 +196,83 @@ export class TrackingAdminService {
     );
     return { ok: true };
   }
+
+  // ─── Tune runs ───────────────────────────────────────────────────────────
+
+  async listTuneRuns(limit = 20): Promise<TrackingTuneRun[]> {
+    const rows = await this.ds.query<TuneRunRow[]>(
+      `SELECT * FROM tracking_tune_runs ORDER BY created_at DESC LIMIT $1`,
+      [limit],
+    );
+    return rows.map(mapTuneRunRow);
+  }
+
+  async getTuneRun(id: string): Promise<TrackingTuneRun> {
+    const [row] = await this.ds.query<TuneRunRow[]>(
+      `SELECT * FROM tracking_tune_runs WHERE id = $1`,
+      [id],
+    );
+    if (!row) throw new NotFoundException(`Tune run ${id} not found`);
+    return mapTuneRunRow(row);
+  }
+
+  async startTune(body: unknown): Promise<TrackingTuneRun> {
+    const params = trackingTuneStartRequestSchema.parse(body);
+    const [row] = await this.ds.query<TuneRunRow[]>(
+      `INSERT INTO tracking_tune_runs (status, params_in, max_epochs)
+       VALUES ('running', $1::jsonb, $2)
+       RETURNING *`,
+      [JSON.stringify(params), params.maxEpochs ?? 12],
+    );
+    return mapTuneRunRow(row);
+  }
+
+  async cancelTune(id: string): Promise<{ ok: true }> {
+    const run = await this.getTuneRun(id);
+    if (run.status !== "running") {
+      throw new BadRequestException(`Tune run ${id} is not running (status: ${run.status})`);
+    }
+    await this.ds.query(
+      `UPDATE tracking_tune_runs
+       SET status = 'cancelled', finished_at = now(), control = control || '{"cancel":true}'::jsonb
+       WHERE id = $1`,
+      [id],
+    );
+    return { ok: true };
+  }
+
+  async restartTune(id: string): Promise<TrackingTuneRun> {
+    const run = await this.getTuneRun(id);
+    if (run.status === "running") {
+      throw new BadRequestException("Cannot restart a running tune run");
+    }
+    const [row] = await this.ds.query<TuneRunRow[]>(
+      `INSERT INTO tracking_tune_runs (status, params_in, max_epochs)
+       VALUES ('running', $1::jsonb, $2)
+       RETURNING *`,
+      [JSON.stringify(run.paramsIn), run.maxEpochs],
+    );
+    return mapTuneRunRow(row);
+  }
+
+  async applyTune(id: string): Promise<TrackingPipelineConfig> {
+    const run = await this.getTuneRun(id);
+    if (!run.bestConfig) {
+      throw new BadRequestException(`Tune run ${id} has no best config to apply`);
+    }
+    return this.patchConfig(run.bestConfig);
+  }
+
+  async deleteTune(id: string): Promise<{ ok: true }> {
+    const run = await this.getTuneRun(id);
+    if (run.status === "running") {
+      throw new BadRequestException("Cannot delete a running tune run; cancel it first");
+    }
+    await this.ds.query(`DELETE FROM tracking_tune_runs WHERE id = $1`, [id]);
+    return { ok: true };
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
 
   private async resetInternal(): Promise<void> {
     await this.cancelActiveRuns();
@@ -335,6 +429,22 @@ function mergeProfileOverrides(
     merged[profile] = { ...merged[profile], ...profilePatch };
   }
   return merged;
+}
+
+function mapTuneRunRow(row: TuneRunRow): TrackingTuneRun {
+  return trackingTuneRunSchema.parse({
+    id: row.id,
+    status: row.status,
+    paramsIn: row.params_in,
+    epochsDone: row.epochs_done,
+    maxEpochs: row.max_epochs,
+    bestConfig: row.best_config,
+    bestFitness: row.best_fitness,
+    grid: row.grid,
+    error: row.error,
+    createdAt: row.created_at,
+    finishedAt: row.finished_at,
+  });
 }
 
 function mapRunRow(row: RunRow): TrackingRebuildRun {

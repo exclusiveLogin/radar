@@ -1,6 +1,7 @@
 import * as fs from "node:fs";
 import type { StateLevel } from "@radar/shared";
 import { repoDataPath } from "../monorepo-root";
+import { centroidFromGeoJsonGeometry } from "../infrastructure/geo-providers/geo-provider-utils";
 
 type GeoJsonFeature = {
   type: "Feature";
@@ -229,6 +230,34 @@ export class RegionGeometryCatalog {
     }
 
     return { type: "FeatureCollection", features };
+  }
+
+  /**
+   * Центроид (bbox-центр) каждого субъекта по ISO — из геометрии контуров (SSOT).
+   * Покрывает все субъекты Russia_regions.geojson + supplemental фронт-регионы.
+   * Требует предварительного bindRegions() для резолва подписей субъектных контуров.
+   */
+  centroidByIso(): Map<string, { centroidLat: number; centroidLon: number }> {
+    const out = new Map<string, { centroidLat: number; centroidLon: number }>();
+
+    for (const feature of [
+      ...this.loadSubjectOutlines().features,
+      ...this.loadSupplementalOutlines().features,
+    ]) {
+      const label = String(feature.properties.region ?? "");
+      const iso =
+        String(feature.properties.regionCode ?? "") || this.resolveIso(label);
+      if (!iso || out.has(iso)) continue;
+
+      const { centroidLat, centroidLon } = centroidFromGeoJsonGeometry(
+        feature.geometry,
+      );
+      if (centroidLat === undefined || centroidLon === undefined) continue;
+
+      out.set(iso, { centroidLat, centroidLon });
+    }
+
+    return out;
   }
 
   /** Сводка (CLI/тесты). */

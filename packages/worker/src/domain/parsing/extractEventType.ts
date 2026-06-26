@@ -1,6 +1,7 @@
 import type { EventSubject, EventType } from "@radar/shared";
 
 import { isChannelCityListPromo } from "./channelCityListPromo.js";
+import { CONSEQUENCE_TYPE_RULES } from "./consequencePhrases.js";
 
 
 
@@ -124,6 +125,10 @@ const rules: Array<{ regex: RegExp; type: EventType }> = [
 
   { regex: /в\s+направлении.*бпла/is, type: "fixation" },
 
+  // Обратный порядок: «Группа БПЛА … в направлении X» (бпла раньше «в направлении»).
+  // «в направлении» (но не «в вашем направлении» → attention) = подтверждённое движение.
+  { regex: /бпла.*в\s+направлении/is, type: "fixation" },
+
   { regex: /(?:^|[\s,.])дрон!?\s*$/im, type: "fixation" },
 
   { regex: /фиксаци(?:я|и)/i, type: "fixation" },
@@ -199,6 +204,10 @@ const rules: Array<{ regex: RegExp; type: EventType }> = [
   { regex: /волн[еа].*бпла/i, type: "warning" },
 
   { regex: /тревог[аи].*бпла.*сохраняется/is, type: "warning" },
+
+  // Фразы-последствия (SSOT `consequencePhrases`): «осколки/под осколки» → pvo_work.
+  // Позиция важна: ниже «…сохраняется», но выше общих тревога/опасность.
+  ...CONSEQUENCE_TYPE_RULES,
 
   { regex: /тревог[аи]/i, type: "warning" },
 

@@ -190,6 +190,9 @@ export {
   trackingPipelineConfigSchema,
   trackingPipelineMetricsSchema,
   trackingStatusResponseSchema,
+  trackingTuneRunSchema,
+  trackingTuneRunStatusSchema,
+  trackingTuneStartRequestSchema,
 } from "./admin";
 
 // --- type-only exports ---
@@ -366,7 +369,10 @@ export type {
   TrackingRebuildStats,
   TrackingRebuildRun,
   TrackingPipelineConfig,
+  TrackingPipelineMetrics,
   TrackingStatusResponse,
+  TrackingTuneRun,
+  TrackingTuneStartRequest,
 } from "./admin";
 
 export {

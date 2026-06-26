@@ -56,21 +56,20 @@ places.place_id           threat_profile                    /map/tracks/flow
                                                             /map/tracks/:id/path-fan
 ```
 
-### 1.2 L1 pipeline (Kalman — без fork)
+### 1.2 L1 pipeline (attention assign + Kalman)
 
 ```text
-load event_locations (window, asOf-agnostic facts)
-  → resolveThreatProfile()          // uav | rocket | balloon | unknown
+load event_locations (pipeline types, geo required, consumed guard)
+  → stdbscanDedup (per profile)
+  → buildAttentionMatrix()          // linkCost = D_M² / timeDecay
+  → assignCandidates (Phase B/C)      // in-locus / soft / seed / intercept
   → resolveNodeMode()               // ADR-008: correct | attach_only
-  → linkNodes()                     // spatio-temporal graph, multi-child allowed in memory
-  → isDistinctDuplicate()?          // last node ≈ candidate → skip correct, merge source_refs
-  → innovationGate()?               // Mahalanobis + bearing vs profile
-  → kalmanStep(R from precision)    // R(trust, precision) — ADR-003 ranks
+  → innovationGate() → kalmanStep() // full S = H·P·Hᵀ + R
   → persist trajectory_*
 ```
 
-**Fork / бифуркация — не в Kalman.**  
-Визуализация расхождения — L2 flow + L2b path fan ([ADR-013](../../adr-013-trajectory-flow-and-path-fan.md)).
+**Fork / бифуркация — controlled Q only** (soft-assign mutation), не отдельный Kalman fork.  
+Подробнее: [phase-1c-attention-assign.md](./phase-1c-attention-assign.md).
 
 ### 1.3 L2 pipeline (read projection)
 

@@ -4,8 +4,6 @@ import { take } from "rxjs/operators";
 import type { SourceMessage } from "@radar/shared";
 import { resolveMapBasemapFallbackForTheme } from "../../shared/config/mapConfig.service";
 import { mapApi } from "../../shared/api/mapApi";
-import { isRegionVisibleOnMap } from "../../shared/state/derivations";
-import { regionsByCode$ } from "../../shared/state/mapStore";
 import type { ThemeMode } from "../../shared/state/themeStore";
 import { geoJsonFingerprint, paintRegionInsetOutlines } from "./geoMapPaint";
 import { REGIONS_OUTLINE_SOURCE, REGIONS_SOURCE } from "./geoMapLayerIds";
@@ -14,18 +12,6 @@ import type { GeoJsonCollection } from "./geoMapTypes";
 /** Таймаут ожидания внешнего стиля перед переходом на inline-fallback. */
 const MAP_STYLE_LOAD_TIMEOUT_MS = 5_000;
 
-/**
- * Пересчёт canvas + repaint: в flex-layout MapLibre часто не рисует GeoJSON
- * до первого pan/resize, хотя setData уже выполнен.
- */
-function refreshMapViewport(map: MapLibreMap): void {
-  try {
-    map.resize();
-  } catch {
-    // карта уже уничтожена
-  }
-  map.triggerRepaint();
-}
 
 /** Повтор push в источник: rAF + idle/sourcedata — источник может появиться после addLayer. */
 function retrySourcePush(
@@ -111,6 +97,11 @@ class LruCache<K, V> {
 }
 
 /** Выполняет fn, когда стиль MapLibre готов (иначе setData теряется). */
+/**
+ * Выполняет fn, когда стиль MapLibre полностью готов.
+ * Слушает styledata + load + idle: после загрузки глифов symbol-слоя MapLibre
+ * бросает idle (а не styledata), поэтому без него колбэки зависают навсегда.
+ */
 export function whenStyleReady(map: MapLibreMap, fn: () => void): void {
   if (map.isStyleLoaded()) {
     fn();
@@ -120,13 +111,15 @@ export function whenStyleReady(map: MapLibreMap, fn: () => void): void {
   const run = (): void => {
     if (done || !map.isStyleLoaded()) return;
     done = true;
-    map.off("styledata", onStyleData);
-    map.off("load", onStyleData);
+    map.off("styledata", onEvent);
+    map.off("load", onEvent);
+    map.off("idle", onEvent);
     fn();
   };
-  const onStyleData = (): void => run();
-  map.on("styledata", onStyleData);
-  map.on("load", onStyleData);
+  const onEvent = (): void => run();
+  map.on("styledata", onEvent);
+  map.on("load", onEvent);
+  map.on("idle", onEvent);
 }
 
 export type WireMapBootstrapOptions = {
@@ -201,7 +194,30 @@ export type GeoMapRuntime = ReturnType<typeof createGeoMapRuntime>;
  */
 export function createGeoMapRuntime(host: GeoMapRuntimeHost) {
   const fingerprints = new Map<string, string>();
-  let regionsPaintFingerprint = "";
+
+  /**
+   * Форсирует перерисовку после setData. Детерминированно, без гонок:
+   * - resize() — ТОЛЬКО когда реально разъехался размер канваса и контейнера
+   *   (иначе resize churn сбрасывает GL-буфер/коллизии символов → мигание слоёв);
+   * - triggerRepaint() — всегда: штатный способ MapLibre отрисовать новый кадр.
+   */
+  const refreshMapViewport = (): void => {
+    const map = host.getMap();
+    if (!map || host.isDisposed()) return;
+    const canvas = map.getCanvas();
+    const container = map.getContainer();
+    const sizeDrifted =
+      canvas.clientWidth !== container.clientWidth
+      || canvas.clientHeight !== container.clientHeight;
+    if (sizeDrifted) {
+      try {
+        map.resize();
+      } catch {
+        // карта уже уничтожена
+      }
+    }
+    map.triggerRepaint();
+  };
 
   const sources = {
     set(sourceId: string, data: unknown): boolean {
@@ -216,7 +232,7 @@ export function createGeoMapRuntime(host: GeoMapRuntimeHost) {
 
       source.setData(data as never);
       fingerprints.set(sourceId, fingerprint);
-      refreshMapViewport(map);
+      refreshMapViewport();
       return true;
     },
 
@@ -252,7 +268,7 @@ export function createGeoMapRuntime(host: GeoMapRuntimeHost) {
       outlineSource.setData(outlineData as never);
       fingerprints.set(REGIONS_SOURCE, fingerprint);
       fingerprints.set(REGIONS_OUTLINE_SOURCE, fingerprint);
-      refreshMapViewport(map);
+      refreshMapViewport();
       return true;
     },
 
@@ -282,31 +298,6 @@ export function createGeoMapRuntime(host: GeoMapRuntimeHost) {
 
     clear(): void {
       fingerprints.clear();
-    },
-  };
-
-  const regions = {
-    buildPaintFingerprint(now: number): string {
-      const fadeBucket = Math.floor(now / 60_000);
-      const parts: string[] = [];
-      for (const [code, region] of regionsByCode$.value) {
-        if (!isRegionVisibleOnMap(region, now)) continue;
-        parts.push(`${code}:${region.stateLevel}:${region.statusEventAt ?? ""}:${fadeBucket}`);
-      }
-      parts.sort();
-      return parts.join("|");
-    },
-
-    shouldSkipPaint(fingerprint: string, force: boolean): boolean {
-      return !force && fingerprint === regionsPaintFingerprint;
-    },
-
-    markPainted(fingerprint: string): void {
-      regionsPaintFingerprint = fingerprint;
-    },
-
-    resetPaintCache(): void {
-      regionsPaintFingerprint = "";
     },
   };
 
@@ -386,9 +377,19 @@ export function createGeoMapRuntime(host: GeoMapRuntimeHost) {
 
   function dispose(): void {
     sources.clear();
-    regions.resetPaintCache();
     popups.clear();
   }
 
-  return { sources, regions, popups, selection, dispose };
+  return {
+    sources,
+    popups,
+    selection,
+    /**
+     * Единая точка перерисовки для всех слоёв: resize ТОЛЬКО при реальном
+     * расхождении размера канваса/контейнера + triggerRepaint. Используется
+     * вместо «голого» map.resize(), который churn-ит GL-буфер и мигает символы.
+     */
+    repaint: refreshMapViewport,
+    dispose,
+  };
 }

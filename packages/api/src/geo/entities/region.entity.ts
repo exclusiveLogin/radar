@@ -45,6 +45,10 @@ export class RegionEntity {
   @Column({ name: "centroid_lon", type: "numeric", precision: 9, scale: 6, nullable: true })
   centroidLon!: string | null;
 
+  /** Дистанция (км) до ближайшего фронт-региона; precomputed по центроидам при сиде. */
+  @Column({ name: "front_distance_km", type: "double precision", nullable: true })
+  frontDistanceKm!: number | null;
+
   @Column({ name: "bbox", type: "jsonb", nullable: true })
   bbox!: Record<string, unknown> | null;
 

@@ -94,8 +94,13 @@ async function cmdRebuild(flags: ReturnType<typeof parseLongFlagsMap>): Promise<
 
 async function cmdReset(flags: ReturnType<typeof parseLongFlagsMap>): Promise<void> {
   const dryRun = hasAnyFlag(flags, ["dry-run", "dryRun"]);
+  // --defaults: дополнительно сбрасывает оверрайды кинематики профилей (config.profiles)
+  // к физическим дефолтам PROFILE_KINEMATICS (после правок maxLink/maxGap/σ).
+  const resetKinematics = hasAnyFlag(flags, ["defaults", "kinematics"]);
   if (dryRun) {
-    console.log("[dry-run] TRUNCATE trajectory_* + watermark={}");
+    console.log(
+      `[dry-run] TRUNCATE trajectory_* + watermark={}${resetKinematics ? " + config.profiles={}" : ""}`,
+    );
     return;
   }
 
@@ -107,12 +112,17 @@ async function cmdReset(flags: ReturnType<typeof parseLongFlagsMap>): Promise<vo
        WHERE status IN ('running', 'paused')`,
     );
     await ds.query(`TRUNCATE trajectory_nodes, trajectory_tracks`);
+    const watermarkReset = resetKinematics
+      ? `SET watermark = '{}'::jsonb, active_run_id = NULL,
+         config = jsonb_set(COALESCE(config, '{}'::jsonb), '{profiles}', '{}'::jsonb),
+         updated_at = now()`
+      : `SET watermark = '{}'::jsonb, active_run_id = NULL, updated_at = now()`;
     await ds.query(
-      `UPDATE tracking_pipeline_state
-       SET watermark = '{}'::jsonb, active_run_id = NULL, updated_at = now()
-       WHERE id = 'default'`,
+      `UPDATE tracking_pipeline_state ${watermarkReset} WHERE id = 'default'`,
     );
-    console.log("[tracking:reset] trajectory_tracks/nodes очищены, watermark сброшен");
+    console.log(
+      `[tracking:reset] trajectory_tracks/nodes очищены, watermark сброшен${resetKinematics ? ", оверрайды кинематики сброшены к дефолтам" : ""}`,
+    );
   } finally {
     await shutdown?.();
   }
@@ -144,7 +154,7 @@ tracking CLI — пайплайн L1 треков
 
   npm run tracking:status -w @radar/worker
   npm run tracking:rebuild -w @radar/worker -- [--since=ISO] [--until=ISO] [--dry-run]
-  npm run tracking:reset -w @radar/worker [-- --dry-run]
+  npm run tracking:reset -w @radar/worker [-- --dry-run] [--defaults]
   npm run tracking:enable -w @radar/worker -- --on|--off
 
 Через radar:

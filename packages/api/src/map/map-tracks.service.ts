@@ -9,6 +9,7 @@
 import { Injectable } from "@nestjs/common";
 import { InjectDataSource } from "@nestjs/typeorm";
 import type { DataSource } from "typeorm";
+import { pgTimestampToIso } from "../infrastructure/persistence/typeorm-query-rows";
 import {
   buildTrackEdges,
   rollupSegmentCounts,
@@ -29,7 +30,7 @@ type NodeRow = {
   id: string;
   track_id: string;
   seq: number;
-  occurred_at: string;
+  occurred_at: Date | string;
   lat: number;
   lon: number;
   place_id: string | null;
@@ -42,8 +43,8 @@ type TrackRow = {
   id: string;
   status: string;
   threat_profile: string;
-  first_at: string;
-  last_at: string;
+  first_at: Date | string;
+  last_at: Date | string;
   last_lat: number;
   last_lon: number;
   velocity_ms: number | null;
@@ -52,6 +53,7 @@ type TrackRow = {
   total_distance_m: number;
 };
 
+@Injectable()
 export class MapTracksService {
   constructor(@InjectDataSource() private readonly ds: DataSource) {}
 
@@ -92,8 +94,8 @@ export class MapTracksService {
       id: r.id,
       status: r.status as TrajectoryTrack["status"],
       threatProfile: r.threat_profile as ThreatProfile,
-      firstAt: r.first_at,
-      lastAt: r.last_at,
+      firstAt: pgTimestampToIso(r.first_at),
+      lastAt: pgTimestampToIso(r.last_at),
       lastLat: r.last_lat,
       lastLon: r.last_lon,
       velocityMs: r.velocity_ms,
@@ -117,7 +119,7 @@ export class MapTracksService {
         const node: TrajectoryNode = {
           id: r.id,
           seq: r.seq,
-          occurredAt: r.occurred_at,
+          occurredAt: pgTimestampToIso(r.occurred_at),
           lat: r.lat,
           lon: r.lon,
           placeId: r.place_id,
