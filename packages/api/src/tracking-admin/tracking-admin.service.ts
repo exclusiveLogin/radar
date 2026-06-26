@@ -68,13 +68,11 @@ export class TrackingAdminService {
     const [{ count: totalTracks }] = await this.ds.query<{ count: string }[]>(
       `SELECT COUNT(*)::text AS count FROM trajectory_tracks`,
     );
-    const totalCandidates = Number(pipeline.total_candidates ?? 0);
-    const processed = Number(activeRun?.stats?.processedCandidates ?? 0);
-    const percentApprox =
-      totalCandidates > 0 ? Math.min(100, Math.round((processed / totalCandidates) * 100)) : 0;
-
     const control = activeRun ? await this.readRunControl(activeRun.id) : null;
-    const metrics = await this.collectMetrics(new Date(), activeRun, processed);
+    const metrics = await this.collectMetrics(new Date(), activeRun);
+    /** SSOT прогресса: целевые активные точки vs материализации в trajectory_nodes. */
+    const totalCandidates = metrics.totalTargetCandidates;
+    const percentApprox = metrics.percentNodesInTracks;
 
     return trackingStatusResponseSchema.parse({
       enabled: pipeline.enabled,
@@ -245,7 +243,6 @@ export class TrackingAdminService {
   private async collectMetrics(
     until: Date,
     activeRun: TrackingRebuildRun | null,
-    processedCandidates: number,
   ): Promise<TrackingPipelineMetrics> {
     const [{ count: geoCount }] = await this.ds.query<{ count: string }[]>(
       `
@@ -289,10 +286,6 @@ export class TrackingAdminService {
 
     const totalTargetCandidates = Number(targetCount);
     const nodesInTracks = Number(nodes);
-    const percentProcessed =
-      totalTargetCandidates > 0
-        ? Math.min(100, Math.round((processedCandidates / totalTargetCandidates) * 100))
-        : 0;
     const percentNodesInTracks =
       totalTargetCandidates > 0
         ? Math.min(100, Math.round((nodesInTracks / totalTargetCandidates) * 100))
@@ -307,8 +300,8 @@ export class TrackingAdminService {
     return {
       totalCandidatesGeo: Number(geoCount),
       totalTargetCandidates,
-      processedCandidates,
-      percentProcessed,
+      processedCandidates: nodesInTracks,
+      percentProcessed: percentNodesInTracks,
       nodesInTracks,
       percentNodesInTracks,
       tracksActive,

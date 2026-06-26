@@ -22,10 +22,11 @@ export function TrackingPipelineWidget() {
     }
   };
 
-  const percent = status?.percentApprox ?? 0;
-  const processed = status?.activeRun?.stats?.processedCandidates ?? status?.metrics?.processedCandidates ?? 0;
-  const total = status?.totalCandidates ?? 0;
   const m = status?.metrics;
+  /** Прогресс покрытия: материализации трекера / активные целевые точки (не run-batch). */
+  const materialized = m?.nodesInTracks ?? 0;
+  const total = m?.totalTargetCandidates ?? 0;
+  const percent = m?.percentNodesInTracks ?? 0;
 
   const fmtMs = (ms?: number) => {
     if (ms == null) return "—";
@@ -51,13 +52,17 @@ export function TrackingPipelineWidget() {
         >
           <Metric label="Целевые точки" value={m.totalTargetCandidates.toLocaleString()} />
           <Metric label="Все гео-точки" value={m.totalCandidatesGeo.toLocaleString()} />
-          <Metric label="Обработано" value={m.processedCandidates.toLocaleString()} />
-          <Metric label="% обработки" value={`${m.percentProcessed}%`} />
-          <Metric label="В треках (узлы)" value={m.nodesInTracks.toLocaleString()} />
-          <Metric label="% в треках" value={`${m.percentNodesInTracks}%`} />
+          <Metric label="Материализаций" value={m.nodesInTracks.toLocaleString()} />
+          <Metric label="% покрытия" value={`${m.percentNodesInTracks}%`} />
           <Metric label="Треки активные" value={m.tracksActive.toLocaleString()} />
           <Metric label="Треки закрыты" value={m.tracksClosed.toLocaleString()} />
           <Metric label="Треки stale" value={m.tracksStale.toLocaleString()} />
+          {m.softAssigns != null && (
+            <Metric label="Soft assigns" value={m.softAssigns.toLocaleString()} />
+          )}
+          {m.attentionConflicts != null && (
+            <Metric label="Attention conflicts" value={m.attentionConflicts.toLocaleString()} />
+          )}
           <Metric label="Время run" value={fmtMs(m.elapsedMs)} />
         </div>
       )}
@@ -70,7 +75,7 @@ export function TrackingPipelineWidget() {
           {status?.enabled ? "ВКЛ" : "ВЫКЛ"}
         </Button>
         <span>
-          {processed.toLocaleString()} / {total.toLocaleString()} ({percent.toFixed(1)}%)
+          {materialized.toLocaleString()} / {total.toLocaleString()} ({percent.toFixed(1)}%)
         </span>
         <span style={{ color: "var(--text-muted)" }}>
           {status?.activeRun?.status ?? "idle"}
