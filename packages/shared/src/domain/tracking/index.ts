@@ -92,3 +92,14 @@ export type { FitnessInput, FitnessResult, FitnessWeights } from "./trackingFitn
 
 export { patternSearchStep, defaultTuneAxes, probeCenter, patternMove, tuneCenterFromProfile, tuneCenterToProfilePatch } from "./configSampler";
 export type { TuneAxis, TuneCenter, PatternSearchState } from "./configSampler";
+
+export {
+  resolveTrackingPipelineStatus,
+} from "./resolvePipelineStatus";
+export type {
+  TrackingPipelineStatusCode,
+  TrackingPipelineStatusView,
+  ResolvePipelineStatusInput,
+} from "./resolvePipelineStatus";
+
+export { TRACKING_PIPELINE_NOT_PROCESSED_SQL } from "./pipelineProcessedSql";

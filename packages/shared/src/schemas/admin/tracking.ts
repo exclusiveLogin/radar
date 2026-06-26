@@ -45,8 +45,12 @@ export const trackingRebuildStatsSchema = z.object({
 export const trackingPipelineMetricsSchema = z.object({
   totalCandidatesGeo: z.number().int().nonnegative(),
   totalTargetCandidates: z.number().int().nonnegative(),
+  /** Очередь: ещё не прошли пайплайн. */
+  unconsumedPipeline: z.number().int().nonnegative(),
   processedCandidates: z.number().int().nonnegative(),
+  /** % точек, прошедших пайплайн (не = % нод в треках). */
   percentProcessed: z.number().min(0).max(100),
+  percentPipelineProcessed: z.number().min(0).max(100),
   nodesInTracks: z.number().int().nonnegative(),
   percentNodesInTracks: z.number().min(0).max(100),
   tracksActive: z.number().int().nonnegative(),
@@ -105,10 +109,28 @@ export const trackingPipelineConfigSchema = z.object({
     .optional(),
 });
 
+export const trackingPipelineStatusCodeSchema = z.enum([
+  "disabled",
+  "running",
+  "paused",
+  "waiting",
+  "completed",
+  "failed",
+  "cancelled",
+]);
+
+export const trackingPipelineStatusSchema = z.object({
+  code: trackingPipelineStatusCodeSchema,
+  label: z.string(),
+  detail: z.string(),
+  remainingCandidates: z.number().int().nonnegative().optional(),
+});
+
 export const trackingStatusResponseSchema = z.object({
   enabled: z.boolean(),
   paused: z.boolean(),
   daemonRunning: z.boolean(),
+  pipelineStatus: trackingPipelineStatusSchema,
   activeRun: trackingRebuildRunSchema.nullable(),
   lastRun: trackingRebuildRunSchema.nullable(),
   watermark: trackingWatermarkSchema.nullable(),
@@ -126,6 +148,7 @@ export type TrackingWatermark = z.infer<typeof trackingWatermarkSchema>;
 export type TrackingRebuildStats = z.infer<typeof trackingRebuildStatsSchema>;
 export type TrackingRebuildRun = z.infer<typeof trackingRebuildRunSchema>;
 export type TrackingPipelineConfig = z.infer<typeof trackingPipelineConfigSchema>;
+export type TrackingPipelineStatus = z.infer<typeof trackingPipelineStatusSchema>;
 export type TrackingStatusResponse = z.infer<typeof trackingStatusResponseSchema>;
 
 export const trackingTuneRunStatusSchema = z.enum(["running", "done", "failed", "cancelled"]);

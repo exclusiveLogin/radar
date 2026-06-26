@@ -44,6 +44,7 @@ import {
   loadTrackingCandidatesBatch,
   countTrackingCandidates,
   countTrackingCandidateStats,
+  markPipelineCandidatesConsumed,
 } from "./loadTrackingCandidates.js";
 import { randomUUID } from "crypto";
 
@@ -195,6 +196,11 @@ export async function runIncrementalBatch(
     await persistTracks(ds, built, opts.rebuildGen);
   }
 
+  await markPipelineCandidatesConsumed(
+    ds,
+    opts.candidates.map(c => c.eventLocationId),
+  );
+
   const watermark = computeWatermark(opts.candidates);
   opts.onProgress?.({
     stage: "done",
@@ -218,6 +224,7 @@ export {
   countTrackingCandidates,
   countTrackingPipelineRemaining,
   countTrackingCandidateStats,
+  markPipelineCandidatesConsumed,
 } from "./loadTrackingCandidates.js";
 export { maxEpsilonTemporalMs };
 

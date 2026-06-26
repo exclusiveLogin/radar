@@ -12,6 +12,7 @@ export const GEO_MAP_LAYER_ORDER = [
   "vicinity",
   "heatmap",
   "tracks",
+  "tracksMotion",
   "tracksFlow",
   "timeline",
 ] as const;
@@ -40,6 +41,7 @@ export const GEO_MAP_LAYER_LABELS: Record<GeoMapLayerId, string> = {
   vicinity: "Радиус «около»",
   heatmap: "Теплокарта",
   tracks: "Треки",
+  tracksMotion: "Движение",
   tracksFlow: "Коридоры",
   timeline: "Таймлайн",
 };
@@ -52,6 +54,7 @@ const DEFAULT_GEO_MAP_LAYERS: Record<GeoMapLayerId, boolean> = {
   vicinity: true,
   heatmap: false,
   tracks: true,
+  tracksMotion: true,
   tracksFlow: false,
   timeline: true,
 };
@@ -66,6 +69,7 @@ function readPersistedGeoMapLayers(): Record<GeoMapLayerId, boolean> {
     vicinity: persisted.vicinity ?? DEFAULT_GEO_MAP_LAYERS.vicinity,
     heatmap: persisted.heatmap ?? DEFAULT_GEO_MAP_LAYERS.heatmap,
     tracks: persisted.tracks ?? DEFAULT_GEO_MAP_LAYERS.tracks,
+    tracksMotion: persisted.tracksMotion ?? DEFAULT_GEO_MAP_LAYERS.tracksMotion,
     tracksFlow: persisted.tracksFlow ?? DEFAULT_GEO_MAP_LAYERS.tracksFlow,
     timeline: persisted.timeline ?? DEFAULT_GEO_MAP_LAYERS.timeline,
   };
@@ -87,9 +91,6 @@ export function setGeoMapLayer(id: GeoMapLayerId, enabled: boolean): void {
   if (id === "heatmap" && !enabled) {
     setHeatmapMeta(null);
     resetGeoMapLayerFetchStatus("heatmap");
-  }
-  if ((id === "tracks" || id === "tracksFlow") && !enabled) {
-    resetGeoMapLayerFetchStatus(id);
   }
 }
 

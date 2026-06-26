@@ -82,8 +82,8 @@ export const PROFILE_KINEMATICS: Record<ThreatProfile, ProfileKinematics> = {
     maxRangeFromOriginM: 1_600_000, // FP-1
     processNoiseScale: 0.8,
     observationSigmaScale: 2.5,
-    chi2Threshold: 25,
-    rearThresholdM: 30_000,
+    chi2Threshold: 18,
+    rearThresholdM: 12_000,
     stdbscanEpsilonSpatialM: 20_000,
     stdbscanEpsilonTemporalMs: 20 * 60 * 1000, // 20 мин
     stdbscanMinPts: 2,
@@ -101,8 +101,8 @@ export const PROFILE_KINEMATICS: Record<ThreatProfile, ProfileKinematics> = {
     maxRangeFromOriginM: 3_000_000, // FP-5; Storm Shadow ~550 км — нижняя граница класса
     processNoiseScale: 2.5,
     observationSigmaScale: 2.0,
-    chi2Threshold: 20,
-    rearThresholdM: 50_000,
+    chi2Threshold: 15,
+    rearThresholdM: 20_000,
     stdbscanEpsilonSpatialM: 50_000,
     stdbscanEpsilonTemporalMs: 5 * 60 * 1000, // 5 мин
     stdbscanMinPts: 2,
@@ -116,8 +116,8 @@ export const PROFILE_KINEMATICS: Record<ThreatProfile, ProfileKinematics> = {
     maxRangeFromOriginM: 200_000,       // 200 км
     processNoiseScale: 0.5,
     observationSigmaScale: 3.0,
-    chi2Threshold: 30,
-    rearThresholdM: 20_000,
+    chi2Threshold: 22,
+    rearThresholdM: 8_000,
     stdbscanEpsilonSpatialM: 5_000,
     stdbscanEpsilonTemporalMs: 30 * 60 * 1000,  // 30 мин
     stdbscanMinPts: 2,
@@ -131,8 +131,8 @@ export const PROFILE_KINEMATICS: Record<ThreatProfile, ProfileKinematics> = {
     maxRangeFromOriginM: 1_600_000,
     processNoiseScale: 0.8,
     observationSigmaScale: 2.5,
-    chi2Threshold: 25,
-    rearThresholdM: 30_000,
+    chi2Threshold: 18,
+    rearThresholdM: 12_000,
     stdbscanEpsilonSpatialM: 20_000,
     stdbscanEpsilonTemporalMs: 20 * 60 * 1000,
     stdbscanMinPts: 2,

@@ -136,6 +136,31 @@ describe("innovation score cucumber", () => {
 
     expect(along.dM2).toBeLessThan(across.dM2);
   });
+
+  test("rear_front: точка позади скорости отклоняется", () => {
+    const refLat = 50;
+    const refLon = 36;
+    const state = kalmanInitState(50, 36, refLat, refLon, 1000);
+    state.vx = 50;
+    state.vy = 0;
+
+    const behind = scoreInnovation({
+      state,
+      observationLat: 50,
+      observationLon: 36,
+      dtSeconds: 3600,
+      R: { sigmaLonM: 5000, sigmaLatM: 5000 },
+      refLat,
+      refLon,
+      processNoiseScale: 0.8,
+      chi2Threshold: PROFILE_KINEMATICS.uav.chi2Threshold,
+      maxVelocityMs: 70,
+      rearThresholdM: PROFILE_KINEMATICS.uav.rearThresholdM,
+    });
+
+    expect(behind.rejectReason).toBe("rear_front");
+    expect(behind.inLocus).toBe(false);
+  });
 });
 
 describe("tracking fitness", () => {

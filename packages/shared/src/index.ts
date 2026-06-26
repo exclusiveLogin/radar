@@ -219,6 +219,8 @@ export {
   probeCenter,
   tuneCenterFromProfile,
   tuneCenterToProfilePatch,
+  resolveTrackingPipelineStatus,
+  TRACKING_PIPELINE_NOT_PROCESSED_SQL,
 } from "./domain/tracking";
 export { InProcessEventBus } from "./events/inProcessEventBus";
 export { mergePlaceContribution, monotonicTrustState } from "./ports/placeContributionMerge";

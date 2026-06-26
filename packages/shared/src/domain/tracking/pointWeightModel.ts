@@ -9,13 +9,12 @@
 import { getEventTypeCoeffs } from "./eventTypeCoefficients";
 import type { TrackingCandidate } from "./types";
 
-export const REGION_COEFF_FRONT = 1.25;
-// Тыл РФ — почти весь оперативный трафик идёт по тыловым регионам (diag: 50/51 точек).
-// Прежний 0.35 полностью блокировал seed тыла → треки не зарождались за фронтом.
-export const REGION_COEFF_INTERIOR_RF = 0.75;
+export const REGION_COEFF_FRONT = 1.35;
+// Тыл РФ: пониженный вес seed — сопротивление обратному распространению потока.
+export const REGION_COEFF_INTERIOR_RF = 0.5;
 export const REGION_COEFF_DEFAULT = 1.0;
-// Порог seed снижен: данные — разрежённые centroid-точки, высокий порог не пускал тыл.
-export const DEFAULT_SEED_MIN = 0.25;
+// Выше порог — меньше зарождений в глубине без сильного сигнала.
+export const DEFAULT_SEED_MIN = 0.32;
 
 // Масштаб затухания близости к фронту (км): на ~400 км буст спадает в e раз.
 export const FRONT_PROXIMITY_D0_KM = 400;

@@ -12,7 +12,6 @@ import { randomUUID } from "crypto";
 import {
   countTrackingPipelineRemaining,
   loadTrackingCandidatesBatch,
-  maxEpsilonTemporalMs,
   runIncrementalBatch,
 } from "./trackingRebuildService.js";
 
@@ -80,18 +79,14 @@ export class TrackingRebuildDaemon {
 
     const config = mergeConfig(state.config);
     const batchSize = config.batchSize ?? DEFAULT_BATCH_SIZE;
-    const overlapMs = maxEpsilonTemporalMs(config.profiles);
-    const watermark = isWatermark(state.watermark) ? state.watermark : null;
     const until = new Date();
     const runStartedMs = new Date(run.startedAt).getTime();
 
     let batch;
     try {
       batch = await loadTrackingCandidatesBatch(this.ds, {
-        after: watermark,
         until,
         limit: batchSize,
-        overlapMs,
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
@@ -107,11 +102,7 @@ export class TrackingRebuildDaemon {
 
     const totalCandidates =
       Number((await this.readRunStats(run.id))?.totalCandidates)
-      || (await countTrackingPipelineRemaining(this.ds, {
-        after: watermark,
-        until,
-        overlapMs,
-      }));
+      || (await countTrackingPipelineRemaining(this.ds, { until }));
     let processed = Number((await this.readRunStats(run.id))?.processedCandidates ?? 0);
 
     let collapsedTotal = 0;
@@ -172,12 +163,22 @@ export class TrackingRebuildDaemon {
     state: PipelineState,
   ): Promise<{ id: string; rebuildGen: string; startedAt: string } | null> {
     if (state.active_run_id) {
-      const [run] = await this.ds.query<{ id: string; rebuild_gen: string; status: string; started_at: string }[]>(
+      const [run] = await this.ds.query<{ id: string; rebuild_gen: string; status: string; started_at: string | Date }[]>(
         `SELECT id, rebuild_gen, status, started_at FROM trajectory_rebuild_runs WHERE id = $1`,
         [state.active_run_id],
       );
-      if (run && run.status === "running") {
-        return { id: run.id, rebuildGen: run.rebuild_gen, startedAt: run.started_at };
+      if (run?.status === "running") {
+        return {
+          id: run.id,
+          rebuildGen: run.rebuild_gen,
+          startedAt:
+            run.started_at instanceof Date
+              ? run.started_at.toISOString()
+              : String(run.started_at),
+        };
+      }
+      if (run?.status === "paused") {
+        return null;
       }
     }
 

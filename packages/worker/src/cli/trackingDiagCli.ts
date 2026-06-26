@@ -75,7 +75,6 @@ async function main(): Promise<void> {
       const batch = await loadTrackingCandidatesBatch(ds, {
         until: new Date(),
         limit: 3,
-        overlapMs: 0,
       });
       batchSize = batch.length;
     } catch (e) {

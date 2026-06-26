@@ -11,22 +11,15 @@ import {
   resolveNodeMode,
   trackingPipelineTypesSqlIn,
   canEnterPipeline,
+  TRACKING_PIPELINE_NOT_PROCESSED_SQL,
   type TrackingCandidate,
-  type TrackingWatermark,
 } from "@radar/shared";
 
 const EVENT_AT_SQL = "COALESCE(el.occurred_at, rm.posted_at, pe.parsed_at)";
 
 const PIPELINE_TYPES_IN = trackingPipelineTypesSqlIn();
 
-/** Guard: точка ещё не потреблена в trajectory_nodes. */
-const NOT_CONSUMED_SQL = `
-  AND NOT EXISTS (
-    SELECT 1 FROM trajectory_nodes tn
-    WHERE tn.source_refs @> jsonb_build_array(
-      jsonb_build_object('eventLocationId', el.id::text)
-    )
-  )`;
+const NOT_PROCESSED_SQL = TRACKING_PIPELINE_NOT_PROCESSED_SQL;
 
 const CANDIDATES_FROM_SQL = `
     FROM event_locations el
@@ -78,7 +71,7 @@ export async function loadTrackingCandidates(
       AND el.lon IS NOT NULL
       AND pe.is_active IS DISTINCT FROM false
       AND pe.event_type IN (${PIPELINE_TYPES_IN})
-      ${excludeConsumed ? NOT_CONSUMED_SQL : ""}
+      ${excludeConsumed ? NOT_PROCESSED_SQL : ""}
       ${bbox ? `AND el.lon BETWEEN ${bbox[0]} AND ${bbox[2]} AND el.lat BETWEEN ${bbox[1]} AND ${bbox[3]}` : ""}
     ORDER BY ${EVENT_AT_SQL} ASC
     `,
@@ -89,21 +82,16 @@ export async function loadTrackingCandidates(
 }
 
 type BatchOptions = {
-  after?: TrackingWatermark | null;
   until: Date;
   limit: number;
-  overlapMs: number;
   excludeConsumed?: boolean;
 };
 
+/** Следующий батч необработанных pipeline-точек (без watermark-фильтра — SSOT: consumed ledger). */
 export async function loadTrackingCandidatesBatch(
   ds: DataSource,
   opts: BatchOptions,
 ): Promise<TrackingCandidate[]> {
-  const overlapSince = opts.after?.lastOccurredAt
-    ? new Date(new Date(opts.after.lastOccurredAt).getTime() - opts.overlapMs)
-    : new Date(0);
-
   const excludeConsumed = opts.excludeConsumed !== false;
 
   const rows = await ds.query<RawRow[]>(
@@ -112,51 +100,30 @@ export async function loadTrackingCandidatesBatch(
     ${CANDIDATES_FROM_SQL}
     WHERE
       ${EVENT_AT_SQL} <= $1
-      AND (
-        $2::timestamptz IS NULL
-        OR ${EVENT_AT_SQL} > $2
-        OR (
-          ${EVENT_AT_SQL} = $2
-          AND el.id > $3::uuid
-        )
-      )
-      AND ${EVENT_AT_SQL} >= $4
       AND el.lat IS NOT NULL
       AND el.lon IS NOT NULL
       AND pe.is_active IS DISTINCT FROM false
       AND pe.event_type IN (${PIPELINE_TYPES_IN})
-      ${excludeConsumed ? NOT_CONSUMED_SQL : ""}
+      ${excludeConsumed ? NOT_PROCESSED_SQL : ""}
     ORDER BY ${EVENT_AT_SQL} ASC, el.id ASC
-    LIMIT $5
+    LIMIT $2
     `,
-    [
-      opts.until.toISOString(),
-      opts.after?.lastOccurredAt ?? null,
-      opts.after?.lastEventLocationId ?? "00000000-0000-0000-0000-000000000000",
-      overlapSince.toISOString(),
-      opts.limit,
-    ],
+    [opts.until.toISOString(), opts.limit],
   );
 
   return rows.map(toCandidate).filter(canEnterPipeline);
 }
 
 type CountRemainingOptions = {
-  after?: TrackingWatermark | null;
   until: Date;
-  overlapMs?: number;
   excludeConsumed?: boolean;
 };
 
-/** Оставшиеся pipeline-кандидаты после watermark — знаменатель прогресса rebuild. */
+/** Необработанные pipeline-кандидаты — очередь rebuild. */
 export async function countTrackingPipelineRemaining(
   ds: DataSource,
   opts: CountRemainingOptions,
 ): Promise<number> {
-  const overlapMs = opts.overlapMs ?? 0;
-  const overlapSince = opts.after?.lastOccurredAt
-    ? new Date(new Date(opts.after.lastOccurredAt).getTime() - overlapMs)
-    : new Date(0);
   const excludeConsumed = opts.excludeConsumed !== false;
 
   const [{ count }] = await ds.query<{ count: string }[]>(
@@ -165,29 +132,34 @@ export async function countTrackingPipelineRemaining(
     ${CANDIDATES_FROM_SQL}
     WHERE
       ${EVENT_AT_SQL} <= $1
-      AND (
-        $2::timestamptz IS NULL
-        OR ${EVENT_AT_SQL} > $2
-        OR (
-          ${EVENT_AT_SQL} = $2
-          AND el.id > $3::uuid
-        )
-      )
-      AND ${EVENT_AT_SQL} >= $4
       AND el.lat IS NOT NULL
       AND el.lon IS NOT NULL
       AND pe.is_active IS DISTINCT FROM false
       AND pe.event_type IN (${PIPELINE_TYPES_IN})
-      ${excludeConsumed ? NOT_CONSUMED_SQL : ""}
+      ${excludeConsumed ? NOT_PROCESSED_SQL : ""}
     `,
-    [
-      opts.until.toISOString(),
-      opts.after?.lastOccurredAt ?? null,
-      opts.after?.lastEventLocationId ?? "00000000-0000-0000-0000-000000000000",
-      overlapSince.toISOString(),
-    ],
+    [opts.until.toISOString()],
   );
   return Number(count);
+}
+
+/** Помечает точки как обработанные пайплайном (в т.ч. skip без ноды). */
+export async function markPipelineCandidatesConsumed(
+  ds: DataSource,
+  eventLocationIds: string[],
+  reason = "batch",
+): Promise<void> {
+  if (eventLocationIds.length === 0) return;
+  const chunkSize = 500;
+  for (let i = 0; i < eventLocationIds.length; i += chunkSize) {
+    const chunk = eventLocationIds.slice(i, i + chunkSize);
+    await ds.query(
+      `INSERT INTO tracking_pipeline_consumed (event_location_id, reason)
+       SELECT unnest($1::uuid[]), $2
+       ON CONFLICT (event_location_id) DO NOTHING`,
+      [chunk, reason],
+    );
+  }
 }
 
 export async function countTrackingCandidates(ds: DataSource, until: Date): Promise<number> {

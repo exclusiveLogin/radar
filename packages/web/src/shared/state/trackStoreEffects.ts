@@ -22,14 +22,16 @@ export function startTrackStoreEffects(): void {
   started = true;
 
   combineLatest([
-    geoMapLayers$.pipe(distinctUntilChanged((a, b) => a.tracks === b.tracks)),
+    geoMapLayers$.pipe(
+      distinctUntilChanged((a, b) => a.tracks === b.tracks && a.tracksMotion === b.tracksMotion),
+    ),
     historicalAsOf$.pipe(distinctUntilChanged()),
     trackThreatProfileFilter$.pipe(distinctUntilChanged()),
   ])
     .pipe(
       debounceTime(200),
       switchMap(([layers, asOf, threatProfile]) => {
-        if (!layers.tracks) {
+        if (!layers.tracks && !layers.tracksMotion) {
           tracksList$.next(null);
           return EMPTY;
         }

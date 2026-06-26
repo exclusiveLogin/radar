@@ -115,6 +115,8 @@ import {
   tracksLinesPaint,
   tracksOriginPaint,
 } from "./tracksMapPaint";
+import { createTracksDeckOverlay, type TracksDeckOverlay } from "./tracksDeckOverlay";
+import { tracksListToTripsData } from "./tracksTripsData";
 import type { GeoJsonCollection } from "./geoMapTypes";
 
 /** MapLibre lifecycle: init, fetch-потоки, store-подписки, cleanup. */
@@ -154,6 +156,8 @@ export function useGeoMapLifecycle(containerRef: RefObject<HTMLDivElement | null
     // Хранит ссылку на maplibre после динамического import — нужна для Popup в обработчиках
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let maplibreRef: any = null;
+    /** Deck.gl overlay для анимации направления L1-треков. */
+    let tracksDeckOverlay: TracksDeckOverlay | null = null;
 
     /** Runtime карты: fingerprints, popup LRU, feature-state — один closure на виджет. */
     const runtime = createGeoMapRuntime({
@@ -253,6 +257,7 @@ export function useGeoMapLifecycle(containerRef: RefObject<HTMLDivElement | null
       whenStyleReady(map, () => {
         if (!map || disposed) return;
         syncGeoOverlayLayers(map, layers);
+        tracksDeckOverlay?.setVisible(layers.tracksMotion);
         if (!layers.heatmap) hideEventsHeatmap();
       });
     };
@@ -365,21 +370,53 @@ export function useGeoMapLifecycle(containerRef: RefObject<HTMLDivElement | null
       setHeatmapMeta(null);
     };
 
-    /** L1/L2 треки: GeoJSON в source + visibility после данных (без toggle). */
+    /** Создаёт Deck overlay при первом обращении (lazy, code-split). */
+    const ensureTracksDeckOverlay = async (): Promise<void> => {
+      if (!map || disposed || tracksDeckOverlay) return;
+      tracksDeckOverlay = await createTracksDeckOverlay(map);
+      tracksDeckOverlay.setVisible(geoMapLayers$.value.tracksMotion);
+    };
+
+    /** Пересоздаёт Deck overlay после map.setStyle (control привязан к style). */
+    const recreateTracksDeckOverlay = async (): Promise<void> => {
+      tracksDeckOverlay?.dispose();
+      tracksDeckOverlay = null;
+      if (!map || disposed || !geoMapLayers$.value.tracksMotion) return;
+      const overlay = await createTracksDeckOverlay(map);
+      tracksDeckOverlay = overlay;
+      overlay.setVisible(true);
+      overlay.update(tracksListToTripsData(tracksList$.value));
+    };
+
+    /** L1/L2 треки: MapLibre линии + Deck.gl движение (отдельные тоглы). */
     const applyTracksLayers = (): void => {
       if (!map || disposed) return;
       const layers = geoMapLayers$.value;
+      const needsTracksData = layers.tracks || layers.tracksMotion;
 
-      if (!layers.tracks && !layers.tracksFlow) return;
+      if (!needsTracksData && !layers.tracksFlow) {
+        tracksDeckOverlay?.setVisible(false);
+        return;
+      }
 
       // Fetch ещё идёт — не затираем source пустой коллекцией.
-      if (layers.tracks && tracksLoading$.value && !tracksList$.value) return;
+      if (needsTracksData && tracksLoading$.value && !tracksList$.value) return;
 
       whenStyleReady(map, () => {
         if (!map || disposed) return;
 
         if (layers.tracks) {
           runtime.sources.apply(TRACKS_SOURCE, tracksListToGeoJson(tracksList$.value));
+        }
+
+        if (layers.tracksMotion) {
+          void ensureTracksDeckOverlay().then(() => {
+            if (!tracksDeckOverlay || disposed) return;
+            tracksDeckOverlay.update(tracksListToTripsData(tracksList$.value));
+            tracksDeckOverlay.setVisible(true);
+          });
+        } else {
+          tracksDeckOverlay?.setVisible(false);
         }
 
         if (layers.tracksFlow) {
@@ -955,6 +992,7 @@ export function useGeoMapLifecycle(containerRef: RefObject<HTMLDivElement | null
             renderActiveLayers(true);
             applyEventsHeatmapPaint(map, theme);
             syncGeoOverlayLayers(map, geoMapLayers$.value);
+            void recreateTracksDeckOverlay();
             if (geoMapLayers$.value.heatmap) heatmapManualRefresh$.next();
           }, {
             fallbackStyle: resolveMapBasemapFallbackForTheme(theme),
@@ -1006,6 +1044,8 @@ export function useGeoMapLifecycle(containerRef: RefObject<HTMLDivElement | null
       resetAllGeoMapLayerFetchStatus();
       resetGeoMapStats();
       runtime.dispose();
+      tracksDeckOverlay?.dispose();
+      tracksDeckOverlay = null;
       placePopup?.remove();
       placePopup = null;
       regionPopup?.remove();

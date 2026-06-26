@@ -1,6 +1,8 @@
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
 import { InjectDataSource } from "@nestjs/typeorm";
 import {
+  resolveTrackingPipelineStatus,
+  TRACKING_PIPELINE_NOT_PROCESSED_SQL,
   trackingPipelineConfigSchema,
   trackingStatusResponseSchema,
   trackingTargetEventTypesSqlIn,
@@ -15,6 +17,10 @@ import {
 } from "@radar/shared";
 import type { DataSource } from "typeorm";
 import { randomUUID } from "crypto";
+import {
+  pgTimestampToIso,
+  pgTimestampToIsoOptional,
+} from "../infrastructure/persistence/typeorm-query-rows";
 
 type PipelineRow = {
   enabled: boolean;
@@ -26,12 +32,12 @@ type PipelineRow = {
 
 type RunRow = {
   id: string;
-  started_at: string;
-  finished_at: string | null;
+  started_at: Date | string;
+  finished_at: Date | string | null;
   status: string;
   mode: string;
-  since: string;
-  until: string;
+  since: Date | string;
+  until: Date | string;
   rebuild_gen: string;
   stats: Record<string, unknown>;
   checkpoint: TrackingWatermark | null;
@@ -49,12 +55,14 @@ type TuneRunRow = {
   best_fitness: number | null;
   grid: Record<string, unknown>[];
   error: string | null;
-  created_at: string;
-  finished_at: string | null;
+  created_at: Date | string;
+  finished_at: Date | string | null;
 };
 
 const DEFAULT_CONFIG = trackingPipelineConfigSchema.parse({});
 const EVENT_AT_SQL = "COALESCE(el.occurred_at, rm.posted_at, pe.parsed_at)";
+
+const NOT_PROCESSED_SQL = TRACKING_PIPELINE_NOT_PROCESSED_SQL;
 
 /** Админка пайплайна треков: статус, runs, управление daemon. */
 @Injectable()
@@ -74,9 +82,8 @@ export class TrackingAdminService {
       total_candidates: null,
     };
 
-    const activeRun = pipeline.active_run_id
-      ? await this.loadRun(pipeline.active_run_id)
-      : null;
+    const runId = pipeline.active_run_id ?? null;
+    const activeRun = await this.resolveControllableRun(runId);
     const [lastRunRow] = await this.ds.query<RunRow[]>(
       `SELECT * FROM trajectory_rebuild_runs ORDER BY started_at DESC LIMIT 1`,
     );
@@ -91,19 +98,57 @@ export class TrackingAdminService {
     const totalCandidates = metrics.totalTargetCandidates;
     const percentApprox = metrics.percentNodesInTracks;
 
+    const config = mergeConfig(pipeline.config);
+    const watermark = isWatermark(pipeline.watermark) ? pipeline.watermark : null;
+    const until = new Date();
+    const remainingCandidates = pipeline.enabled
+      ? await this.countUnconsumedPipeline(until)
+      : 0;
+    const pipelineStatus = resolveTrackingPipelineStatus({
+      enabled: pipeline.enabled,
+      paused: control?.pause === true,
+      activeRun,
+      lastRun,
+      remainingCandidates,
+    });
+
     return trackingStatusResponseSchema.parse({
       enabled: pipeline.enabled,
       paused: control?.pause === true,
       daemonRunning: activeRun?.status === "running",
+      pipelineStatus,
       activeRun,
       lastRun,
-      watermark: isWatermark(pipeline.watermark) ? pipeline.watermark : null,
+      watermark,
       totalTracks: Number(totalTracks),
       totalCandidates,
       percentApprox,
       metrics,
-      config: mergeConfig(pipeline.config),
+      config,
     });
+  }
+
+  /** Необработанные pipeline-точки (SSOT: worker countTrackingPipelineRemaining). */
+  private async countUnconsumedPipeline(until: Date): Promise<number> {
+    const targetIn = trackingTargetEventTypesSqlIn();
+
+    const [{ count }] = await this.ds.query<{ count: string }[]>(
+      `
+      SELECT COUNT(*)::text AS count
+      FROM event_locations el
+      JOIN parsed_events pe ON pe.id = el.parsed_event_id
+      LEFT JOIN raw_messages rm ON rm.id = pe.raw_message_id
+      WHERE
+        ${EVENT_AT_SQL} <= $1
+        AND el.lat IS NOT NULL
+        AND el.lon IS NOT NULL
+        AND pe.is_active IS DISTINCT FROM false
+        AND pe.event_type IN (${targetIn})
+        ${NOT_PROCESSED_SQL}
+      `,
+      [until.toISOString()],
+    );
+    return Number(count);
   }
 
   async listRuns(limit = 20): Promise<TrackingRebuildRun[]> {
@@ -162,34 +207,45 @@ export class TrackingAdminService {
   }
 
   async pause(): Promise<{ ok: true }> {
-    const status = await this.getStatus();
-    if (!status.activeRun) throw new BadRequestException("no active run");
-    await this.setRunControl(status.activeRun.id, { pause: true });
+    let runId = await this.resolveControllableRunId();
+    if (!runId) {
+      const [{ enabled }] = await this.ds.query<{ enabled: boolean }[]>(
+        `SELECT enabled FROM tracking_pipeline_state WHERE id = 'default'`,
+      );
+      if (!enabled) throw new BadRequestException("pipeline disabled");
+      runId = await this.createRun("incremental");
+      await this.bindActiveRun(runId);
+    }
+    await this.setRunControl(runId, { pause: true });
     await this.ds.query(
       `UPDATE trajectory_rebuild_runs SET status = 'paused' WHERE id = $1`,
-      [status.activeRun.id],
+      [runId],
     );
     return { ok: true };
   }
 
   async resume(): Promise<{ ok: true }> {
-    const status = await this.getStatus();
-    if (!status.activeRun) throw new BadRequestException("no active run");
-    await this.setRunControl(status.activeRun.id, { pause: false });
+    const runId = await this.resolveControllableRunId();
+    if (!runId) throw new BadRequestException("no pausable run");
+    const run = await this.loadRun(runId);
+    if (!run || run.status !== "paused") {
+      throw new BadRequestException("run is not paused");
+    }
+    await this.setRunControl(runId, { pause: false });
     await this.ds.query(
       `UPDATE trajectory_rebuild_runs SET status = 'running' WHERE id = $1`,
-      [status.activeRun.id],
+      [runId],
     );
     return { ok: true };
   }
 
   async cancel(): Promise<{ ok: true }> {
-    const status = await this.getStatus();
-    if (!status.activeRun) throw new BadRequestException("no active run");
-    await this.setRunControl(status.activeRun.id, { cancel: true });
+    const runId = await this.resolveControllableRunId();
+    if (!runId) throw new BadRequestException("no active run");
+    await this.setRunControl(runId, { cancel: true });
     await this.ds.query(
       `UPDATE trajectory_rebuild_runs SET status = 'cancelled', finished_at = now() WHERE id = $1`,
-      [status.activeRun.id],
+      [runId],
     );
     await this.ds.query(
       `UPDATE tracking_pipeline_state SET active_run_id = NULL, updated_at = now() WHERE id = 'default'`,
@@ -276,7 +332,7 @@ export class TrackingAdminService {
 
   private async resetInternal(): Promise<void> {
     await this.cancelActiveRuns();
-    await this.ds.query(`TRUNCATE trajectory_nodes, trajectory_tracks`);
+    await this.ds.query(`TRUNCATE trajectory_nodes, trajectory_tracks, tracking_pipeline_consumed`);
     await this.ds.query(
       `UPDATE tracking_pipeline_state
        SET watermark = '{}'::jsonb, active_run_id = NULL, updated_at = now()
@@ -304,6 +360,40 @@ export class TrackingAdminService {
       [id, mode, since, until, rebuildGen],
     );
     return id;
+  }
+
+  private async bindActiveRun(runId: string): Promise<void> {
+    await this.ds.query(
+      `UPDATE tracking_pipeline_state SET active_run_id = $1, updated_at = now() WHERE id = 'default'`,
+      [runId],
+    );
+  }
+
+  /** running/paused run: active_run_id или последний controllable run в БД. */
+  private async resolveControllableRunId(): Promise<string | null> {
+    const [state] = await this.ds.query<{ active_run_id: string | null }[]>(
+      `SELECT active_run_id FROM tracking_pipeline_state WHERE id = 'default'`,
+    );
+    const run = await this.resolveControllableRun(state?.active_run_id ?? null);
+    return run?.id ?? null;
+  }
+
+  private async resolveControllableRun(
+    preferredId: string | null,
+  ): Promise<TrackingRebuildRun | null> {
+    if (preferredId) {
+      const preferred = await this.loadRun(preferredId);
+      if (preferred && (preferred.status === "running" || preferred.status === "paused")) {
+        return preferred;
+      }
+    }
+    const [row] = await this.ds.query<RunRow[]>(
+      `SELECT * FROM trajectory_rebuild_runs
+       WHERE status IN ('running', 'paused')
+       ORDER BY started_at DESC
+       LIMIT 1`,
+    );
+    return row ? mapRunRow(row) : null;
   }
 
   private async loadRun(id: string): Promise<TrackingRebuildRun | null> {
@@ -380,9 +470,17 @@ export class TrackingAdminService {
 
     const totalTargetCandidates = Number(targetCount);
     const nodesInTracks = Number(nodes);
+    const unconsumedPipeline = await this.countUnconsumedPipeline(until);
     const percentNodesInTracks =
       totalTargetCandidates > 0
         ? Math.min(100, Math.round((nodesInTracks / totalTargetCandidates) * 100))
+        : 0;
+    const percentPipelineProcessed =
+      totalTargetCandidates > 0
+        ? Math.min(
+            100,
+            Math.round(((totalTargetCandidates - unconsumedPipeline) / totalTargetCandidates) * 100),
+          )
         : 0;
 
     const runStartedAt = activeRun?.startedAt ?? null;
@@ -394,8 +492,10 @@ export class TrackingAdminService {
     return {
       totalCandidatesGeo: Number(geoCount),
       totalTargetCandidates,
-      processedCandidates: nodesInTracks,
-      percentProcessed: percentNodesInTracks,
+      unconsumedPipeline,
+      processedCandidates: totalTargetCandidates - unconsumedPipeline,
+      percentProcessed: percentPipelineProcessed,
+      percentPipelineProcessed,
       nodesInTracks,
       percentNodesInTracks,
       tracksActive,
@@ -442,8 +542,8 @@ function mapTuneRunRow(row: TuneRunRow): TrackingTuneRun {
     bestFitness: row.best_fitness,
     grid: row.grid,
     error: row.error,
-    createdAt: row.created_at,
-    finishedAt: row.finished_at,
+    createdAt: pgTimestampToIso(row.created_at),
+    finishedAt: pgTimestampToIsoOptional(row.finished_at) ?? null,
   });
 }
 
@@ -452,10 +552,10 @@ function mapRunRow(row: RunRow): TrackingRebuildRun {
     id: row.id,
     status: row.status as TrackingRebuildRun["status"],
     mode: row.mode as TrackingRebuildRun["mode"],
-    startedAt: row.started_at,
-    finishedAt: row.finished_at,
-    since: row.since,
-    until: row.until,
+    startedAt: pgTimestampToIso(row.started_at),
+    finishedAt: pgTimestampToIsoOptional(row.finished_at) ?? null,
+    since: pgTimestampToIso(row.since),
+    until: pgTimestampToIso(row.until),
     rebuildGen: row.rebuild_gen,
     stats: row.stats ?? {},
     checkpoint: row.checkpoint ?? null,

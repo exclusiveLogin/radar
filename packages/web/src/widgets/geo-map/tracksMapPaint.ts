@@ -1,17 +1,45 @@
+import type { ThreatProfile } from "@radar/shared";
+
+/** SSOT: толщина и прозрачность статических L1-линий (MapLibre). */
+export const TRACKS_STATIC_LINE_WIDTH = 1.2;
+export const TRACKS_STATIC_LINE_OPACITY = 0.35;
+
+/** SSOT: RGBA по threatProfile — для Deck.gl TripsLayer и MapLibre hex. */
+const THREAT_PROFILE_COLORS: Record<ThreatProfile, [number, number, number]> = {
+  uav: [255, 152, 0],
+  rocket: [244, 67, 54],
+  balloon: [0, 188, 212],
+  unknown: [158, 158, 158],
+};
+
+/** RGBA для Deck.gl (opacity 0–255). */
+export function threatProfileRgba(
+  profile: ThreatProfile,
+  alpha = 230,
+): [number, number, number, number] {
+  const [r, g, b] = THREAT_PROFILE_COLORS[profile] ?? THREAT_PROFILE_COLORS.unknown;
+  return [r, g, b, alpha];
+}
+
+function threatProfileHex(profile: ThreatProfile): string {
+  const [r, g, b] = THREAT_PROFILE_COLORS[profile] ?? THREAT_PROFILE_COLORS.unknown;
+  return `#${r.toString(16).padStart(2, "0")}${g.toString(16).padStart(2, "0")}${b.toString(16).padStart(2, "0")}`;
+}
+
 /** MapLibre expression: цвет линии/точки по threatProfile. */
 export function threatProfileColorExpression(): unknown {
   return [
     "match",
     ["get", "threatProfile"],
     "uav",
-    "#FF9800",
+    threatProfileHex("uav"),
     "rocket",
-    "#F44336",
+    threatProfileHex("rocket"),
     "balloon",
-    "#00BCD4",
+    threatProfileHex("balloon"),
     "unknown",
-    "#9E9E9E",
-    "#9E9E9E",
+    threatProfileHex("unknown"),
+    threatProfileHex("unknown"),
   ];
 }
 
@@ -45,8 +73,8 @@ export function tracksOriginPaint(): Record<string, unknown> {
 export function tracksLinesPaint(): Record<string, unknown> {
   return {
     "line-color": threatProfileColorExpression(),
-    "line-width": 2.5,
-    "line-opacity": 0.85,
+    "line-width": TRACKS_STATIC_LINE_WIDTH,
+    "line-opacity": TRACKS_STATIC_LINE_OPACITY,
   };
 }
 

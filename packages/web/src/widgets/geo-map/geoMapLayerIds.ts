@@ -38,6 +38,8 @@ export const TRACKS_LINES_LAYER = "tracks-lines";
 export const TRACKS_ORIGIN_LAYER = "tracks-origin";
 /** Слой линий flow-коридоров (толщина ∝ weight). */
 export const TRACKS_FLOW_LAYER = "tracks-flow-lines";
+/** Deck.gl TripsLayer — анимация направления L1-треков. */
+export const TRACKS_TRIPS_DECK_LAYER = "tracks-trips-animation";
 
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -72,6 +74,8 @@ export const GEO_OVERLAY_LAYERS: Record<
   vicinity: [VICINITY_SCOPES_FILL, VICINITY_SCOPES_OUTLINE],
   heatmap: [EVENTS_HEATMAP_LAYER, EVENTS_HEATMAP_POINTS_LAYER],
   tracks: [TRACKS_LINES_LAYER, TRACKS_ORIGIN_LAYER],
+  /** Deck.gl TripsLayer — visibility в tracksDeckOverlay, не MapLibre. */
+  tracksMotion: [],
   tracksFlow: [TRACKS_FLOW_LAYER],
 };
 
