@@ -16,6 +16,7 @@ import { WebSocket } from "ws";
 import type { RawData, Server } from "ws";
 import { WorkerStatusService } from "../worker/worker-status.service";
 import { PhasesAdminService } from "../phases-admin/phases-admin.service";
+import { ParsePipelineAdminService } from "../parse-admin/parse-pipeline-admin.service";
 import { TrackingAdminService } from "../tracking-admin/tracking-admin.service";
 import { listParseAttemptsSince } from "../read-side/parse-attempt-admin.query";
 import {
@@ -30,6 +31,7 @@ const ALL_CHANNELS: AdminWsChannel[] = [
   "backfill-progress",
   "phases-update",
   "tracking-status",
+  "parse-pipeline-status",
 ];
 
 const WORKER_STATUS_POLL_MS = 5000;
@@ -37,6 +39,7 @@ const PARSE_LOG_POLL_MS = 2000;
 const BACKFILL_POLL_MS = 2000;
 const PHASES_POLL_MS = 3000;
 const TRACKING_POLL_MS = 3000;
+const PARSE_PIPELINE_POLL_MS = 2000;
 
 /** Канал, к которому относится серверное сообщение админ-WS. */
 function channelOf(message: AdminWsServerMessage): AdminWsChannel {
@@ -67,6 +70,7 @@ export class AdminGateway
     @InjectDataSource() private readonly dataSource: DataSource,
     private readonly workerStatus: WorkerStatusService,
     private readonly phasesAdmin: PhasesAdminService,
+    private readonly parsePipelineAdmin: ParsePipelineAdminService,
     private readonly trackingAdmin: TrackingAdminService,
   ) {}
 
@@ -78,6 +82,7 @@ export class AdminGateway
       setInterval(() => void this.pollBackfill(), BACKFILL_POLL_MS),
       setInterval(() => void this.pollPhasesUpdate(), PHASES_POLL_MS),
       setInterval(() => void this.pollTrackingStatus(), TRACKING_POLL_MS),
+      setInterval(() => void this.pollParsePipelineStatus(), PARSE_PIPELINE_POLL_MS),
     );
   }
 
@@ -196,6 +201,15 @@ export class AdminGateway
     try {
       const payload = await this.trackingAdmin.getStatus();
       this.broadcast({ type: "tracking-status", payload });
+    } catch {
+      // Пропускаем тик.
+    }
+  }
+
+  private async pollParsePipelineStatus(): Promise<void> {
+    try {
+      const payload = await this.parsePipelineAdmin.getStatus();
+      this.broadcast({ type: "parse-pipeline-status", payload });
     } catch {
       // Пропускаем тик.
     }

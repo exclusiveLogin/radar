@@ -8,13 +8,23 @@ import { stopAllActivePhaseRuns } from "./stopAllActivePhaseRuns.js";
 export const PIPELINE_RESET_REASON = "pipeline:operational-reset";
 
 /** TRUNCATE message_parse_workspace + parsed_events (+ CASCADE). Контур rebuild/reparse. @see ../parse/parseWorkspaceRunModes.ts */
-export async function clearParseLayerArtifacts(dataSource: DataSource): Promise<{
+export async function clearParseLayerArtifacts(
+  dataSource: DataSource,
+  options: { forceLocks?: boolean } = {},
+): Promise<{
   workspacesDeleted: number;
   parsedEventsDeleted: number;
 }> {
-  const workspacesDeleted = await truncateTableCounted(dataSource, "message_parse_workspace");
+  const forceLocks = options.forceLocks !== false;
+  const truncateOpts = { forceLocks };
+  const workspacesDeleted = await truncateTableCounted(
+    dataSource,
+    "message_parse_workspace",
+    truncateOpts,
+  );
   const parsedEventsDeleted = await truncateTableCounted(dataSource, "parsed_events", {
     cascade: true,
+    ...truncateOpts,
   });
   return { workspacesDeleted, parsedEventsDeleted };
 }
@@ -30,6 +40,8 @@ export type PipelineOperationalResetInput = {
   repos: WorkerDbRepositories;
   /** После сброса — pending catch-up для enabled eager+scheduled (для worker:dev). */
   enqueueCatchUp?: boolean;
+  /** По умолчанию true; false — не рвать dev/API сессии (запуск из админки). */
+  forceLocks?: boolean;
 };
 
 export type PipelineOperationalResetResult = {
@@ -51,14 +63,19 @@ export async function runPipelineOperationalReset(
   input: PipelineOperationalResetInput,
 ): Promise<PipelineOperationalResetResult> {
   const { dataSource, repos } = input;
+  const truncateOpts = { forceLocks: input.forceLocks !== false };
 
   const mapReset = new MapStateFullReset({
     dataSource,
   });
   const map = await mapReset.run(new Date(), PIPELINE_RESET_REASON);
 
-  const { parsedEventsDeleted } = await clearParseLayerArtifacts(dataSource);
-  const parseAttemptsDeleted = await truncateTableCounted(dataSource, "parse_attempts");
+  const { parsedEventsDeleted } = await clearParseLayerArtifacts(dataSource, truncateOpts);
+  const parseAttemptsDeleted = await truncateTableCounted(
+    dataSource,
+    "parse_attempts",
+    truncateOpts,
+  );
 
   const allPhaseIds = (await repos.phaseDefinitions.listAll()).map((p) => p.id);
   const coverageInvalidated =

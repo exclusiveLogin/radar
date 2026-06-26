@@ -111,6 +111,17 @@ export function PhasesWidget() {
     void refreshPhases();
   }, [refreshPhases]);
 
+  // Во время reparse/reset API может кратко отдавать 500 — повторяем, не залипаем на ошибке.
+  useEffect(() => {
+    if (!error) return;
+    const timer = setInterval(() => void refreshPhases(), 5000);
+    return () => clearInterval(timer);
+  }, [error, refreshPhases]);
+
+  useEffect(() => {
+    if (overview && error) void refreshPhases();
+  }, [overview, error, refreshPhases]);
+
   const toggle = async (phase: PhaseDefinition): Promise<void> => {
     await adminApi.phasesPatch(phase.id, { enabled: !phase.enabled });
     await refresh();
@@ -175,7 +186,12 @@ export function PhasesWidget() {
 
   return (
     <Panel title="Parse-engine">
-      {error && <p style={{ color: "var(--status-error)" }}>{error}</p>}
+      {error && (
+        <p style={{ color: "var(--status-error)", fontSize: 12 }}>
+          {error}
+          <span style={{ color: "var(--text-muted)", marginLeft: 8 }}>(повтор каждые 5 с)</span>
+        </p>
+      )}
 
       <section style={{ marginBottom: 16 }}>
         <h4 style={{ fontSize: 12, margin: "0 0 4px" }}>Ingest — сообщения → parsed_events</h4>

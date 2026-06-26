@@ -167,3 +167,25 @@ test("PlaceScanIndex: голое «Республика» не матчит junk
   const hits = index.matchPlacesByPhrase("Республика Удмуртия — отбой");
   assert.equal(hits.find((h) => h.entry.name === "Республика"), undefined);
 });
+
+const CHUVASHIA_REGION: PlaceScanEntry[] = [
+  {
+    placeId: "cu-region-place-id",
+    regionId: "cu-region-id",
+    regionIso: "RU-CU",
+    kind: "region",
+    name: "Чувашская Республика",
+    nameWithType: "Чувашская Республика - Чувашия",
+    nameStem: "чуваш",
+    regionShortName: "Чувашская Республика",
+  },
+];
+
+test("PlaceScanIndex: «Республика Чувашия» матчит RU-CU по суффиксу nameWithType", () => {
+  const index = new PlaceScanIndex(CHUVASHIA_REGION);
+  const text = "Республика Чувашия Опасность по БПЛА";
+  const hits = index.matchRegions(text);
+  assert.equal(hits.length, 1);
+  assert.equal(hits[0]!.entry.regionIso, "RU-CU");
+  assert.equal(hits[0]!.span.matchedText, "Республика Чувашия");
+});

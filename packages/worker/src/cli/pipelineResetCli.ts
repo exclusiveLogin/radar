@@ -36,9 +36,10 @@ async function main(): Promise<void> {
   const flags = parseLongFlagsMap(process.argv);
   const dryRun = hasAnyFlag(flags, ["dry-run", "dryRun"]);
   const noCatchUp = hasAnyFlag(flags, ["no-catch-up", "noCatchUp"]);
+  const forceLocks = !hasAnyFlag(flags, ["no-force-locks", "noForceLocks"]);
 
   if (hasAnyFlag(flags, ["help", "h"])) {
-    console.log("Usage: npm run parse-engine:pipeline:reset [--dry-run] [--no-catch-up]");
+    console.log("Usage: npm run parse-engine:pipeline:reset [--dry-run] [--no-catch-up] [--no-force-locks]");
     printPlan();
     process.exit(0);
   }
@@ -66,6 +67,7 @@ async function main(): Promise<void> {
     dataSource: runtime.dataSource,
     repos: runtime.workerRepos,
     enqueueCatchUp: !noCatchUp,
+    forceLocks,
   });
 
   console.log(`\nСброс (${PIPELINE_RESET_REASON}):`);

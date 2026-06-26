@@ -4,6 +4,7 @@ import { BackfillRunnerWidget } from "./widgets/BackfillRunnerWidget";
 import { ChannelPickerWidget } from "./widgets/ChannelPickerWidget";
 import { ChannelStatsWidget } from "./widgets/ChannelStatsWidget";
 import { ChannelStatusWidget } from "./widgets/ChannelStatusWidget";
+import { ParsePipelineWidget } from "./widgets/ParsePipelineWidget";
 import { PhasesWidget } from "./widgets/PhasesWidget";
 import { MessagesStatsWidget } from "./widgets/MessagesStatsWidget";
 import { ParseErrorsWidget } from "./widgets/ParseErrorsWidget";
@@ -13,6 +14,7 @@ import { TrackingPipelineWidget } from "./widgets/TrackingPipelineWidget";
 import { TrackingScannersWidget } from "./widgets/TrackingScannersWidget";
 import { TrackingKinematicsSettingsWidget } from "./widgets/TrackingKinematicsSettingsWidget";
 import { TrackingRunHistoryWidget } from "./widgets/TrackingRunHistoryWidget";
+import { TrackingTuneWidget } from "./widgets/TrackingTuneWidget";
 
 /** Ширина ячейки в 12-колоночной сетке дашборда. */
 export type AdminWidgetSpan = 3 | 4 | 6 | 8 | 12;
@@ -42,6 +44,7 @@ export const ADMIN_LAYOUT_SECTIONS: AdminLayoutSection[] = [
     id: "enrichment",
     title: "Обогащение",
     widgets: [
+      { id: "parse-pipeline", component: ParsePipelineWidget, span: 4 },
       { id: "phases", component: PhasesWidget, span: 8 },
       { id: "worker-runners", component: WorkerRunnersWidget, span: 4 },
     ],
@@ -71,6 +74,7 @@ export const ADMIN_LAYOUT_SECTIONS: AdminLayoutSection[] = [
       { id: "tracking-scanners", component: TrackingScannersWidget, span: 8 },
       { id: "tracking-settings", component: TrackingKinematicsSettingsWidget, span: 4 },
       { id: "tracking-runs", component: TrackingRunHistoryWidget, span: 12 },
+      { id: "tracking-tune", component: TrackingTuneWidget, span: 12 },
     ],
   },
   {

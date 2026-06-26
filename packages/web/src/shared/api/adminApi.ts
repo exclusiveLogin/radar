@@ -14,6 +14,10 @@ import {
   type ChannelStats,
   type ParseAttemptItem,
   type StatsOverview,
+  parsePipelineStartResponseSchema,
+  parsePipelineStatusResponseSchema,
+  type ParsePipelineStartResponse,
+  type ParsePipelineStatusResponse,
   phaseDefinitionSchema,
   phaseRunsOverviewSchema,
   type PhaseRunsOverview,
@@ -21,7 +25,9 @@ import {
   trackingStatusResponseSchema,
   trackingRebuildRunSchema,
   trackingPipelineConfigSchema,
+  trackingTuneRunSchema,
   type TrackingPipelineConfig,
+  type TrackingTuneRun,
 } from "@radar/shared";
 import type { PhaseDefinition, PhaseRun, TrackingStatusResponse, TrackingRebuildRun } from "@radar/shared";
 import { z } from "zod";
@@ -32,6 +38,7 @@ const parseAttemptsSchema = z.array(parseAttemptItemSchema);
 const phasesSchema = z.array(phaseDefinitionSchema);
 const phaseRunsSchema = z.array(phaseRunSchema);
 const trackingRunsSchema = z.array(trackingRebuildRunSchema);
+const trackingTuneRunsSchema = z.array(trackingTuneRunSchema);
 
 async function getJson<T>(url: string, schema: { parse: (data: unknown) => T }): Promise<T> {
   const response = await fetch(url);
@@ -223,4 +230,31 @@ export const adminApi = {
 
   trackingCancel: (): Promise<{ ok: true }> =>
     postJson("/api/admin/tracking/cancel", undefined, z.object({ ok: z.literal(true) })),
+
+  trackingListTune: (limit = 20): Promise<TrackingTuneRun[]> =>
+    getJson(`/api/admin/tracking/tune?limit=${limit}`, trackingTuneRunsSchema),
+
+  trackingStartTune: (body: Record<string, unknown>): Promise<TrackingTuneRun> =>
+    sendJson("POST", "/api/admin/tracking/tune", body, trackingTuneRunSchema),
+
+  trackingCancelTune: (id: string): Promise<{ ok: true }> =>
+    postJson(`/api/admin/tracking/tune/${id}/cancel`, undefined, z.object({ ok: z.literal(true) })),
+
+  trackingRestartTune: (id: string): Promise<TrackingTuneRun> =>
+    postJson(`/api/admin/tracking/tune/${id}/restart`, undefined, trackingTuneRunSchema),
+
+  trackingApplyTune: (id: string): Promise<TrackingPipelineConfig> =>
+    postJson(`/api/admin/tracking/tune/${id}/apply`, undefined, trackingPipelineConfigSchema),
+
+  trackingDeleteTune: (id: string): Promise<{ ok: true }> =>
+    sendJson("DELETE", `/api/admin/tracking/tune/${id}`, undefined, z.object({ ok: z.literal(true) })),
+
+  parsePipelineGetStatus: (): Promise<ParsePipelineStatusResponse> =>
+    getJson("/api/admin/parse/status", parsePipelineStatusResponseSchema),
+
+  parsePipelineReset: (): Promise<ParsePipelineStartResponse> =>
+    postJson("/api/admin/parse/reset", undefined, parsePipelineStartResponseSchema),
+
+  parsePipelineReparse: (): Promise<ParsePipelineStartResponse> =>
+    postJson("/api/admin/parse/reparse", undefined, parsePipelineStartResponseSchema),
 };

@@ -43,6 +43,34 @@ function resolvePhraseCandidates(
   return [];
 }
 
+/**
+ * Индексируемые фразы place/region: полное имя, nameWithType, краткое имя субъекта.
+ * Из «Чувашская Республика - Чувашия» добавляем «Чувашия» и «Республика Чувашия» (формат Radar Russia).
+ */
+function collectEntryScanPhrases(entry: PlaceScanEntry): string[] {
+  const phrases = new Set<string>([entry.name]);
+  if (entry.nameWithType) {
+    phrases.add(entry.nameWithType);
+    const suffix = entry.nameWithType.split(/\s+-\s+/).pop()?.trim();
+    if (suffix && suffix.length >= 3 && suffix.toLowerCase() !== entry.name.toLowerCase()) {
+      phrases.add(suffix);
+      if (/ская\s+республика$/i.test(entry.name)) {
+        phrases.add(`Республика ${suffix}`);
+      }
+    }
+  }
+  if (entry.kind === "region" && entry.regionShortName) {
+    const short = entry.regionShortName.trim();
+    if (short.length >= 3 && short.toLowerCase() !== entry.name.toLowerCase()) {
+      phrases.add(short);
+      if (/ская\s+республика$/i.test(entry.name)) {
+        phrases.add(`Республика ${short}`);
+      }
+    }
+  }
+  return [...phrases];
+}
+
 /** In-memory longest-match index по фразам каталога. */
 export class PlaceScanIndex {
   private readonly phraseRows: PhraseIndexRow[];
@@ -64,13 +92,7 @@ export class PlaceScanIndex {
 
     const phraseMap = new Map<string, PlaceScanEntry[]>();
     for (const entry of entries) {
-      const phrases = new Set<string>([entry.name]);
-      if (entry.nameWithType) phrases.add(entry.nameWithType);
-      // Краткое имя субъекта (regions.short_name) — только region-place, без place_aliases.
-      if (entry.kind === "region" && entry.regionShortName) {
-        phrases.add(entry.regionShortName);
-      }
-      for (const phrase of phrases) {
+      for (const phrase of collectEntryScanPhrases(entry)) {
         const key = phrase.toLowerCase().trim();
         if (key.length < 3) continue;
         const list = phraseMap.get(key) ?? [];

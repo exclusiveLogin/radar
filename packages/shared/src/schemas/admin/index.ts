@@ -15,6 +15,12 @@ export {
   phasesUpdatePayloadSchema,
 } from "./ws";
 export {
+  parsePipelineJobKindSchema,
+  parsePipelineJobStatusSchema,
+  parsePipelineStatusResponseSchema,
+  parsePipelineStartResponseSchema,
+} from "./parse-pipeline";
+export {
   trackingRebuildStageSchema,
   trackingWatermarkSchema,
   trackingRebuildStatsSchema,
@@ -40,6 +46,12 @@ export type {
   AdminWsServerMessage,
   PhasesUpdatePayload,
 } from "./ws";
+export type {
+  ParsePipelineJobKind,
+  ParsePipelineJobStatus,
+  ParsePipelineStatusResponse,
+  ParsePipelineStartResponse,
+} from "./parse-pipeline";
 export type {
   TrackingRebuildStage,
   TrackingWatermark,

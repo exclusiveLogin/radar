@@ -6,6 +6,7 @@ import type {
   ChannelStats,
   ParseAttemptItem,
   PhasesUpdatePayload,
+  ParsePipelineStatusResponse,
   PhaseRun,
   PhaseRunsOverview,
   StatsOverview,
@@ -40,6 +41,8 @@ export const phasesOverview$ = new BehaviorSubject<PhaseRunsOverview | null>(nul
 export const phaseRuns$ = new BehaviorSubject<PhaseRun[]>([]);
 /** Статус пайплайна треков (WS tracking-status). */
 export const trackingStatus$ = new BehaviorSubject<TrackingStatusResponse | null>(null);
+/** Статус parse reset/reparse (WS parse-pipeline-status). */
+export const parsePipelineStatus$ = new BehaviorSubject<ParsePipelineStatusResponse | null>(null);
 
 const CHANNELS_POLL_MS = 30_000;
 const STATS_POLL_MS = 30_000;
@@ -63,6 +66,7 @@ export function startAdminStore(): void {
   startIntervalPoll(TELEMETRY_POLL_MS, refreshTelemetry);
   startIntervalPoll(BACKFILL_POLL_MS, refreshBackfill);
   void refreshTrackingStatus();
+  void refreshParsePipelineStatus();
 
   selectedChannelKey$.subscribe((key) => void refreshChannelStats(key));
 
@@ -77,6 +81,8 @@ export function startAdminStore(): void {
       applyPhasesUpdate(message.payload);
     } else if (message.type === "tracking-status") {
       trackingStatus$.next(message.payload);
+    } else if (message.type === "parse-pipeline-status") {
+      parsePipelineStatus$.next(message.payload);
     }
   });
 }
@@ -224,5 +230,13 @@ export async function refreshTrackingStatus(): Promise<void> {
     trackingStatus$.next(await adminApi.trackingGetStatus());
   } catch (error) {
     reportAppError("Треки", error);
+  }
+}
+
+export async function refreshParsePipelineStatus(): Promise<void> {
+  try {
+    parsePipelineStatus$.next(await adminApi.parsePipelineGetStatus());
+  } catch (error) {
+    reportAppError("Parse pipeline", error);
   }
 }
