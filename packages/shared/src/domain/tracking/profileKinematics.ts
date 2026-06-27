@@ -83,7 +83,7 @@ export const PROFILE_KINEMATICS: Record<ThreatProfile, ProfileKinematics> = {
     processNoiseScale: 0.8,
     observationSigmaScale: 2.5,
     chi2Threshold: 18,
-    rearThresholdM: 12_000,
+    rearThresholdM: 4_000,
     stdbscanEpsilonSpatialM: 20_000,
     stdbscanEpsilonTemporalMs: 20 * 60 * 1000, // 20 мин
     stdbscanMinPts: 2,
@@ -102,7 +102,7 @@ export const PROFILE_KINEMATICS: Record<ThreatProfile, ProfileKinematics> = {
     processNoiseScale: 2.5,
     observationSigmaScale: 2.0,
     chi2Threshold: 15,
-    rearThresholdM: 20_000,
+    rearThresholdM: 6_000,
     stdbscanEpsilonSpatialM: 50_000,
     stdbscanEpsilonTemporalMs: 5 * 60 * 1000, // 5 мин
     stdbscanMinPts: 2,
@@ -117,7 +117,7 @@ export const PROFILE_KINEMATICS: Record<ThreatProfile, ProfileKinematics> = {
     processNoiseScale: 0.5,
     observationSigmaScale: 3.0,
     chi2Threshold: 22,
-    rearThresholdM: 8_000,
+    rearThresholdM: 3_000,
     stdbscanEpsilonSpatialM: 5_000,
     stdbscanEpsilonTemporalMs: 30 * 60 * 1000,  // 30 мин
     stdbscanMinPts: 2,
@@ -132,7 +132,7 @@ export const PROFILE_KINEMATICS: Record<ThreatProfile, ProfileKinematics> = {
     processNoiseScale: 0.8,
     observationSigmaScale: 2.5,
     chi2Threshold: 18,
-    rearThresholdM: 12_000,
+    rearThresholdM: 4_000,
     stdbscanEpsilonSpatialM: 20_000,
     stdbscanEpsilonTemporalMs: 20 * 60 * 1000,
     stdbscanMinPts: 2,

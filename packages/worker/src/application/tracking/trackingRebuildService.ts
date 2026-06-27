@@ -27,6 +27,11 @@ import {
   canEnterAttention,
   resolveAssignments,
   DEFAULT_SEED_MIN,
+  DEFAULT_SEED_MAX_FRONT_DISTANCE_KM,
+  DEFAULT_SEED_WEIGHTS,
+  canSeedCandidate,
+  segmentVelocityMps as computeSegmentVelocityMps,
+  type SeedWeights,
   type ProfileKinematics,
   type TrackingCandidate,
   type TrackingDomainNode as TrajectoryNode,
@@ -167,7 +172,18 @@ export async function runIncrementalBatch(
 
     opts.onProgress?.({ stage: "kalman" });
     const profileOpen = openTracks.filter(t => t.profile === profile && !t.closed);
-    const profileBuilt = buildTracksForProfile(deduplicated, profileOpen, rebuildAt, kin);
+    const seedMin = opts.config?.seedMin ?? DEFAULT_SEED_MIN;
+    const seedMaxFrontKm = opts.config?.seedMaxFrontDistanceKm ?? DEFAULT_SEED_MAX_FRONT_DISTANCE_KM;
+    const seedWeights = resolveSeedWeights(opts.config);
+    const profileBuilt = buildTracksForProfile(
+      deduplicated,
+      profileOpen,
+      rebuildAt,
+      kin,
+      seedMin,
+      seedMaxFrontKm,
+      seedWeights,
+    );
     built.tracks.push(...profileBuilt.tracks);
     built.nodes.push(...profileBuilt.nodes);
     kalmanTracksOpen += profileBuilt.tracks.filter(t => t.status === "active").length;
@@ -329,16 +345,27 @@ async function loadOpenTracksFromDb(
  * Используется и продовым rebuild, и offline-тюнером — единая физика линковки,
  * поэтому chi2/processNoise/rear реально влияют на результат.
  */
+/** Веса географии seed из конфига пайплайна (фолбэк — дефолты домена). */
+function resolveSeedWeights(config?: TrackingPipelineConfig): SeedWeights {
+  return {
+    regionFront: config?.seedRegionFront ?? DEFAULT_SEED_WEIGHTS.regionFront,
+    regionInteriorRf: config?.seedRegionInteriorRf ?? DEFAULT_SEED_WEIGHTS.regionInteriorRf,
+    frontProximityD0Km: config?.seedFrontProximityD0Km ?? DEFAULT_SEED_WEIGHTS.frontProximityD0Km,
+  };
+}
+
 export function buildMutableTracks(
   candidates: TrackingCandidate[],
   kin: ProfileKinematics,
   rebuildAt: Date,
   seedMin = DEFAULT_SEED_MIN,
+  seedMaxFrontKm = DEFAULT_SEED_MAX_FRONT_DISTANCE_KM,
   seedOpen: MutableTrack[] = [],
+  seedWeights: SeedWeights = DEFAULT_SEED_WEIGHTS,
 ): MutableTrack[] {
   const openTracks = [...seedOpen];
   const closedTracks: MutableTrack[] = [];
-  assignBatch(candidates, openTracks, closedTracks, kin, rebuildAt, seedMin);
+  assignBatch(candidates, openTracks, closedTracks, kin, rebuildAt, seedMin, seedMaxFrontKm, seedWeights);
   return [...openTracks, ...closedTracks];
 }
 
@@ -348,9 +375,11 @@ function buildTracksForProfile(
   rebuildAt: Date,
   kin: ProfileKinematics,
   seedMin = DEFAULT_SEED_MIN,
+  seedMaxFrontKm = DEFAULT_SEED_MAX_FRONT_DISTANCE_KM,
+  seedWeights: SeedWeights = DEFAULT_SEED_WEIGHTS,
 ): BuiltTracks {
   return finalizeMutableTracks(
-    buildMutableTracks(candidates, kin, rebuildAt, seedMin, seedOpen),
+    buildMutableTracks(candidates, kin, rebuildAt, seedMin, seedMaxFrontKm, seedOpen, seedWeights),
     rebuildAt,
   );
 }
@@ -415,6 +444,8 @@ function assignBatch(
   kin: ProfileKinematics,
   rebuildAt: Date,
   seedMin: number,
+  seedMaxFrontKm: number,
+  seedWeights: SeedWeights = DEFAULT_SEED_WEIGHTS,
 ): AssignStats {
   const consumed = new Set<string>();
   const stats: AssignStats = {
@@ -437,7 +468,7 @@ function assignBatch(
       [candidate],
       targets,
       kin,
-      { consumed, seedMin },
+      { consumed, seedMin, seedMaxFrontDistanceKm: seedMaxFrontKm, seedWeights },
     );
 
     stats.links += stepStats.links;
@@ -479,6 +510,17 @@ function assignBatch(
 
 function toAttentionTarget(track: MutableTrack): TrackAttentionTarget {
   const last = track.nodes[track.nodes.length - 1]!;
+  const prev = track.nodes.length >= 2 ? track.nodes[track.nodes.length - 2]! : null;
+  const segmentVel = prev
+    ? computeSegmentVelocityMps(
+        prev.lat,
+        prev.lon,
+        last.lat,
+        last.lon,
+        (last.occurredAt.getTime() - prev.occurredAt.getTime()) / 1000,
+      )
+    : null;
+
   return {
     trackId: track.id,
     profile: track.profile,
@@ -489,6 +531,7 @@ function toAttentionTarget(track: MutableTrack): TrackAttentionTarget {
     refLat: track.refLat,
     refLon: track.refLon,
     mutationState: track.mutationState,
+    segmentVelocityMps: segmentVel,
   };
 }
 
@@ -539,7 +582,7 @@ function buildTracks(candidates: TrackingCandidate[], rebuildAt: Date): BuiltTra
   const byProfile = groupByProfile(candidates.filter(canEnterAttention));
   for (const profile of Object.keys(byProfile) as ThreatProfile[]) {
     const kin = PROFILE_KINEMATICS[profile];
-    assignBatch(byProfile[profile]!, openTracks, closedTracks, kin, rebuildAt, DEFAULT_SEED_MIN);
+    assignBatch(byProfile[profile]!, openTracks, closedTracks, kin, rebuildAt, DEFAULT_SEED_MIN, DEFAULT_SEED_MAX_FRONT_DISTANCE_KM);
   }
 
   return finalizeMutableTracks([...openTracks, ...closedTracks], rebuildAt);

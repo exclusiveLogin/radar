@@ -36,6 +36,8 @@ type Transition = {
   velocityMs: number;
   fromName: string;
   toName: string;
+  /** Δ дистанции до фронта (км): >0 — вглубь страны (тыл), <0 — к фронту (обратный ток). */
+  frontDeltaKm: number | null;
 };
 
 function percentile(sorted: number[], p: number): number {
@@ -89,12 +91,17 @@ function buildTransitions(
       if (gapMs > maxGapMs) break; // отсортировано по времени
       const distM = haversineDistanceM(a.lat, a.lon, b.lat, b.lon);
       if (distM > nearM) continue;
+      const frontDeltaKm =
+        a.frontDistanceKm != null && b.frontDistanceKm != null
+          ? b.frontDistanceKm - a.frontDistanceKm
+          : null;
       transitions.push({
         distM,
         gapMs,
         velocityMs: gapMs > 0 ? distM / (gapMs / 1000) : 0,
         fromName: a.placeId ?? `${a.lat.toFixed(2)},${a.lon.toFixed(2)}`,
         toName: b.placeId ?? `${b.lat.toFixed(2)},${b.lon.toFixed(2)}`,
+        frontDeltaKm,
       });
       break; // ближайшая по времени — следующая
     }
@@ -180,6 +187,28 @@ function analyzeProfile(
     console.log(`  p50=${percentile(movingVels, 50).toFixed(1)} p90=${percentile(movingVels, 90).toFixed(1)} max=${movingVels[movingVels.length - 1]!.toFixed(1)}`);
     const overMax = movingVels.filter(v => v > kin.maxVelocityMs).length;
     console.log(`  Превышают maxVelocityMs (${kin.maxVelocityMs}): ${overMax} (${((overMax / movingVels.length) * 100).toFixed(1)}%) → gate отрежет`);
+  }
+
+  // Направленность: фронт→тыл (гипотеза) vs обратный ток
+  const directed = transitions.filter(t => t.frontDeltaKm != null && t.distM >= 100);
+  console.log(`\nНаправление потока (Δ дистанции до фронта, движущиеся переходы):`);
+  if (directed.length === 0) {
+    console.log("  Нет данных front_distance_km — заполни regions.front_distance_km (geo-sync/seed).");
+  } else {
+    const inward = directed.filter(t => t.frontDeltaKm! > 5).length; // вглубь
+    const outward = directed.filter(t => t.frontDeltaKm! < -5).length; // к фронту
+    const lateral = directed.length - inward - outward;
+    const deltas = directed.map(t => t.frontDeltaKm!).sort((a, b) => a - b);
+    const pct = (n: number) => ((n / directed.length) * 100).toFixed(1);
+    console.log(`  Вглубь (тыл, Δ>+5км):   ${String(inward).padStart(4)} (${pct(inward)}%)`);
+    console.log(`  К фронту (Δ<−5км):      ${String(outward).padStart(4)} (${pct(outward)}%) ← обратный ток`);
+    console.log(`  Вдоль (|Δ|≤5км):        ${String(lateral).padStart(4)} (${pct(lateral)}%)`);
+    console.log(`  Медиана Δ: ${percentile(deltas, 50).toFixed(1)}км (p10=${percentile(deltas, 10).toFixed(1)} p90=${percentile(deltas, 90).toFixed(1)})`);
+    if (inward > outward * 1.5) {
+      console.log("  ✓ Гипотеза «фронт→тыл» подтверждается: преобладает движение вглубь.");
+    } else if (outward > inward) {
+      console.log("  ⚠ Преобладает обратный ток — проверь seed (фронт) и rear-front gate.");
+    }
   }
 
   // Диагноз

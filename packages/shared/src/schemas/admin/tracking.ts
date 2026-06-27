@@ -78,9 +78,17 @@ export const trackingRebuildRunSchema = z.object({
 });
 
 export const trackingPipelineConfigSchema = z.object({
-  batchSize: z.number().int().min(100).max(5000).default(1000),
+  batchSize: z.number().int().min(10).max(20000).default(1000),
   daemonIntervalMs: z.number().int().min(5000).max(300000).optional(),
-  seedMin: z.number().min(0.1).max(1).default(0.45),
+  seedMin: z.number().min(0).max(5).default(0.45),
+  /** Seed только если front_distance_km ≤ порога (км от фронта). */
+  seedMaxFrontDistanceKm: z.number().positive().max(10000).default(450),
+  /** Буст веса seed у фронт-региона (множитель). */
+  seedRegionFront: z.number().min(0).max(10).default(1.35),
+  /** Штраф веса seed в глубине РФ (множитель < 1 гасит обратный поток). */
+  seedRegionInteriorRf: z.number().min(0).max(10).default(0.5),
+  /** Длина затухания близости к фронту, км (exp(−d/D0)). */
+  seedFrontProximityD0Km: z.number().positive().max(10000).default(400),
   tieEpsilon: z.number().positive().default(0.5),
   maxTuneEpochs: z.number().int().min(1).max(50).default(12),
   initialStepFraction: z.number().min(0.1).max(1).default(0.5),

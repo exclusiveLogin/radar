@@ -3,7 +3,7 @@
  */
 import { describe, expect, test } from "vitest";
 import { canEnterAttention, hasGeo } from "../trackingEligibility";
-import { computeSeedScore, passesSeedThreshold } from "../pointWeightModel";
+import { computeSeedScore, passesSeedThreshold, canSeedCandidate } from "../pointWeightModel";
 import { canSeedByEventType } from "../eventTypeCoefficients";
 import { resolveRowAssignment } from "../assignCandidates";
 import { buildAttentionMatrix, type TrackAttentionTarget } from "../attentionMatrix";
@@ -95,6 +95,28 @@ describe("assign decisions", () => {
       trust: 0.3,
     });
     expect(passesSeedThreshold(low)).toBe(false);
+  });
+
+  test("глубина РФ (front_distance > 450км) не seed — только link", () => {
+    const deep = makeCandidate({
+      eventType: "fixation",
+      precision: "coords",
+      trust: 0.9,
+      frontDistanceKm: 700,
+      isInteriorRf: true,
+    });
+    expect(canSeedCandidate(deep)).toBe(false);
+  });
+
+  test("приграничье (front_distance < 450км) может seed", () => {
+    const near = makeCandidate({
+      eventType: "fixation",
+      precision: "coords",
+      trust: 0.9,
+      frontDistanceKm: 120,
+      isFrontRegion: false,
+    });
+    expect(canSeedCandidate(near)).toBe(true);
   });
 });
 

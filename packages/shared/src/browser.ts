@@ -27,3 +27,10 @@ export {
   PROFILE_KINEMATICS,
   resolveProfileKinematics,
 } from "./domain/tracking/profileKinematics";
+
+export {
+  DEFAULT_SEED_MIN,
+  DEFAULT_SEED_MAX_FRONT_DISTANCE_KM,
+  DEFAULT_SEED_WEIGHTS,
+} from "./domain/tracking/pointWeightModel";
+export type { SeedWeights } from "./domain/tracking/pointWeightModel";

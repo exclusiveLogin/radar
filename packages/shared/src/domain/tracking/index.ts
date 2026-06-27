@@ -35,12 +35,16 @@ export {
   computeFrontProximityCoeff,
   computeSeedScore,
   passesSeedThreshold,
+  canSeedCandidate,
   DEFAULT_SEED_MIN,
+  DEFAULT_SEED_MAX_FRONT_DISTANCE_KM,
+  DEFAULT_SEED_WEIGHTS,
   REGION_COEFF_FRONT,
   REGION_COEFF_INTERIOR_RF,
   REGION_COEFF_DEFAULT,
   FRONT_PROXIMITY_D0_KM,
 } from "./pointWeightModel";
+export type { SeedWeights } from "./pointWeightModel";
 
 export { hasGeo, isPipelineEventType, canEnterAttention, canEnterPipeline } from "./trackingEligibility";
 
@@ -52,6 +56,8 @@ export type { PredictResult } from "./predictKalmanState";
 
 export { scoreInnovation, computeTimeDecay } from "./innovationScore";
 export type { InnovationScore, InnovationScoreInput } from "./innovationScore";
+
+export { isRearOfVelocity, segmentVelocityMps } from "./rearFrontGate";
 
 export { buildAttentionMatrix } from "./attentionMatrix";
 export type { TrackAttentionTarget, LinkCell, AttentionMatrixRow } from "./attentionMatrix";

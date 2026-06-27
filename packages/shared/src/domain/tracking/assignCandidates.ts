@@ -6,8 +6,15 @@
  * purpose: Phase B resolve — in-locus / soft / seed / intercept + consumed SSOT.
  * ---
  */
-import { shouldTerminateOnAttach, canSeedByEventType } from "./eventTypeCoefficients";
-import { passesSeedThreshold, DEFAULT_SEED_MIN } from "./pointWeightModel";
+import { shouldTerminateOnAttach } from "./eventTypeCoefficients";
+import {
+  canSeedCandidate,
+  DEFAULT_SEED_MAX_FRONT_DISTANCE_KM,
+  DEFAULT_SEED_WEIGHTS,
+  passesSeedThreshold,
+  DEFAULT_SEED_MIN,
+} from "./pointWeightModel";
+import type { SeedWeights } from "./pointWeightModel";
 import {
   buildAttentionMatrix,
   type AttentionMatrixRow,
@@ -37,6 +44,9 @@ export type AssignStats = {
 export type ResolveOpts = {
   consumed: Set<string>;
   seedMin?: number;
+  seedMaxFrontDistanceKm?: number;
+  /** Веса географии seed (front-буст / interior-штраф / D0). */
+  seedWeights?: SeedWeights;
   tieEpsilon?: number;
   maxConsecutiveSoft?: number;
   pauseFactor?: number;
@@ -53,6 +63,8 @@ export function resolveRowAssignment(
 ): AssignDecision {
   const { candidate } = row;
   const seedMin = opts.seedMin ?? DEFAULT_SEED_MIN;
+  const seedMaxFrontKm = opts.seedMaxFrontDistanceKm ?? DEFAULT_SEED_MAX_FRONT_DISTANCE_KM;
+  const seedWeights = opts.seedWeights ?? DEFAULT_SEED_WEIGHTS;
   const tieEpsilon = opts.tieEpsilon ?? DEFAULT_TIE_EPSILON;
 
   if (shouldTerminateOnAttach(candidate.eventType)) {
@@ -73,7 +85,7 @@ export function resolveRowAssignment(
     return { kind: "link", candidate, trackId: winner.trackId, soft: true };
   }
 
-  if (canSeedByEventType(candidate.eventType) && passesSeedThreshold(candidate, seedMin)) {
+  if (canSeedCandidate(candidate, seedMin, seedMaxFrontKm, seedWeights)) {
     return { kind: "seed", candidate };
   }
 
@@ -137,13 +149,23 @@ export function resolveAssignments(
     const rows = buildAttentionMatrix([candidate], tracks, kin, {
       consumed,
       seedMin: opts.seedMin,
+      seedWeights: opts.seedWeights,
       pauseFactor: opts.pauseFactor,
       pauseFactorCap: opts.pauseFactorCap,
     });
     const row = rows[0];
     if (!row) continue;
 
-    const decision = resolveRowAssignment(row, kin, opts);
+    const decision = resolveRowAssignment(row, kin, {
+      consumed: opts.consumed,
+      seedMin: opts.seedMin,
+      seedMaxFrontDistanceKm: opts.seedMaxFrontDistanceKm,
+      seedWeights: opts.seedWeights,
+      tieEpsilon: opts.tieEpsilon,
+      maxConsecutiveSoft: opts.maxConsecutiveSoft,
+      pauseFactor: opts.pauseFactor,
+      pauseFactorCap: opts.pauseFactorCap,
+    });
     decisions.push(decision);
 
     switch (decision.kind) {

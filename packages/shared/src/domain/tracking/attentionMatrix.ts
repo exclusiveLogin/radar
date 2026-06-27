@@ -7,8 +7,11 @@
  * ---
  */
 import { haversineDistanceM } from "./haversine";
+import { latLonToMeters } from "./predictKalmanState";
+import { isRearOfVelocity } from "./rearFrontGate";
 import { canEnterAttention } from "./trackingEligibility";
-import { computeSeedScore } from "./pointWeightModel";
+import { computeSeedScore, DEFAULT_SEED_WEIGHTS } from "./pointWeightModel";
+import type { SeedWeights } from "./pointWeightModel";
 import { scoreInnovation } from "./innovationScore";
 import {
   observationCovarianceMeters,
@@ -28,6 +31,8 @@ export type TrackAttentionTarget = {
   refLat: number;
   refLon: number;
   mutationState?: MutationState;
+  /** Скорость последнего сегмента — rear gate при vx≈0 в Kalman. */
+  segmentVelocityMps?: [number, number] | null;
 };
 
 export type LinkCell = {
@@ -50,6 +55,8 @@ export type BuildMatrixOpts = {
   seedMin?: number;
   pauseFactor?: number;
   pauseFactorCap?: number;
+  /** Веса географии seed (front-буст / interior-штраф / D0). */
+  seedWeights?: SeedWeights;
 };
 
 const DEFAULT_PAUSE_FACTOR = 4.0;
@@ -68,6 +75,7 @@ export function buildAttentionMatrix(
   const consumed = opts.consumed ?? new Set<string>();
   const pauseFactor = opts.pauseFactor ?? DEFAULT_PAUSE_FACTOR;
   const pauseCap = opts.pauseFactorCap ?? DEFAULT_PAUSE_CAP;
+  const seedWeights = opts.seedWeights ?? DEFAULT_SEED_WEIGHTS;
   const tauMs = kin.maxGapMs / 2;
   const rows: AttentionMatrixRow[] = [];
 
@@ -88,7 +96,7 @@ export function buildAttentionMatrix(
     rows.push({
       candidate,
       links,
-      seedScore: computeSeedScore(candidate),
+      seedScore: computeSeedScore(candidate, seedWeights),
     });
   }
 
@@ -139,6 +147,7 @@ function scoreLinkCell(
       chi2Threshold: kin.chi2Threshold,
       maxVelocityMs: kin.maxVelocityMs,
       rearThresholdM: kin.rearThresholdM,
+      segmentVelocityMps: track.segmentVelocityMps,
       timeDecayTauMs: tauMs,
       lastTrackAtMs: track.lastAt.getTime(),
       observedAtMs: candidate.occurredAt.getTime(),
@@ -158,7 +167,23 @@ function scoreLinkCell(
     };
   }
 
-  // Fallback без Kalman — haversine-нормированная стоимость
+  // Fallback без Kalman — haversine + rear по последнему сегменту
+  const obs = latLonToMeters(candidate.lat, candidate.lon, track.refLat, track.refLon);
+  const lastM = latLonToMeters(track.lastLat, track.lastLon, track.refLat, track.refLon);
+  const innov: [number, number] = [obs.xM - lastM.xM, obs.yM - lastM.yM];
+  if (
+    track.segmentVelocityMps
+    && isRearOfVelocity(
+      innov[0],
+      innov[1],
+      track.segmentVelocityMps[0],
+      track.segmentVelocityMps[1],
+      kin.rearThresholdM,
+    )
+  ) {
+    return null;
+  }
+
   const normD2 = (distM / Math.max(kin.maxLinkDistanceM, 1)) ** 2 * kin.chi2Threshold;
   const timeDecay = Math.exp(-Math.max(0, gapMs) / tauMs);
   const linkCost = timeDecay > 0 ? normD2 / timeDecay : normD2 * 1e6;

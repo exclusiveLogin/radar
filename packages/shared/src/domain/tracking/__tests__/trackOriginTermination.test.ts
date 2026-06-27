@@ -69,7 +69,8 @@ describe("origin policy", () => {
     const candidate = makeCandidate({
       lat: 50.001,
       lon: 36.001,
-      occurredAt: new Date("2024-06-01T14:00:00Z"), // +2h
+      // +4ч > uav.maxGapMs (3ч) → трек считается оборванным, не блокирует seed
+      occurredAt: new Date("2024-06-01T16:00:00Z"),
     });
     const openTrack = {
       lastLat: 50.0,

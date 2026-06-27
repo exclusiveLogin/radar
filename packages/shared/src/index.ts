@@ -212,7 +212,12 @@ export {
   resolveAssignments,
   computeSeedScore,
   computeFrontProximityCoeff,
+  canSeedCandidate,
   DEFAULT_SEED_MIN,
+  DEFAULT_SEED_MAX_FRONT_DISTANCE_KM,
+  DEFAULT_SEED_WEIGHTS,
+  isRearOfVelocity,
+  segmentVelocityMps,
   computeTrackingFitness,
   patternSearchStep,
   defaultTuneAxes,
@@ -590,6 +595,7 @@ export type {
   AssignStats,
   AssignDecision,
   TuneCenter,
+  SeedWeights,
 } from "./domain/tracking";
 export type {
   EventHandler,
