@@ -5,14 +5,34 @@ import {
   DEFAULT_SEED_MIN,
   DEFAULT_SEED_MAX_FRONT_DISTANCE_KM,
   DEFAULT_SEED_WEIGHTS,
+  DEFAULT_FLOW_ALIGNMENT,
+  DEFAULT_GREEDY_FLOW,
+  DEFAULT_MAGNETIZE_WEIGHTS,
+  DEFAULT_MAGNET_COST_WEIGHTS,
+  DEFAULT_TURN_PENALTY,
   type ThreatProfile,
   type TrackingPipelineConfig,
+  type AssociationAlgorithm,
+  type GreedyFlowWeights,
 } from "@radar/shared";
+
+/** Дефолты NextGen для UI (SSOT значений — zod-схема на сервере). */
+type NextGenCfg = NonNullable<TrackingPipelineConfig["nextgen"]>;
+const NEXTGEN_DEFAULTS: NextGenCfg = {
+  h3Resolution: 8,
+  gravityCenterMassThreshold: 5,
+  kalmanLocusChi2Threshold: 5.99,
+  minBackboneNodes: 3,
+  turnPenaltyWeight: DEFAULT_TURN_PENALTY.penaltyWeight,
+  maxTurnDeg: DEFAULT_TURN_PENALTY.maxTurnDeg,
+  rflEnabled: true,
+};
 import { Button, Field, Panel } from "../../shared/ds";
 import { useObservable } from "../../shared/hooks/useObservable";
 import { adminApi } from "../../shared/api/adminApi";
 import { refreshTrackingStatus, trackingStatus$ } from "../../shared/state/adminStore";
 import { reportAppError } from "../../shared/state/appLogStore";
+import { TRACKING_PARAM_HINTS as H } from "./trackingParamHints";
 
 const PROFILES: ThreatProfile[] = ["uav", "rocket", "balloon"];
 
@@ -22,6 +42,71 @@ const PROFILE_LABEL: Record<ThreatProfile, string> = {
   balloon: "МВШ",
   unknown: "Неизв.",
 };
+
+/** Диапазоны слайдеров (согласованы со schema / доменом). */
+const MULTIPLIER_MAX = 10;
+const SCALE_MIN = 0.5;
+const SCALE_MAX = 5;
+const SEED_MIN_MAX = 1;
+const SEED_MIN_SLIDER_MIN = 0.1;
+const SEED_FRONT_KM_MIN = 50;
+const SEED_FRONT_KM_MAX = 800;
+const SEED_D0_KM_MIN = 10;
+const SEED_D0_KM_MAX = 300;
+const INTERIOR_PENALTY_MIN = 0.1;
+
+type CoeffSliderProps = {
+  label: string;
+  title?: string;
+  hint?: string;
+  value: number;
+  min: number;
+  max: number;
+  step: number;
+  onChange: (value: number) => void;
+  className?: string;
+};
+
+function formatSliderValue(value: number, step: number): string {
+  const decimals = step >= 1 ? 0 : step >= 0.1 ? 1 : 2;
+  return value.toFixed(decimals);
+}
+
+/** Слайдер коэффициента в стиле DS. */
+function CoeffSlider({
+  label,
+  title,
+  hint,
+  value,
+  min,
+  max,
+  step,
+  onChange,
+  className,
+}: CoeffSliderProps) {
+  return (
+    <div className={["ds-slider-field", className].filter(Boolean).join(" ")} title={title}>
+      <div className="ds-slider-field__head">
+        <span className="ds-slider-field__label">{label}</span>
+        <span className="ds-slider-field__value">{formatSliderValue(value, step)}</span>
+      </div>
+      {hint ? <span className="ds-field__hint">{hint}</span> : null}
+      <input
+        type="range"
+        className="ds-range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        onChange={e => onChange(Number(e.target.value))}
+      />
+      <div className="ds-slider-field__scale">
+        <span>{min}</span>
+        <span>{max}</span>
+      </div>
+    </div>
+  );
+}
 
 type KinematicsForm = {
   maxVelocityMs: string;
@@ -93,12 +178,21 @@ function configSignature(
 ): string {
   return JSON.stringify({
     profile,
-    batchSize: cfg?.batchSize,
     seedMin: cfg?.seedMin,
     seedMaxFrontDistanceKm: cfg?.seedMaxFrontDistanceKm,
     seedRegionFront: cfg?.seedRegionFront,
     seedRegionInteriorRf: cfg?.seedRegionInteriorRf,
     seedFrontProximityD0Km: cfg?.seedFrontProximityD0Km,
+    reuseAcrossTracks: cfg?.reuseAcrossTracks,
+    associationAlgorithm: cfg?.associationAlgorithm,
+    flowWeight: cfg?.flowWeight,
+    counterFlowPenalty: cfg?.counterFlowPenalty,
+    flowEmpiricalMultiplier: cfg?.flowEmpiricalMultiplier,
+    counterFlowRejectCos: cfg?.counterFlowRejectCos ?? null,
+    greedyFlow: cfg?.greedyFlow ?? null,
+    nextgen: cfg?.nextgen ?? null,
+    clusteringMode: cfg?.clusteringMode ?? "collapse",
+    magnet: cfg?.magnet ?? null,
     override: cfg?.profiles?.[profile] ?? null,
   });
 }
@@ -107,15 +201,38 @@ function configSignature(
 export function TrackingKinematicsSettingsWidget() {
   const status = useObservable(trackingStatus$, null);
   const [profile, setProfile] = useState<ThreatProfile>("uav");
-  const [batchSize, setBatchSize] = useState("1000");
-  const [seedMin, setSeedMin] = useState(String(DEFAULT_SEED_MIN));
-  const [seedMaxFrontKm, setSeedMaxFrontKm] = useState(String(DEFAULT_SEED_MAX_FRONT_DISTANCE_KM));
-  const [seedRegionFront, setSeedRegionFront] = useState(String(DEFAULT_SEED_WEIGHTS.regionFront));
+  const [seedMin, setSeedMin] = useState(DEFAULT_SEED_MIN);
+  const [seedMaxFrontKm, setSeedMaxFrontKm] = useState(DEFAULT_SEED_MAX_FRONT_DISTANCE_KM);
+  const [seedRegionFront, setSeedRegionFront] = useState(DEFAULT_SEED_WEIGHTS.regionFront);
   const [seedRegionInteriorRf, setSeedRegionInteriorRf] = useState(
-    String(DEFAULT_SEED_WEIGHTS.regionInteriorRf),
+    DEFAULT_SEED_WEIGHTS.regionInteriorRf,
   );
-  const [seedFrontD0Km, setSeedFrontD0Km] = useState(
-    String(DEFAULT_SEED_WEIGHTS.frontProximityD0Km),
+  const [seedFrontD0Km, setSeedFrontD0Km] = useState(DEFAULT_SEED_WEIGHTS.frontProximityD0Km);
+  const [reuseAcrossTracks, setReuseAcrossTracks] = useState(false);
+  const [associationAlgorithm, setAssociationAlgorithm] = useState<AssociationAlgorithm>("gnn");
+  const [flowWeight, setFlowWeight] = useState(DEFAULT_FLOW_ALIGNMENT.flowWeight);
+  const [counterFlowPenalty, setCounterFlowPenalty] = useState(
+    DEFAULT_FLOW_ALIGNMENT.counterFlowPenalty,
+  );
+  const [flowEmpiricalMultiplier, setFlowEmpiricalMultiplier] = useState(
+    DEFAULT_FLOW_ALIGNMENT.flowEmpiricalMultiplier,
+  );
+  // Жёсткий запрет противотока: enabled-флаг + порог cos (хранится как null при выкл).
+  const [counterFlowRejectEnabled, setCounterFlowRejectEnabled] = useState(false);
+  const [counterFlowRejectCos, setCounterFlowRejectCos] = useState(-0.2);
+  // Веса жадной ассоциации (greedy-flow).
+  const [greedyFlow, setGreedyFlow] = useState<GreedyFlowWeights>(DEFAULT_GREEDY_FLOW);
+  const [nextgen, setNextgen] = useState<NextGenCfg>(NEXTGEN_DEFAULTS);
+  const [clusteringMode, setClusteringMode] = useState<"collapse" | "magnet">("collapse");
+  const [magnetWMag, setMagnetWMag] = useState(DEFAULT_MAGNET_COST_WEIGHTS.wMag);
+  const [magnetWFlow, setMagnetWFlow] = useState(DEFAULT_MAGNET_COST_WEIGHTS.wFlow);
+  const [lambdaCloud, setLambdaCloud] = useState(DEFAULT_MAGNETIZE_WEIGHTS.lambdaCloud);
+  const [lambdaHist, setLambdaHist] = useState(DEFAULT_MAGNETIZE_WEIGHTS.lambdaHist);
+  const [useHistoricalGravity, setUseHistoricalGravity] = useState(
+    DEFAULT_MAGNETIZE_WEIGHTS.useHistoricalGravity,
+  );
+  const [geohashPrecision, setGeohashPrecision] = useState(
+    DEFAULT_MAGNETIZE_WEIGHTS.geohashPrecision,
   );
   const [form, setForm] = useState<KinematicsForm>(() => effectiveToForm("uav"));
   const [busy, setBusy] = useState(false);
@@ -130,12 +247,31 @@ export function TrackingKinematicsSettingsWidget() {
     const sig = configSignature(profile, cfg);
     if (sig === syncedSigRef.current) return;
     syncedSigRef.current = sig;
-    setBatchSize(String(cfg.batchSize ?? 1000));
-    setSeedMin(String(cfg.seedMin ?? DEFAULT_SEED_MIN));
-    setSeedMaxFrontKm(String(cfg.seedMaxFrontDistanceKm ?? DEFAULT_SEED_MAX_FRONT_DISTANCE_KM));
-    setSeedRegionFront(String(cfg.seedRegionFront ?? DEFAULT_SEED_WEIGHTS.regionFront));
-    setSeedRegionInteriorRf(String(cfg.seedRegionInteriorRf ?? DEFAULT_SEED_WEIGHTS.regionInteriorRf));
-    setSeedFrontD0Km(String(cfg.seedFrontProximityD0Km ?? DEFAULT_SEED_WEIGHTS.frontProximityD0Km));
+    setSeedMin(cfg.seedMin ?? DEFAULT_SEED_MIN);
+    setSeedMaxFrontKm(cfg.seedMaxFrontDistanceKm ?? DEFAULT_SEED_MAX_FRONT_DISTANCE_KM);
+    setSeedRegionFront(cfg.seedRegionFront ?? DEFAULT_SEED_WEIGHTS.regionFront);
+    setSeedRegionInteriorRf(cfg.seedRegionInteriorRf ?? DEFAULT_SEED_WEIGHTS.regionInteriorRf);
+    setSeedFrontD0Km(cfg.seedFrontProximityD0Km ?? DEFAULT_SEED_WEIGHTS.frontProximityD0Km);
+    setReuseAcrossTracks(cfg.reuseAcrossTracks ?? false);
+    setAssociationAlgorithm(cfg.associationAlgorithm ?? "gnn");
+    setFlowWeight(cfg.flowWeight ?? DEFAULT_FLOW_ALIGNMENT.flowWeight);
+    setCounterFlowPenalty(cfg.counterFlowPenalty ?? DEFAULT_FLOW_ALIGNMENT.counterFlowPenalty);
+    setFlowEmpiricalMultiplier(
+      cfg.flowEmpiricalMultiplier ?? DEFAULT_FLOW_ALIGNMENT.flowEmpiricalMultiplier,
+    );
+    const rejCos = cfg.counterFlowRejectCos ?? null;
+    setCounterFlowRejectEnabled(rejCos != null);
+    setCounterFlowRejectCos(rejCos ?? -0.2);
+    setGreedyFlow({ ...DEFAULT_GREEDY_FLOW, ...(cfg.greedyFlow ?? {}) });
+    setNextgen({ ...NEXTGEN_DEFAULTS, ...(cfg.nextgen ?? {}) });
+    setClusteringMode(cfg.clusteringMode ?? "collapse");
+    const m = cfg.magnet;
+    setMagnetWMag(m?.wMag ?? DEFAULT_MAGNET_COST_WEIGHTS.wMag);
+    setMagnetWFlow(m?.wFlow ?? DEFAULT_MAGNET_COST_WEIGHTS.wFlow);
+    setLambdaCloud(m?.lambdaCloud ?? DEFAULT_MAGNETIZE_WEIGHTS.lambdaCloud);
+    setLambdaHist(m?.lambdaHist ?? DEFAULT_MAGNETIZE_WEIGHTS.lambdaHist);
+    setUseHistoricalGravity(m?.useHistoricalGravity ?? DEFAULT_MAGNETIZE_WEIGHTS.useHistoricalGravity);
+    setGeohashPrecision(m?.geohashPrecision ?? DEFAULT_MAGNETIZE_WEIGHTS.geohashPrecision);
     setForm(effectiveToForm(profile, profileOverrides));
   }, [cfg, profile, profileOverrides]);
 
@@ -147,11 +283,27 @@ export function TrackingKinematicsSettingsWidget() {
 
   const resetProfile = (): void => {
     setForm(effectiveToForm(profile));
-    setSeedMin(String(DEFAULT_SEED_MIN));
-    setSeedMaxFrontKm(String(DEFAULT_SEED_MAX_FRONT_DISTANCE_KM));
-    setSeedRegionFront(String(DEFAULT_SEED_WEIGHTS.regionFront));
-    setSeedRegionInteriorRf(String(DEFAULT_SEED_WEIGHTS.regionInteriorRf));
-    setSeedFrontD0Km(String(DEFAULT_SEED_WEIGHTS.frontProximityD0Km));
+    setSeedMin(DEFAULT_SEED_MIN);
+    setSeedMaxFrontKm(DEFAULT_SEED_MAX_FRONT_DISTANCE_KM);
+    setSeedRegionFront(DEFAULT_SEED_WEIGHTS.regionFront);
+    setSeedRegionInteriorRf(DEFAULT_SEED_WEIGHTS.regionInteriorRf);
+    setSeedFrontD0Km(DEFAULT_SEED_WEIGHTS.frontProximityD0Km);
+    setReuseAcrossTracks(false);
+    setAssociationAlgorithm("gnn");
+    setFlowWeight(DEFAULT_FLOW_ALIGNMENT.flowWeight);
+    setCounterFlowPenalty(DEFAULT_FLOW_ALIGNMENT.counterFlowPenalty);
+    setFlowEmpiricalMultiplier(DEFAULT_FLOW_ALIGNMENT.flowEmpiricalMultiplier);
+    setCounterFlowRejectEnabled(false);
+    setCounterFlowRejectCos(-0.2);
+    setGreedyFlow(DEFAULT_GREEDY_FLOW);
+    setNextgen(NEXTGEN_DEFAULTS);
+    setClusteringMode("collapse");
+    setMagnetWMag(DEFAULT_MAGNET_COST_WEIGHTS.wMag);
+    setMagnetWFlow(DEFAULT_MAGNET_COST_WEIGHTS.wFlow);
+    setLambdaCloud(DEFAULT_MAGNETIZE_WEIGHTS.lambdaCloud);
+    setLambdaHist(DEFAULT_MAGNETIZE_WEIGHTS.lambdaHist);
+    setUseHistoricalGravity(DEFAULT_MAGNETIZE_WEIGHTS.useHistoricalGravity);
+    setGeohashPrecision(DEFAULT_MAGNETIZE_WEIGHTS.geohashPrecision);
   };
 
   const save = async () => {
@@ -159,12 +311,28 @@ export function TrackingKinematicsSettingsWidget() {
     try {
       const profilePatch = formToOverrides(profile, form);
       const saved = await adminApi.trackingPatchConfig({
-        batchSize: Number(batchSize) || 1000,
-        seedMin: Number(seedMin) || DEFAULT_SEED_MIN,
-        seedMaxFrontDistanceKm: Number(seedMaxFrontKm) || DEFAULT_SEED_MAX_FRONT_DISTANCE_KM,
-        seedRegionFront: Number(seedRegionFront) || DEFAULT_SEED_WEIGHTS.regionFront,
-        seedRegionInteriorRf: Number(seedRegionInteriorRf) || DEFAULT_SEED_WEIGHTS.regionInteriorRf,
-        seedFrontProximityD0Km: Number(seedFrontD0Km) || DEFAULT_SEED_WEIGHTS.frontProximityD0Km,
+        seedMin,
+        seedMaxFrontDistanceKm: seedMaxFrontKm,
+        seedRegionFront,
+        seedRegionInteriorRf,
+        seedFrontProximityD0Km: seedFrontD0Km,
+        reuseAcrossTracks,
+        associationAlgorithm,
+        flowWeight,
+        counterFlowPenalty,
+        flowEmpiricalMultiplier,
+        counterFlowRejectCos: counterFlowRejectEnabled ? counterFlowRejectCos : null,
+        greedyFlow,
+        nextgen,
+        clusteringMode,
+        magnet: {
+          wMag: magnetWMag,
+          wFlow: magnetWFlow,
+          lambdaCloud,
+          lambdaHist,
+          useHistoricalGravity,
+          geohashPrecision,
+        },
         profiles: { [profile]: profilePatch },
       });
       // Помечаем как синхронизированное, чтобы refresh не сбросил только что сохранённое.
@@ -192,80 +360,372 @@ export function TrackingKinematicsSettingsWidget() {
         ))}
       </div>
 
-      <Field label="Размер батча (все профили)">
-        <input
-          className="ds-input"
-          type="number"
-          value={batchSize}
-          onChange={e => setBatchSize(e.target.value)}
-        />
-      </Field>
-
-      <p style={{ fontSize: 11, fontWeight: 600, margin: "12px 0 6px" }}>
-        Зарождение трека (фронт → тыл)
-      </p>
-      <p style={{ fontSize: 10, color: "var(--text-muted)", margin: "0 0 6px", lineHeight: 1.4 }}>
-        Новый трек стартует только у фронта (точка ближе порога к фронт-региону). Дальше цепь
-        тянется вглубь, rear-front gate режет «обратный ток». Вес seed = Π коэффициентов:
-        чем выше у фронта и ниже в тылу — тем меньше ложных зарождений в глубине РФ.
-      </p>
-      <div className="ds-form-row">
-        <Field label={`Мин. вес seed (порог зарождения, деф. ${DEFAULT_SEED_MIN})`}>
-          <input
-            className="ds-input"
-            type="number"
+      <div className="ds-subpanel">
+        <p className="ds-subpanel__title">Зарождение трека</p>
+        <p className="ds-subpanel__hint">
+          Seed только у фронта. Вес = Π множителей: буст у фронта &gt; 1, штраф в тылу &lt; 1.
+        </p>
+        <div className="ds-slider-grid">
+          <CoeffSlider
+            label={`Порог seed (деф. ${DEFAULT_SEED_MIN})`}
+            title="Минимальный вес для зарождения нового трека."
+            hint={H.seedMin}
             value={seedMin}
-            onChange={e => setSeedMin(e.target.value)}
+            min={SEED_MIN_SLIDER_MIN}
+            max={SEED_MIN_MAX}
+            step={0.01}
+            onChange={setSeedMin}
           />
-        </Field>
-        <Field label={`Макс. дистанция до фронта для seed, км (деф. ${DEFAULT_SEED_MAX_FRONT_DISTANCE_KM})`}>
-          <input
-            className="ds-input"
-            type="number"
+          <CoeffSlider
+            label={`Макс. дистанция до фронта, км (деф. ${DEFAULT_SEED_MAX_FRONT_DISTANCE_KM})`}
+            title="Дальше от фронта — seed не создаётся."
+            hint={H.seedMaxFrontKm}
             value={seedMaxFrontKm}
-            onChange={e => setSeedMaxFrontKm(e.target.value)}
+            min={SEED_FRONT_KM_MIN}
+            max={SEED_FRONT_KM_MAX}
+            step={10}
+            onChange={setSeedMaxFrontKm}
           />
-        </Field>
+          <CoeffSlider
+            label={`Буст у фронта × (деф. ${DEFAULT_SEED_WEIGHTS.regionFront})`}
+            title="Множитель веса в фронтовом регионе. 1 — нейтрально."
+            hint={H.seedRegionFront}
+            value={seedRegionFront}
+            min={1}
+            max={MULTIPLIER_MAX}
+            step={0.05}
+            onChange={setSeedRegionFront}
+          />
+          <CoeffSlider
+            label={`Штраф в тылу × (деф. ${DEFAULT_SEED_WEIGHTS.regionInteriorRf})`}
+            title="Множитель в глубине РФ. 1 — без штрафа, меньше — сильнее гасит seed."
+            hint={H.seedRegionInteriorRf}
+            value={seedRegionInteriorRf}
+            min={INTERIOR_PENALTY_MIN}
+            max={1}
+            step={0.05}
+            onChange={setSeedRegionInteriorRf}
+          />
+          <CoeffSlider
+            className="ds-slider-grid__full"
+            label={`Затухание близости D0, км (деф. ${DEFAULT_SEED_WEIGHTS.frontProximityD0Km})`}
+            title="На какой дистанции от фронта спадает буст близости."
+            hint={H.seedFrontD0Km}
+            value={seedFrontD0Km}
+            min={SEED_D0_KM_MIN}
+            max={SEED_D0_KM_MAX}
+            step={5}
+            onChange={setSeedFrontD0Km}
+          />
+        </div>
       </div>
 
-      <p style={{ fontSize: 10, color: "var(--text-muted)", margin: "8px 0 6px", lineHeight: 1.4 }}>
-        Веса штрафа/буста по географии. Буст у фронта &gt; 1 поднимает вес; штраф в тылу &lt; 1
-        гасит зарождение вглубь страны. D0 — на сколько км спадает буст близости к фронту.
-      </p>
-      <div className="ds-form-row">
-        <Field label={`Буст веса у фронта, ×(деф. ${DEFAULT_SEED_WEIGHTS.regionFront})`}>
-          <input
-            className="ds-input"
-            type="number"
-            step="any"
-            value={seedRegionFront}
-            onChange={e => setSeedRegionFront(e.target.value)}
-          />
-        </Field>
-        <Field label={`Штраф веса в тылу РФ, ×(деф. ${DEFAULT_SEED_WEIGHTS.regionInteriorRf})`}>
-          <input
-            className="ds-input"
-            type="number"
-            step="any"
-            value={seedRegionInteriorRf}
-            onChange={e => setSeedRegionInteriorRf(e.target.value)}
-          />
-        </Field>
-      </div>
-      <Field label={`Затухание близости к фронту D0, км (деф. ${DEFAULT_SEED_WEIGHTS.frontProximityD0Km})`}>
-        <input
+      <p style={{ fontSize: 11, fontWeight: 600, margin: "12px 0 6px" }}>Ассоциация</p>
+      <Field label="Алгоритм ассоциации" hint={H.associationAlgorithm}>
+        <select
           className="ds-input"
-          type="number"
-          step="any"
-          value={seedFrontD0Km}
-          onChange={e => setSeedFrontD0Km(e.target.value)}
-        />
+          value={associationAlgorithm}
+          onChange={e => setAssociationAlgorithm(e.target.value as AssociationAlgorithm)}
+        >
+          <option value="gnn">GNN (жадный argmin ρ)</option>
+          <option value="greedy-flow">Greedy-flow (пары по току, монотонная глубина)</option>
+          <option value="nextgen-gravity">NextGen Gravity (4-Phase H3 + RFL)</option>
+          <option value="pdaf">PDAF (backlog)</option>
+          <option value="jpdaf">JPDAF (backlog)</option>
+        </select>
       </Field>
+      {associationAlgorithm === "greedy-flow" && (
+        <div className="ds-subpanel">
+          <p className="ds-subpanel__title">Greedy-flow: веса и допуски</p>
+          <p className="ds-subpanel__hint">
+            Соединяет пары по току. cost = dist·w₁ + dt·w₂ − align·w₃; глубина монотонна (поздняя точка глубже на −ε).
+          </p>
+          <div className="ds-form-row" style={{ marginTop: 4 }}>
+            <Field label={`Вес дистанции (деф. ${DEFAULT_GREEDY_FLOW.distWeightM})`} hint={H.greedyDist}>
+              <input
+                className="ds-input"
+                type="number"
+                value={greedyFlow.distWeightM}
+                onChange={e => setGreedyFlow(g => ({ ...g, distWeightM: Number(e.target.value) }))}
+              />
+            </Field>
+            <Field label={`Штраф разрыва, м/ч (деф. ${DEFAULT_GREEDY_FLOW.dtPenaltyPerHourM})`} hint={H.greedyDt}>
+              <input
+                className="ds-input"
+                type="number"
+                value={greedyFlow.dtPenaltyPerHourM}
+                onChange={e => setGreedyFlow(g => ({ ...g, dtPenaltyPerHourM: Number(e.target.value) }))}
+              />
+            </Field>
+          </div>
+          <div className="ds-form-row" style={{ marginTop: 4 }}>
+            <Field label={`Награда за ток, м (деф. ${DEFAULT_GREEDY_FLOW.flowAlignRewardM})`} hint={H.greedyFlowReward}>
+              <input
+                className="ds-input"
+                type="number"
+                value={greedyFlow.flowAlignRewardM}
+                onChange={e => setGreedyFlow(g => ({ ...g, flowAlignRewardM: Number(e.target.value) }))}
+              />
+            </Field>
+            <Field label={`Допуск глубины ε, м (деф. ${DEFAULT_GREEDY_FLOW.depthToleranceM})`} hint={H.greedyDepthTol}>
+              <input
+                className="ds-input"
+                type="number"
+                value={greedyFlow.depthToleranceM}
+                onChange={e => setGreedyFlow(g => ({ ...g, depthToleranceM: Number(e.target.value) }))}
+              />
+            </Field>
+          </div>
+          <Field
+            label={`Жёсткий gate против тока, cos (−1..1; пусто=выкл, деф. ${DEFAULT_GREEDY_FLOW.counterFlowRejectCos})`}
+            hint={H.greedyCounterCos}
+          >
+            <input
+              className="ds-input"
+              type="number"
+              step={0.05}
+              value={greedyFlow.counterFlowRejectCos ?? ""}
+              onChange={e =>
+                setGreedyFlow(g => ({
+                  ...g,
+                  counterFlowRejectCos: e.target.value === "" ? null : Number(e.target.value),
+                }))
+              }
+            />
+          </Field>
+        </div>
+      )}
+      {associationAlgorithm === "nextgen-gravity" && (
+        <div className="ds-subpanel">
+          <p className="ds-subpanel__title">NextGen: гравитация и гладкость трасс</p>
+          <p className="ds-subpanel__hint">
+            Магистрали тянутся по тяжёлым H3-коридорам; штраф за поворот не даёт лучам разбегаться из хабов.
+          </p>
+          <div className="ds-form-row" style={{ marginTop: 4 }}>
+            <Field
+              label={`Штраф за поворот (деф. ${DEFAULT_TURN_PENALTY.penaltyWeight}; 0 = выкл)`}
+              hint={H.nextgenTurnPenalty}
+            >
+              <input
+                className="ds-input"
+                type="number"
+                step={0.5}
+                min={0}
+                max={10}
+                value={nextgen.turnPenaltyWeight}
+                onChange={e => setNextgen(n => ({ ...n, turnPenaltyWeight: Number(e.target.value) }))}
+              />
+            </Field>
+            <Field
+              label={`Макс. поворот, ° (деф. ${DEFAULT_TURN_PENALTY.maxTurnDeg})`}
+              hint={H.nextgenMaxTurnDeg}
+            >
+              <input
+                className="ds-input"
+                type="number"
+                step={5}
+                min={0}
+                max={180}
+                value={nextgen.maxTurnDeg}
+                onChange={e => setNextgen(n => ({ ...n, maxTurnDeg: Number(e.target.value) }))}
+              />
+            </Field>
+          </div>
+          <Field
+            label={`Мин. нод для магистрали (деф. ${NEXTGEN_DEFAULTS.minBackboneNodes}; иначе пунктир)`}
+            hint={H.nextgenMinBackbone}
+          >
+            <input
+              className="ds-input"
+              type="number"
+              step={1}
+              min={2}
+              max={10}
+              value={nextgen.minBackboneNodes}
+              onChange={e => setNextgen(n => ({ ...n, minBackboneNodes: Number(e.target.value) }))}
+            />
+          </Field>
+        </div>
+      )}
+      <label
+        style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: 12, marginBottom: 8 }}
+        title={H.reuseAcrossTracks}
+      >
+        <input
+          type="checkbox"
+          checked={reuseAcrossTracks}
+          onChange={e => setReuseAcrossTracks(e.target.checked)}
+          style={{ marginTop: 2 }}
+        />
+        <span>
+          Переиспользовать точки в нескольких треках (fan-out in-locus)
+          <span className="ds-field__hint" style={{ display: "block", marginTop: 2 }}>
+            {H.reuseAcrossTracks}
+          </span>
+        </span>
+      </label>
+
+      <div className="ds-subpanel">
+        <p className="ds-subpanel__title">Направленность</p>
+        <p className="ds-subpanel__hint">
+          Множитель ρ&apos; по направлению шага. Ток A — front_distance; B — P2P-коридор (count × множитель).
+        </p>
+        <div className="ds-slider-grid">
+          <CoeffSlider
+            label={`Сила бонуса по току γ (деф. ${DEFAULT_FLOW_ALIGNMENT.flowWeight})`}
+            title="1 — умеренный эффект; 0 — выкл. Шаг по току дешевле для линковки."
+            hint={H.flowWeight}
+            value={flowWeight}
+            min={0}
+            max={MULTIPLIER_MAX}
+            step={0.1}
+            onChange={setFlowWeight}
+          />
+          <CoeffSlider
+            label={`Сила штрафа противотока γ (деф. ${DEFAULT_FLOW_ALIGNMENT.counterFlowPenalty})`}
+            title="1 — умеренный эффект; 0 — выкл. Шаг против тока дороже для линковки."
+            hint={H.counterFlowPenalty}
+            value={counterFlowPenalty}
+            min={0}
+            max={MULTIPLIER_MAX}
+            step={0.1}
+            onChange={setCounterFlowPenalty}
+          />
+          <CoeffSlider
+            className="ds-slider-grid__full"
+            label={`Множитель коридора (деф. ${DEFAULT_FLOW_ALIGNMENT.flowEmpiricalMultiplier})`}
+            title="Сила B = count × множитель. 1 — нейтрально; 0 — только гео-ток A."
+            hint={H.flowEmpirical}
+            value={flowEmpiricalMultiplier}
+            min={0}
+            max={MULTIPLIER_MAX}
+            step={0.1}
+            onChange={setFlowEmpiricalMultiplier}
+          />
+        </div>
+        <label
+          style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: 12, margin: "10px 0 4px" }}
+          title={H.counterFlowReject}
+        >
+          <input
+            type="checkbox"
+            checked={counterFlowRejectEnabled}
+            onChange={e => setCounterFlowRejectEnabled(e.target.checked)}
+            style={{ marginTop: 2 }}
+          />
+          <span>
+            Жёсткий запрет противотока (шаг к фронту/Украине отклоняется)
+            <span className="ds-field__hint" style={{ display: "block", marginTop: 2 }}>
+              {H.counterFlowReject}
+            </span>
+          </span>
+        </label>
+        {counterFlowRejectEnabled && (
+          <div className="ds-slider-grid">
+            <CoeffSlider
+              className="ds-slider-grid__full"
+              label="Порог cos∠(шаг, ток) (−0.2 — допуск бокового дрейфа; 0 — строго вглубь)"
+              title="Линк отклоняется при cos < порога. Меньше — строже к фронту."
+              hint={H.counterFlowRejectCos}
+              value={counterFlowRejectCos}
+              min={-1}
+              max={1}
+              step={0.05}
+              onChange={setCounterFlowRejectCos}
+            />
+          </div>
+        )}
+      </div>
 
       <p style={{ fontSize: 11, fontWeight: 600, margin: "12px 0 6px" }}>Линковка / ST-DBSCAN</p>
 
+      <Field label="Режим кластеризации" hint={H.clusteringMode}>
+        <select
+          className="ds-input"
+          value={clusteringMode}
+          onChange={e => setClusteringMode(e.target.value as "collapse" | "magnet")}
+        >
+          <option value="collapse">Collapse (legacy dedup — один winner)</option>
+          <option value="magnet">Magnet (веса без схлопывания)</option>
+        </select>
+      </Field>
+
+      {clusteringMode === "magnet" && (
+        <div className="ds-subpanel">
+          <p className="ds-subpanel__title">Магнитная фаза</p>
+          <p className="ds-subpanel__hint">
+            Магнетизм в cost всех алгоритмов. При fan-out (reuse) спутники остаются лучами; без reuse — свёртка в clusterMass winner.
+          </p>
+          <div className="ds-slider-grid">
+            <CoeffSlider
+              label={`wMag — сила магнетизма (деф. ${DEFAULT_MAGNET_COST_WEIGHTS.wMag})`}
+              hint={H.magnetWMag}
+              value={magnetWMag}
+              min={0}
+              max={MULTIPLIER_MAX}
+              step={0.1}
+              onChange={setMagnetWMag}
+            />
+            <CoeffSlider
+              label={`wFlow — доп. бонус прямотока (деф. ${DEFAULT_MAGNET_COST_WEIGHTS.wFlow})`}
+              hint={H.magnetWFlow}
+              value={magnetWFlow}
+              min={0}
+              max={MULTIPLIER_MAX}
+              step={0.1}
+              onChange={setMagnetWFlow}
+            />
+            <CoeffSlider
+              label={`λ_cloud — плотность облака (деф. ${DEFAULT_MAGNETIZE_WEIGHTS.lambdaCloud})`}
+              hint={H.lambdaCloud}
+              value={lambdaCloud}
+              min={0}
+              max={MULTIPLIER_MAX}
+              step={0.05}
+              onChange={setLambdaCloud}
+            />
+            <CoeffSlider
+              label={`λ_hist — история места (деф. ${DEFAULT_MAGNETIZE_WEIGHTS.lambdaHist})`}
+              hint={H.lambdaHist}
+              value={lambdaHist}
+              min={0}
+              max={MULTIPLIER_MAX}
+              step={0.05}
+              onChange={setLambdaHist}
+            />
+            <Field label={`Geohash precision (деф. ${DEFAULT_MAGNETIZE_WEIGHTS.geohashPrecision})`} hint={H.geohashPrecision}>
+              <input
+                className="ds-input"
+                type="number"
+                min={3}
+                max={10}
+                value={geohashPrecision}
+                onChange={e => setGeohashPrecision(Number(e.target.value))}
+              />
+            </Field>
+          </div>
+          <label
+            style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: 12, marginTop: 8 }}
+            title={H.useHistoricalGravity}
+          >
+            <input
+              type="checkbox"
+              checked={useHistoricalGravity}
+              onChange={e => setUseHistoricalGravity(e.target.checked)}
+              style={{ marginTop: 2 }}
+            />
+            <span>
+              Историческая гравитация мест (pre-pass + heatmap)
+              <span className="ds-field__hint" style={{ display: "block", marginTop: 2 }}>
+                {H.useHistoricalGravity}
+              </span>
+            </span>
+          </label>
+        </div>
+      )}
+
       <div className="ds-form-row" style={{ marginTop: 4 }}>
-        <Field label={`Макс. скорость цели, м/с (деф. ${defaults.maxVelocityMs})`}>
+        <Field label={`Макс. скорость цели, м/с (деф. ${defaults.maxVelocityMs})`} hint={H.maxVelocityMs}>
           <input
             className="ds-input"
             type="number"
@@ -273,7 +733,7 @@ export function TrackingKinematicsSettingsWidget() {
             onChange={e => setField("maxVelocityMs", e.target.value)}
           />
         </Field>
-        <Field label={`Макс. шаг линковки между точками, м (деф. ${defaults.maxLinkDistanceM})`}>
+        <Field label={`Макс. шаг линковки между точками, м (деф. ${defaults.maxLinkDistanceM})`} hint={H.maxLinkDistanceM}>
           <input
             className="ds-input"
             type="number"
@@ -284,7 +744,7 @@ export function TrackingKinematicsSettingsWidget() {
       </div>
 
       <div className="ds-form-row" style={{ marginTop: 8 }}>
-        <Field label={`Макс. пауза в треке, мс (деф. ${defaults.maxGapMs})`}>
+        <Field label={`Макс. пауза в треке, мс (деф. ${defaults.maxGapMs})`} hint={H.maxGapMs}>
           <input
             className="ds-input"
             type="number"
@@ -292,7 +752,7 @@ export function TrackingKinematicsSettingsWidget() {
             onChange={e => setField("maxGapMs", e.target.value)}
           />
         </Field>
-        <Field label={`Радиус дедупликации ST-DBSCAN, м (деф. ${defaults.stdbscanEpsilonSpatialM})`}>
+        <Field label={`Радиус дедупликации ST-DBSCAN, м (деф. ${defaults.stdbscanEpsilonSpatialM})`} hint={H.stdbscanSpatial}>
           <input
             className="ds-input"
             type="number"
@@ -302,7 +762,7 @@ export function TrackingKinematicsSettingsWidget() {
         </Field>
       </div>
 
-      <Field label={`Окно дедупликации ST-DBSCAN по времени, мс (деф. ${defaults.stdbscanEpsilonTemporalMs})`}>
+      <Field label={`Окно дедупликации ST-DBSCAN по времени, мс (деф. ${defaults.stdbscanEpsilonTemporalMs})`} hint={H.stdbscanTemporal}>
         <input
           className="ds-input"
           type="number"
@@ -313,29 +773,37 @@ export function TrackingKinematicsSettingsWidget() {
 
       <p style={{ fontSize: 11, fontWeight: 600, margin: "12px 0 6px" }}>Kalman / innovation gate</p>
 
-      <div className="ds-form-row">
-        <Field label={`Доверие к прогнозу Q (выше → манёвреннее, деф. ${defaults.processNoiseScale})`}>
-          <input
-            className="ds-input"
-            type="number"
-            step="any"
-            value={form.processNoiseScale}
-            onChange={e => setField("processNoiseScale", e.target.value)}
+      <div className="ds-subpanel" style={{ marginBottom: 10 }}>
+        <p className="ds-subpanel__title">Масштабы Q / R</p>
+        <p className="ds-subpanel__hint">
+          Множители ковариации относительно базы профиля. Дефолт — значение профиля ({defaults.processNoiseScale} / {defaults.observationSigmaScale}).
+        </p>
+        <div className="ds-slider-grid">
+          <CoeffSlider
+            label={`Доверие к прогнозу Q × (деф. ${defaults.processNoiseScale})`}
+            title="Выше — фильтр быстрее подстраивается под манёвры."
+            hint={H.processNoiseScale}
+            value={Number(form.processNoiseScale) || defaults.processNoiseScale}
+            min={SCALE_MIN}
+            max={SCALE_MAX}
+            step={0.1}
+            onChange={v => setField("processNoiseScale", String(v))}
           />
-        </Field>
-        <Field label={`Шум наблюдения R × (выше → шире эллипс, деф. ${defaults.observationSigmaScale})`}>
-          <input
-            className="ds-input"
-            type="number"
-            step="any"
-            value={form.observationSigmaScale}
-            onChange={e => setField("observationSigmaScale", e.target.value)}
+          <CoeffSlider
+            label={`Шум наблюдения R × (деф. ${defaults.observationSigmaScale})`}
+            title="Выше — шире эллипс наблюдения (телега / грубая гео)."
+            hint={H.observationSigmaScale}
+            value={Number(form.observationSigmaScale) || defaults.observationSigmaScale}
+            min={SCALE_MIN}
+            max={SCALE_MAX}
+            step={0.1}
+            onChange={v => setField("observationSigmaScale", String(v))}
           />
-        </Field>
+        </div>
       </div>
 
-      <div className="ds-form-row" style={{ marginTop: 8 }}>
-        <Field label={`Порог линковки χ² (выше → допускает дальше, деф. ${defaults.chi2Threshold})`}>
+      <div className="ds-form-row">
+        <Field label={`Порог линковки χ² (выше → допускает дальше, деф. ${defaults.chi2Threshold})`} hint={H.chi2Threshold}>
           <input
             className="ds-input"
             type="number"
@@ -344,7 +812,7 @@ export function TrackingKinematicsSettingsWidget() {
             onChange={e => setField("chi2Threshold", e.target.value)}
           />
         </Field>
-        <Field label={`Отсечка движения назад, м (rear-front, деф. ${defaults.rearThresholdM})`}>
+        <Field label={`Отсечка движения назад, м (rear-front, деф. ${defaults.rearThresholdM})`} hint={H.rearThresholdM}>
           <input
             className="ds-input"
             type="number"

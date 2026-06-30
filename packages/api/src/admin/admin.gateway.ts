@@ -201,8 +201,10 @@ export class AdminGateway
     try {
       const payload = await this.trackingAdmin.getStatus();
       this.broadcast({ type: "tracking-status", payload });
-    } catch {
-      // Пропускаем тик.
+    } catch (err) {
+      this.logger.warn(
+        `pollTrackingStatus failed: ${err instanceof Error ? err.message : String(err)}`,
+      );
     }
   }
 

@@ -157,6 +157,13 @@ export function kalmanStep(
 
 /**
  * Инициализирует начальное состояние Kalman для первой ноды трека.
+ *
+ * Позиционная и скоростная неопределённости задаются раздельно: смешивать их
+ * нельзя — позиция в метрах (км-масштаб), скорость в м/с. Если для скорости
+ * взять позиционную sigma, σ_v раздувается до км/с и эллипс становится гигантским.
+ *
+ * @param initialSigmaM           σ позиции (м), из точности геопривязки.
+ * @param initialVelocitySigmaMps σ скорости (м/с), из профиля кинематики.
  */
 export function kalmanInitState(
   lat: number,
@@ -164,12 +171,14 @@ export function kalmanInitState(
   refLat: number,
   refLon: number,
   initialSigmaM: number,
+  initialVelocitySigmaMps: number,
 ): KalmanStateJson {
   const metersPerDegLat = 111_320;
   const metersPerDegLon = 111_320 * Math.cos((refLat * Math.PI) / 180);
   const x = (lon - refLon) * metersPerDegLon;
   const y = (lat - refLat) * metersPerDegLat;
-  const s2 = initialSigmaM ** 2;
+  const posVar = initialSigmaM ** 2;
+  const velVar = initialVelocitySigmaMps ** 2;
 
   return {
     x,
@@ -177,10 +186,10 @@ export function kalmanInitState(
     vx: 0,
     vy: 0,
     P: [
-      [s2, 0, 0, 0],
-      [0, s2, 0, 0],
-      [0, 0, s2, 0],
-      [0, 0, 0, s2],
+      [posVar, 0, 0, 0],
+      [0, posVar, 0, 0],
+      [0, 0, velVar, 0],
+      [0, 0, 0, velVar],
     ],
   };
 }

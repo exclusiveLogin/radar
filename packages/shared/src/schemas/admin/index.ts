@@ -40,7 +40,7 @@ export type {
   BackfillJobsQuery,
 } from "./backfill";
 export type { ChannelAdminItem, ChannelStats } from "./channels";
-export type { StatsOverview } from "./stats";
+export type { StatsOverview, GeoEnrichmentCounts, PhaseCoverageCounts } from "./stats";
 export type { ParseAttemptStatus, ParseAttemptItem } from "./parse-attempt";
 export type { ApiProcessTelemetry, AdminTelemetry } from "./telemetry";
 export type {

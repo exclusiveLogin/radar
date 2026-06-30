@@ -16,5 +16,5 @@ export type PolygonFeature = {
 /** Коллекция полигональных features — базовая геометрия с сервера. */
 export type GeoJsonCollection = {
   type: "FeatureCollection";
-  features: PolygonFeature[];
+  features: any[]; // расслабим тип для совместимости с MapLibre
 };

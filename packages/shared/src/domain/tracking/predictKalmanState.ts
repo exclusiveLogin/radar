@@ -104,6 +104,42 @@ export function innovationCovariance(
   ];
 }
 
+/**
+ * Ориентирует ковариацию вдоль вектора скорости («огурец»).
+ *
+ * Модель CV симметрична → S почти изотропна (круг). Чтобы зона ассоциации
+ * вытягивалась вдоль направления движения (along-track неопределённость больше
+ * cross-track), масштабируем средний размер S анизотропно: along × ratio,
+ * cross ÷ ratio. Площадь (det) сохраняется → форма «огурца», не раздувание.
+ *
+ * @param ratio σ_along / σ_cross (≥1). При ratio≤1 или нулевой скорости — S как есть.
+ */
+export function alignCovarianceToVelocity(
+  S: [[number, number], [number, number]],
+  vx: number,
+  vy: number,
+  ratio: number,
+): [[number, number], [number, number]] {
+  if (ratio <= 1) return S;
+  const speed = Math.hypot(vx, vy);
+  if (speed < 1e-6) return S;
+
+  const ux = vx / speed;
+  const uy = vy / speed;
+  const px = -uy;
+  const py = ux;
+
+  const sBar = (S[0][0] + S[1][1]) / 2;
+  const along = sBar * ratio;
+  const cross = sBar / ratio;
+
+  // S' = along·(û ûᵀ) + cross·(p̂ p̂ᵀ)
+  return [
+    [along * ux * ux + cross * px * px, along * ux * uy + cross * px * py],
+    [along * ux * uy + cross * px * py, along * uy * uy + cross * py * py],
+  ];
+}
+
 /** Конвертация lat/lon в метры от ref. */
 export function latLonToMeters(
   lat: number,

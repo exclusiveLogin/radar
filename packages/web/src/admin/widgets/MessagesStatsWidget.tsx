@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from "react";
-import type { GeoEnrichmentCounts, PhaseCoverageCounts, StatsOverview } from "@radar/shared";
+import type { GeoEnrichmentCounts, PhaseCoverageCounts, StatsOverview } from "@radar/shared/src/schemas/admin/index";
 import { Button, Panel, StatTile } from "../../shared/ds";
 import { useObservable } from "../../shared/hooks/useObservable";
 import { adminApi } from "../../shared/api/adminApi";

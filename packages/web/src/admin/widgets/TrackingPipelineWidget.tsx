@@ -1,26 +1,59 @@
-import { useState } from "react";
-import { Button, Panel } from "../../shared/ds";
+import { useEffect, useState } from "react";
+import { Button, Field, Panel } from "../../shared/ds";
 import { useObservable } from "../../shared/hooks/useObservable";
 import { adminApi } from "../../shared/api/adminApi";
 import { refreshTrackingStatus, trackingStatus$ } from "../../shared/state/adminStore";
 import { reportAppError } from "../../shared/state/appLogStore";
 
 /** Master-контроль пайплайна треков: ВКЛ/ВЫКЛ, pause/resume, rebuild, reset. */
+type PendingAction = "enabled" | "config" | "pause" | "resume" | "rebuild" | "soft" | "reset";
+
+const CLIENT_TIMEOUT_MS = 90_000;
+
+function withClientTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) => {
+      setTimeout(() => reject(new Error(message)), ms);
+    }),
+  ]);
+}
+
 export function TrackingPipelineWidget() {
   const status = useObservable(trackingStatus$, null);
-  const [busy, setBusy] = useState(false);
+  const [pending, setPending] = useState<PendingAction | null>(null);
+  const [batchSize, setBatchSize] = useState("500");
 
-  const run = async (action: () => Promise<unknown>) => {
-    setBusy(true);
+  useEffect(() => {
+    const v = status?.config?.batchSize;
+    if (v != null) setBatchSize(String(v));
+  }, [status?.config?.batchSize]);
+
+  const runStats = status?.activeRun?.stats ?? status?.lastRun?.stats;
+  const activeRun = status?.activeRun;
+  const phase2PairsConsidered = runStats?.phase2PairsConsidered ?? 0;
+  const phase2PairsAccepted = runStats?.phase2PairsAccepted ?? 0;
+  const phase2PairsRejectedByKinematics = runStats?.phase2PairsRejectedByKinematics ?? 0;
+  const phase2ReliabilityAvg = runStats?.phase2ReliabilityAvg;
+  const phase2ReliabilityP95 = runStats?.phase2ReliabilityP95;
+
+  const run = async (kind: PendingAction, action: () => Promise<unknown>) => {
+    setPending(kind);
     try {
-      await action();
+      await withClientTimeout(
+        action(),
+        CLIENT_TIMEOUT_MS,
+        "Операция заняла слишком много времени. Проверьте логи API и обновите статус.",
+      );
       await refreshTrackingStatus();
     } catch (e) {
       reportAppError("Треки", e);
     } finally {
-      setBusy(false);
+      setPending(null);
     }
   };
+
+  const controlsLocked = pending !== null;
 
   const m = status?.metrics;
   /** Прогресс пайплайна: обработано / целевые (не = ноды в треках). */
@@ -56,7 +89,7 @@ export function TrackingPipelineWidget() {
     : "var(--text-muted)";
 
   return (
-    <Panel title="Пайплайн треков">
+    <Panel title="Пайплайн треков" className="tracking-pipeline-widget">
       {m && (
         <div
           style={{
@@ -88,10 +121,10 @@ export function TrackingPipelineWidget() {
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
         <Button
           variant={status?.enabled ? "primary" : "ghost"}
-          disabled={busy}
-          onClick={() => void run(() => adminApi.trackingPatchEnabled(!status?.enabled))}
+          disabled={pending === "enabled"}
+          onClick={() => void run("enabled", () => adminApi.trackingPatchEnabled(!status?.enabled))}
         >
-          {status?.enabled ? "ВКЛ" : "ВЫКЛ"}
+          {status?.enabled ? "Выключить" : "Включить"}
         </Button>
         <span>
           {pipelineProcessed.toLocaleString()} / {total.toLocaleString()} ({percent.toFixed(1)}%)
@@ -100,6 +133,11 @@ export function TrackingPipelineWidget() {
           ноды: {nodesCoverage}%
         </span>
       </div>
+      {pending && (
+        <p style={{ marginTop: 8, fontSize: 11, color: "var(--accent)" }}>
+          Выполняется: {pending}…
+        </p>
+      )}
       {ps && (
         <div style={{ marginTop: 8, fontSize: 12 }}>
           <span style={{ fontWeight: 600, color: statusColor }}>{ps.label}</span>
@@ -124,6 +162,75 @@ export function TrackingPipelineWidget() {
       >
         <div style={{ width: `${percent}%`, height: "100%", background: "var(--accent)" }} />
       </div>
+      <div
+        style={{
+          display: "flex",
+          gap: 8,
+          flexWrap: "wrap",
+          alignItems: "flex-end",
+          marginTop: 10,
+        }}
+      >
+        <Field label="Тик (точек за проход)">
+          <input
+            className="ds-input"
+            type="number"
+            min={10}
+            max={20000}
+            step={10}
+            value={batchSize}
+            onChange={e => setBatchSize(e.target.value)}
+            style={{ width: 100 }}
+            title="Сколько pending assign за проход daemon. ST-DBSCAN closure — вся очередь + якоря."
+          />
+        </Field>
+        <Button
+          variant="ghost"
+          disabled={controlsLocked}
+          onClick={() =>
+            void run("config", async () => {
+              const n = Number(batchSize);
+              if (!Number.isFinite(n) || n < 10 || n > 20000) {
+                throw new Error("batchSize: 10–20000");
+              }
+              await adminApi.trackingPatchConfig({ batchSize: n });
+            })
+          }
+        >
+          Применить тик
+        </Button>
+        {status && (
+          <div className="tracking-pipeline-widget__meta" style={{ fontSize: 11, color: "var(--text-muted)", paddingBottom: 6 }}>
+            <span>
+              Тик: {status.config?.batchSize ?? 500}
+              {status.metrics?.effectiveBatchSize != null
+                && status.metrics.effectiveBatchSize !== (status.config?.batchSize ?? 500)
+                ? ` (факт ${status.metrics.effectiveBatchSize})`
+                : ""}
+              {" · "}очередь{" "}
+              {status.metrics?.unconsumedPipeline?.toLocaleString("ru-RU") ?? "—"}
+              {" · "}closure{" "}
+              {status.metrics?.dedupClosureSize?.toLocaleString("ru-RU") ?? "—"}
+              {activeRun?.stats?.stage && activeRun.stats.stage !== "idle" && (
+                <> · стадия: {activeRun.stats.stage}</>
+              )}
+            </span>
+            {phase2PairsConsidered > 0 && (
+              <span>
+                {" · "}Ф2 пары: {phase2PairsAccepted.toLocaleString("ru-RU")}
+                /{phase2PairsConsidered.toLocaleString("ru-RU")}
+                {" · "}кинематика reject: {phase2PairsRejectedByKinematics.toLocaleString("ru-RU")}
+                {phase2ReliabilityAvg != null && (
+                  <>{" · "}rel avg: {(phase2ReliabilityAvg * 100).toFixed(1)}%</>
+                )}
+                {phase2ReliabilityP95 != null && (
+                  <>{" · "}rel p95: {(phase2ReliabilityP95 * 100).toFixed(1)}%</>
+                )}
+              </span>
+            )}
+          </div>
+        )}
+      </div>
       {status?.watermark && (
         <p style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 6 }}>
           Watermark: {status.watermark.lastOccurredAt}
@@ -140,28 +247,44 @@ export function TrackingPipelineWidget() {
         </p>
       )}
       <div style={{ display: "flex", gap: 6, marginTop: 10, flexWrap: "wrap" }}>
-        <Button variant="ghost" disabled={busy || !canPause} onClick={() => void run(() => adminApi.trackingPause())}>
+        <Button variant="ghost" disabled={controlsLocked || !canPause} onClick={() => void run("pause", () => adminApi.trackingPause())}>
           Pause
         </Button>
-        <Button variant="ghost" disabled={busy || !canResume} onClick={() => void run(() => adminApi.trackingResume())}>
+        <Button variant="ghost" disabled={controlsLocked || !canResume} onClick={() => void run("resume", () => adminApi.trackingResume())}>
           Resume
         </Button>
         <Button
           variant="ghost"
-          disabled={busy}
+          disabled={controlsLocked}
           onClick={() => {
             if (!window.confirm("Full rebuild: truncate + catch-up?")) return;
-            void run(() => adminApi.trackingRebuild());
+            void run("rebuild", () => adminApi.trackingRebuild());
           }}
         >
           Rebuild
         </Button>
         <Button
+          variant="ghost"
+          disabled={controlsLocked}
+          onClick={() => {
+            if (
+              !window.confirm(
+                "Soft rebuild: удалить треки и заново прогнать те же точки с текущим config (веса не сбрасываются)?",
+              )
+            ) {
+              return;
+            }
+            void run("soft", () => adminApi.trackingSoftRebuild());
+          }}
+        >
+          Soft rebuild
+        </Button>
+        <Button
           variant="danger"
-          disabled={busy}
+          disabled={controlsLocked}
           onClick={() => {
             if (!window.confirm("Reset watermark и truncate треков?")) return;
-            void run(() => adminApi.trackingReset());
+            void run("reset", () => adminApi.trackingReset());
           }}
         >
           Reset

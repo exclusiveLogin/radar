@@ -36,6 +36,12 @@ npm run radar -- tracking rebuild -- --since=2024-01-01T00:00:00Z
 ## Worker
 
 ```powershell
+# host dev (--full): worker role=all, tracking daemon внутри
+npm run radar -- stack dev --full
+
+# docker app profile: отдельный контейнер worker-tracking (обязателен для треков!)
+# docker compose --profile app up worker-tracking
+
 # только tracking daemon (без ingest/phase)
 $env:RADAR_WORKER_ROLE="tracking"
 npm run worker:dev
@@ -45,11 +51,15 @@ npm run worker:dev
 |-----|---------|--------|
 | `TRACKING_DAEMON_INTERVAL_MS` | 10000 | Тик батча |
 | `TRACKING_DAEMON_ENABLED` | true | Глобальный kill-switch |
-| `TRACKING_BATCH_SIZE` | 1000 | Через admin config |
+| `TRACKING_DAEMON_MAX_BATCH_SIZE` | 500 (cap в коде) | Тик assign; config.batchSize выше — обрезается |
+
+**Важно:** в `docker-compose.app.yml` ingest/backfill/phase **не** гоняют треки — нужен `worker-tracking` или host `stack dev --full`.
 
 ## Диагностика
 
 - `npm run radar -- tracking status` — JSON watermark + counts
+- `npm run radar -- tracking tick` — один тик daemon (ручной прогон)
+- `npm run radar -- tracking enable -- --on` — включить пайплайн в БД
 - WS `/ws/admin` → `tracking-status`
 - Таблицы: `trajectory_tracks`, `trajectory_nodes`, `tracking_pipeline_state`
 

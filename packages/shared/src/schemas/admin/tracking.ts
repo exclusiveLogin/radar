@@ -26,7 +26,12 @@ export const trackingWatermarkSchema = z.object({
 
 export const trackingRebuildStatsSchema = z.object({
   stage: trackingRebuildStageSchema,
+  /** Размер тика daemon (сколько pending assign за проход). Dedup closure — глобальный. */
   batchSize: z.number().int().nonnegative().optional(),
+  /** Точек в pending-очереди тика. */
+  pendingCandidates: z.number().int().nonnegative().optional(),
+  /** Размер dedup closure (pending + consumed якоря). */
+  dedupClosureSize: z.number().int().nonnegative().optional(),
   batchIndex: z.number().int().nonnegative().optional(),
   processedCandidates: z.number().int().nonnegative().optional(),
   totalCandidates: z.number().int().nonnegative().optional(),
@@ -38,6 +43,16 @@ export const trackingRebuildStatsSchema = z.object({
   kalmanNodesAdded: z.number().int().nonnegative().optional(),
   attentionConflicts: z.number().int().nonnegative().optional(),
   softAssigns: z.number().int().nonnegative().optional(),
+  /** Ф2 NextGen: сколько пар рассмотрено в окне обучения H3. */
+  phase2PairsConsidered: z.number().int().nonnegative().optional(),
+  /** Ф2 NextGen: сколько пар прошло векторацию и попало в поле. */
+  phase2PairsAccepted: z.number().int().nonnegative().optional(),
+  /** Ф2 NextGen: сколько пар отклонено кинематическим коррелятором. */
+  phase2PairsRejectedByKinematics: z.number().int().nonnegative().optional(),
+  /** Ф2 NextGen: средняя достоверность принятых пар (0..1). */
+  phase2ReliabilityAvg: z.number().min(0).max(1).optional(),
+  /** Ф2 NextGen: P95 достоверности принятых пар (0..1). */
+  phase2ReliabilityP95: z.number().min(0).max(1).optional(),
   elapsedMs: z.number().int().nonnegative().optional(),
 });
 
@@ -47,6 +62,10 @@ export const trackingPipelineMetricsSchema = z.object({
   totalTargetCandidates: z.number().int().nonnegative(),
   /** Очередь: ещё не прошли пайплайн. */
   unconsumedPipeline: z.number().int().nonnegative(),
+  /** Размер dedup closure (pending + consumed-якоря) — live для админки. */
+  dedupClosureSize: z.number().int().nonnegative().optional(),
+  /** Фактический размер тика daemon с учётом cap. */
+  effectiveBatchSize: z.number().int().positive().optional(),
   processedCandidates: z.number().int().nonnegative(),
   /** % точек, прошедших пайплайн (не = % нод в треках). */
   percentProcessed: z.number().min(0).max(100),
@@ -66,7 +85,7 @@ export const trackingPipelineMetricsSchema = z.object({
 export const trackingRebuildRunSchema = z.object({
   id: z.string().uuid(),
   status: z.enum(["running", "paused", "done", "failed", "cancelled"]),
-  mode: z.enum(["incremental", "full_rebuild"]),
+  mode: z.enum(["incremental", "full_rebuild", "soft_rebuild"]),
   startedAt: z.string().datetime(),
   finishedAt: z.string().datetime().nullable(),
   since: z.string().datetime(),
@@ -78,7 +97,8 @@ export const trackingRebuildRunSchema = z.object({
 });
 
 export const trackingPipelineConfigSchema = z.object({
-  batchSize: z.number().int().min(10).max(20000).default(1000),
+  /** Точек за тик daemon (assign/persist). ST-DBSCAN closure — вся очередь + якоря. */
+  batchSize: z.number().int().min(10).max(20000).default(500),
   daemonIntervalMs: z.number().int().min(5000).max(300000).optional(),
   seedMin: z.number().min(0).max(5).default(0.45),
   /** Seed только если front_distance_km ≤ порога (км от фронта). */
@@ -89,6 +109,73 @@ export const trackingPipelineConfigSchema = z.object({
   seedRegionInteriorRf: z.number().min(0).max(10).default(0.5),
   /** Длина затухания близости к фронту, км (exp(−d/D0)). */
   seedFrontProximityD0Km: z.number().positive().max(10000).default(400),
+  /** Точка во все in-locus треки (self-attention fan-out). */
+  reuseAcrossTracks: z.boolean().default(false),
+  /** Алгоритм ассоциации (GNN default; PDAF/JPDAF — backlog; greedy-flow — жадный по току; nextgen-gravity — 4-phase H3 gravity). */
+  associationAlgorithm: z.enum(["gnn", "pdaf", "jpdaf", "greedy-flow", "nextgen-gravity"]).default("gnn"),
+  /** γ_ток — бонус за движение по потоку (1 = умеренный эффект, 0 = выкл). */
+  flowWeight: z.number().min(0).max(10).default(1),
+  /** γ_против — штраф за противоток (1 = умеренный эффект, 0 = выкл). */
+  counterFlowPenalty: z.number().min(0).max(10).default(1),
+  /** Множитель эмпирического коридора: сила B = count × multiplier. */
+  flowEmpiricalMultiplier: z.number().min(0).max(10).default(1),
+  /**
+   * Жёсткий gate против тока: мин. допустимый cos∠(шаг, ток фронт→тыл).
+   * null — выкл; 0 — резать любой шаг к фронту; −0.2 — допускать боковой дрейф.
+   */
+  counterFlowRejectCos: z.number().min(-1).max(1).nullable().default(null),
+  /** Веса жадной ассоциации (associationAlgorithm = "greedy-flow"). */
+  greedyFlow: z
+    .object({
+      /** Вклад дистанции (м) в стоимость ребра. */
+      distWeightM: z.number().min(0).default(1),
+      /** Штраф за час разрыва (м-эквивалент на 1 ч). */
+      dtPenaltyPerHourM: z.number().min(0).default(20_000),
+      /** Награда за совпадение с током (м-эквивалент при align=1). */
+      flowAlignRewardM: z.number().min(0).default(50_000),
+      /** Допуск «не глубже» (м): шаг к фронту разрешён не более чем на ε. */
+      depthToleranceM: z.number().min(0).default(20_000),
+      /** Жёсткий gate против тока: мин. cos∠(шаг, ток). null — выкл. */
+      counterFlowRejectCos: z.number().min(-1).max(1).nullable().default(-0.2),
+    })
+    .default({}),
+  /** Режим ST-DBSCAN: collapse (legacy) или magnet (веса без схлопывания). */
+  clusteringMode: z.enum(["collapse", "magnet"]).default("collapse"),
+  /** Параметры 4-х фазного алгоритма NextGen Gravity. */
+  nextgen: z
+    .object({
+      /** Разрешение H3 сетки для глобального векторного поля. */
+      h3Resolution: z.number().int().min(4).max(12).default(8),
+      /** Минимальная масса отрезка, чтобы он стал центром гравитации (Фаза 3). */
+      gravityCenterMassThreshold: z.number().min(0).default(5),
+      /** Порог расстояния Махаланобиса для слияния с магистралью. */
+      kalmanLocusChi2Threshold: z.number().min(0).default(5.99),
+      /** Мин. число нод, чтобы цепочка стала сплошной магистралью (иначе — пунктир-сателлит). */
+      minBackboneNodes: z.number().int().min(2).max(10).default(3),
+      /** Сила штрафа за поворот трассы (множитель стоимости при развороте 180°; 0 = выкл). */
+      turnPenaltyWeight: z.number().min(0).max(10).default(3),
+      /** Жёсткий запрет поворота круче этого (град): шаг назад по курсу = разрыв трассы. */
+      maxTurnDeg: z.number().min(0).max(180).default(135),
+      /** Включить ли 4 фазу (Reverse Forward Loop). */
+      rflEnabled: z.boolean().default(true),
+      /**
+       * Мягкий порог cos для Phase2 (ниже — отрезок не строится).
+       * По умолчанию = counterFlowRejectCos из корня конфига.
+       */
+      rflPenaltyThreshold: z.number().min(-1).max(1).optional(),
+    })
+    .default({}),
+  /** Параметры магнитной фазы и cost-хелпера. */
+  magnet: z
+    .object({
+      wMag: z.number().min(0).max(20).default(1),
+      wFlow: z.number().min(0).max(20).default(0),
+      lambdaCloud: z.number().min(0).max(10).default(0.5),
+      lambdaHist: z.number().min(0).max(10).default(0.3),
+      useHistoricalGravity: z.boolean().default(false),
+      geohashPrecision: z.number().int().min(3).max(10).default(5),
+    })
+    .default({}),
   tieEpsilon: z.number().positive().default(0.5),
   maxTuneEpochs: z.number().int().min(1).max(50).default(12),
   initialStepFraction: z.number().min(0.1).max(1).default(0.5),
@@ -110,6 +197,8 @@ export const trackingPipelineConfigSchema = z.object({
           processNoiseScale: z.number().positive().optional(),
           observationSigmaScale: z.number().positive().optional(),
           chi2Threshold: z.number().positive().optional(),
+          locusAnisotropyRatio: z.number().min(1).optional(),
+          initialVelocitySigmaMps: z.number().positive().optional(),
           rearThresholdM: z.number().positive().optional(),
         })
         .partial(),

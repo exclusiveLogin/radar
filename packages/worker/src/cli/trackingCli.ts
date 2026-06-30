@@ -8,6 +8,7 @@
  *   npm run tracking:enable -w @radar/worker -- --on
  */
 import { MONOREPO_ROOT } from "@repo/root";
+import { trackingPipelineConfigSchema, TRACKING_RESET_TRUNCATE_SQL } from "@radar/shared";
 import { createWorkerCompositionRoot } from "../application/createWorkerCompositionRoot.js";
 import {
   countTrackingCandidates,
@@ -84,8 +85,13 @@ async function cmdRebuild(flags: ReturnType<typeof parseLongFlagsMap>): Promise<
 
   const { ds, shutdown } = await openDb();
   try {
+    // Конфиг пайплайна (flow gate, веса, оверрайды профилей) — из состояния БД.
+    const [state] = await ds.query<{ config: unknown }[]>(
+      `SELECT config FROM tracking_pipeline_state WHERE id = 'default'`,
+    );
+    const config = trackingPipelineConfigSchema.parse(state?.config ?? {});
     console.log(`[tracking:rebuild] since=${since.toISOString()} until=${until.toISOString()}`);
-    const result = await runTrackingRebuild(ds, { since, until });
+    const result = await runTrackingRebuild(ds, { since, until, config });
     console.log("[tracking:rebuild] готово:", result);
   } finally {
     await shutdown?.();
@@ -99,7 +105,7 @@ async function cmdReset(flags: ReturnType<typeof parseLongFlagsMap>): Promise<vo
   const resetKinematics = hasAnyFlag(flags, ["defaults", "kinematics"]);
   if (dryRun) {
     console.log(
-      `[dry-run] TRUNCATE trajectory_* + watermark={}${resetKinematics ? " + config.profiles={}" : ""}`,
+      `[dry-run] ${TRACKING_RESET_TRUNCATE_SQL} + watermark={}${resetKinematics ? " + config.profiles={}" : ""}`,
     );
     return;
   }
@@ -111,7 +117,7 @@ async function cmdReset(flags: ReturnType<typeof parseLongFlagsMap>): Promise<vo
        SET status = 'cancelled', finished_at = now()
        WHERE status IN ('running', 'paused')`,
     );
-    await ds.query(`TRUNCATE trajectory_nodes, trajectory_tracks`);
+    await ds.query(TRACKING_RESET_TRUNCATE_SQL);
     const watermarkReset = resetKinematics
       ? `SET watermark = '{}'::jsonb, active_run_id = NULL,
          config = jsonb_set(COALESCE(config, '{}'::jsonb), '{profiles}', '{}'::jsonb),

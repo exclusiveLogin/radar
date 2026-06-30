@@ -28,9 +28,40 @@ export {
   resolveProfileKinematics,
 } from "./domain/tracking/profileKinematics";
 
+export { observationCovarianceMeters } from "./domain/tracking/observationCovariance";
+
 export {
   DEFAULT_SEED_MIN,
   DEFAULT_SEED_MAX_FRONT_DISTANCE_KM,
   DEFAULT_SEED_WEIGHTS,
 } from "./domain/tracking/pointWeightModel";
 export type { SeedWeights } from "./domain/tracking/pointWeightModel";
+export { DEFAULT_FLOW_ALIGNMENT } from "./domain/tracking/flowAlignment";
+export type { FlowAlignmentWeights } from "./domain/tracking/flowAlignment";
+export {
+  DEFAULT_GREEDY_FLOW,
+} from "./domain/tracking/greedyFlowAssociation";
+export type { GreedyFlowWeights } from "./domain/tracking/greedyFlowAssociation";
+export type { AssociationAlgorithm } from "./domain/tracking/associationDispatch";
+export {
+  DEFAULT_MAGNETIZE_WEIGHTS,
+} from "./domain/tracking/stdbscan/stdbscanMagnetize";
+export {
+  DEFAULT_MAGNET_COST_WEIGHTS,
+} from "./domain/tracking/applyMagnetWeights";
+export {
+  maneuverToleranceM,
+  sinCoefficientRho,
+  inManeuverLocus,
+  sigmaPosFromObservation,
+} from "./domain/tracking/maneuverLocus";
+export {
+  normalizedKalmanRho,
+  inKalmanLocus,
+  inKalmanSoftLocus,
+  kalmanLocusEllipseRing,
+  kalmanLocusDebugDtSeconds,
+} from "./domain/tracking/kalmanLocus";
+export type { KalmanLocusEllipseInput } from "./domain/tracking/kalmanLocus";
+export { bearingDeg, resolveFlowBearingDeg } from "./domain/tracking/flowAlignment";
+export { DEFAULT_TURN_PENALTY } from "./domain/tracking/nextgen/nextgenGravity";

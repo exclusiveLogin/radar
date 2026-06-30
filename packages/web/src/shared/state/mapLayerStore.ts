@@ -13,7 +13,9 @@ export const GEO_MAP_LAYER_ORDER = [
   "heatmap",
   "tracks",
   "tracksMotion",
+  "locusDebug",
   "tracksFlow",
+  "tracksGravity",
   "timeline",
 ] as const;
 
@@ -42,7 +44,9 @@ export const GEO_MAP_LAYER_LABELS: Record<GeoMapLayerId, string> = {
   heatmap: "Теплокарта",
   tracks: "Треки",
   tracksMotion: "Движение",
+  locusDebug: "Локус (debug)",
   tracksFlow: "Коридоры",
+  tracksGravity: "Гравитация мест",
   timeline: "Таймлайн",
 };
 
@@ -55,7 +59,9 @@ const DEFAULT_GEO_MAP_LAYERS: Record<GeoMapLayerId, boolean> = {
   heatmap: false,
   tracks: true,
   tracksMotion: true,
+  locusDebug: false,
   tracksFlow: false,
+  tracksGravity: false,
   timeline: true,
 };
 
@@ -70,7 +76,9 @@ function readPersistedGeoMapLayers(): Record<GeoMapLayerId, boolean> {
     heatmap: persisted.heatmap ?? DEFAULT_GEO_MAP_LAYERS.heatmap,
     tracks: persisted.tracks ?? DEFAULT_GEO_MAP_LAYERS.tracks,
     tracksMotion: persisted.tracksMotion ?? DEFAULT_GEO_MAP_LAYERS.tracksMotion,
+    locusDebug: persisted.locusDebug ?? DEFAULT_GEO_MAP_LAYERS.locusDebug,
     tracksFlow: persisted.tracksFlow ?? DEFAULT_GEO_MAP_LAYERS.tracksFlow,
+    tracksGravity: persisted.tracksGravity ?? DEFAULT_GEO_MAP_LAYERS.tracksGravity,
     timeline: persisted.timeline ?? DEFAULT_GEO_MAP_LAYERS.timeline,
   };
 }

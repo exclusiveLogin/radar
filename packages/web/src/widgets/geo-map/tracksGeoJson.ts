@@ -24,9 +24,11 @@ export function emptyTracksFeatureCollection(): TracksGeoJsonCollection {
  */
 export function tracksListToGeoJson(
   response: TracksListResponse | null,
+  options?: { showSegmentOnlyDrafts?: boolean },
 ): TracksGeoJsonCollection {
   if (!response?.tracks.length) return emptyTracksFeatureCollection();
 
+  const showSegmentOnlyDrafts = options?.showSegmentOnlyDrafts ?? false;
   const features: TrackFeature[] = [];
 
   for (const track of response.tracks) {
@@ -39,7 +41,8 @@ export function tracksListToGeoJson(
       hasMovement = coordinates.some(
         ([lon, lat], i) => i > 0 && (lon !== firstLon || lat !== firstLat),
       );
-      if (hasMovement) {
+      const isSegmentOnly = nodes.every(n => n.mode === "segment_only");
+      if (hasMovement && !isSegmentOnly) {
         features.push({
           type: "Feature",
           geometry: { type: "LineString", coordinates },
@@ -48,6 +51,19 @@ export function tracksListToGeoJson(
             trackId: track.id,
             threatProfile: track.threatProfile,
             status: track.status,
+            mode: "correct",
+          },
+        });
+      } else if (hasMovement && isSegmentOnly && showSegmentOnlyDrafts) {
+        features.push({
+          type: "Feature",
+          geometry: { type: "LineString", coordinates },
+          properties: {
+            kind: "track-line",
+            trackId: track.id,
+            threatProfile: track.threatProfile,
+            status: track.status,
+            mode: "segment_only",
           },
         });
       }

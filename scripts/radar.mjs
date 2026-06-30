@@ -258,6 +258,7 @@ const ACTIONS = {
     rebuild: (p) => npmW('@radar/worker', 'tracking:rebuild', p),
     reset: (p) => npmW('@radar/worker', 'tracking:reset', p),
     enable: (p) => npmW('@radar/worker', 'tracking:enable', p),
+    tick: (p) => npmW('@radar/worker', 'tracking:tick', p),
   },
   data: {
     migrate: () => npm('migration:run'),

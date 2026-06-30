@@ -79,7 +79,7 @@ export function TrackCardWidget({ defaultCollapsed, panelPersistenceKey }: Widge
       title={
         <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <span>Трек · {PROFILE_LABELS[track.threatProfile] ?? track.threatProfile}</span>
-          <Badge variant={STATUS_VARIANTS[track.status] ?? "default"}>{statusLabel}</Badge>
+          <Badge label={statusLabel} variant={STATUS_VARIANTS[track.status] ?? "default"} />
         </span>
       }
       actions={

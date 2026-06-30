@@ -7,6 +7,8 @@
  * ---
  */
 
+import type { TrackingRebuildStats } from "../../schemas/admin/tracking";
+
 export type TrackingPipelineStatusCode =
   | "disabled"
   | "running"
@@ -26,7 +28,7 @@ export type TrackingPipelineStatusView = {
 type RunLike = {
   status: string;
   error?: string | null;
-  stats?: { stage?: string };
+  stats?: Partial<Pick<TrackingRebuildStats, "stage" | "pendingCandidates">>;
   mode?: string;
 } | null;
 
@@ -50,7 +52,7 @@ export function resolveTrackingPipelineStatus(
     return {
       code: "disabled",
       label: "Выключен",
-      detail: "Пайплайн остановлен. Нажмите ВКЛ для запуска.",
+      detail: "Пайплайн остановлен. Нажмите «Включить» для запуска.",
     };
   }
 
@@ -64,6 +66,18 @@ export function resolveTrackingPipelineStatus(
 
   if (activeRun?.status === "running") {
     const stage = activeRun.stats?.stage;
+    const pending = activeRun.stats?.pendingCandidates;
+    // done в stats при status=running — legacy/между тиками, не финал run
+    if (stage === "idle" || stage === "done") {
+      return {
+        code: "running",
+        label: "Обработка",
+        detail:
+          pending != null
+            ? `Между тиками, в очереди ~${pending.toLocaleString("ru-RU")} точек.`
+            : "Между тиками, следующий батч ~10 с.",
+      };
+    }
     return {
       code: "running",
       label: "Обработка",

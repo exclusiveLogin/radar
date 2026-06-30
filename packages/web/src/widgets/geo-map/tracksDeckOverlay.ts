@@ -1,7 +1,12 @@
 import type { Map as MapLibreMap } from "maplibre-gl";
 import { TRACKS_ORIGIN_LAYER, TRACKS_TRIPS_DECK_LAYER } from "./geoMapLayerIds";
 import { threatProfileRgba } from "./tracksMapPaint";
-import { TRIPS_ANIM_WINDOW, type TrackTrip, type TracksTripsPayload } from "./tracksTripsData";
+import {
+  TRIPS_ANIM_WINDOW,
+  TRIPS_LOOP_WINDOW,
+  type TrackTrip,
+  type TracksTripsPayload,
+} from "./tracksTripsData";
 
 /** Wall-clock длительность одного полного прохода по треку (ms). */
 const ANIM_LOOP_DURATION_MS = 6_000;
@@ -32,7 +37,7 @@ export async function createTracksDeckOverlay(map: MapLibreMap): Promise<TracksD
 
   let payload: TracksTripsPayload = { trips: [] };
   let visible = false;
-  let animStartMs = performance.now();
+  const animStartMs = performance.now();
   let rafId = 0;
 
   const overlay = new modules.MapboxOverlay({ interleaved: true, layers: [] });
@@ -97,11 +102,11 @@ export async function createTracksDeckOverlay(map: MapLibreMap): Promise<TracksD
     },
 
     setVisible(nextVisible) {
+      // Часы анимации непрерывны на всю сессию — фазу не сбрасываем (иначе дёргается на WS).
       visible = nextVisible;
       if (visible && payload.trips.length > 0) {
-        animStartMs = performance.now();
         startAnimation();
-      } else {
+      } else if (!visible) {
         stopAnimation();
         overlay.setProps({ layers: [] });
       }
@@ -114,8 +119,12 @@ export async function createTracksDeckOverlay(map: MapLibreMap): Promise<TracksD
   };
 }
 
-/** currentTime 0…TRIPS_ANIM_WINDOW, бесконечный loop. */
+/**
+ * currentTime 0…TRIPS_LOOP_WINDOW, бесконечный loop.
+ * Скорость прохода трека сохранена (TRIPS_ANIM_WINDOW за ANIM_LOOP_DURATION_MS);
+ * полное окно длиннее на разброс фаз, поэтому цикл идёт дольше пропорционально.
+ */
 function computeLoopTime(animStartMs: number): number {
-  const elapsed = (performance.now() - animStartMs) % ANIM_LOOP_DURATION_MS;
-  return (elapsed / ANIM_LOOP_DURATION_MS) * TRIPS_ANIM_WINDOW;
+  const rate = TRIPS_ANIM_WINDOW / ANIM_LOOP_DURATION_MS; // единиц окна в мс
+  return ((performance.now() - animStartMs) * rate) % TRIPS_LOOP_WINDOW;
 }

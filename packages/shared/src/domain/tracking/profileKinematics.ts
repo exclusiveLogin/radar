@@ -55,6 +55,16 @@ export type ProfileKinematics = {
   observationSigmaScale: number;
   /** Chi² порог innovation gate (больше → шире кольцо Mahalanobis). */
   chi2Threshold: number;
+  /**
+   * σ_along/σ_cross зоны ассоциации («огурец» вдоль скорости, ≥1).
+   * CV-модель изотропна → без этого локус = круг. ratio>1 вытягивает along-track.
+   */
+  locusAnisotropyRatio: number;
+  /**
+   * Начальная σ скорости (м/с) для P[v,v] при старте трека.
+   * Без него скорость инициализировалась позиционной sigma (км) → σ_v ~ км/с (абсурд).
+   */
+  initialVelocitySigmaMps: number;
   /** Допуск смещения «позади» вдоль вектора скорости, м (rear-front gate). */
   rearThresholdM: number;
   /** Пространственный радиус кластера для ST-DBSCAN dedup (м). */
@@ -83,6 +93,8 @@ export const PROFILE_KINEMATICS: Record<ThreatProfile, ProfileKinematics> = {
     processNoiseScale: 0.8,
     observationSigmaScale: 2.5,
     chi2Threshold: 18,
+    locusAnisotropyRatio: 3,
+    initialVelocitySigmaMps: 70, // = maxVelocityMs
     rearThresholdM: 4_000,
     stdbscanEpsilonSpatialM: 20_000,
     stdbscanEpsilonTemporalMs: 20 * 60 * 1000, // 20 мин
@@ -102,6 +114,8 @@ export const PROFILE_KINEMATICS: Record<ThreatProfile, ProfileKinematics> = {
     processNoiseScale: 2.5,
     observationSigmaScale: 2.0,
     chi2Threshold: 15,
+    locusAnisotropyRatio: 4, // ракета летит прямее → длиннее огурец
+    initialVelocitySigmaMps: 290,
     rearThresholdM: 6_000,
     stdbscanEpsilonSpatialM: 50_000,
     stdbscanEpsilonTemporalMs: 5 * 60 * 1000, // 5 мин
@@ -117,6 +131,8 @@ export const PROFILE_KINEMATICS: Record<ThreatProfile, ProfileKinematics> = {
     processNoiseScale: 0.5,
     observationSigmaScale: 3.0,
     chi2Threshold: 22,
+    locusAnisotropyRatio: 1.5, // шар дрейфует → почти круг
+    initialVelocitySigmaMps: 15,
     rearThresholdM: 3_000,
     stdbscanEpsilonSpatialM: 5_000,
     stdbscanEpsilonTemporalMs: 30 * 60 * 1000,  // 30 мин
@@ -132,6 +148,8 @@ export const PROFILE_KINEMATICS: Record<ThreatProfile, ProfileKinematics> = {
     processNoiseScale: 0.8,
     observationSigmaScale: 2.5,
     chi2Threshold: 18,
+    locusAnisotropyRatio: 3,
+    initialVelocitySigmaMps: 70,
     rearThresholdM: 4_000,
     stdbscanEpsilonSpatialM: 20_000,
     stdbscanEpsilonTemporalMs: 20 * 60 * 1000,

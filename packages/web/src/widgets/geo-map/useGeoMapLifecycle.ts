@@ -47,7 +47,7 @@ import { buildDistrictsCollection, buildRegionsCollection } from "../../shared/s
 import { resetAllGeoMapLayerFetchStatus } from "../../shared/state/geoMapLayerFetchStore";
 import { resetGeoMapStats, setGeoMapStats } from "../../shared/state/geoMapStatsStore";
 import { selectRegion, selectedRegion$ } from "../../shared/state/selectionStore";
-import { tracksFlow$, tracksList$, tracksLoading$ } from "../../shared/state/trackStore";
+import { tracksFlow$, tracksGravity$, tracksList$, tracksLoading$, tracksPipelineActive$ } from "../../shared/state/trackStore";
 import { theme$ } from "../../shared/state/themeStore";
 import {
   DISTRICTS_FILL,
@@ -70,7 +70,13 @@ import {
   VICINITY_SCOPES_SOURCE,
   TRACKS_FLOW_LAYER,
   TRACKS_FLOW_SOURCE,
+  TRACKS_GRAVITY_LAYER,
+  TRACKS_GRAVITY_SOURCE,
   TRACKS_LINES_LAYER,
+  TRACKS_LINES_DASHED_LAYER,
+  TRACKS_LOCUS_LAYER,
+  TRACKS_LOCUS_OUTLINE_LAYER,
+  TRACKS_LOCUS_SOURCE,
   TRACKS_ORIGIN_LAYER,
   TRACKS_SOURCE,
 } from "./geoMapLayerIds";
@@ -117,6 +123,8 @@ import {
 } from "./tracksMapPaint";
 import { createTracksDeckOverlay, type TracksDeckOverlay } from "./tracksDeckOverlay";
 import { tracksListToTripsData } from "./tracksTripsData";
+import { tracksLocusDebugToGeoJson } from "./tracksLocusDebugGeoJson";
+import { tracksGravityHeatmapPaint, tracksGravityToGeoJson } from "./tracksGravityGeoJson";
 import type { GeoJsonCollection } from "./geoMapTypes";
 
 /** MapLibre lifecycle: init, fetch-потоки, store-подписки, cleanup. */
@@ -392,24 +400,30 @@ export function useGeoMapLifecycle(containerRef: RefObject<HTMLDivElement | null
     const applyTracksLayers = (): void => {
       if (!map || disposed) return;
       const layers = geoMapLayers$.value;
-      const needsTracksData = layers.tracks || layers.tracksMotion;
+      const needsTracksData = layers.tracks || layers.tracksMotion || layers.locusDebug;
 
-      if (!needsTracksData && !layers.tracksFlow) {
+      if (!needsTracksData && !layers.tracksFlow && !layers.tracksGravity) {
         tracksDeckOverlay?.setVisible(false);
         return;
       }
 
-      // Fetch ещё идёт — не затираем source пустой коллекцией.
-      if (needsTracksData && tracksLoading$.value && !tracksList$.value) return;
+      // Первый fetch L1 ещё идёт — не затираем tracks source; flow/gravity не блокируем.
+      const tracksFetchPending =
+        needsTracksData && tracksLoading$.value && !tracksList$.value;
 
       whenStyleReady(map, () => {
         if (!map || disposed) return;
 
-        if (layers.tracks) {
-          runtime.sources.apply(TRACKS_SOURCE, tracksListToGeoJson(tracksList$.value));
+        if (layers.tracks && !tracksFetchPending) {
+          runtime.sources.apply(
+            TRACKS_SOURCE,
+            tracksListToGeoJson(tracksList$.value, {
+              showSegmentOnlyDrafts: tracksPipelineActive$.value,
+            }),
+          );
         }
 
-        if (layers.tracksMotion) {
+        if (layers.tracksMotion && !tracksFetchPending) {
           void ensureTracksDeckOverlay().then(() => {
             if (!tracksDeckOverlay || disposed) return;
             tracksDeckOverlay.update(tracksListToTripsData(tracksList$.value));
@@ -423,6 +437,20 @@ export function useGeoMapLifecycle(containerRef: RefObject<HTMLDivElement | null
           runtime.sources.apply(
             TRACKS_FLOW_SOURCE,
             tracksFlowToGeoJson(tracksFlow$.value),
+          );
+        }
+
+        if (layers.tracksGravity) {
+          runtime.sources.apply(
+            TRACKS_GRAVITY_SOURCE,
+            tracksGravityToGeoJson(tracksGravity$.value),
+          );
+        }
+
+        if (layers.locusDebug && !tracksFetchPending) {
+          runtime.sources.apply(
+            TRACKS_LOCUS_SOURCE,
+            tracksLocusDebugToGeoJson(tracksList$.value) as GeoJsonCollection,
           );
         }
       });
@@ -569,9 +597,27 @@ export function useGeoMapLifecycle(containerRef: RefObject<HTMLDivElement | null
           id: TRACKS_LINES_LAYER,
           type: "line",
           source: TRACKS_SOURCE,
-          filter: ["==", ["get", "kind"], "track-line"],
+          filter: [
+            "all",
+            ["==", ["get", "kind"], "track-line"],
+            ["!=", ["get", "mode"], "segment_only"],
+          ],
           layout: { visibility: "none" },
           paint: tracksLinesPaint() as never,
+        });
+      }
+      if (!map.getLayer(TRACKS_LINES_DASHED_LAYER)) {
+        map.addLayer({
+          id: TRACKS_LINES_DASHED_LAYER,
+          type: "line",
+          source: TRACKS_SOURCE,
+          filter: [
+            "all",
+            ["==", ["get", "kind"], "track-line"],
+            ["==", ["get", "mode"], "segment_only"],
+          ],
+          layout: { visibility: "none" },
+          paint: tracksLinesPaint(true) as never,
         });
       }
       if (!map.getLayer(TRACKS_ORIGIN_LAYER)) {
@@ -599,6 +645,83 @@ export function useGeoMapLifecycle(containerRef: RefObject<HTMLDivElement | null
           paint: tracksFlowLinesPaint() as never,
         });
       }
+      if (!map.getSource(TRACKS_GRAVITY_SOURCE)) {
+        map.addSource(TRACKS_GRAVITY_SOURCE, {
+          type: "geojson",
+          data: { type: "FeatureCollection", features: [] },
+        });
+      }
+      if (!map.getLayer(TRACKS_GRAVITY_LAYER)) {
+        map.addLayer({
+          id: TRACKS_GRAVITY_LAYER,
+          type: "heatmap",
+          source: TRACKS_GRAVITY_SOURCE,
+          layout: { visibility: "none" },
+          paint: tracksGravityHeatmapPaint(theme$.value) as never,
+        });
+      }
+      if (!map.getSource(TRACKS_LOCUS_SOURCE)) {
+        map.addSource(TRACKS_LOCUS_SOURCE, {
+          type: "geojson",
+          data: { type: "FeatureCollection", features: [] },
+        });
+      }
+      const locusFillFilter = [
+        "in",
+        ["get", "kind"],
+        ["literal", ["kalman-locus-fill", "kalman-locus-fill-out"]],
+      ];
+      const locusOutlineFilter = [
+        "in",
+        ["get", "kind"],
+        ["literal", ["kalman-locus-outline", "kalman-locus-outline-out"]],
+      ];
+      // in/out подсветка: точка следующей ноды попала в локус (зелёный) или нет (красный).
+      const locusFillColor = [
+        "case",
+        ["get", "inLocus"],
+        "rgba(168, 147, 94, 0.13)",
+        "rgba(186, 92, 64, 0.11)",
+      ];
+      const locusLineColor = [
+        "case",
+        ["get", "inLocus"],
+        "rgba(188, 157, 96, 0.86)",
+        "rgba(209, 106, 72, 0.9)",
+      ];
+      if (!map.getLayer(TRACKS_LOCUS_LAYER)) {
+        map.addLayer({
+          id: TRACKS_LOCUS_LAYER,
+          type: "fill",
+          source: TRACKS_LOCUS_SOURCE,
+          filter: locusFillFilter as never,
+          layout: { visibility: "none" },
+          paint: {
+            "fill-color": locusFillColor as never,
+            "fill-outline-color": "rgba(0, 0, 0, 0)",
+          } as never,
+        });
+      } else {
+        map.setFilter(TRACKS_LOCUS_LAYER, locusFillFilter as never);
+        map.setPaintProperty(TRACKS_LOCUS_LAYER, "fill-color", locusFillColor as never);
+      }
+      if (!map.getLayer(TRACKS_LOCUS_OUTLINE_LAYER)) {
+        map.addLayer({
+          id: TRACKS_LOCUS_OUTLINE_LAYER,
+          type: "line",
+          source: TRACKS_LOCUS_SOURCE,
+          filter: locusOutlineFilter as never,
+          layout: { visibility: "none" },
+          paint: {
+            "line-color": locusLineColor as never,
+            "line-width": 2,
+          } as never,
+        });
+      } else {
+        map.setFilter(TRACKS_LOCUS_OUTLINE_LAYER, locusOutlineFilter as never);
+        map.setPaintProperty(TRACKS_LOCUS_OUTLINE_LAYER, "line-color", locusLineColor as never);
+        map.setPaintProperty(TRACKS_LOCUS_OUTLINE_LAYER, "line-width", 2);
+      }
 
       // --- Vicinity scopes (между heatmap и places) ---
       if (!map.getSource(VICINITY_SCOPES_SOURCE)) {
@@ -614,7 +737,7 @@ export function useGeoMapLifecycle(containerRef: RefObject<HTMLDivElement | null
           source: VICINITY_SCOPES_SOURCE,
           filter: ["==", ["get", "kind"], "vicinity-scope"],
           paint: {
-            "fill-color": ["coalesce", ["get", "color"], "#FFD54F"],
+            "fill-color": ["coalesce", ["get", "color"], "#C58A45"],
             "fill-opacity": ["coalesce", ["get", "fillOpacity"], 0.2],
           },
         });
@@ -626,7 +749,7 @@ export function useGeoMapLifecycle(containerRef: RefObject<HTMLDivElement | null
           source: VICINITY_SCOPES_SOURCE,
           filter: ["==", ["get", "kind"], "vicinity-scope"],
           paint: {
-            "line-color": ["coalesce", ["get", "color"], "#FFD54F"],
+            "line-color": ["coalesce", ["get", "color"], "#C58A45"],
             "line-width": 2,
             "line-opacity": ["coalesce", ["get", "lineOpacity"], 0.85],
           },
@@ -650,7 +773,7 @@ export function useGeoMapLifecycle(containerRef: RefObject<HTMLDivElement | null
             "circle-radius": ["coalesce", ["get", "haloRadius"], 10],
             "circle-color": ["coalesce", ["get", "threatColor"], "#d93535"],
             "circle-opacity": ["*", ["coalesce", ["get", "textOpacity"], 1], 0.35],
-            "circle-stroke-color": "#ffffff",
+            "circle-stroke-color": "#f5e8d4",
             "circle-stroke-width": 2,
             "circle-stroke-opacity": ["coalesce", ["get", "textOpacity"], 1],
           },
@@ -679,7 +802,7 @@ export function useGeoMapLifecycle(containerRef: RefObject<HTMLDivElement | null
             "text-anchor": "center",
           },
           paint: {
-            "text-color": ["coalesce", ["get", "threatColor"], "#d93535"],
+            "text-color": ["coalesce", ["get", "threatColor"], "#c7642d"],
             "text-opacity": ["coalesce", ["get", "textOpacity"], 1],
             "text-halo-color": "#0d0f14",
             "text-halo-width": 2,
@@ -703,7 +826,7 @@ export function useGeoMapLifecycle(containerRef: RefObject<HTMLDivElement | null
           paint: {
             "circle-color": ["coalesce", ["get", "color"], LEVEL_COLORS.yellow],
             "circle-radius": placeCircleRadiusByZoom() as never,
-            "circle-stroke-color": "#ffffff",
+            "circle-stroke-color": "#f5e8d4",
             "circle-stroke-width": 2,
             "circle-opacity": ["coalesce", ["get", "circleOpacity"], GEO_MAP_PLACE_FILL_OPACITY],
             "circle-stroke-opacity": [

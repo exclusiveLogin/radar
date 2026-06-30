@@ -17,6 +17,8 @@
 | **2c** | [phase-2c-path-fan.md](./phase-2c-path-fan.md) | фаза 2b или 1+index | 2 |
 | **3** | [phase-3-kill-pass.md](./phase-3-kill-pass.md) | фаза 1 + pvo facts | 2–3 |
 | **4** | [phase-4-deckgl-ux.md](./phase-4-deckgl-ux.md) | API 2/2b/2c/3 stable | 2–3 |
+| **5** | [phase-5-data-association.md](./phase-5-data-association.md) | phase-1c stable | ADR-015 |
+| **6** | [phase-6-tracks-realtime.md](./phase-6-tracks-realtime.md) | phase-1b pipeline | WS poller |
 
 Фаза **0** (документация) — выполнена, отдельного SDD нет.
 
@@ -73,5 +75,7 @@
 | 2b–2c | 013 | flow, path fan |
 | 3 | 010 | — |
 | 4 | 011 | temporal color |
+| 5 | 015 | reuse, locus, flow |
+| 6 | — | tracks WS refresh |
 
 † ADR-009 partial supersede → DISTINCT + R + gating

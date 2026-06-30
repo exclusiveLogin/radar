@@ -11,7 +11,6 @@ import {
   canSeedCandidate,
   DEFAULT_SEED_MAX_FRONT_DISTANCE_KM,
   DEFAULT_SEED_WEIGHTS,
-  passesSeedThreshold,
   DEFAULT_SEED_MIN,
 } from "./pointWeightModel";
 import type { SeedWeights } from "./pointWeightModel";
@@ -20,11 +19,16 @@ import {
   type AttentionMatrixRow,
   type TrackAttentionTarget,
 } from "./attentionMatrix";
+import type { AssociationAlgorithm } from "./associationDispatch";
+import type { CorridorRollupIndex } from "./flow/corridorRollupIndex";
+import type { MagnetCostWeights, MagnetismIndex } from "./applyMagnetWeights";
+import { DEFAULT_FLOW_ALIGNMENT, type FlowAlignmentWeights } from "./flowAlignment";
 import type { ProfileKinematics } from "./profileKinematics";
 import type { TrackingCandidate } from "./types";
 
 export const DEFAULT_TIE_EPSILON = 0.5;
-export const DEFAULT_MAX_CONSECUTIVE_SOFT = 2;
+/** Реэкспорт для внешних потребителей — SSOT в attentionMatrix.ts. */
+export { DEFAULT_MAX_SOFT as DEFAULT_MAX_CONSECUTIVE_SOFT } from "./attentionMatrix";
 
 export type AssignDecision =
   | { kind: "link"; candidate: TrackingCandidate; trackId: string; soft: boolean }
@@ -45,58 +49,74 @@ export type ResolveOpts = {
   consumed: Set<string>;
   seedMin?: number;
   seedMaxFrontDistanceKm?: number;
-  /** Веса географии seed (front-буст / interior-штраф / D0). */
   seedWeights?: SeedWeights;
+  flowWeights?: FlowAlignmentWeights;
+  reuseAcrossTracks?: boolean;
+  associationAlgorithm?: AssociationAlgorithm;
+  corridorIndex?: CorridorRollupIndex;
+  magnetismIndex?: MagnetismIndex;
+  magnetCost?: MagnetCostWeights;
   tieEpsilon?: number;
   maxConsecutiveSoft?: number;
-  pauseFactor?: number;
-  pauseFactorCap?: number;
 };
 
 /**
  * Разрешает assign для одной строки матрицы (Phase B decision tree).
+ * Возвращает массив решений (multi-link при reuseAcrossTracks).
  */
 export function resolveRowAssignment(
   row: AttentionMatrixRow,
-  kin: ProfileKinematics,
+  _kin: ProfileKinematics,
   opts: ResolveOpts,
-): AssignDecision {
+): AssignDecision[] {
   const { candidate } = row;
   const seedMin = opts.seedMin ?? DEFAULT_SEED_MIN;
   const seedMaxFrontKm = opts.seedMaxFrontDistanceKm ?? DEFAULT_SEED_MAX_FRONT_DISTANCE_KM;
   const seedWeights = opts.seedWeights ?? DEFAULT_SEED_WEIGHTS;
   const tieEpsilon = opts.tieEpsilon ?? DEFAULT_TIE_EPSILON;
+  const reuse = opts.reuseAcrossTracks ?? false;
 
   if (shouldTerminateOnAttach(candidate.eventType)) {
     const winner = pickLinkWinner(row.links, tieEpsilon, candidate);
     if (winner) {
-      return { kind: "intercept", candidate, trackId: winner.trackId };
+      return [{ kind: "intercept", candidate, trackId: winner.trackId }];
     }
-    return { kind: "skip", candidate, reason: "intercept_no_track" };
+    return [{ kind: "skip", candidate, reason: "intercept_no_track" }];
   }
 
-  const winner = pickLinkWinner(row.links, tieEpsilon, candidate);
-
-  if (winner?.inLocus) {
-    return { kind: "link", candidate, trackId: winner.trackId, soft: false };
-  }
-
-  if (winner?.softEligible) {
-    return { kind: "link", candidate, trackId: winner.trackId, soft: true };
+  if (reuse) {
+    const inLocusLinks = row.links.filter(l => l.inLocus);
+    if (inLocusLinks.length > 0) {
+      return inLocusLinks.map(l => ({
+        kind: "link" as const,
+        candidate,
+        trackId: l.trackId,
+        soft: false,
+      }));
+    }
+  } else {
+    const winner = pickLinkWinner(row.links, tieEpsilon, candidate);
+    if (winner?.inLocus) {
+      return [{ kind: "link", candidate, trackId: winner.trackId, soft: false }];
+    }
+    if (winner?.softEligible) {
+      return [{ kind: "link", candidate, trackId: winner.trackId, soft: true }];
+    }
   }
 
   if (canSeedCandidate(candidate, seedMin, seedMaxFrontKm, seedWeights)) {
-    return { kind: "seed", candidate };
+    return [{ kind: "seed", candidate }];
   }
 
+  const winner = pickLinkWinner(row.links, tieEpsilon, candidate);
   if (winner && !winner.inLocus) {
-    return { kind: "skip", candidate, reason: "outside_locus_no_seed" };
+    return [{ kind: "skip", candidate, reason: "outside_locus_no_seed" }];
   }
 
-  return { kind: "skip", candidate, reason: "no_match" };
+  return [{ kind: "skip", candidate, reason: "no_match" }];
 }
 
-/** Выбирает winner по min linkCost с tie-break. */
+/** Выбирает winner по min linkCost (ρ') с tie-break. */
 function pickLinkWinner(
   links: AttentionMatrixRow["links"],
   tieEpsilon: number,
@@ -110,20 +130,28 @@ function pickLinkWinner(
   const tied = sorted.filter(l => l.linkCost - best.linkCost <= tieEpsilon);
   if (tied.length <= 1) return best;
 
-  // tie-break: clusterSize desc, then earlier point wins (stable)
   tied.sort((a, b) => {
     const csA = candidate.clusterSize ?? 1;
     const csB = candidate.clusterSize ?? 1;
     if (csB !== csA) return csB - csA;
-    return a.dM2 - b.dM2;
+    return a.rhoPrime - b.rhoPrime;
   });
 
   return tied[0] ?? best;
 }
 
 /**
- * Полный batch resolve: matrix → decisions с учётом consumed.
- * Точки обрабатываются в порядке candidates (хронология).
+ * Полный batch resolve — настоящий GNN (sort-then-greedy).
+ *
+ * Алгоритм:
+ *  1. Строим полную attention-матрицу один раз для всех кандидатов.
+ *  2. Intercept-фаза: кандидаты с shouldTerminateOnAttach обрабатываются
+ *     до GNN — каждый берёт лучший трек по linkCost.
+ *  3. GNN-фаза (reuse=false): все assignable-ссылки сортируются глобально по
+ *     linkCost; greedy-assign с отслеживанием consumedCandidates + consumedTracks.
+ *     Это устраняет "звёзды" — каждый трек получает не более одного кандидата.
+ *  4. Multi-link-фаза (reuse=true): кандидат линкуется ко всем in-locus трекам.
+ *  5. Seed/skip-фаза: неназначенные кандидаты проходят через canSeedCandidate.
  */
 export function resolveAssignments(
   candidates: TrackingCandidate[],
@@ -142,52 +170,115 @@ export function resolveAssignments(
 
   const decisions: AssignDecision[] = [];
   const consumed = opts.consumed;
+  const reuse = opts.reuseAcrossTracks ?? false;
+  const tieEpsilon = opts.tieEpsilon ?? DEFAULT_TIE_EPSILON;
+  const seedMin = opts.seedMin ?? DEFAULT_SEED_MIN;
+  const seedMaxFrontKm = opts.seedMaxFrontDistanceKm ?? DEFAULT_SEED_MAX_FRONT_DISTANCE_KM;
+  const seedWeights = opts.seedWeights ?? DEFAULT_SEED_WEIGHTS;
 
-  for (const candidate of candidates) {
-    if (consumed.has(candidate.eventLocationId)) continue;
+  // Единственный вызов buildAttentionMatrix для всего батча
+  const rows = buildAttentionMatrix(candidates, tracks, kin, {
+    consumed,
+    seedMin: opts.seedMin,
+    seedWeights: opts.seedWeights,
+    flowWeights: opts.flowWeights,
+    corridorIndex: opts.corridorIndex,
+    magnetismIndex: opts.magnetismIndex,
+    magnetCost: opts.magnetCost,
+    maxConsecutiveSoft: opts.maxConsecutiveSoft,
+  });
 
-    const rows = buildAttentionMatrix([candidate], tracks, kin, {
-      consumed,
-      seedMin: opts.seedMin,
-      seedWeights: opts.seedWeights,
-      pauseFactor: opts.pauseFactor,
-      pauseFactorCap: opts.pauseFactorCap,
-    });
-    const row = rows[0];
-    if (!row) continue;
+  // Разделяем intercept-кандидатов и обычных GNN-кандидатов
+  const interceptRows: AttentionMatrixRow[] = [];
+  const gnnRows: AttentionMatrixRow[] = [];
+  for (const row of rows) {
+    if (shouldTerminateOnAttach(row.candidate.eventType)) {
+      interceptRows.push(row);
+    } else {
+      gnnRows.push(row);
+    }
+  }
 
-    const decision = resolveRowAssignment(row, kin, {
-      consumed: opts.consumed,
-      seedMin: opts.seedMin,
-      seedMaxFrontDistanceKm: opts.seedMaxFrontDistanceKm,
-      seedWeights: opts.seedWeights,
-      tieEpsilon: opts.tieEpsilon,
-      maxConsecutiveSoft: opts.maxConsecutiveSoft,
-      pauseFactor: opts.pauseFactor,
-      pauseFactorCap: opts.pauseFactorCap,
-    });
-    decisions.push(decision);
+  // --- Фаза Intercept: лучший трек по linkCost, consumedTracks не блокируются ---
+  for (const row of interceptRows) {
+    const winner = pickLinkWinner(row.links, tieEpsilon, row.candidate);
+    if (winner) {
+      decisions.push({ kind: "intercept", candidate: row.candidate, trackId: winner.trackId });
+      consumed.add(row.candidate.eventLocationId);
+      stats.intercepts++;
+    } else {
+      decisions.push({ kind: "skip", candidate: row.candidate, reason: "intercept_no_track" });
+      stats.skips++;
+    }
+  }
 
-    switch (decision.kind) {
-      case "link":
-        consumed.add(candidate.eventLocationId);
-        if (decision.soft) stats.softLinks++;
-        else stats.links++;
-        if (row.links.filter(l => Math.abs(l.linkCost - row.links[0]!.linkCost) <= (opts.tieEpsilon ?? DEFAULT_TIE_EPSILON)).length > 1) {
-          stats.attentionConflicts++;
-        }
-        break;
-      case "seed":
-        consumed.add(candidate.eventLocationId);
+  if (!reuse) {
+    // --- GNN sort-then-greedy: каждый кандидат → ≤1 трек, каждый трек → ≤1 кандидат ---
+    const assignableLinks = gnnRows
+      .flatMap(row =>
+        row.links
+          .filter(link => link.inLocus || link.softEligible)
+          .map(link => ({ row, link })),
+      )
+      .sort((a, b) => a.link.linkCost - b.link.linkCost);
+
+    // Отдельные наборы consumed для кандидатов и треков внутри батча
+    const consumedCandidates = new Set<string>();
+    const consumedTracks = new Set<string>();
+
+    for (const { row, link } of assignableLinks) {
+      const candidateId = row.candidate.eventLocationId;
+      if (consumedCandidates.has(candidateId) || consumedTracks.has(link.trackId)) continue;
+
+      const soft = !link.inLocus;
+      decisions.push({ kind: "link", candidate: row.candidate, trackId: link.trackId, soft });
+      consumedCandidates.add(candidateId);
+      consumedTracks.add(link.trackId);
+      consumed.add(candidateId);
+      if (soft) stats.softLinks++;
+      else stats.links++;
+    }
+
+    // Seed/skip для неназначенных GNN-кандидатов
+    for (const row of gnnRows) {
+      const candidateId = row.candidate.eventLocationId;
+      if (consumedCandidates.has(candidateId)) continue;
+
+      if (canSeedCandidate(row.candidate, seedMin, seedMaxFrontKm, seedWeights)) {
+        decisions.push({ kind: "seed", candidate: row.candidate });
+        consumed.add(candidateId);
         stats.seeds++;
-        break;
-      case "intercept":
-        consumed.add(candidate.eventLocationId);
-        stats.intercepts++;
-        break;
-      case "skip":
+      } else {
+        const reason = row.links.length > 0 ? "outside_locus_no_seed" : "no_match";
+        decisions.push({ kind: "skip", candidate: row.candidate, reason });
         stats.skips++;
-        break;
+      }
+    }
+  } else {
+    // --- Multi-link (reuse=true): кандидат → все in-locus треки ---
+    for (const row of gnnRows) {
+      const inLocusLinks = row.links.filter(l => l.inLocus);
+
+      if (inLocusLinks.length > 0) {
+        for (const link of inLocusLinks) {
+          decisions.push({ kind: "link", candidate: row.candidate, trackId: link.trackId, soft: false });
+          stats.links++;
+        }
+        // Кандидат с несколькими in-locus треками — фиксируем конфликты внимания
+        if (inLocusLinks.length > 1) stats.attentionConflicts += inLocusLinks.length - 1;
+        // reuse: кандидат не добавляется в consumed — остаётся доступным для других батчей
+        continue;
+      }
+
+      if (canSeedCandidate(row.candidate, seedMin, seedMaxFrontKm, seedWeights)) {
+        decisions.push({ kind: "seed", candidate: row.candidate });
+        consumed.add(row.candidate.eventLocationId);
+        stats.seeds++;
+      } else {
+        const reason = row.links.length > 0 ? "outside_locus_no_seed" : "no_match";
+        decisions.push({ kind: "skip", candidate: row.candidate, reason });
+        stats.skips++;
+      }
     }
   }
 

@@ -48,6 +48,7 @@ const CHANNELS_POLL_MS = 30_000;
 const STATS_POLL_MS = 30_000;
 const TELEMETRY_POLL_MS = 10_000;
 const BACKFILL_POLL_MS = 5_000;
+const TRACKING_POLL_MS = 3_000;
 
 /** Макс. строк лога парсинга в памяти (кольцевой буфер / REST limit DESC). */
 export const PARSE_LOG_LIMIT = 100;
@@ -65,6 +66,7 @@ export function startAdminStore(): void {
   startIntervalPoll(STATS_POLL_MS, refreshStats);
   startIntervalPoll(TELEMETRY_POLL_MS, refreshTelemetry);
   startIntervalPoll(BACKFILL_POLL_MS, refreshBackfill);
+  startIntervalPoll(TRACKING_POLL_MS, refreshTrackingStatus);
   void refreshTrackingStatus();
   void refreshParsePipelineStatus();
 

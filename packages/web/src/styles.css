@@ -90,7 +90,7 @@
 .shell__layers-toggle.is-open {
   color: var(--accent);
   border-color: var(--accent);
-  background: rgba(106, 172, 202, 0.08);
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
 }
 
 /* ── Панель настроек видимости ── */
@@ -131,11 +131,59 @@
   position: absolute;
   inset: 0;
   z-index: 0;
+  background: linear-gradient(
+    165deg,
+    #272312 0%,
+    #342c18 44%,
+    #493721 100%
+  );
+}
+
+.shell__map-layer::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  background: linear-gradient(
+    150deg,
+    rgba(145, 112, 52, 0.24) 0%,
+    rgba(114, 85, 38, 0.14) 52%,
+    rgba(84, 56, 28, 0.2) 100%
+  );
 }
 
 .shell__map-layer > * {
   width: 100%;
   height: 100%;
+  position: relative;
+  z-index: 0;
+}
+
+.shell__map-layer .maplibregl-canvas {
+  filter: saturate(1.16) sepia(0.12) hue-rotate(-8deg) brightness(1.06) contrast(1.08);
+}
+
+[data-theme="light"] .shell__map-layer {
+  background: linear-gradient(
+    165deg,
+    #f0e1c4 0%,
+    #e6d2ad 45%,
+    #d8bf93 100%
+  );
+}
+
+[data-theme="light"] .shell__map-layer::after {
+  background: linear-gradient(
+    150deg,
+    rgba(196, 150, 74, 0.2) 0%,
+    rgba(177, 133, 66, 0.14) 52%,
+    rgba(148, 101, 48, 0.16) 100%
+  );
+}
+
+[data-theme="light"] .shell__map-layer .maplibregl-canvas {
+  filter: saturate(1.08) sepia(0.08) hue-rotate(-6deg) brightness(1.03) contrast(1.04);
 }
 
 /* ── Боковые рейлы (glass-панели поверх карты) ── */
@@ -349,7 +397,6 @@
   transform: none;
   z-index: 15;
   width: auto;
-  padding-right: min(300px, 38vw);
   pointer-events: none;
 }
 
@@ -947,7 +994,6 @@
   .map-bottom-dock {
     left: 8px;
     right: 8px;
-    padding-right: min(240px, 42vw);
   }
 
   .map-timeline__scales .ds-btn {

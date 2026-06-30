@@ -6,6 +6,7 @@ import { MapController } from "./map.controller";
 import { MapGateway } from "./map.gateway";
 import { MapQueryService } from "./map-query.service";
 import { MapFoldRealtimePoller } from "./map-fold-realtime.poller";
+import { TracksRealtimePoller } from "./tracks-realtime.poller";
 import { MapFactsRepository } from "./map-facts.repository";
 import { MapSnapshotQueryService } from "./map-snapshot-query.service";
 import { MapRealtimeBroadcastService } from "./map-realtime-broadcast.service";
@@ -25,6 +26,7 @@ import { MapTracksService } from "./map-tracks.service";
     MapFactsRepository,
     MapSnapshotQueryService,
     MapFoldRealtimePoller,
+    TracksRealtimePoller,
     MapQueryService,
     MapRealtimeBroadcastService,
     MapTracksService,

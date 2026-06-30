@@ -43,7 +43,7 @@ export function BackfillChannelList({
               </div>
             </div>
             <Button
-              variant="secondary"
+              variant="ghost"
               disabled={hasActive || busy}
               title={hasActive ? "Уже есть активная задача" : undefined}
               onClick={() => onLaunch(bindingId)}

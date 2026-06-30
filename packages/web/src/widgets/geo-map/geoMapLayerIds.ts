@@ -32,12 +32,24 @@ export const TRACKS_SOURCE = "tracks";
 /** GeoJSON source: L2 flow-коридоры (LineString с весом). */
 export const TRACKS_FLOW_SOURCE = "tracks-flow";
 
-/** Слой линий треков. */
+/** Слой сплошных линий треков (финализированные узлы). */
 export const TRACKS_LINES_LAYER = "tracks-lines";
+/** Слой пунктирных линий (segment_only) — только пока pipeline активен. */
+export const TRACKS_LINES_DASHED_LAYER = "tracks-lines-dashed";
 /** Слой маркеров начала трека (origin). */
 export const TRACKS_ORIGIN_LAYER = "tracks-origin";
 /** Слой линий flow-коридоров (толщина ∝ weight). */
 export const TRACKS_FLOW_LAYER = "tracks-flow-lines";
+/** GeoJSON source: debug локусы χ² Kalman. */
+export const TRACKS_LOCUS_SOURCE = "tracks-locus-debug";
+/** GeoJSON source: gravity heatmap (плотность узлов по зонам). */
+export const TRACKS_GRAVITY_SOURCE = "tracks-gravity";
+/** Слой заливки локусов. */
+export const TRACKS_LOCUS_LAYER = "tracks-locus-debug-fill";
+/** Слой контура локусов (line — видимее fill). */
+export const TRACKS_LOCUS_OUTLINE_LAYER = "tracks-locus-debug-outline";
+/** Heatmap гравитации мест (историческая плотность узлов). */
+export const TRACKS_GRAVITY_LAYER = "tracks-gravity-heatmap";
 /** Deck.gl TripsLayer — анимация направления L1-треков. */
 export const TRACKS_TRIPS_DECK_LAYER = "tracks-trips-animation";
 
@@ -54,6 +66,10 @@ export const GEO_ENTITY_LAYER_ORDER = [
   EVENTS_HEATMAP_POINTS_LAYER,
   TRACKS_FLOW_LAYER,
   TRACKS_LINES_LAYER,
+  TRACKS_LINES_DASHED_LAYER,
+  TRACKS_LOCUS_LAYER,
+  TRACKS_LOCUS_OUTLINE_LAYER,
+  TRACKS_GRAVITY_LAYER,
   TRACKS_ORIGIN_LAYER,
   VICINITY_SCOPES_FILL,
   VICINITY_SCOPES_OUTLINE,
@@ -74,9 +90,10 @@ export const GEO_OVERLAY_LAYERS: Record<
   vicinity: [VICINITY_SCOPES_FILL, VICINITY_SCOPES_OUTLINE],
   heatmap: [EVENTS_HEATMAP_LAYER, EVENTS_HEATMAP_POINTS_LAYER],
   tracks: [TRACKS_LINES_LAYER, TRACKS_ORIGIN_LAYER],
-  /** Deck.gl TripsLayer — visibility в tracksDeckOverlay, не MapLibre. */
   tracksMotion: [],
+  locusDebug: [TRACKS_LOCUS_LAYER, TRACKS_LOCUS_OUTLINE_LAYER],
   tracksFlow: [TRACKS_FLOW_LAYER],
+  tracksGravity: [TRACKS_GRAVITY_LAYER],
 };
 
 /** promoteId — MapLibre использует regionCode как id для setFeatureState. */
@@ -103,6 +120,8 @@ export const USER_SOURCE_IDS = [
   VICINITY_SCOPES_SOURCE,
   TRACKS_SOURCE,
   TRACKS_FLOW_SOURCE,
+  TRACKS_LOCUS_SOURCE,
+  TRACKS_GRAVITY_SOURCE,
 ] as const;
 
 /** Наши слои оверлея — сохраняются поверх тайловой подложки. */
@@ -120,6 +139,10 @@ export const USER_LAYER_IDS = new Set([
   REGIONS_THREAT_LAYER,
   PLACES_LAYER,
   TRACKS_LINES_LAYER,
+  TRACKS_LINES_DASHED_LAYER,
   TRACKS_ORIGIN_LAYER,
+  TRACKS_LOCUS_LAYER,
+  TRACKS_LOCUS_OUTLINE_LAYER,
   TRACKS_FLOW_LAYER,
+  TRACKS_GRAVITY_LAYER,
 ]);

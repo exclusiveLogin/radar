@@ -73,3 +73,5 @@ export const statsOverviewSchema = z.object({
 });
 
 export type StatsOverview = z.infer<typeof statsOverviewSchema>;
+export type GeoEnrichmentCounts = StatsOverview["geoEnrichment"][number]["counts"];
+export type PhaseCoverageCounts = StatsOverview["phaseEnrichment"][number]["counts"];

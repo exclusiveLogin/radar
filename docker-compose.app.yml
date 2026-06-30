@@ -105,6 +105,21 @@ services:
     command: ["npm", "run", "dev", "-w", "@radar/worker", "--ignore-scripts"]
     restart: unless-stopped
 
+  worker-tracking:
+    <<: *app-build
+    profiles: ["app"]
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-radar}:${POSTGRES_PASSWORD:-radar}@db:5432/${POSTGRES_DB:-radar}
+      RADAR_STORAGE_MODE: db
+      RADAR_WORKER_ROLE: tracking
+      TRACKING_DAEMON_ENABLED: "true"
+      WORKER_PROBE_ENABLED: "0"
+    command: ["npm", "run", "dev", "-w", "@radar/worker", "--ignore-scripts"]
+    restart: unless-stopped
+
 volumes:
   radar_node_modules:
   radar_sessions_data:

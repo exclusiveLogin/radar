@@ -15,6 +15,8 @@ import {
   tracksListResponseSchema,
   tracksFlowQuerySchema,
   tracksFlowResponseSchema,
+  tracksGravityQuerySchema,
+  tracksGravityResponseSchema,
 } from "@radar/shared";
 import type {
   MapPlacesStateResponse,
@@ -30,6 +32,7 @@ import type {
   EventHeatmapResponse,
   TracksListResponse,
   TracksFlowResponse,
+  TracksGravityResponse,
 } from "@radar/shared";
 import { z } from "zod";
 
@@ -244,6 +247,26 @@ export const mapApi = {
     if (params?.limit !== undefined) qs.set("limit", String(params.limit));
     const query = qs.toString();
     return getJson(`/api/map/tracks/flow${query ? `?${query}` : ""}`, tracksFlowResponseSchema);
+  },
+
+  tracksGravity: (params?: {
+    asOf?: string;
+    since?: string;
+    threatProfile?: string;
+    geohashPrecision?: number;
+  }): Promise<TracksGravityResponse> => {
+    const qs = new URLSearchParams();
+    if (params?.asOf) qs.set("asOf", params.asOf);
+    if (params?.since) qs.set("since", params.since);
+    if (params?.threatProfile) qs.set("threatProfile", params.threatProfile);
+    if (params?.geohashPrecision !== undefined) {
+      qs.set("geohashPrecision", String(params.geohashPrecision));
+    }
+    const query = qs.toString();
+    return getJson(
+      `/api/map/tracks/gravity${query ? `?${query}` : ""}`,
+      tracksGravityResponseSchema,
+    );
   },
 };
 

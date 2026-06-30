@@ -59,7 +59,7 @@ function summarizeChains(
     [profile]: tuneCenterToProfilePatch(center),
   });
   const profileCands = candidates.filter(c => c.threatProfile === profile);
-  const tracks = buildMutableTracks(profileCands, kin, rebuildAt, center.seedMin);
+  const { tracks } = buildMutableTracks(profileCands, kin, rebuildAt, center.seedMin);
   const chains = tracks.filter(t => t.nodes.length >= 2);
   let moving = 0;
   for (const t of chains) {

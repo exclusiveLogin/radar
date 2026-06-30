@@ -16,6 +16,8 @@ import {
   tracksListResponseSchema,
   tracksFlowQuerySchema,
   tracksFlowResponseSchema,
+  tracksGravityQuerySchema,
+  tracksGravityResponseSchema,
   type EventType,
 } from "@radar/shared";
 import { z } from "zod";
@@ -432,5 +434,18 @@ export class MapController {
   async getTracksFlow(@Query() rawQuery: Record<string, string>) {
     const query = tracksFlowQuerySchema.parse(rawQuery);
     return tracksFlowResponseSchema.parse(await this.mapTracks.getTracksFlow(query));
+  }
+
+  /** GET /map/tracks/gravity — heatmap гравитации мест (узлы треков по зонам). */
+  @Get("map/tracks/gravity")
+  @ApiOperation({ summary: "Gravity heatmap — плотность trajectory_nodes по place/geohash" })
+  @ApiQuery({ name: "asOf", required: false })
+  @ApiQuery({ name: "since", required: false })
+  @ApiQuery({ name: "threatProfile", required: false, enum: ["uav", "rocket", "balloon", "unknown"] })
+  @ApiQuery({ name: "geohashPrecision", required: false })
+  @ApiResponse({ status: 200, description: "GeoJSON FeatureCollection gravity points" })
+  async getTracksGravity(@Query() rawQuery: Record<string, string>) {
+    const query = tracksGravityQuerySchema.parse(rawQuery);
+    return tracksGravityResponseSchema.parse(await this.mapTracks.getTracksGravity(query));
   }
 }

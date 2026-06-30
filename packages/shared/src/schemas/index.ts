@@ -420,6 +420,15 @@ export type {
 } from "./map/tracks-flow";
 
 export {
+  tracksGravityQuerySchema,
+  tracksGravityResponseSchema,
+} from "./map/tracks-gravity";
+export type {
+  TracksGravityQuery,
+  TracksGravityResponse,
+} from "./map/tracks-gravity";
+
+export {
   geoBasemapManifestSchema,
 } from "./geo/geo-basemap-manifest";
 export type { GeoBasemapManifest } from "./geo/geo-basemap-manifest";

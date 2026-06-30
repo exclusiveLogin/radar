@@ -34,6 +34,18 @@ describe("resolveTrackingPipelineStatus", () => {
     expect(s.detail).toContain("assign");
   });
 
+  it("running with legacy stage done shows between ticks", () => {
+    const s = resolveTrackingPipelineStatus({
+      enabled: true,
+      paused: false,
+      activeRun: { status: "running", stats: { stage: "done", pendingCandidates: 8332 } },
+      lastRun: null,
+    });
+    expect(s.code).toBe("running");
+    expect(s.detail).toContain("Между тиками");
+    expect(s.detail).not.toContain("Стадия: done");
+  });
+
   it("waiting when remaining > 0", () => {
     const s = resolveTrackingPipelineStatus({
       enabled: true,

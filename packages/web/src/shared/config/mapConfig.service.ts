@@ -7,11 +7,11 @@ import { createLocalBasemapStyle } from "./localBasemapStyle";
  * Доменная семантика уровней — в shared; здесь только визуальное представление.
  */
 export const LEVEL_COLORS: Record<StateLevel, string> = {
-  grey: "#384050",
-  green: "#3ba55d",
-  yellow: "#c8a800",
-  orange: "#d9680a",
-  red: "#d93535",
+  grey: "#6b7280",
+  green: "#2edc72",
+  yellow: "#f2c94c",
+  orange: "#ff8a1f",
+  red: "#ff3b30",
 };
 
 export const LEVEL_LABELS: Record<StateLevel, string> = {
@@ -186,7 +186,7 @@ export const MAP_STYLE_MINIMAL = {
     {
       id: "background",
       type: "background" as const,
-      paint: { "background-color": "#11141a" },
+      paint: { "background-color": "#282416" },
     },
   ],
 };
@@ -200,7 +200,7 @@ export const MAP_STYLE_MINIMAL_LIGHT = {
     {
       id: "background",
       type: "background" as const,
-      paint: { "background-color": "#e8eaed" },
+      paint: { "background-color": "#f3e7cf" },
     },
   ],
 };
@@ -277,7 +277,7 @@ export const REGION_MAP_STROKE_WIDTH = 2.8;
 /** Выделение региона по selectedRegion$ (кнопка «Контур на карте» и чипы в ленте). */
 export const REGION_MAP_SELECTED_STROKE_WIDTH = 4.5;
 export const REGION_MAP_SELECTED_FILL_OPACITY = 0.5;
-export const REGION_MAP_SELECTION_HALO = "#ffffff";
+export const REGION_MAP_SELECTION_HALO = "#f3e5cf";
 
 /**
  * Яркость заливки на гео (× regionFadeFactor).
@@ -351,23 +351,23 @@ export function eventsHeatmapColorExpression(_theme: ThemeMode): unknown[] {
     ["linear"],
     ["heatmap-density"],
     0,
-    "rgba(50, 50, 255, 0)",
+    "rgba(0, 0, 0, 0)",
     0.1,
-    "rgba(0, 120, 200, 0.35)",
+    "rgba(169, 146, 96, 0.4)",
     0.22,
-    "rgb(0, 180, 220)",
+    "rgb(212, 174, 96)",
     0.38,
-    "rgb(80, 200, 160)",
+    "rgb(241, 192, 74)",
     0.52,
-    "rgb(160, 220, 120)",
+    "rgb(255, 167, 46)",
     0.66,
-    "rgb(230, 230, 90)",
+    "rgb(255, 132, 31)",
     0.8,
-    "rgb(255, 190, 60)",
+    "rgb(255, 88, 47)",
     0.92,
-    LEVEL_COLORS.orange,
+    LEVEL_COLORS.red,
     1,
-    LEVEL_COLORS.orange,
+    LEVEL_COLORS.red,
   ];
 }
 
@@ -435,7 +435,7 @@ export function eventsHeatmapPointsPaint(_theme: ThemeMode): Record<string, unkn
       LEVEL_COLORS.yellow,
       LEVEL_COLORS.yellow,
     ],
-    "circle-stroke-color": "#ffffff",
+    "circle-stroke-color": "#f3e5cf",
     "circle-stroke-width": 1,
     "circle-radius": [
       "interpolate",

@@ -11,7 +11,7 @@
 export type ThreatProfile = "uav" | "rocket" | "balloon" | "unknown";
 
 /** Режим участия ноды в треке (ADR-008). */
-export type NodeMode = "correct" | "attach_only";
+export type NodeMode = "correct" | "attach_only" | "segment_only";
 
 /** Статус трека после rebuild. */
 export type TrackStatus = "active" | "closed" | "stale";
@@ -78,6 +78,9 @@ export type TrackingCandidate = {
    * Precomputed в regions.front_distance_km. null → coeff падает на boolean-фолбэк.
    */
   frontDistanceKm?: number | null;
+  /** Центроид ближайшего фронт-региона — для вектора тока f_A. */
+  nearestFrontLat?: number | null;
+  nearestFrontLon?: number | null;
   /** Размер ST-DBSCAN кластера (для tie-break). */
   clusterSize?: number;
   threatProfile: ThreatProfile;

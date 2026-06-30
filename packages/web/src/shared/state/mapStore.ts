@@ -14,6 +14,7 @@ import { mapApi } from "../api/mapApi";
 import { connectMapWs } from "../realtime/ws";
 import { reportAppError } from "./appLogStore";
 import { deriveNeighborLevels, isRegionVisibleOnMap } from "./derivations";
+import { bumpTracksRevision } from "./trackStore";
 
 /** Состояние регионов по regionCode (ISO) — источник для всех карт-виджетов. */
 export const regionsByCode$ = new BehaviorSubject<Map<string, MapRegionSnapshot>>(
@@ -355,6 +356,10 @@ function applyMessage(message: WsServerMessage): void {
   }
   if (message.type === "warning") {
     stateChanges$.next([message.payload, ...stateChanges$.value].slice(0, 200));
+    return;
+  }
+  if (message.type === "tracks-updated") {
+    bumpTracksRevision();
   }
 }
 

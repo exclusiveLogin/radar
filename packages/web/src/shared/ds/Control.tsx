@@ -1,6 +1,6 @@
 import type { ReactNode, SelectHTMLAttributes } from "react";
 
-type ButtonVariant = "primary" | "ghost" | "danger";
+type ButtonVariant = "primary" | "secondary" | "danger" | "ghost";
 
 type ButtonProps = {
   children: ReactNode;
@@ -13,6 +13,7 @@ type ButtonProps = {
 
 const buttonVariantClass: Record<ButtonVariant, string> = {
   primary: " ds-btn--primary",
+  secondary: " ds-btn--secondary",
   ghost: " ds-btn--ghost",
   danger: " ds-btn--danger",
 };
@@ -60,14 +61,17 @@ export function Select({ options, ...rest }: SelectProps) {
 
 type FieldProps = {
   label: string;
+  /** Краткая подсказка под подписью — что меняет параметр. */
+  hint?: string;
   children: ReactNode;
 };
 
 /** Подпись + контрол: вертикальная пара для форм. */
-export function Field({ label, children }: FieldProps) {
+export function Field({ label, hint, children }: FieldProps) {
   return (
     <label className="ds-field">
       <span className="ds-field__label">{label}</span>
+      {hint ? <span className="ds-field__hint">{hint}</span> : null}
       {children}
     </label>
   );

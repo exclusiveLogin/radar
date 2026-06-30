@@ -9,6 +9,7 @@
 import { mahalanobis2, type Mat2 } from "./mat2";
 import { isRearOfVelocity } from "./rearFrontGate";
 import {
+  alignCovarianceToVelocity,
   innovationCovariance,
   latLonToMeters,
   predictKalmanState,
@@ -29,6 +30,8 @@ export type InnovationScoreInput = {
   chi2Threshold: number;
   maxVelocityMs: number;
   rearThresholdM: number;
+  /** σ_along/σ_cross — ориентация зоны ассоциации вдоль скорости (≥1). */
+  anisotropyRatio?: number;
   /** Если Kalman vx≈0 — bearing последнего сегмента трека. */
   segmentVelocityMps?: [number, number] | null;
   /** τ для time decay; если задан lastTrackAt — decay = exp(-Δt/τ). */
@@ -95,7 +98,13 @@ export function scoreInnovation(input: InnovationScoreInput): InnovationScore {
     return rejectScore(innov, pred, input.chi2Threshold, "rear_front");
   }
 
-  const S = innovationCovariance(pred.PPred, input.R.sigmaLonM, input.R.sigmaLatM);
+  const Siso = innovationCovariance(pred.PPred, input.R.sigmaLonM, input.R.sigmaLatM);
+  const S = alignCovarianceToVelocity(
+    Siso,
+    pred.vxPred,
+    pred.vyPred,
+    input.anisotropyRatio ?? 1,
+  );
   const dM2 = mahalanobis2(innov, S);
   const dM = Math.sqrt(Math.max(0, dM2));
 

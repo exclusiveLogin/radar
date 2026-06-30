@@ -72,19 +72,19 @@ describe("assign decisions", () => {
       links: [],
       seedScore: 0,
     };
-    const d = resolveRowAssignment(row, UAV_KIN, { consumed: new Set() });
-    expect(d.kind).toBe("skip");
+    const d = resolveRowAssignment(row, UAV_KIN, { consumed: new Set() })[0]!;
+    expect(d?.kind).toBe("skip");
   });
 
   test("intercept закрывает winner track", () => {
     const row = {
       candidate: makeCandidate({ eventType: "intercept" }),
-      links: [{ trackId: "t1", linkCost: 1, dM2: 1, inLocus: true, softEligible: false }],
+      links: [{ trackId: "t1", linkCost: 1, rho: 0.5, rhoPrime: 0.5, dM2: 0.25, inLocus: true, softEligible: false }],
       seedScore: 0,
     };
-    const d = resolveRowAssignment(row, UAV_KIN, { consumed: new Set() });
-    expect(d.kind).toBe("intercept");
-    if (d.kind === "intercept") expect(d.trackId).toBe("t1");
+    const d = resolveRowAssignment(row, UAV_KIN, { consumed: new Set() })[0]!;
+    expect(d?.kind).toBe("intercept");
+    if (d?.kind === "intercept") expect(d.trackId).toBe("t1");
   });
 
   test("interior RF fixation без winner → no seed если ниже порога", () => {
@@ -118,13 +118,30 @@ describe("assign decisions", () => {
     });
     expect(canSeedCandidate(near)).toBe(true);
   });
+
+  test("reuseAcrossTracks: in-locus к двум трекам → оба link", () => {
+    const row = {
+      candidate: makeCandidate(),
+      links: [
+        { trackId: "t1", linkCost: 0.8, rho: 0.8, rhoPrime: 0.8, dM2: 0.64, inLocus: true, softEligible: false },
+        { trackId: "t2", linkCost: 0.9, rho: 0.9, rhoPrime: 0.9, dM2: 0.81, inLocus: true, softEligible: false },
+      ],
+      seedScore: 0.5,
+    };
+    const decisions = resolveRowAssignment(row, UAV_KIN, {
+      consumed: new Set(),
+      reuseAcrossTracks: true,
+    });
+    expect(decisions).toHaveLength(2);
+    expect(decisions.every(d => d.kind === "link")).toBe(true);
+  });
 });
 
 describe("innovation score cucumber", () => {
   test("вдоль вектора D_M меньше чем поперёк", () => {
     const refLat = 50;
     const refLon = 36;
-    const state = kalmanInitState(50, 36, refLat, refLon, 1000);
+    const state = kalmanInitState(50, 36, refLat, refLon, 1000, 50);
     state.vx = 50;
     state.vy = 0;
 
@@ -162,7 +179,7 @@ describe("innovation score cucumber", () => {
   test("rear_front: точка позади скорости отклоняется", () => {
     const refLat = 50;
     const refLon = 36;
-    const state = kalmanInitState(50, 36, refLat, refLon, 1000);
+    const state = kalmanInitState(50, 36, refLat, refLon, 1000, 50);
     state.vx = 50;
     state.vy = 0;
 
@@ -212,6 +229,7 @@ describe("attention matrix profile filter", () => {
       lastAt: new Date("2024-06-01T11:00:00Z"),
       lastLat: 48,
       lastLon: 37,
+      lastPlaceId: null,
       kalmanState: null,
       refLat: 48,
       refLon: 37,

@@ -3,11 +3,20 @@ import { InjectDataSource } from "@nestjs/typeorm";
 import {
   resolveTrackingPipelineStatus,
   TRACKING_PIPELINE_NOT_PROCESSED_SQL,
+  TRACKING_PERSIST_ADVISORY_LOCK_KEY,
+  TRACKING_RESET_TRUNCATE_SQL,
+  maxEpsilonTemporalMs,
+  resolveDaemonBatchSize,
+  resolveNextGenDaemonBatchSize,
+  withTrackingL1Transaction,
+  withTrackingL1ReadRetry,
+  isPgContendedL1ResetError,
   trackingPipelineConfigSchema,
   trackingStatusResponseSchema,
   trackingTargetEventTypesSqlIn,
   trackingTuneRunSchema,
   trackingTuneStartRequestSchema,
+  withPgContendedReadRetry,
   type TrackingPipelineConfig,
   type TrackingPipelineMetrics,
   type TrackingRebuildRun,
@@ -17,6 +26,7 @@ import {
 } from "@radar/shared";
 import type { DataSource } from "typeorm";
 import { randomUUID } from "crypto";
+import { TrackingL1ResetGate } from "../tracking/tracking-l1-reset.gate";
 import {
   pgTimestampToIso,
   pgTimestampToIsoOptional,
@@ -67,7 +77,10 @@ const NOT_PROCESSED_SQL = TRACKING_PIPELINE_NOT_PROCESSED_SQL;
 /** Админка пайплайна треков: статус, runs, управление daemon. */
 @Injectable()
 export class TrackingAdminService {
-  constructor(@InjectDataSource() private readonly ds: DataSource) {}
+  constructor(
+    @InjectDataSource() private readonly ds: DataSource,
+    private readonly l1ResetGate: TrackingL1ResetGate,
+  ) {}
 
   async getStatus(): Promise<TrackingStatusResponse> {
     const [state] = await this.ds.query<PipelineRow[]>(
@@ -89,20 +102,41 @@ export class TrackingAdminService {
     );
     const lastRun = lastRunRow ? mapRunRow(lastRunRow) : null;
 
-    const [{ count: totalTracks }] = await this.ds.query<{ count: string }[]>(
-      `SELECT COUNT(*)::text AS count FROM trajectory_tracks`,
-    );
     const control = activeRun ? await this.readRunControl(activeRun.id) : null;
-    const metrics = await this.collectMetrics(new Date(), activeRun);
-    /** SSOT прогресса: целевые активные точки vs материализации в trajectory_nodes. */
-    const totalCandidates = metrics.totalTargetCandidates;
-    const percentApprox = metrics.percentNodesInTracks;
-
-    const config = mergeConfig(pipeline.config);
-    const watermark = isWatermark(pipeline.watermark) ? pipeline.watermark : null;
     const until = new Date();
+    const config = mergeConfig(pipeline.config);
+
+    /** Во время run/reset тяжёлые COUNT блокируют пул API — отдаём stats из run. */
+    const metricsLite =
+      activeRun?.status === "running"
+      || activeRun?.status === "paused"
+      || this.l1ResetGate.isPaused();
+
+    let totalTracks = 0;
+    let metrics: TrackingPipelineMetrics;
+    if (metricsLite) {
+      metrics = this.buildLiteMetrics(activeRun, config);
+      if (!this.l1ResetGate.isPaused()) {
+        try {
+          totalTracks = await this.countTracksSafe();
+        } catch {
+          totalTracks = metrics.tracksTotal;
+        }
+      }
+    } else {
+      totalTracks = await this.countTracksSafe();
+      metrics = await this.collectMetrics(until, activeRun, config);
+    }
+
+    /** SSOT прогресса: во время run — % пайплайна из stats, иначе покрытие нодами. */
+    const totalCandidates = metrics.totalTargetCandidates;
+    const percentApprox = metricsLite
+      ? (activeRun?.stats?.percentApprox ?? metrics.percentPipelineProcessed)
+      : metrics.percentNodesInTracks;
+
+    const watermark = isWatermark(pipeline.watermark) ? pipeline.watermark : null;
     const remainingCandidates = pipeline.enabled
-      ? await this.countUnconsumedPipeline(until)
+      ? (activeRun?.stats?.pendingCandidates ?? metrics.unconsumedPipeline)
       : 0;
     const pipelineStatus = resolveTrackingPipelineStatus({
       enabled: pipeline.enabled,
@@ -130,10 +164,11 @@ export class TrackingAdminService {
 
   /** Необработанные pipeline-точки (SSOT: worker countTrackingPipelineRemaining). */
   private async countUnconsumedPipeline(until: Date): Promise<number> {
-    const targetIn = trackingTargetEventTypesSqlIn();
+    return withPgContendedReadRetry(async () => {
+      const targetIn = trackingTargetEventTypesSqlIn();
 
-    const [{ count }] = await this.ds.query<{ count: string }[]>(
-      `
+      const [{ count }] = await this.ds.query<{ count: string }[]>(
+        `
       SELECT COUNT(*)::text AS count
       FROM event_locations el
       JOIN parsed_events pe ON pe.id = el.parsed_event_id
@@ -146,9 +181,10 @@ export class TrackingAdminService {
         AND pe.event_type IN (${targetIn})
         ${NOT_PROCESSED_SQL}
       `,
-      [until.toISOString()],
-    );
-    return Number(count);
+        [until.toISOString()],
+      );
+      return Number(count);
+    });
   }
 
   async listRuns(limit = 20): Promise<TrackingRebuildRun[]> {
@@ -188,17 +224,52 @@ export class TrackingAdminService {
       `UPDATE tracking_pipeline_state SET enabled = $1, updated_at = now() WHERE id = 'default'`,
       [enabled],
     );
+    if (enabled) {
+      const until = new Date();
+      const remaining = await this.countUnconsumedPipeline(until);
+      if (remaining > 0) {
+        const runId = await this.resolveControllableRunId();
+        if (!runId) {
+          const id = await this.createRun("incremental");
+          await this.bindActiveRun(id);
+        }
+      }
+    }
     return { ok: true, enabled };
   }
 
   async rebuild(): Promise<{ ok: true; runId: string }> {
     await this.resetInternal();
-    const runId = await this.createRun("full_rebuild");
-    await this.ds.query(
-      `UPDATE tracking_pipeline_state SET active_run_id = $1, enabled = true, updated_at = now() WHERE id = 'default'`,
-      [runId],
-    );
-    return { ok: true, runId };
+    try {
+      const runId = await this.createRun("full_rebuild");
+      await this.ds.query(
+        `UPDATE tracking_pipeline_state SET active_run_id = $1, enabled = true, updated_at = now() WHERE id = 'default'`,
+        [runId],
+      );
+      return { ok: true, runId };
+    } catch (err) {
+      await this.ensurePipelineEnabled();
+      throw err;
+    }
+  }
+
+  /**
+   * Soft rebuild: truncate L1 + consumed, watermark с нуля, config не трогаем.
+   * Worker заново: Phase W (magnet/gravity/corridor из event_locations) → Phase A (GNN assign).
+   */
+  async softRebuild(): Promise<{ ok: true; runId: string }> {
+    await this.softResetInternal();
+    try {
+      const runId = await this.createRun("soft_rebuild");
+      await this.ds.query(
+        `UPDATE tracking_pipeline_state SET active_run_id = $1, enabled = true, updated_at = now() WHERE id = 'default'`,
+        [runId],
+      );
+      return { ok: true, runId };
+    } catch (err) {
+      await this.ensurePipelineEnabled();
+      throw err;
+    }
   }
 
   async reset(): Promise<{ ok: true }> {
@@ -330,25 +401,188 @@ export class TrackingAdminService {
 
   // ─────────────────────────────────────────────────────────────────────────
 
-  private async resetInternal(): Promise<void> {
-    await this.cancelActiveRuns();
-    await this.ds.query(`TRUNCATE trajectory_nodes, trajectory_tracks, tracking_pipeline_consumed`);
+  private async ensurePipelineEnabled(): Promise<void> {
     await this.ds.query(
-      `UPDATE tracking_pipeline_state
-       SET watermark = '{}'::jsonb, active_run_id = NULL, updated_at = now()
-       WHERE id = 'default'`,
+      `UPDATE tracking_pipeline_state SET enabled = true, updated_at = now() WHERE id = 'default'`,
     );
+  }
+
+  private async resetInternal(): Promise<void> {
+    await this.runL1Reset(async () => {
+      await this.cancelActiveRuns();
+      await this.ds.query(
+        `UPDATE tracking_pipeline_state
+         SET enabled = false, active_run_id = NULL, updated_at = now()
+         WHERE id = 'default'`,
+      );
+      await this.waitTrackingMutationsIdle(45_000);
+      await this.waitL1ReadsIdle(8_000);
+      await this.terminateL1WriteBlockers();
+      await sleepMs(300);
+      await this.truncateTracksQueueInternal();
+    });
+  }
+
+  /** Truncate L1 + consumed и watermark без выключения enabled (soft rebuild). */
+  private async softResetInternal(): Promise<void> {
+    await this.runL1Reset(async () => {
+      await this.cancelActiveRuns();
+      await this.ds.query(
+        `UPDATE tracking_pipeline_state
+         SET enabled = false, active_run_id = NULL, updated_at = now()
+         WHERE id = 'default'`,
+      );
+      await this.waitTrackingMutationsIdle(45_000);
+      await this.waitL1ReadsIdle(8_000);
+      await this.terminateL1WriteBlockers();
+      await sleepMs(300);
+      await this.truncateTracksQueueInternal();
+    });
+  }
+
+  /** Блокируем map read L1; после reset — resume (даже при ошибке). */
+  private async runL1Reset(body: () => Promise<void>): Promise<void> {
+    this.l1ResetGate.pause();
+    try {
+      await body();
+    } finally {
+      this.l1ResetGate.resume();
+    }
+  }
+
+  /** Ждём завершения in-flight L1 WRITE (read-локи COUNT игнорируем). */
+  private async waitTrackingMutationsIdle(maxMs = 30_000): Promise<void> {
+    const stepMs = 250;
+    for (let waited = 0; waited < maxMs; waited += stepMs) {
+      const [row] = await this.ds.query<{ count: string }[]>(
+        `
+        SELECT COUNT(*)::text AS count
+        FROM pg_locks l
+        JOIN pg_class c ON c.oid = l.relation
+        WHERE c.relname IN ('trajectory_tracks', 'trajectory_nodes', 'tracking_pipeline_consumed')
+          AND l.granted
+          AND l.mode IN ('RowExclusiveLock', 'ShareLock', 'ShareRowExclusiveLock',
+                         'ExclusiveLock', 'AccessExclusiveLock')
+          AND l.pid <> pg_backend_pid()
+        `,
+      );
+      if (Number(row?.count ?? 0) === 0) return;
+      await sleepMs(stepMs);
+    }
+  }
+
+  /** Ждём завершения in-flight map SELECT (AccessShareLock). */
+  private async waitL1ReadsIdle(maxMs = 8_000): Promise<void> {
+    const stepMs = 200;
+    for (let waited = 0; waited < maxMs; waited += stepMs) {
+      const [row] = await this.ds.query<{ count: string }[]>(
+        `
+        SELECT COUNT(*)::text AS count
+        FROM pg_locks l
+        JOIN pg_class c ON c.oid = l.relation
+        WHERE c.relname IN ('trajectory_tracks', 'trajectory_nodes', 'tracking_pipeline_consumed')
+          AND l.granted
+          AND l.mode = 'AccessShareLock'
+          AND l.pid <> pg_backend_pid()
+        `,
+      );
+      if (Number(row?.count ?? 0) === 0) return;
+      await sleepMs(stepMs);
+    }
+  }
+
+  /**
+   * Отменяем активные SELECT по L1 — соединение пула живёт, lock снимается.
+   * Не используем pg_terminate_backend: иначе падают ingest/admin на том же пуле.
+   */
+  private async cancelL1ReadBlockers(): Promise<void> {
+    await this.ds.query(
+      `
+      SELECT pg_cancel_backend(s.pid)
+      FROM (
+        SELECT DISTINCT l.pid
+        FROM pg_locks l
+        JOIN pg_class c ON c.oid = l.relation
+        WHERE l.pid <> pg_backend_pid()
+          AND l.granted
+          AND c.relname IN ('trajectory_tracks', 'trajectory_nodes', 'tracking_pipeline_consumed')
+          AND l.mode = 'AccessShareLock'
+      ) s
+      `,
+    );
+  }
+
+  /** Worker persist / L1 WRITE — terminate допустим (переподключится). */
+  private async terminateL1WriteBlockers(): Promise<void> {
+    await this.ds.query(
+      `
+      SELECT pg_terminate_backend(s.pid)
+      FROM (
+        SELECT DISTINCT l.pid
+        FROM pg_locks l
+        LEFT JOIN pg_class c ON c.oid = l.relation
+        WHERE l.pid <> pg_backend_pid()
+          AND l.granted
+          AND (
+            (l.locktype = 'advisory' AND l.objid = $1)
+            OR (
+              c.relname IN ('trajectory_tracks', 'trajectory_nodes', 'tracking_pipeline_consumed')
+              AND l.mode IN ('RowExclusiveLock', 'ShareLock', 'ShareRowExclusiveLock',
+                             'ExclusiveLock', 'AccessExclusiveLock')
+            )
+          )
+      ) s
+      `,
+      [TRACKING_PERSIST_ADVISORY_LOCK_KEY],
+    );
+  }
+
+  /** Общий сброс очереди assign: TRUNCATE + watermark {} под xact advisory lock. */
+  private async truncateTracksQueueInternal(): Promise<void> {
+    const lockTimeoutMs = 30_000;
+    let lastError: unknown;
+    for (let attempt = 1; attempt <= 8; attempt++) {
+      try {
+        await withTrackingL1Transaction(
+          fn => this.ds.transaction(async em => fn((sql, params) => em.query(sql, params))),
+          async query => {
+            await query(TRACKING_RESET_TRUNCATE_SQL);
+            await query(
+              `UPDATE tracking_pipeline_state
+               SET watermark = '{}'::jsonb, updated_at = now()
+               WHERE id = 'default'`,
+            );
+          },
+          { maxAttempts: 3, baseDelayMs: 200, lockTimeoutMs },
+        );
+        return;
+      } catch (error) {
+        lastError = error;
+        if (!isPgContendedL1ResetError(error)) {
+          throw error;
+        }
+        await this.cancelL1ReadBlockers();
+        await this.terminateL1WriteBlockers();
+        await sleepMs(500 * attempt);
+      }
+    }
+    throw lastError instanceof Error
+      ? lastError
+      : new Error("truncate L1: не удалось получить lock после terminate");
   }
 
   private async cancelActiveRuns(): Promise<void> {
     await this.ds.query(
       `UPDATE trajectory_rebuild_runs
-       SET status = 'cancelled', finished_at = now()
+       SET status = 'cancelled', finished_at = now(),
+           control = COALESCE(control, '{}'::jsonb) || '{"cancel":true}'::jsonb
        WHERE status IN ('running', 'paused')`,
     );
   }
 
-  private async createRun(mode: "incremental" | "full_rebuild"): Promise<string> {
+  private async createRun(
+    mode: "incremental" | "full_rebuild" | "soft_rebuild",
+  ): Promise<string> {
     const id = randomUUID();
     const rebuildGen = randomUUID();
     const since = new Date(0).toISOString();
@@ -356,8 +590,8 @@ export class TrackingAdminService {
     await this.ds.query(
       `INSERT INTO trajectory_rebuild_runs
        (id, status, mode, since, until, rebuild_gen, stats)
-       VALUES ($1, 'running', $2, $3, $4, $5, '{}'::jsonb)`,
-      [id, mode, since, until, rebuildGen],
+       VALUES ($1, 'running', $2, $3, $4, $5, $6::jsonb)`,
+      [id, mode, since, until, rebuildGen, JSON.stringify({ stage: "loading", elapsedMs: 0 })],
     );
     return id;
   }
@@ -423,11 +657,74 @@ export class TrackingAdminService {
     );
   }
 
+  /** Безопасный COUNT треков — retry при конкуренции с worker persist. */
+  private async countTracksSafe(): Promise<number> {
+    return withTrackingL1ReadRetry(async () => {
+      const [{ count }] = await this.ds.query<{ count: string }[]>(
+        `SELECT COUNT(*)::text AS count FROM trajectory_tracks`,
+      );
+      return Number(count);
+    }, { maxAttempts: 3, baseDelayMs: 120 });
+  }
+
+  /**
+   * Лёгкие метрики из stats активного run — без OLTP/L1 COUNT.
+   * Иначе pollTrackingStatus (3 с) висит на lock и «убивает» API.
+   */
+  private buildLiteMetrics(
+    activeRun: TrackingRebuildRun | null,
+    config: TrackingPipelineConfig,
+  ): TrackingPipelineMetrics {
+    const stats = activeRun?.stats ?? {};
+    const totalTargetCandidates = stats.totalCandidates ?? 0;
+    const processedCandidates = stats.processedCandidates ?? 0;
+    const unconsumedPipeline = Math.max(0, totalTargetCandidates - processedCandidates);
+    const percentPipelineProcessed =
+      stats.percentApprox
+      ?? (totalTargetCandidates > 0
+        ? Math.min(100, Math.round((processedCandidates / totalTargetCandidates) * 100))
+        : 0);
+    const runStartedAt = activeRun?.startedAt ?? null;
+    const elapsedMs =
+      stats.elapsedMs
+      ?? (runStartedAt && activeRun?.status === "running"
+        ? Math.max(0, Date.now() - new Date(runStartedAt).getTime())
+        : undefined);
+    const effectiveBatchSize =
+      stats.batchSize
+      ?? (config.associationAlgorithm === "nextgen-gravity"
+        ? resolveNextGenDaemonBatchSize(config.batchSize)
+        : resolveDaemonBatchSize(config.batchSize));
+    const tracksActive = stats.kalmanTracksOpen ?? 0;
+    const tracksClosed = stats.kalmanTracksClosed ?? 0;
+
+    return {
+      totalCandidatesGeo: totalTargetCandidates,
+      totalTargetCandidates,
+      unconsumedPipeline,
+      dedupClosureSize: stats.dedupClosureSize,
+      effectiveBatchSize,
+      processedCandidates,
+      percentProcessed: percentPipelineProcessed,
+      percentPipelineProcessed,
+      nodesInTracks: 0,
+      percentNodesInTracks: 0,
+      tracksActive,
+      tracksClosed,
+      tracksStale: 0,
+      tracksTotal: tracksActive + tracksClosed,
+      elapsedMs,
+      runStartedAt,
+    };
+  }
+
   /** Агрегированные метрики: целевые точки, % в треках, статусы треков, время run. */
   private async collectMetrics(
     until: Date,
     activeRun: TrackingRebuildRun | null,
+    config: TrackingPipelineConfig,
   ): Promise<TrackingPipelineMetrics> {
+    return withTrackingL1ReadRetry(async () => {
     const [{ count: geoCount }] = await this.ds.query<{ count: string }[]>(
       `
       SELECT COUNT(*)::text AS count
@@ -471,6 +768,8 @@ export class TrackingAdminService {
     const totalTargetCandidates = Number(targetCount);
     const nodesInTracks = Number(nodes);
     const unconsumedPipeline = await this.countUnconsumedPipeline(until);
+    const dedupClosureSize = await this.countDedupClosureSize(until, config, unconsumedPipeline);
+    const effectiveBatchSize = resolveDaemonBatchSize(config.batchSize);
     const percentNodesInTracks =
       totalTargetCandidates > 0
         ? Math.min(100, Math.round((nodesInTracks / totalTargetCandidates) * 100))
@@ -493,6 +792,8 @@ export class TrackingAdminService {
       totalCandidatesGeo: Number(geoCount),
       totalTargetCandidates,
       unconsumedPipeline,
+      dedupClosureSize,
+      effectiveBatchSize,
       processedCandidates: totalTargetCandidates - unconsumedPipeline,
       percentProcessed: percentPipelineProcessed,
       percentPipelineProcessed,
@@ -505,6 +806,65 @@ export class TrackingAdminService {
       elapsedMs,
       runStartedAt,
     };
+    });
+  }
+
+  /**
+   * Live-размер dedup closure: pending ∪ consumed-якоря в окне ε_temporal.
+   * Pending и anchors не пересекаются → сумма.
+   */
+  private async countDedupClosureSize(
+    until: Date,
+    config: TrackingPipelineConfig,
+    unconsumedPipeline: number,
+  ): Promise<number> {
+    if (unconsumedPipeline === 0) return 0;
+
+    const targetIn = trackingTargetEventTypesSqlIn();
+    const lookbackMs = maxEpsilonTemporalMs(config.profiles);
+
+    const [minRow] = await this.ds.query<{ min_at: Date | string | null }[]>(
+      `
+      SELECT MIN(${EVENT_AT_SQL}) AS min_at
+      FROM event_locations el
+      JOIN parsed_events pe ON pe.id = el.parsed_event_id
+      LEFT JOIN raw_messages rm ON rm.id = pe.raw_message_id
+      WHERE
+        ${EVENT_AT_SQL} <= $1
+        AND el.lat IS NOT NULL
+        AND el.lon IS NOT NULL
+        AND pe.is_active IS DISTINCT FROM false
+        AND pe.event_type IN (${targetIn})
+        ${NOT_PROCESSED_SQL}
+      `,
+      [until.toISOString()],
+    );
+
+    const minAt = minRow?.min_at ? new Date(minRow.min_at) : until;
+    const lookbackSince = new Date(minAt.getTime() - lookbackMs);
+
+    const [{ count: anchorCount }] = await this.ds.query<{ count: string }[]>(
+      `
+      SELECT COUNT(*)::text AS count
+      FROM event_locations el
+      JOIN parsed_events pe ON pe.id = el.parsed_event_id
+      LEFT JOIN raw_messages rm ON rm.id = pe.raw_message_id
+      WHERE
+        ${EVENT_AT_SQL} <= $1
+        AND ${EVENT_AT_SQL} >= $2
+        AND el.lat IS NOT NULL
+        AND el.lon IS NOT NULL
+        AND pe.is_active IS DISTINCT FROM false
+        AND pe.event_type IN (${targetIn})
+        AND EXISTS (
+          SELECT 1 FROM tracking_pipeline_consumed tpc
+          WHERE tpc.event_location_id = el.id
+        )
+      `,
+      [until.toISOString(), lookbackSince.toISOString()],
+    );
+
+    return unconsumedPipeline + Number(anchorCount);
   }
 }
 
@@ -561,4 +921,8 @@ function mapRunRow(row: RunRow): TrackingRebuildRun {
     checkpoint: row.checkpoint ?? null,
     error: row.error,
   };
+}
+
+function sleepMs(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
 }

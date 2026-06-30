@@ -40,6 +40,12 @@ export class TrackingAdminController {
     return this.tracking.rebuild();
   }
 
+  @Post("soft-rebuild")
+  @ApiOperation({ summary: "Пересборка треков с текущим config (без сброса весов)" })
+  softRebuild() {
+    return this.tracking.softRebuild();
+  }
+
   @Post("reset")
   reset() {
     return this.tracking.reset();
@@ -71,7 +77,7 @@ export class TrackingAdminController {
     return this.tracking.getTuneRun(id);
   }
 
-  @Post("tune")
+  @Patch("tune")
   startTune(@Body() body: Record<string, unknown>) {
     return this.tracking.startTune(body);
   }

@@ -15,6 +15,7 @@ import { formatDateTime } from "../../shared/format/dateTime";
 import { effectivePlaceLevel } from "../../shared/state/derivations";
 import { derivedRegionCodes$, placesById$, regionsByCode$, resolveMapViewAnchorMs } from "../../shared/state/mapStore";
 import type { GeoMapLayerId } from "../../shared/state/mapLayerStore";
+import { tracksPipelineActive$ } from "../../shared/state/trackStore";
 import { stateChangesFeed$ } from "../../shared/state/stateChangesFeedStore";
 import { statusTitle } from "../../shared/state/statusDictionaryStore";
 import type { ThemeMode } from "../../shared/state/themeStore";
@@ -24,6 +25,7 @@ import {
   GEO_ENTITY_LAYER_ORDER,
   GEO_OVERLAY_LAYERS,
   PLACES_LAYER,
+  TRACKS_LINES_DASHED_LAYER,
   USER_LAYER_IDS,
   USER_SOURCE_IDS,
 } from "./geoMapLayerIds";
@@ -62,6 +64,14 @@ export function syncGeoOverlayLayers(
       if (!map.getLayer(layerId)) continue;
       map.setLayoutProperty(layerId, "visibility", visible ? "visible" : "none");
     }
+  }
+  if (map.getLayer(TRACKS_LINES_DASHED_LAYER)) {
+    const showDrafts = layers.tracks && tracksPipelineActive$.value;
+    map.setLayoutProperty(
+      TRACKS_LINES_DASHED_LAYER,
+      "visibility",
+      showDrafts ? "visible" : "none",
+    );
   }
 }
 

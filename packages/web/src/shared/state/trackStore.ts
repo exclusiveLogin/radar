@@ -8,7 +8,7 @@
  * данные сбрасываются и запрашиваются заново.
  */
 import { BehaviorSubject } from "rxjs";
-import type { TracksListResponse, TracksFlowResponse } from "@radar/shared";
+import type { TracksListResponse, TracksFlowResponse, TracksGravityResponse } from "@radar/shared";
 
 /** Список треков (summary без нод). */
 export const tracksList$ = new BehaviorSubject<TracksListResponse | null>(null);
@@ -19,8 +19,22 @@ export const selectedTrackId$ = new BehaviorSubject<string | null>(null);
 /** Flow-коридоры (L2 rollup GeoJSON). */
 export const tracksFlow$ = new BehaviorSubject<TracksFlowResponse | null>(null);
 
+/** Gravity heatmap (плотность узлов по зонам). */
+export const tracksGravity$ = new BehaviorSubject<TracksGravityResponse | null>(null);
+
 /** Загрузка списка треков в процессе. */
 export const tracksLoading$ = new BehaviorSubject<boolean>(false);
+
+/** Bump при WS tracks-updated — триггер refetch в live. */
+export const tracksRevision$ = new BehaviorSubject(0);
+
+/** Активен ли билд треков (для пунктира segment_only на карте). */
+export const tracksPipelineActive$ = new BehaviorSubject(false);
+
+/** Уведомить подписчиков об обновлении треков (WS poller). */
+export function bumpTracksRevision(): void {
+  tracksRevision$.next(tracksRevision$.value + 1);
+}
 
 /** Фильтр профиля угрозы — undefined означает "все". */
 export const trackThreatProfileFilter$ = new BehaviorSubject<
@@ -44,5 +58,7 @@ export function resetTrackStore(): void {
   tracksList$.next(null);
   selectedTrackId$.next(null);
   tracksFlow$.next(null);
+  tracksGravity$.next(null);
   tracksLoading$.next(false);
+  tracksPipelineActive$.next(false);
 }

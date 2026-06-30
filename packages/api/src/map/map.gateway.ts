@@ -11,13 +11,15 @@ import type { RawData, Server } from "ws";
 import { MapQueryService } from "./map-query.service";
 import { MapRealtimeBroadcastService } from "./map-realtime-broadcast.service";
 import { MapFoldRealtimePoller } from "./map-fold-realtime.poller";
+import { TracksRealtimePoller } from "./tracks-realtime.poller";
 
-const ALL_CHANNELS: WsChannel[] = ["region-state", "place-state", "warnings"];
+const ALL_CHANNELS: WsChannel[] = ["region-state", "place-state", "warnings", "tracks"];
 
 /** Канал, к которому относится серверное сообщение. */
 function channelOf(message: WsServerMessage): WsChannel {
   if (message.type === "warning") return "warnings";
   if (message.type === "place-state") return "place-state";
+  if (message.type === "tracks-updated") return "tracks";
   return "region-state";
 }
 
@@ -36,6 +38,7 @@ export class MapGateway
   constructor(
     private readonly map: MapQueryService,
     private readonly foldPoller: MapFoldRealtimePoller,
+    private readonly tracksPoller: TracksRealtimePoller,
     private readonly realtime: MapRealtimeBroadcastService,
   ) {}
 
@@ -43,10 +46,12 @@ export class MapGateway
     const emit = (message: WsServerMessage): void => this.broadcast(message);
     this.realtime.bindEmit(emit);
     this.foldPoller.start(emit);
+    this.tracksPoller.start(emit);
   }
 
   onModuleDestroy(): void {
     this.foldPoller.stop();
+    this.tracksPoller.stop();
   }
 
   async handleConnection(client: WebSocket): Promise<void> {

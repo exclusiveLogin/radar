@@ -300,13 +300,13 @@ export function BackfillRunnerWidget() {
           Задачи · {visibleJobs.length}
         </h4>
         <Button
-          variant={jobTab === "active" ? "primary" : "secondary"}
+          variant={jobTab === "active" ? "primary" : "ghost"}
           onClick={() => setJobTab("active")}
         >
           Активные
         </Button>
         <Button
-          variant={jobTab === "all" ? "primary" : "secondary"}
+          variant={jobTab === "all" ? "primary" : "ghost"}
           onClick={() => setJobTab("all")}
         >
           Все

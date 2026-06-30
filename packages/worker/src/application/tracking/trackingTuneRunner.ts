@@ -88,7 +88,7 @@ function simulateAssign(
     epsilonTemporalMs: kin.stdbscanEpsilonTemporalMs,
     minPts: kin.stdbscanMinPts,
   });
-  const tracks = buildMutableTracks(deduplicated, kin, rebuildAt, seedMin);
+  const { tracks } = buildMutableTracks(deduplicated, kin, rebuildAt, seedMin);
 
   const trackLengths: number[] = [];
   let linkDistSum = 0;

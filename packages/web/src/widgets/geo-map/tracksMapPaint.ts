@@ -69,12 +69,43 @@ export function tracksOriginPaint(): Record<string, unknown> {
   };
 }
 
-/** Paint линий L1-треков — одинаковая opacity для active/closed/stale. */
-export function tracksLinesPaint(): Record<string, unknown> {
+/**
+ * Paint линий L1-треков — тонкие, но читаемые на обзорной карте.
+ *
+ * MapLibre НЕ поддерживает data-driven `line-dasharray` (по feature property),
+ * поэтому пунктир задаётся статически через флаг `dashed`, а разделение
+ * сплошных/пунктирных линий делается на уровне `filter` отдельных слоёв.
+ *
+ * Пунктир (segment_only) виден только пока pipeline в фазе билда — см. tracksPipelineActive$.
+ *
+ * @param dashed true — статический пунктир (слой tracks-lines-dashed).
+ */
+export function tracksLinesPaint(dashed = false): Record<string, unknown> {
   return {
     "line-color": threatProfileColorExpression(),
-    "line-width": TRACKS_STATIC_LINE_WIDTH,
-    "line-opacity": TRACKS_STATIC_LINE_OPACITY,
+    "line-width": [
+      "interpolate",
+      ["linear"],
+      ["zoom"],
+      4,
+      1,
+      8,
+      TRACKS_STATIC_LINE_WIDTH,
+      12,
+      2.4,
+    ],
+    ...(dashed ? { "line-dasharray": [2, 2] } : {}),
+    "line-opacity": [
+      "interpolate",
+      ["linear"],
+      ["zoom"],
+      4,
+      0.55,
+      8,
+      TRACKS_STATIC_LINE_OPACITY,
+      12,
+      0.75,
+    ],
   };
 }
 

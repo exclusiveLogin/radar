@@ -34,6 +34,8 @@ type GateInput = {
   rearThresholdM?: number;
   processNoiseScale?: number;
   dtSeconds?: number;
+  /** σ_along/σ_cross — ориентация зоны вдоль скорости (≥1). */
+  anisotropyRatio?: number;
 };
 
 /**
@@ -52,6 +54,7 @@ export function innovationGate(input: GateInput): GateResult {
     rearThresholdM = LEGACY_REAR_THRESHOLD_M,
     processNoiseScale = 1,
     dtSeconds = 1,
+    anisotropyRatio,
   } = input;
 
   const scored = scoreInnovation({
@@ -66,6 +69,7 @@ export function innovationGate(input: GateInput): GateResult {
     chi2Threshold,
     maxVelocityMs,
     rearThresholdM,
+    anisotropyRatio,
   });
 
   if (scored.rejectReason === "max_velocity") {

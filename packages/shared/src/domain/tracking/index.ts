@@ -59,8 +59,38 @@ export type { InnovationScore, InnovationScoreInput } from "./innovationScore";
 
 export { isRearOfVelocity, segmentVelocityMps } from "./rearFrontGate";
 
-export { buildAttentionMatrix } from "./attentionMatrix";
-export type { TrackAttentionTarget, LinkCell, AttentionMatrixRow } from "./attentionMatrix";
+export {
+  maneuverToleranceM,
+  sinCoefficientRho,
+  inManeuverLocus,
+  sigmaPosFromObservation,
+} from "./maneuverLocus";
+export {
+  normalizedKalmanRho,
+  inKalmanLocus,
+  inKalmanSoftLocus,
+  kalmanLocusEllipseRing,
+  kalmanLocusDebugDtSeconds,
+} from "./kalmanLocus";
+export type { KalmanLocusEllipseInput } from "./kalmanLocus";
+
+export {
+  bearingDeg,
+  flowAlignmentCos,
+  isCounterFlowRejected,
+  resolveFlowBearingDeg,
+  applyFlowAlignment,
+  DEFAULT_FLOW_ALIGNMENT,
+} from "./flowAlignment";
+export type { FlowAlignmentWeights } from "./flowAlignment";
+
+export { resolveAssignmentsForAlgorithm } from "./associationDispatch";
+export type { AssociationAlgorithm, AssociationDispatchOpts } from "./associationDispatch";
+export { buildGreedyFlowChains, depthFromFrontM, DEFAULT_GREEDY_FLOW } from "./greedyFlowAssociation";
+export type { GreedyFlowWeights, GreedyFlowOpts } from "./greedyFlowAssociation";
+
+export { buildAttentionMatrix, DEFAULT_MAX_SOFT } from "./attentionMatrix";
+export type { TrackAttentionTarget, LinkCell, AttentionMatrixRow, BuildMatrixOpts } from "./attentionMatrix";
 
 export {
   resolveRowAssignment,
@@ -86,8 +116,55 @@ export { checkTrackTermination, terminateByIntercept } from "./trackTerminationP
 export type { TerminationReason } from "./trackTerminationPolicy";
 export { stdbscanDedup } from "./stdbscan/stdbscanDedup";
 export type { StdbscanDedupResult } from "./stdbscan/stdbscanDedup";
+export {
+  stdbscanMagnetize,
+  pickMagnetWinnersForAssign,
+  DEFAULT_MAGNETIZE_WEIGHTS,
+} from "./stdbscan/stdbscanMagnetize";
+export type { MagnetismEntry, MagnetizeWeights, StdbscanMagnetizeResult } from "./stdbscan/stdbscanMagnetize";
+export {
+  applyMagnetWeights,
+  magnetismOf,
+  DEFAULT_MAGNET_COST_WEIGHTS,
+  EMPTY_MAGNETISM_INDEX,
+} from "./applyMagnetWeights";
+export type { MagnetCostWeights, MagnetismIndex } from "./applyMagnetWeights";
+export { encodeGeohash, zoneKeyForCandidate } from "./flow/geohashZoneKey";
+export {
+  createPlaceGravityIndex,
+  EMPTY_PLACE_GRAVITY_INDEX,
+} from "./flow/placeGravityIndex";
+export type { PlaceGravityEntry, PlaceGravityIndex } from "./flow/placeGravityIndex";
+export { buildPlaceGravityIndexFromCandidates } from "./flow/buildPlaceGravityIndex";
+export {
+  runClusteringForProfile,
+  mergeMagnetismIndexes,
+  resolveMagnetCostWeights,
+  resolvePlaceGravityForRebuild,
+} from "./stdbscan/clusteringPhase";
+export type { ClusteringPhaseResult } from "./stdbscan/clusteringPhase";
+export {
+  pickAssignableFromDedup,
+  mergeDedupClosure,
+  resolvePendingConsumedAfterDedup,
+  resolvePendingConsumedAfterClustering,
+} from "./stdbscan/dedupGraph";
+export type { DedupClosureLoad } from "./stdbscan/dedupGraph";
 export { buildTrackEdges } from "./flow/buildTrackEdges";
 export type { TrajectoryEdge } from "./flow/buildTrackEdges";
+export {
+  createCorridorRollupIndex,
+  corridorBearingDeg,
+  EMPTY_CORRIDOR_ROLLUP_INDEX,
+} from "./flow/corridorRollupIndex";
+export type { CorridorRollupEntry, CorridorRollupIndex } from "./flow/corridorRollupIndex";
+export {
+  buildCorridorFromCandidates,
+  corridorMaxSpatialM,
+  temporalAssignSlices,
+} from "./flow/buildCorridorFromCandidates";
+export type { BuildCorridorOpts } from "./flow/buildCorridorFromCandidates";
+
 export { rollupSegmentCounts } from "./flow/rollupSegmentCounts";
 export type { SegmentRollup } from "./flow/rollupSegmentCounts";
 export { buildSegmentKey } from "./flow/segmentKey";
@@ -109,3 +186,17 @@ export type {
 } from "./resolvePipelineStatus";
 
 export { TRACKING_PIPELINE_NOT_PROCESSED_SQL } from "./pipelineProcessedSql";
+export {
+  TRACKING_PERSIST_ADVISORY_LOCK_KEY,
+  TRACKING_DAEMON_MAX_BATCH_SIZE,
+  resolveDaemonBatchSize,
+  resolveNextGenDaemonBatchSize,
+  TRACKING_RESET_TRUNCATE_SQL,
+  withTrackingL1Transaction,
+  withTrackingL1ReadRetry,
+  isPgDeadlockError,
+  isPgLockNotAvailableError,
+  type TrackingPgQueryFn,
+  type TrackingL1TransactionRunner,
+} from "./trackingDbLock";
+export * from "./nextgen/index";

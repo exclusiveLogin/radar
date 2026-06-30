@@ -10,17 +10,22 @@ import { Injectable } from "@nestjs/common";
 import { InjectDataSource } from "@nestjs/typeorm";
 import type { DataSource } from "typeorm";
 import { pgTimestampToIso } from "../infrastructure/persistence/typeorm-query-rows";
+import { TrackingL1ResetGate } from "../tracking/tracking-l1-reset.gate";
 import {
   buildTrackEdges,
   rollupSegmentCounts,
   filterEdgesByAsOf,
   filterNodesByAsOf,
+  zoneKeyForCandidate,
   type TracksListQuery,
   type TracksListResponse,
   type TrajectoryTrack,
   type TracksFlowQuery,
   type TracksFlowResponse,
+  type TracksGravityQuery,
+  type TracksGravityResponse,
   type TrajectoryNode,
+  type NodeMode,
   type ThreatProfile,
   type TrackingDomainNode,
   type SegmentRollup,
@@ -51,15 +56,24 @@ type TrackRow = {
   bearing_deg: number | null;
   node_count: number;
   total_distance_m: number;
+  ref_lat: number | null;
+  ref_lon: number | null;
+  head_kalman_state: unknown;
 };
 
 @Injectable()
 export class MapTracksService {
-  constructor(@InjectDataSource() private readonly ds: DataSource) {}
+  constructor(
+    @InjectDataSource() private readonly ds: DataSource,
+    private readonly l1ResetGate: TrackingL1ResetGate,
+  ) {}
 
   /** Список треков с опциональным включением нод. */
   async listTracks(query: TracksListQuery): Promise<TracksListResponse> {
     const asOf = query.asOf ? new Date(query.asOf) : new Date();
+    if (this.l1ResetGate.isPaused()) {
+      return { tracks: [], meta: { asOf: asOf.toISOString(), count: 0 } };
+    }
 
     const conditions: string[] = ["t.last_at <= $1"];
     const params: unknown[] = [asOf.toISOString()];
@@ -81,9 +95,24 @@ export class MapTracksService {
     const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
 
     const trackRows = await this.ds.query<TrackRow[]>(
-      `SELECT id, status, threat_profile, first_at, last_at, last_lat, last_lon,
-              velocity_ms, bearing_deg, node_count, total_distance_m
+      `SELECT t.id, t.status, t.threat_profile, t.first_at, t.last_at, t.last_lat, t.last_lon,
+              t.velocity_ms, t.bearing_deg, t.node_count, t.total_distance_m,
+              fn.lat AS ref_lat, fn.lon AS ref_lon, ln.kalman_state AS head_kalman_state
        FROM trajectory_tracks t
+       LEFT JOIN LATERAL (
+         SELECT lat, lon
+         FROM trajectory_nodes
+         WHERE track_id = t.id
+         ORDER BY seq ASC
+         LIMIT 1
+       ) fn ON true
+       LEFT JOIN LATERAL (
+         SELECT kalman_state
+         FROM trajectory_nodes
+         WHERE track_id = t.id AND occurred_at <= $1
+         ORDER BY seq DESC
+         LIMIT 1
+       ) ln ON true
        ${where}
        ORDER BY t.last_at DESC
        LIMIT $${idx}`,
@@ -102,6 +131,9 @@ export class MapTracksService {
       bearingDeg: r.bearing_deg,
       nodeCount: r.node_count,
       totalDistanceM: r.total_distance_m,
+      refLat: r.ref_lat ?? undefined,
+      refLon: r.ref_lon ?? undefined,
+      headKalmanState: (r.head_kalman_state as TrajectoryTrack["headKalmanState"]) ?? undefined,
     }));
 
     if (query.includeNodes && tracks.length > 0) {
@@ -123,7 +155,8 @@ export class MapTracksService {
           lat: r.lat,
           lon: r.lon,
           placeId: r.place_id,
-          mode: r.mode as "correct" | "attach_only",
+          mode: r.mode as NodeMode,
+          kalmanState: (r.kalman_state as TrajectoryNode["kalmanState"]) ?? undefined,
           sourceRefs: (r.source_refs as TrajectoryNode["sourceRefs"]) ?? [],
         };
         const arr = nodesByTrack.get(r.track_id) ?? [];
@@ -143,6 +176,13 @@ export class MapTracksService {
   async getTracksFlow(query: TracksFlowQuery): Promise<TracksFlowResponse> {
     const asOf = query.asOf ? new Date(query.asOf) : new Date();
     const minCount = query.minCount;
+    if (this.l1ResetGate.isPaused()) {
+      return {
+        type: "FeatureCollection",
+        features: [],
+        meta: { asOf: asOf.toISOString(), count: 0, minCount },
+      };
+    }
 
     // Загружаем ноды в окне (включая nodes для rollup)
     const conditions: string[] = ["n.occurred_at <= $1"];
@@ -185,7 +225,7 @@ export class MapTracksService {
         lat: r.lat,
         lon: r.lon,
         placeId: r.place_id,
-        mode: r.mode as "correct" | "attach_only",
+        mode: r.mode as NodeMode,
         kalmanState: r.kalman_state as TrackingDomainNode["kalmanState"],
         sourceRefs: (r.source_refs as TrackingDomainNode["sourceRefs"]) ?? [],
       });
@@ -232,6 +272,66 @@ export class MapTracksService {
         count: features.length,
         minCount,
       },
+    };
+  }
+
+  /** Gravity heatmap — агрегация узлов треков по зонам (place_id | geohash). */
+  async getTracksGravity(query: TracksGravityQuery): Promise<TracksGravityResponse> {
+    const asOf = query.asOf ? new Date(query.asOf) : new Date();
+    if (this.l1ResetGate.isPaused()) {
+      return { type: "FeatureCollection", features: [], asOf: asOf.toISOString() };
+    }
+    const precision = query.geohashPrecision;
+
+    const conditions: string[] = ["n.occurred_at <= $1"];
+    const params: unknown[] = [asOf.toISOString()];
+    let idx = 2;
+
+    if (query.since) {
+      conditions.push(`n.occurred_at >= $${idx++}`);
+      params.push(query.since);
+    }
+    if (query.threatProfile) {
+      conditions.push(`t.threat_profile = $${idx++}`);
+      params.push(query.threatProfile);
+    }
+
+    const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+
+    const nodeRows = await this.ds.query<
+      { lat: number; lon: number; place_id: string | null }[]
+    >(
+      `SELECT n.lat, n.lon, n.place_id
+       FROM trajectory_nodes n
+       JOIN trajectory_tracks t ON t.id = n.track_id
+       ${where}`,
+      params,
+    );
+
+    const buckets = new Map<string, { mass: number; lat: number; lon: number }>();
+    for (const r of nodeRows) {
+      const zoneKey = zoneKeyForCandidate(r.place_id, r.lat, r.lon, precision);
+      const prev = buckets.get(zoneKey);
+      if (prev) {
+        prev.mass += 1;
+        continue;
+      }
+      buckets.set(zoneKey, { mass: 1, lat: r.lat, lon: r.lon });
+    }
+
+    const features = [...buckets.entries()].map(([zoneKey, b]) => ({
+      type: "Feature" as const,
+      geometry: {
+        type: "Point" as const,
+        coordinates: [b.lon, b.lat] as [number, number],
+      },
+      properties: { zoneKey, mass: b.mass },
+    }));
+
+    return {
+      type: "FeatureCollection",
+      features,
+      asOf: asOf.toISOString(),
     };
   }
 }

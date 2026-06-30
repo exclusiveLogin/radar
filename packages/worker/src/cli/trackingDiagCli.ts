@@ -69,12 +69,11 @@ async function main(): Promise<void> {
     let batchError: string | null = null;
     let batchSize = 0;
     try {
-      const { loadTrackingCandidatesBatch } = await import(
+      const { loadPendingTrackingCandidates } = await import(
         "../application/tracking/loadTrackingCandidates.js"
       );
-      const batch = await loadTrackingCandidatesBatch(ds, {
+      const batch = await loadPendingTrackingCandidates(ds, {
         until: new Date(),
-        limit: 3,
       });
       batchSize = batch.length;
     } catch (e) {
@@ -89,7 +88,7 @@ async function main(): Promise<void> {
           tracksByStatus: trackByStatus,
           totalNodes: nodes,
           statusDictionaryColumns: sdCols.map((r: { column_name: string }) => r.column_name),
-          batchLoad: { ok: batchError === null, error: batchError, sampleSize: batchSize },
+          pendingLoad: { ok: batchError === null, error: batchError, pendingSize: batchSize },
           candidates: { allWithGeo: all_geo, targetEventTypes: target_kinematic },
         },
         null,

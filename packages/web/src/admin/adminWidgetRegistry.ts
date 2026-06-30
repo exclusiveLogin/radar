@@ -46,7 +46,6 @@ export const ADMIN_LAYOUT_SECTIONS: AdminLayoutSection[] = [
     widgets: [
       { id: "parse-pipeline", component: ParsePipelineWidget, span: 4 },
       { id: "phases", component: PhasesWidget, span: 8 },
-      { id: "worker-runners", component: WorkerRunnersWidget, span: 4 },
     ],
   },
   {
@@ -71,8 +70,8 @@ export const ADMIN_LAYOUT_SECTIONS: AdminLayoutSection[] = [
     title: "Треки",
     widgets: [
       { id: "tracking-pipeline", component: TrackingPipelineWidget, span: 12 },
-      { id: "tracking-scanners", component: TrackingScannersWidget, span: 8 },
-      { id: "tracking-settings", component: TrackingKinematicsSettingsWidget, span: 4 },
+      { id: "tracking-scanners", component: TrackingScannersWidget, span: 12 },
+      { id: "tracking-settings", component: TrackingKinematicsSettingsWidget, span: 12 },
       { id: "tracking-runs", component: TrackingRunHistoryWidget, span: 12 },
       { id: "tracking-tune", component: TrackingTuneWidget, span: 12 },
     ],
@@ -81,8 +80,9 @@ export const ADMIN_LAYOUT_SECTIONS: AdminLayoutSection[] = [
     id: "ops",
     title: "Процессы",
     widgets: [
-      { id: "telemetry", component: TelemetryWidget, span: 6 },
-      { id: "parse-errors", component: ParseErrorsWidget, span: 6 },
+      { id: "worker-runners", component: WorkerRunnersWidget, span: 4 },
+      { id: "telemetry", component: TelemetryWidget, span: 4 },
+      { id: "parse-errors", component: ParseErrorsWidget, span: 4 },
     ],
   },
 ];

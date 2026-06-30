@@ -22,7 +22,7 @@ import {
   regionsByCode$,
   vicinityScopesById$,
 } from "./mapStore";
-import { tracksFlow$, tracksList$, tracksLoading$ } from "./trackStore";
+import { tracksFlow$, tracksGravity$, tracksList$, tracksLoading$, tracksPipelineActive$ } from "./trackStore";
 import type {
   DistrictsFetchData,
   FetchPhase,
@@ -90,7 +90,9 @@ export function geoRenderTick$(): Observable<void> {
     geoGeometryRevision$.pipe(distinctUntilChanged()),
     tracksList$.pipe(distinctUntilChanged()),
     tracksFlow$.pipe(distinctUntilChanged()),
+    tracksGravity$.pipe(distinctUntilChanged()),
     tracksLoading$.pipe(distinctUntilChanged()),
+    tracksPipelineActive$.pipe(distinctUntilChanged()),
     geoMapLayers$,
     mapViewAnchor$,
     mapCanvasReady$,

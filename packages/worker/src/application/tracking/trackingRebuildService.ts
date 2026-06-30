@@ -6,7 +6,7 @@
  *          Фаза 1: full rebuild (truncate + insert, идемпотентен).
  *
  *          Пайплайн:
- *          loadCandidates → stdbscanDedup (per-profile) → originGate
+ *          loadCandidates → clustering (collapse|magnet) → originGate
  *          → Kalman pipeline → terminationGate → persist tracks + nodes
  * ---
  */
@@ -15,7 +15,10 @@ import {
   PROFILE_KINEMATICS,
   resolveProfileKinematics,
   maxEpsilonTemporalMs,
-  stdbscanDedup,
+  runClusteringForProfile,
+  mergeMagnetismIndexes,
+  resolveMagnetCostWeights,
+  resolvePlaceGravityForRebuild,
   checkTrackTermination,
   haversineDistanceM,
   kalmanStep,
@@ -25,13 +28,22 @@ import {
   innovationGate,
   buildTrackMetadata,
   canEnterAttention,
-  resolveAssignments,
+  resolveAssignmentsForAlgorithm,
   DEFAULT_SEED_MIN,
   DEFAULT_SEED_MAX_FRONT_DISTANCE_KM,
   DEFAULT_SEED_WEIGHTS,
+  DEFAULT_FLOW_ALIGNMENT,
+  buildGreedyFlowChains,
+  DEFAULT_GREEDY_FLOW,
+  type GreedyFlowWeights,
+  buildCorridorFromCandidates,
+  temporalAssignSlices,
+  EMPTY_CORRIDOR_ROLLUP_INDEX,
   canSeedCandidate,
   segmentVelocityMps as computeSegmentVelocityMps,
   type SeedWeights,
+  type FlowAlignmentWeights,
+  type AssociationAlgorithm,
   type ProfileKinematics,
   type TrackingCandidate,
   type TrackingDomainNode as TrajectoryNode,
@@ -42,15 +54,28 @@ import {
   type TrackingRebuildStats,
   type MutationState,
   type TrackAttentionTarget,
+  pickAssignableFromDedup,
+  resolvePendingConsumedAfterDedup,
+  resolvePendingConsumedAfterClustering,
+  withTrackingL1Transaction,
+  type TrackingPgQueryFn,
   type AssignStats,
+  type AssignDecision,
+  type CorridorRollupIndex,
+  type MagnetismIndex,
 } from "@radar/shared";
 import {
+  countTrackingPipelineRemaining,
   loadTrackingCandidates,
-  loadTrackingCandidatesBatch,
+  loadDedupClosure,
+  loadPendingTrackingCandidates,
   countTrackingCandidates,
   countTrackingCandidateStats,
   markPipelineCandidatesConsumed,
+  markPipelineCandidatesConsumedTx,
+  isTrackingPipelineEnabled,
 } from "./loadTrackingCandidates.js";
+import { NextGenOrchestrator, H3VectorFlowMap, type NextGenSeedTrack } from "@radar/shared";
 import { randomUUID } from "crypto";
 
 type RebuildOptions = {
@@ -59,6 +84,8 @@ type RebuildOptions = {
   rebuildGen?: string;
   /** false — dry-run, не сохраняет. */
   persist?: boolean;
+  /** Конфиг пайплайна: оверрайды кинематики, веса потока, flow gate. */
+  config?: TrackingPipelineConfig;
 };
 
 type RebuildResult = {
@@ -85,27 +112,40 @@ export async function runTrackingRebuild(
   // 1. Загружаем все кандидаты за период (full rebuild — без consumed guard)
   const allCandidates = await loadTrackingCandidates(ds, { since, until, excludeConsumed: false });
 
-  // 2. Разбиваем по профилю угрозы для независимого DBSCAN dedup
+  // 2. Кластеризация per-profile (collapse или magnet)
   const byProfile = groupByProfile(allCandidates);
   const allDeduped: TrackingCandidate[] = [];
   let collapsedByDedup = 0;
+  const seedWeights = resolveSeedWeights(opts.config);
+  const gravityIndex = resolvePlaceGravityForRebuild(allCandidates, opts.config, seedWeights);
+  const magnetMaps: MagnetismIndex[] = [];
 
   for (const [profile, candidates] of Object.entries(byProfile)) {
-    const kin = PROFILE_KINEMATICS[profile as ThreatProfile];
-    const { deduplicated, collapsedCount } = stdbscanDedup(candidates, {
-      epsilonSpatialM: kin.stdbscanEpsilonSpatialM,
-      epsilonTemporalMs: kin.stdbscanEpsilonTemporalMs,
-      minPts: kin.stdbscanMinPts,
-    });
-    allDeduped.push(...deduplicated);
-    collapsedByDedup += collapsedCount;
+    const result = runClusteringForProfile(
+      candidates,
+      profile as ThreatProfile,
+      opts.config,
+      seedWeights,
+      gravityIndex,
+      opts.config?.reuseAcrossTracks ?? false,
+    );
+    allDeduped.push(...result.candidates);
+    collapsedByDedup += result.collapsedCount;
+    if (result.magnetismIndex.size > 0) magnetMaps.push(result.magnetismIndex);
   }
+
+  const magnetismIndex = mergeMagnetismIndexes(magnetMaps);
 
   // Сортируем все дедуплицированные по времени для Kalman
   allDeduped.sort((a, b) => a.occurredAt.getTime() - b.occurredAt.getTime());
 
-  // 3. Kalman pipeline: строим треки
-  const builtTracks = buildTracks(allDeduped, until);
+  // Phase W: frozen corridor из потока событий (до assign)
+  const corridorIndex = buildCorridorFromCandidates(allDeduped, {
+    profileOverrides: opts.config?.profiles,
+  });
+
+  // Phase A: Kalman + GNN assign на frozen weights
+  const builtTracks = buildTracks(allDeduped, until, opts.config, magnetismIndex, corridorIndex);
 
   // 4. Сохраняем в БД
   if (persist && builtTracks.tracks.length > 0) {
@@ -124,16 +164,39 @@ export type IncrementalBatchResult = {
   tracksCount: number;
   nodesCount: number;
   collapsedByDedup: number;
+  consumedCount: number;
   watermark: TrackingWatermark | null;
 };
 
 export type IncrementalBatchOptions = {
+  /** Pending-тик (chunk) — assign + consumed. */
   candidates: TrackingCandidate[];
+  /** Глобальный dedup closure; по умолчанию = candidates. */
+  dedupClosure?: TrackingCandidate[];
+  /** Все pending в очереди (для consumed после глобального dedup). */
+  fullPendingIds?: ReadonlySet<string>;
   rebuildGen: string;
   rebuildAt?: Date;
   config?: TrackingPipelineConfig;
-  onProgress?: (stats: Partial<TrackingRebuildStats>) => void;
+  /** Run-scoped H3-поле NextGen: батчи прогона обогащают его, ребилд обнуляет. */
+  flowField?: H3VectorFlowMap;
+  onProgress?: (stats: Partial<TrackingRebuildStats>) => void | Promise<void>;
 };
+
+type NextGenPhase2Progress = {
+  phase2PairsConsidered: number;
+  phase2PairsAccepted: number;
+  phase2PairsRejectedByKinematics: number;
+  phase2ReliabilityAvg: number;
+  phase2ReliabilityP95: number;
+};
+
+async function emitProgress(
+  onProgress: IncrementalBatchOptions["onProgress"],
+  stats: Partial<TrackingRebuildStats>,
+): Promise<void> {
+  await onProgress?.(stats);
+}
 
 /** Инкрементальный батч: per-profile ST-DBSCAN + Kalman + UPSERT. */
 export async function runIncrementalBatch(
@@ -142,100 +205,207 @@ export async function runIncrementalBatch(
 ): Promise<IncrementalBatchResult> {
   const rebuildAt = opts.rebuildAt ?? new Date();
   const profileOverrides = opts.config?.profiles;
-  opts.onProgress?.({ stage: "loading" });
+  const chunkIds = new Set(opts.candidates.map(c => c.eventLocationId));
+  const fullPendingIds =
+    opts.fullPendingIds ?? chunkIds;
+  const dedupClosure = opts.dedupClosure ?? opts.candidates;
+  await emitProgress(opts.onProgress, { stage: "loading" });
 
   const openTracks = await loadOpenTracksFromDb(ds, rebuildAt, opts.config);
-  const byProfile = groupByProfile(opts.candidates);
+  const byProfile = groupByProfile(dedupClosure);
   let collapsedByDedup = 0;
   let stdbscanClusters = 0;
   let kalmanTracksOpen = 0;
   let kalmanTracksClosed = 0;
   let kalmanNodesAdded = 0;
+  const nextGenPhase2Agg: NextGenPhase2Progress = {
+    phase2PairsConsidered: 0,
+    phase2PairsAccepted: 0,
+    phase2PairsRejectedByKinematics: 0,
+    phase2ReliabilityAvg: 0,
+    phase2ReliabilityP95: 0,
+  };
+  let nextGenProfilesWithAccepted = 0;
   const built: BuiltTracks = { tracks: [], nodes: [] };
+  const dedupWinnerIds = new Set<string>();
+  const handledIds = new Set<string>();
+
+  const seedWeights = resolveSeedWeights(opts.config);
+  const gravityIndex = resolvePlaceGravityForRebuild(dedupClosure, opts.config, seedWeights);
+  const magnetMaps: MagnetismIndex[] = [];
+  const isNextGen = opts.config?.associationAlgorithm === "nextgen-gravity";
+  // NextGen не использует corridor rollup — не строим на каждом тике (дорого на closure).
+  const corridorIndex = isNextGen
+    ? EMPTY_CORRIDOR_ROLLUP_INDEX
+    : buildCorridorFromCandidates(dedupClosure, {
+        profileOverrides: opts.config?.profiles,
+      });
 
   for (const profile of Object.keys(byProfile) as ThreatProfile[]) {
-    const kin = resolveProfileKinematics(profile, profileOverrides);
-    opts.onProgress?.({ stage: "stdbscan" });
-    const { deduplicated, collapsedCount } = stdbscanDedup(byProfile[profile]!, {
-      epsilonSpatialM: kin.stdbscanEpsilonSpatialM,
-      epsilonTemporalMs: kin.stdbscanEpsilonTemporalMs,
-      minPts: kin.stdbscanMinPts,
-    });
-    collapsedByDedup += collapsedCount;
-    stdbscanClusters += deduplicated.length;
+    await emitProgress(opts.onProgress, { stage: "stdbscan" });
+    const result = runClusteringForProfile(
+      byProfile[profile]!,
+      profile,
+      opts.config,
+      seedWeights,
+      gravityIndex,
+      opts.config?.reuseAcrossTracks ?? false,
+    );
+    for (const id of result.winnerIds) dedupWinnerIds.add(id);
+    collapsedByDedup += result.collapsedCount;
+    stdbscanClusters += result.candidates.length;
+    if (result.magnetismIndex.size > 0) magnetMaps.push(result.magnetismIndex);
 
-    opts.onProgress?.({
+    const toAssign = pickAssignableFromDedup(result.candidates, chunkIds);
+
+    await emitProgress(opts.onProgress, {
       stage: "stdbscan",
       stdbscanClusters,
       stdbscanCollapsed: collapsedByDedup,
     });
 
-    opts.onProgress?.({ stage: "kalman" });
+    await emitProgress(opts.onProgress, { stage: "kalman" });
     const profileOpen = openTracks.filter(t => t.profile === profile && !t.closed);
     const seedMin = opts.config?.seedMin ?? DEFAULT_SEED_MIN;
     const seedMaxFrontKm = opts.config?.seedMaxFrontDistanceKm ?? DEFAULT_SEED_MAX_FRONT_DISTANCE_KM;
-    const seedWeights = resolveSeedWeights(opts.config);
+    const kin = resolveProfileKinematics(profile, profileOverrides);
+    const magnetismIndex = mergeMagnetismIndexes(magnetMaps);
+    const assoc = resolveAssociationRuntime(opts.config, magnetismIndex, corridorIndex);
     const profileBuilt = buildTracksForProfile(
-      deduplicated,
+      toAssign,
       profileOpen,
       rebuildAt,
       kin,
       seedMin,
       seedMaxFrontKm,
-      seedWeights,
+      assoc,
+      opts.config,
+      opts.flowField,
     );
+    for (const id of profileBuilt.handledIds) handledIds.add(id);
     built.tracks.push(...profileBuilt.tracks);
     built.nodes.push(...profileBuilt.nodes);
     kalmanTracksOpen += profileBuilt.tracks.filter(t => t.status === "active").length;
     kalmanTracksClosed += profileBuilt.tracks.filter(t => t.status === "closed").length;
     kalmanNodesAdded += profileBuilt.nodes.length;
+    if (profileBuilt.nextgenPhase2) {
+      nextGenPhase2Agg.phase2PairsConsidered += profileBuilt.nextgenPhase2.phase2PairsConsidered;
+      nextGenPhase2Agg.phase2PairsAccepted += profileBuilt.nextgenPhase2.phase2PairsAccepted;
+      nextGenPhase2Agg.phase2PairsRejectedByKinematics += profileBuilt.nextgenPhase2.phase2PairsRejectedByKinematics;
+      if (profileBuilt.nextgenPhase2.phase2PairsAccepted > 0) {
+        nextGenProfilesWithAccepted += 1;
+        nextGenPhase2Agg.phase2ReliabilityAvg += profileBuilt.nextgenPhase2.phase2ReliabilityAvg;
+        nextGenPhase2Agg.phase2ReliabilityP95 += profileBuilt.nextgenPhase2.phase2ReliabilityP95;
+      }
+    }
 
-    opts.onProgress?.({
+    await emitProgress(opts.onProgress, {
       stage: "kalman",
       stdbscanClusters,
       stdbscanCollapsed: collapsedByDedup,
       kalmanTracksOpen,
       kalmanTracksClosed,
       kalmanNodesAdded,
+      ...(nextGenPhase2Agg.phase2PairsConsidered > 0
+        ? {
+            phase2PairsConsidered: nextGenPhase2Agg.phase2PairsConsidered,
+            phase2PairsAccepted: nextGenPhase2Agg.phase2PairsAccepted,
+            phase2PairsRejectedByKinematics: nextGenPhase2Agg.phase2PairsRejectedByKinematics,
+            phase2ReliabilityAvg: nextGenProfilesWithAccepted > 0
+              ? nextGenPhase2Agg.phase2ReliabilityAvg / nextGenProfilesWithAccepted
+              : 0,
+            phase2ReliabilityP95: nextGenProfilesWithAccepted > 0
+              ? nextGenPhase2Agg.phase2ReliabilityP95 / nextGenProfilesWithAccepted
+              : 0,
+          }
+        : {}),
     });
   }
 
-  opts.onProgress?.({
+  await emitProgress(opts.onProgress, {
     stage: "persisting",
     stdbscanClusters,
     stdbscanCollapsed: collapsedByDedup,
     kalmanTracksOpen,
     kalmanTracksClosed,
     kalmanNodesAdded,
+    ...(nextGenPhase2Agg.phase2PairsConsidered > 0
+      ? {
+          phase2PairsConsidered: nextGenPhase2Agg.phase2PairsConsidered,
+          phase2PairsAccepted: nextGenPhase2Agg.phase2PairsAccepted,
+          phase2PairsRejectedByKinematics: nextGenPhase2Agg.phase2PairsRejectedByKinematics,
+          phase2ReliabilityAvg: nextGenProfilesWithAccepted > 0
+            ? nextGenPhase2Agg.phase2ReliabilityAvg / nextGenProfilesWithAccepted
+            : 0,
+          phase2ReliabilityP95: nextGenProfilesWithAccepted > 0
+            ? nextGenPhase2Agg.phase2ReliabilityP95 / nextGenProfilesWithAccepted
+            : 0,
+        }
+      : {}),
   });
-  if (built.tracks.length > 0 || built.nodes.length > 0) {
-    await persistTracks(ds, built, opts.rebuildGen);
-  }
 
-  await markPipelineCandidatesConsumed(
-    ds,
-    opts.candidates.map(c => c.eventLocationId),
+  // Точки текущего chunk всегда consumed после попытки assign — иначе winner без link
+  // блокирует очередь на одном и том же срезе (залипание ~30% пайплайна).
+  const consumedIds = resolvePendingConsumedAfterClustering(
+    fullPendingIds,
+    chunkIds,
+    dedupWinnerIds,
+    opts.config?.clusteringMode ?? "collapse",
+    opts.config?.reuseAcrossTracks ?? false,
+  ).filter(
+    id => chunkIds.has(id) || !dedupWinnerIds.has(id) || handledIds.has(id),
   );
 
-  const watermark = computeWatermark(opts.candidates);
-  opts.onProgress?.({
-    stage: "done",
+  let consumedCount = 0;
+  if (await isTrackingPipelineEnabled(ds)) {
+    await withTrackingL1Transaction(
+      fn => ds.transaction(async em => fn((sql, params) => em.query(sql, params))),
+      async query => {
+        if (built.tracks.length > 0 || built.nodes.length > 0) {
+          await persistTracksL1(query, built, opts.rebuildGen);
+        }
+        await markPipelineCandidatesConsumedTx(query, consumedIds);
+      },
+      { maxAttempts: 8, baseDelayMs: 150 },
+    );
+    consumedCount = consumedIds.length;
+  }
+
+  const watermark = consumedCount > 0 ? computeWatermark(opts.candidates) : null;
+  await emitProgress(opts.onProgress, {
+    stage: "idle",
     stdbscanClusters,
     stdbscanCollapsed: collapsedByDedup,
     kalmanTracksOpen,
     kalmanTracksClosed,
     kalmanNodesAdded,
+    ...(nextGenPhase2Agg.phase2PairsConsidered > 0
+      ? {
+          phase2PairsConsidered: nextGenPhase2Agg.phase2PairsConsidered,
+          phase2PairsAccepted: nextGenPhase2Agg.phase2PairsAccepted,
+          phase2PairsRejectedByKinematics: nextGenPhase2Agg.phase2PairsRejectedByKinematics,
+          phase2ReliabilityAvg: nextGenProfilesWithAccepted > 0
+            ? nextGenPhase2Agg.phase2ReliabilityAvg / nextGenProfilesWithAccepted
+            : 0,
+          phase2ReliabilityP95: nextGenProfilesWithAccepted > 0
+            ? nextGenPhase2Agg.phase2ReliabilityP95 / nextGenProfilesWithAccepted
+            : 0,
+        }
+      : {}),
   });
 
   return {
     tracksCount: built.tracks.length,
     nodesCount: built.nodes.length,
     collapsedByDedup,
+    consumedCount,
     watermark,
   };
 }
 
 export {
+  loadDedupClosure,
+  loadPendingTrackingCandidates,
   loadTrackingCandidatesBatch,
   countTrackingCandidates,
   countTrackingPipelineRemaining,
@@ -354,6 +524,41 @@ function resolveSeedWeights(config?: TrackingPipelineConfig): SeedWeights {
   };
 }
 
+type AssociationRuntime = {
+  seedWeights: SeedWeights;
+  flowWeights: FlowAlignmentWeights;
+  reuseAcrossTracks: boolean;
+  associationAlgorithm: AssociationAlgorithm;
+  magnetismIndex: MagnetismIndex;
+  magnetCost: ReturnType<typeof resolveMagnetCostWeights>;
+  /** Phase W: frozen corridor index (не мутируется в assign). */
+  corridorIndex: CorridorRollupIndex;
+};
+
+/** Параметры ассоциации из конфига пайплайна. */
+function resolveAssociationRuntime(
+  config?: TrackingPipelineConfig,
+  magnetismIndex: MagnetismIndex = new Map(),
+  corridorIndex: CorridorRollupIndex = EMPTY_CORRIDOR_ROLLUP_INDEX,
+): AssociationRuntime {
+  return {
+    seedWeights: resolveSeedWeights(config),
+    flowWeights: {
+      flowWeight: config?.flowWeight ?? DEFAULT_FLOW_ALIGNMENT.flowWeight,
+      counterFlowPenalty: config?.counterFlowPenalty ?? DEFAULT_FLOW_ALIGNMENT.counterFlowPenalty,
+      flowEmpiricalMultiplier:
+        config?.flowEmpiricalMultiplier ?? DEFAULT_FLOW_ALIGNMENT.flowEmpiricalMultiplier,
+      counterFlowRejectCos:
+        config?.counterFlowRejectCos ?? DEFAULT_FLOW_ALIGNMENT.counterFlowRejectCos,
+    },
+    reuseAcrossTracks: config?.reuseAcrossTracks ?? false,
+    associationAlgorithm: config?.associationAlgorithm ?? "gnn",
+    magnetismIndex,
+    magnetCost: resolveMagnetCostWeights(config),
+    corridorIndex,
+  };
+}
+
 export function buildMutableTracks(
   candidates: TrackingCandidate[],
   kin: ProfileKinematics,
@@ -361,12 +566,21 @@ export function buildMutableTracks(
   seedMin = DEFAULT_SEED_MIN,
   seedMaxFrontKm = DEFAULT_SEED_MAX_FRONT_DISTANCE_KM,
   seedOpen: MutableTrack[] = [],
-  seedWeights: SeedWeights = DEFAULT_SEED_WEIGHTS,
-): MutableTrack[] {
+  assoc: AssociationRuntime = resolveAssociationRuntime(),
+): { tracks: MutableTrack[]; handledIds: Set<string> } {
   const openTracks = [...seedOpen];
   const closedTracks: MutableTrack[] = [];
-  assignBatch(candidates, openTracks, closedTracks, kin, rebuildAt, seedMin, seedMaxFrontKm, seedWeights);
-  return [...openTracks, ...closedTracks];
+  const { handledIds } = assignBatch(
+    candidates,
+    openTracks,
+    closedTracks,
+    kin,
+    rebuildAt,
+    seedMin,
+    seedMaxFrontKm,
+    assoc,
+  );
+  return { tracks: [...openTracks, ...closedTracks], handledIds };
 }
 
 function buildTracksForProfile(
@@ -376,12 +590,27 @@ function buildTracksForProfile(
   kin: ProfileKinematics,
   seedMin = DEFAULT_SEED_MIN,
   seedMaxFrontKm = DEFAULT_SEED_MAX_FRONT_DISTANCE_KM,
-  seedWeights: SeedWeights = DEFAULT_SEED_WEIGHTS,
-): BuiltTracks {
-  return finalizeMutableTracks(
-    buildMutableTracks(candidates, kin, rebuildAt, seedMin, seedMaxFrontKm, seedOpen, seedWeights),
+  assoc: AssociationRuntime = resolveAssociationRuntime(),
+  config?: TrackingPipelineConfig,
+  flowField?: H3VectorFlowMap,
+): BuiltTracks & { handledIds: Set<string>; nextgenPhase2?: NextGenPhase2Progress } {
+  // NextGen — отдельный batch-построитель (не GNN assignBatch).
+  if (assoc.associationAlgorithm === "nextgen-gravity") {
+    const built = buildTracksNextGen(candidates, rebuildAt, config, flowField, seedOpen);
+    const handledIds = new Set(candidates.map(c => c.eventLocationId));
+    return { ...built, handledIds };
+  }
+
+  const { tracks, handledIds } = buildMutableTracks(
+    candidates,
+    kin,
     rebuildAt,
+    seedMin,
+    seedMaxFrontKm,
+    seedOpen,
+    assoc,
   );
+  return { ...finalizeMutableTracks(tracks, rebuildAt), handledIds };
 }
 
 function finalizeMutableTracks(allMutable: MutableTrack[], rebuildAt: Date): BuiltTracks {
@@ -389,7 +618,7 @@ function finalizeMutableTracks(allMutable: MutableTrack[], rebuildAt: Date): Bui
   const nodes: TrajectoryNode[] = [];
 
   for (const mt of allMutable) {
-    if (mt.nodes.length < 2) continue;
+    if (mt.nodes.length < 1) continue;
     const kin = PROFILE_KINEMATICS[mt.profile];
     const meta = buildTrackMetadata(mt.nodes, kin, rebuildAt);
     tracks.push({
@@ -436,7 +665,9 @@ export type MutableTrack = {
   mutationState: MutationState;
 };
 
-/** Attention assign batch — Phase A/B/C через resolveAssignments. */
+type AssignBatchResult = { stats: AssignStats; handledIds: Set<string> };
+
+/** Phase A: GNN assign на frozen weights — temporal slices + один resolveAssignments на slice. */
 function assignBatch(
   candidates: TrackingCandidate[],
   openTracks: MutableTrack[],
@@ -445,9 +676,8 @@ function assignBatch(
   rebuildAt: Date,
   seedMin: number,
   seedMaxFrontKm: number,
-  seedWeights: SeedWeights = DEFAULT_SEED_WEIGHTS,
-): AssignStats {
-  const consumed = new Set<string>();
+  assoc: AssociationRuntime,
+): AssignBatchResult {
   const stats: AssignStats = {
     links: 0,
     softLinks: 0,
@@ -457,55 +687,93 @@ function assignBatch(
     attentionConflicts: 0,
   };
 
-  for (const candidate of candidates) {
-    if (!canEnterAttention(candidate)) continue;
+  const eligible = candidates.filter(canEnterAttention);
+  if (eligible.length === 0) return { stats, handledIds: new Set() };
 
-    const targets = openTracks
-      .filter(t => !t.closed)
-      .map(t => toAttentionTarget(t));
+  const handledIds = new Set<string>();
+  const slices = temporalAssignSlices(eligible, kin.stdbscanEpsilonTemporalMs);
+  const batchConsumed = new Set<string>();
 
-    const { decisions, stats: stepStats } = resolveAssignments(
-      [candidate],
+  for (const slice of slices) {
+    const targets = openTracks.filter(t => !t.closed).map(t => toAttentionTarget(t));
+    const { decisions, stats: sliceStats } = resolveAssignmentsForAlgorithm(
+      slice,
       targets,
       kin,
-      { consumed, seedMin, seedMaxFrontDistanceKm: seedMaxFrontKm, seedWeights },
+      {
+        consumed: batchConsumed,
+        seedMin,
+        seedMaxFrontDistanceKm: seedMaxFrontKm,
+        seedWeights: assoc.seedWeights,
+        flowWeights: assoc.flowWeights,
+        reuseAcrossTracks: assoc.reuseAcrossTracks,
+        associationAlgorithm: assoc.associationAlgorithm,
+        corridorIndex: assoc.corridorIndex,
+        magnetismIndex: assoc.magnetismIndex,
+        magnetCost: assoc.magnetCost,
+      },
     );
 
-    stats.links += stepStats.links;
-    stats.softLinks += stepStats.softLinks;
-    stats.seeds += stepStats.seeds;
-    stats.intercepts += stepStats.intercepts;
-    stats.skips += stepStats.skips;
-    stats.attentionConflicts += stepStats.attentionConflicts;
+    stats.links += sliceStats.links;
+    stats.softLinks += sliceStats.softLinks;
+    stats.seeds += sliceStats.seeds;
+    stats.intercepts += sliceStats.intercepts;
+    stats.skips += sliceStats.skips;
+    stats.attentionConflicts += sliceStats.attentionConflicts;
 
-    const decision = decisions[0];
-    if (!decision) continue;
-
-    switch (decision.kind) {
-      case "link": {
-        const track = openTracks.find(t => t.id === decision.trackId);
-        if (!track) break;
-        appendNode(track, candidate, kin, rebuildAt, decision.soft);
-        updateMutationState(track, decision.soft, candidate);
-        maybeCloseTrack(track, candidate, kin, openTracks, closedTracks, false);
-        break;
+    const ordered = sortDecisionsByTime(decisions);
+    for (const decision of ordered) {
+      applyAssignDecision(decision, openTracks, closedTracks, kin, rebuildAt);
+      if (decision.kind !== "skip") {
+        handledIds.add(decision.candidate.eventLocationId);
       }
-      case "seed":
-        openTracks.push(startTrack(candidate, kin));
-        break;
-      case "intercept": {
-        const track = openTracks.find(t => t.id === decision.trackId);
-        if (!track) break;
-        appendNode(track, candidate, kin, rebuildAt, false);
-        maybeCloseTrack(track, candidate, kin, openTracks, closedTracks, true);
-        break;
-      }
-      case "skip":
-        break;
     }
   }
 
-  return stats;
+  return { stats, handledIds };
+}
+
+/** Применяет одно решение assign к mutable-трекам. */
+function applyAssignDecision(
+  decision: AssignDecision,
+  openTracks: MutableTrack[],
+  closedTracks: MutableTrack[],
+  kin: ProfileKinematics,
+  rebuildAt: Date,
+): void {
+  switch (decision.kind) {
+    case "link": {
+      const track = openTracks.find(t => t.id === decision.trackId);
+      if (!track) break;
+      appendNode(track, decision.candidate, kin, rebuildAt, decision.soft);
+      updateMutationState(track, decision.soft, decision.candidate);
+      maybeCloseTrack(track, decision.candidate, kin, openTracks, closedTracks, false);
+      break;
+    }
+    case "seed":
+      openTracks.push(startTrack(decision.candidate, kin));
+      break;
+    case "intercept": {
+      const track = openTracks.find(t => t.id === decision.trackId);
+      if (!track) break;
+      appendNode(track, decision.candidate, kin, rebuildAt, false);
+      maybeCloseTrack(track, decision.candidate, kin, openTracks, closedTracks, true);
+      break;
+    }
+    case "skip":
+      break;
+  }
+}
+
+/** Сортировка решений по времени кандидата — Kalman остаётся каузальным. */
+function sortDecisionsByTime(decisions: AssignDecision[]): AssignDecision[] {
+  return [...decisions].sort(
+    (a, b) => candidateOf(a).occurredAt.getTime() - candidateOf(b).occurredAt.getTime(),
+  );
+}
+
+function candidateOf(d: AssignDecision): TrackingCandidate {
+  return d.candidate;
 }
 
 function toAttentionTarget(track: MutableTrack): TrackAttentionTarget {
@@ -527,6 +795,7 @@ function toAttentionTarget(track: MutableTrack): TrackAttentionTarget {
     lastAt: last.occurredAt,
     lastLat: last.lat,
     lastLon: last.lon,
+    lastPlaceId: last.placeId,
     kalmanState: last.kalmanState,
     refLat: track.refLat,
     refLon: track.refLon,
@@ -534,6 +803,7 @@ function toAttentionTarget(track: MutableTrack): TrackAttentionTarget {
     segmentVelocityMps: segmentVel,
   };
 }
+
 
 function updateMutationState(
   track: MutableTrack,
@@ -575,17 +845,192 @@ function maybeCloseTrack(
 }
 
 /** Строит треки из дедуплицированных кандидатов через attention assign. */
-function buildTracks(candidates: TrackingCandidate[], rebuildAt: Date): BuiltTracks {
+function buildTracks(
+  candidates: TrackingCandidate[],
+  rebuildAt: Date,
+  config?: TrackingPipelineConfig,
+  magnetismIndex: MagnetismIndex = new Map(),
+  corridorIndex: CorridorRollupIndex = EMPTY_CORRIDOR_ROLLUP_INDEX,
+): BuiltTracks {
   const openTracks: MutableTrack[] = [];
   const closedTracks: MutableTrack[] = [];
 
+  // Жадная ассоциация по току — отдельный построитель цепочек (без Kalman/GNN).
+  if (config?.associationAlgorithm === "greedy-flow") {
+    return buildTracksGreedyFlow(candidates, rebuildAt, config, magnetismIndex);
+  }
+
+  // NextGen 4-phase Gravity Tracking
+  if (config?.associationAlgorithm === "nextgen-gravity") {
+    console.log("Using NEXTGEN GRAVITY algorithm");
+    return buildTracksNextGen(candidates, rebuildAt, config);
+  }
+
+  const seedMin = config?.seedMin ?? DEFAULT_SEED_MIN;
+  const seedMaxFrontKm = config?.seedMaxFrontDistanceKm ?? DEFAULT_SEED_MAX_FRONT_DISTANCE_KM;
+  const assoc = resolveAssociationRuntime(config, magnetismIndex, corridorIndex);
+
   const byProfile = groupByProfile(candidates.filter(canEnterAttention));
   for (const profile of Object.keys(byProfile) as ThreatProfile[]) {
-    const kin = PROFILE_KINEMATICS[profile];
-    assignBatch(byProfile[profile]!, openTracks, closedTracks, kin, rebuildAt, DEFAULT_SEED_MIN, DEFAULT_SEED_MAX_FRONT_DISTANCE_KM);
+    const kin = resolveProfileKinematics(profile, config?.profiles);
+    assignBatch(byProfile[profile]!, openTracks, closedTracks, kin, rebuildAt, seedMin, seedMaxFrontKm, assoc);
   }
 
   return finalizeMutableTracks([...openTracks, ...closedTracks], rebuildAt);
+}
+
+/** Веса жадной ассоциации из config (дефолты — DEFAULT_GREEDY_FLOW). */
+function resolveGreedyFlowWeights(config?: TrackingPipelineConfig): GreedyFlowWeights {
+  const g = config?.greedyFlow;
+  return {
+    distWeightM: g?.distWeightM ?? DEFAULT_GREEDY_FLOW.distWeightM,
+    dtPenaltyPerHourM: g?.dtPenaltyPerHourM ?? DEFAULT_GREEDY_FLOW.dtPenaltyPerHourM,
+    flowAlignRewardM: g?.flowAlignRewardM ?? DEFAULT_GREEDY_FLOW.flowAlignRewardM,
+    depthToleranceM: g?.depthToleranceM ?? DEFAULT_GREEDY_FLOW.depthToleranceM,
+    counterFlowRejectCos: g?.counterFlowRejectCos ?? DEFAULT_GREEDY_FLOW.counterFlowRejectCos,
+  };
+}
+
+/** Преобразует цепочку кандидатов в MutableTrack (kalmanState=null для greedy). */
+function chainToMutable(chain: TrackingCandidate[], profile: ThreatProfile): MutableTrack {
+  const id = randomUUID();
+  const nodes: TrajectoryNode[] = chain.map((c, seq) => ({
+    id: randomUUID(),
+    trackId: id,
+    seq,
+    occurredAt: c.occurredAt,
+    lat: c.lat,
+    lon: c.lon,
+    placeId: c.placeId,
+    mode: c.mode,
+    kalmanState: null,
+    sourceRefs: c.sourceRefs,
+  }));
+  let totalDistanceM = 0;
+  for (let i = 1; i < chain.length; i++) {
+    totalDistanceM += haversineDistanceM(chain[i - 1]!.lat, chain[i - 1]!.lon, chain[i]!.lat, chain[i]!.lon);
+  }
+  return {
+    id,
+    nodes,
+    profile,
+    totalDistanceM,
+    refLat: chain[0]!.lat,
+    refLon: chain[0]!.lon,
+    closed: false,
+    mutationState: { phase: "stable", consecutiveSoftAssigns: 0 },
+  };
+}
+
+/** Макс. open-треков из БД для NextGen join за тик (остальные — следующие батчи). */
+const NEXTGEN_MAX_OPEN_TRACKS = 400;
+
+function mutableToNextGenSeed(track: MutableTrack): NextGenSeedTrack {
+  return {
+    trackId: track.id,
+    nodes: track.nodes,
+    refLat: track.refLat,
+    refLon: track.refLon,
+    totalDistanceM: track.totalDistanceM,
+  };
+}
+
+/**
+ * NextGen Gravity. H3-поле учится на отрезках Фазы 2 внутри оркестратора
+ * (см. registerSegmentFlows), а не на сырых шагах. Поле может быть передано
+ * извне (run-scoped: батчи прогона обогащают его, ребилд обнуляет).
+ */
+function buildTracksNextGen(
+  candidates: TrackingCandidate[],
+  rebuildAt: Date,
+  config?: TrackingPipelineConfig,
+  flowField?: H3VectorFlowMap,
+  seedOpen: MutableTrack[] = [],
+): BuiltTracks & { nextgenPhase2: NextGenPhase2Progress } {
+  const flowMap = flowField ?? new H3VectorFlowMap(config?.nextgen?.h3Resolution ?? 8);
+  const orchestrator = new NextGenOrchestrator(flowMap, config ?? {} as TrackingPipelineConfig);
+  const byProfile = groupByProfile(candidates.filter(canEnterAttention));
+  const mutables: MutableTrack[] = [];
+  const phase2Total: NextGenPhase2Progress = {
+    phase2PairsConsidered: 0,
+    phase2PairsAccepted: 0,
+    phase2PairsRejectedByKinematics: 0,
+    phase2ReliabilityAvg: 0,
+    phase2ReliabilityP95: 0,
+  };
+  let profilesAccepted = 0;
+
+  for (const profile of Object.keys(byProfile) as ThreatProfile[]) {
+    const kin = resolveProfileKinematics(profile, config?.profiles);
+    const seeds = seedOpen
+      .filter(t => t.profile === profile && !t.closed)
+      .sort(
+        (a, b) =>
+          (b.nodes[b.nodes.length - 1]?.occurredAt.getTime() ?? 0)
+          - (a.nodes[a.nodes.length - 1]?.occurredAt.getTime() ?? 0),
+      )
+      .slice(0, NEXTGEN_MAX_OPEN_TRACKS)
+      .map(mutableToNextGenSeed);
+    const built = orchestrator.buildTracks(byProfile[profile]!, kin, profile, seeds);
+    const tracks = built.tracks;
+    phase2Total.phase2PairsConsidered += built.phase2.pairsConsidered;
+    phase2Total.phase2PairsAccepted += built.phase2.pairsAccepted;
+    phase2Total.phase2PairsRejectedByKinematics += built.phase2.pairsRejectedKinematics;
+    if (built.phase2.pairsAccepted > 0) {
+      profilesAccepted += 1;
+      phase2Total.phase2ReliabilityAvg += built.phase2.reliabilityAvg;
+      phase2Total.phase2ReliabilityP95 += built.phase2.reliabilityP95;
+    }
+
+    for (const t of tracks) {
+      mutables.push({
+        id: t.id,
+        nodes: t.nodes ?? [],
+        profile,
+        totalDistanceM: t.totalDistanceM,
+        refLat: t.nodes?.[0]?.lat ?? 0,
+        refLon: t.nodes?.[0]?.lon ?? 0,
+        closed: false,
+        mutationState: { phase: "stable", consecutiveSoftAssigns: 0 },
+      });
+    }
+  }
+
+  return {
+    ...finalizeMutableTracks(mutables, rebuildAt),
+    nextgenPhase2: {
+      phase2PairsConsidered: phase2Total.phase2PairsConsidered,
+      phase2PairsAccepted: phase2Total.phase2PairsAccepted,
+      phase2PairsRejectedByKinematics: phase2Total.phase2PairsRejectedByKinematics,
+      phase2ReliabilityAvg: profilesAccepted > 0 ? phase2Total.phase2ReliabilityAvg / profilesAccepted : 0,
+      phase2ReliabilityP95: profilesAccepted > 0 ? phase2Total.phase2ReliabilityP95 / profilesAccepted : 0,
+    },
+  };
+}
+
+/** Строит треки жадным алгоритмом по току (per-profile цепочки). */
+function buildTracksGreedyFlow(
+  candidates: TrackingCandidate[],
+  rebuildAt: Date,
+  config?: TrackingPipelineConfig,
+  magnetismIndex: MagnetismIndex = new Map(),
+): BuiltTracks {
+  const weights = resolveGreedyFlowWeights(config);
+  const magnetCost = resolveMagnetCostWeights(config);
+  const byProfile = groupByProfile(candidates.filter(canEnterAttention));
+  const mutables: MutableTrack[] = [];
+
+  for (const profile of Object.keys(byProfile) as ThreatProfile[]) {
+    const kin = resolveProfileKinematics(profile, config?.profiles);
+    const chains = buildGreedyFlowChains(byProfile[profile]!, kin, {
+      weights,
+      magnetismIndex,
+      magnetCost,
+    });
+    for (const chain of chains) mutables.push(chainToMutable(chain, profile));
+  }
+
+  return finalizeMutableTracks(mutables, rebuildAt);
 }
 
 /** Добавляет ноду к треку с Kalman-шагом. */
@@ -662,7 +1107,7 @@ function startTrack(seed: TrackingCandidate, kin: ProfileKinematics): MutableTra
     kin.observationSigmaScale,
   );
   const kalmanState = seed.mode === "correct"
-    ? kalmanInitState(seed.lat, seed.lon, seed.lat, seed.lon, sigmaLatM)
+    ? kalmanInitState(seed.lat, seed.lon, seed.lat, seed.lon, sigmaLatM, kin.initialVelocitySigmaMps)
     : null;
 
   const firstNode: TrajectoryNode = {
@@ -706,63 +1151,72 @@ function groupByProfile(
   );
 }
 
-/** Сохраняет треки и ноды в БД (V1 full rebuild: truncate + insert). */
+/** Сохраняет треки и ноды в БД (внутри L1 xact, lock снаружи). */
+async function persistTracksL1(
+  query: TrackingPgQueryFn,
+  built: BuiltTracks,
+  rebuildGen: string,
+): Promise<void> {
+  await query(
+    `DELETE FROM trajectory_nodes WHERE track_id IN (SELECT id FROM trajectory_tracks WHERE rebuild_gen != $1)`,
+    [rebuildGen],
+  );
+  await query(`DELETE FROM trajectory_tracks WHERE rebuild_gen != $1`, [rebuildGen]);
+
+  if (built.tracks.length > 0) {
+    const trackRows = built.tracks.map(t =>
+      `('${t.id}','${t.status}','${t.threatProfile}','${t.firstAt.toISOString()}','${t.lastAt.toISOString()}',` +
+      `${t.lastLat},${t.lastLon},${t.velocityMs ?? "NULL"},${t.bearingDeg ?? "NULL"},` +
+      `${t.nodeCount},${t.totalDistanceM},'${rebuildGen}')`
+    ).join(",");
+
+    await query(
+      `INSERT INTO trajectory_tracks
+       (id, status, threat_profile, first_at, last_at, last_lat, last_lon,
+        velocity_ms, bearing_deg, node_count, total_distance_m, rebuild_gen)
+       VALUES ${trackRows}
+       ON CONFLICT (id) DO UPDATE SET
+         status = EXCLUDED.status,
+         last_at = EXCLUDED.last_at,
+         last_lat = EXCLUDED.last_lat,
+         last_lon = EXCLUDED.last_lon,
+         velocity_ms = EXCLUDED.velocity_ms,
+         bearing_deg = EXCLUDED.bearing_deg,
+         node_count = EXCLUDED.node_count,
+         total_distance_m = EXCLUDED.total_distance_m,
+         rebuild_gen = EXCLUDED.rebuild_gen`,
+    );
+  }
+
+  if (built.nodes.length > 0) {
+    const chunkSize = 1000;
+    for (let i = 0; i < built.nodes.length; i += chunkSize) {
+      const chunk = built.nodes.slice(i, i + chunkSize);
+      const nodeRows = chunk.map(n =>
+        `('${n.id}','${n.trackId}',${n.seq},'${n.occurredAt.toISOString()}',` +
+        `${n.lat},${n.lon},${n.placeId ? `'${n.placeId}'` : "NULL"},'${n.mode}',` +
+        `${n.kalmanState ? `'${JSON.stringify(n.kalmanState)}'::jsonb` : "NULL"},` +
+        `'${JSON.stringify(n.sourceRefs)}'::jsonb)`
+      ).join(",");
+
+      await query(
+        `INSERT INTO trajectory_nodes
+         (id, track_id, seq, occurred_at, lat, lon, place_id, mode, kalman_state, source_refs)
+         VALUES ${nodeRows}
+         ON CONFLICT (id) DO NOTHING`,
+      );
+    }
+  }
+}
+
+/** Сохраняет треки и ноды в БД (отдельный L1 write). */
 async function persistTracks(
   ds: DataSource,
   built: BuiltTracks,
   rebuildGen: string,
 ): Promise<void> {
-  await ds.transaction(async (em) => {
-    await em.query(
-      `DELETE FROM trajectory_nodes WHERE track_id IN (SELECT id FROM trajectory_tracks WHERE rebuild_gen != $1)`,
-      [rebuildGen],
-    );
-    await em.query(`DELETE FROM trajectory_tracks WHERE rebuild_gen != $1`, [rebuildGen]);
-
-    if (built.tracks.length > 0) {
-      const trackRows = built.tracks.map(t =>
-        `('${t.id}','${t.status}','${t.threatProfile}','${t.firstAt.toISOString()}','${t.lastAt.toISOString()}',` +
-        `${t.lastLat},${t.lastLon},${t.velocityMs ?? "NULL"},${t.bearingDeg ?? "NULL"},` +
-        `${t.nodeCount},${t.totalDistanceM},'${rebuildGen}')`
-      ).join(",");
-
-      await em.query(
-        `INSERT INTO trajectory_tracks
-         (id, status, threat_profile, first_at, last_at, last_lat, last_lon,
-          velocity_ms, bearing_deg, node_count, total_distance_m, rebuild_gen)
-         VALUES ${trackRows}
-         ON CONFLICT (id) DO UPDATE SET
-           status = EXCLUDED.status,
-           last_at = EXCLUDED.last_at,
-           last_lat = EXCLUDED.last_lat,
-           last_lon = EXCLUDED.last_lon,
-           velocity_ms = EXCLUDED.velocity_ms,
-           bearing_deg = EXCLUDED.bearing_deg,
-           node_count = EXCLUDED.node_count,
-           total_distance_m = EXCLUDED.total_distance_m,
-           rebuild_gen = EXCLUDED.rebuild_gen`,
-      );
-    }
-
-    if (built.nodes.length > 0) {
-      // Batch insert нод чанками по 1000
-      const chunkSize = 1000;
-      for (let i = 0; i < built.nodes.length; i += chunkSize) {
-        const chunk = built.nodes.slice(i, i + chunkSize);
-        const nodeRows = chunk.map(n =>
-          `('${n.id}','${n.trackId}',${n.seq},'${n.occurredAt.toISOString()}',` +
-          `${n.lat},${n.lon},${n.placeId ? `'${n.placeId}'` : "NULL"},'${n.mode}',` +
-          `${n.kalmanState ? `'${JSON.stringify(n.kalmanState)}'::jsonb` : "NULL"},` +
-          `'${JSON.stringify(n.sourceRefs)}'::jsonb)`
-        ).join(",");
-
-        await em.query(
-          `INSERT INTO trajectory_nodes
-           (id, track_id, seq, occurred_at, lat, lon, place_id, mode, kalman_state, source_refs)
-           VALUES ${nodeRows}
-           ON CONFLICT (id) DO NOTHING`,
-        );
-      }
-    }
-  });
+  await withTrackingL1Transaction(
+    fn => ds.transaction(async em => fn((sql, params) => em.query(sql, params))),
+    query => persistTracksL1(query, built, rebuildGen),
+  );
 }

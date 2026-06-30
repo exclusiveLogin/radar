@@ -9,7 +9,7 @@
  */
 import { z } from "zod";
 
-export const nodeModeSchema = z.enum(["correct", "attach_only"]);
+export const nodeModeSchema = z.enum(["correct", "attach_only", "segment_only"]);
 export const trackStatusSchema = z.enum(["active", "closed", "stale"]);
 export const threatProfileSchema = z.enum(["uav", "rocket", "balloon", "unknown"]);
 
@@ -25,6 +25,14 @@ export const sourceRefSchema = z.object({
   text: z.string().optional(),
 });
 
+export const kalmanStateJsonSchema = z.object({
+  x: z.number(),
+  y: z.number(),
+  vx: z.number(),
+  vy: z.number(),
+  P: z.array(z.array(z.number())),
+});
+
 export const trajectoryNodeSchema = z.object({
   id: z.string().uuid(),
   seq: z.number().int().nonnegative(),
@@ -34,6 +42,8 @@ export const trajectoryNodeSchema = z.object({
   placeId: z.string().uuid().nullable(),
   mode: nodeModeSchema,
   sourceRefs: z.array(sourceRefSchema),
+  /** Kalman-состояние на этой ноде — для per-node локусов ассоциации (debug). */
+  kalmanState: kalmanStateJsonSchema.nullable().optional(),
 });
 
 export const trajectoryTrackSchema = z.object({
@@ -49,6 +59,10 @@ export const trajectoryTrackSchema = z.object({
   nodeCount: z.number().int().positive(),
   /** Накопленная дальность от origin (м). */
   totalDistanceM: z.number().nonnegative(),
+  /** Ref первой ноды + Kalman головы — для χ²-эллипса на карте. */
+  refLat: z.number().optional(),
+  refLon: z.number().optional(),
+  headKalmanState: kalmanStateJsonSchema.nullable().optional(),
   nodes: z.array(trajectoryNodeSchema).optional(),
 });
 

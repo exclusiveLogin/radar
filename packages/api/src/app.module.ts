@@ -8,6 +8,7 @@ import { IngestAdminModule } from "./ingest-admin/ingest-admin.module";
 import { PhasesAdminModule } from "./phases-admin/phases-admin.module";
 import { ParsePipelineAdminModule } from "./parse-admin/parse-pipeline-admin.module";
 import { TrackingAdminModule } from "./tracking-admin/tracking-admin.module";
+import { TrackingInfraModule } from "./tracking/tracking-infra.module";
 import { MapModule } from "./map/map.module";
 import { ReadSideModule } from "./read-side/read-side.module";
 import { WorkerModule } from "./worker/worker.module";
@@ -33,6 +34,7 @@ import { WorkerModule } from "./worker/worker.module";
     }),
     AdminModule,
     HealthModule,
+    TrackingInfraModule,
     IngestAdminModule,
     MapModule,
     PhasesAdminModule,

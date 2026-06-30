@@ -219,6 +219,13 @@ export const adminApi = {
   trackingRebuild: (): Promise<{ ok: true; runId: string }> =>
     postJson("/api/admin/tracking/rebuild", undefined, z.object({ ok: z.literal(true), runId: z.string().uuid() })),
 
+  trackingSoftRebuild: (): Promise<{ ok: true; runId: string }> =>
+    postJson(
+      "/api/admin/tracking/soft-rebuild",
+      undefined,
+      z.object({ ok: z.literal(true), runId: z.string().uuid() }),
+    ),
+
   trackingReset: (): Promise<{ ok: true }> =>
     postJson("/api/admin/tracking/reset", undefined, z.object({ ok: z.literal(true) })),
 
@@ -235,7 +242,7 @@ export const adminApi = {
     getJson(`/api/admin/tracking/tune?limit=${limit}`, trackingTuneRunsSchema),
 
   trackingStartTune: (body: Record<string, unknown>): Promise<TrackingTuneRun> =>
-    sendJson("POST", "/api/admin/tracking/tune", body, trackingTuneRunSchema),
+    postJson("/api/admin/tracking/tune", body, trackingTuneRunSchema),
 
   trackingCancelTune: (id: string): Promise<{ ok: true }> =>
     postJson(`/api/admin/tracking/tune/${id}/cancel`, undefined, z.object({ ok: z.literal(true) })),
