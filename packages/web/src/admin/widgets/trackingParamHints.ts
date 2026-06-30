@@ -30,6 +30,10 @@ export const TRACKING_PARAM_HINTS = {
     "Штраф шагу против тока. Работает вместе с flowWeight в матрице внимания GNN.",
   flowEmpirical:
     "Сила коридора B (история place→place). 0 — только гео-ток; >1 — сильнее тянет по коридорам.",
+  globalDirectionWeight:
+    "Мягкий глобальный bias направления по cos (добавка к A/B). 0 — выкл; 0.2–0.8 обычно достаточно.",
+  globalDirectionBearingDeg:
+    "Азимут глобального bias, градусы (0=север, 90=восток). Например 45 — общий дрейф на СВ.",
   counterFlowReject:
     "Жёсткий gate: шаг к фронту/Украине отклоняется, если cos с током ниже порога.",
   counterFlowRejectCos:

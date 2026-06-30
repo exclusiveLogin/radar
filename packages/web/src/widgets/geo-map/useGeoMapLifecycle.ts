@@ -47,7 +47,7 @@ import { buildDistrictsCollection, buildRegionsCollection } from "../../shared/s
 import { resetAllGeoMapLayerFetchStatus } from "../../shared/state/geoMapLayerFetchStore";
 import { resetGeoMapStats, setGeoMapStats } from "../../shared/state/geoMapStatsStore";
 import { selectRegion, selectedRegion$ } from "../../shared/state/selectionStore";
-import { tracksFlow$, tracksGravity$, tracksList$, tracksLoading$, tracksPipelineActive$ } from "../../shared/state/trackStore";
+import { tracksFlow$, tracksGravity$, tracksList$, tracksLoading$ } from "../../shared/state/trackStore";
 import { theme$ } from "../../shared/state/themeStore";
 import {
   DISTRICTS_FILL,
@@ -417,9 +417,7 @@ export function useGeoMapLifecycle(containerRef: RefObject<HTMLDivElement | null
         if (layers.tracks && !tracksFetchPending) {
           runtime.sources.apply(
             TRACKS_SOURCE,
-            tracksListToGeoJson(tracksList$.value, {
-              showSegmentOnlyDrafts: tracksPipelineActive$.value,
-            }),
+            tracksListToGeoJson(tracksList$.value, { showSegmentOnlyDrafts: true }),
           );
         }
 

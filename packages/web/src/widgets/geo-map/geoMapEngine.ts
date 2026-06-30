@@ -15,7 +15,6 @@ import { formatDateTime } from "../../shared/format/dateTime";
 import { effectivePlaceLevel } from "../../shared/state/derivations";
 import { derivedRegionCodes$, placesById$, regionsByCode$, resolveMapViewAnchorMs } from "../../shared/state/mapStore";
 import type { GeoMapLayerId } from "../../shared/state/mapLayerStore";
-import { tracksPipelineActive$ } from "../../shared/state/trackStore";
 import { stateChangesFeed$ } from "../../shared/state/stateChangesFeedStore";
 import { statusTitle } from "../../shared/state/statusDictionaryStore";
 import type { ThemeMode } from "../../shared/state/themeStore";
@@ -66,7 +65,9 @@ export function syncGeoOverlayLayers(
     }
   }
   if (map.getLayer(TRACKS_LINES_DASHED_LAYER)) {
-    const showDrafts = layers.tracks && tracksPipelineActive$.value;
+    // segment_only — это валидная итоговая геометрия sparse-участков, а не только live-черновик.
+    // Поэтому пунктирный слой не прячем после завершения pipeline.
+    const showDrafts = layers.tracks;
     map.setLayoutProperty(
       TRACKS_LINES_DASHED_LAYER,
       "visibility",

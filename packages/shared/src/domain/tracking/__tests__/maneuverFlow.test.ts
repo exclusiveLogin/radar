@@ -81,4 +81,25 @@ describe("flowAlignment", () => {
     const off = { ...DEFAULT_FLOW_ALIGNMENT, flowWeight: 0, counterFlowPenalty: 0 };
     expect(applyFlowAlignment(0.8, -1, off)).toBe(0.8);
   });
+
+  test("global directional bias смещает итоговый bearing", () => {
+    const noGlobal = resolveFlowBearingDeg(
+      50,
+      36,
+      49,
+      36,
+      null,
+      { ...DEFAULT_FLOW_ALIGNMENT, globalDirectionWeight: 0, globalDirectionBearingDeg: null },
+    )!;
+    const withGlobal = resolveFlowBearingDeg(
+      50,
+      36,
+      49,
+      36,
+      null,
+      { ...DEFAULT_FLOW_ALIGNMENT, globalDirectionWeight: 1, globalDirectionBearingDeg: 90 },
+    )!;
+    expect(withGlobal).not.toBe(noGlobal);
+    expect(withGlobal).toBeGreaterThan(noGlobal);
+  });
 });

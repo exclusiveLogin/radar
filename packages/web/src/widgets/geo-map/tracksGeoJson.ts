@@ -28,7 +28,7 @@ export function tracksListToGeoJson(
 ): TracksGeoJsonCollection {
   if (!response?.tracks.length) return emptyTracksFeatureCollection();
 
-  const showSegmentOnlyDrafts = options?.showSegmentOnlyDrafts ?? false;
+  const showSegmentOnlyDrafts = options?.showSegmentOnlyDrafts ?? true;
   const features: TrackFeature[] = [];
 
   for (const track of response.tracks) {

@@ -124,6 +124,10 @@ export const trackingPipelineConfigSchema = z.object({
    * null — выкл; 0 — резать любой шаг к фронту; −0.2 — допускать боковой дрейф.
    */
   counterFlowRejectCos: z.number().min(-1).max(1).nullable().default(null),
+  /** Вес глобального directional-bias по cos (0 — выкл). */
+  globalDirectionWeight: z.number().min(0).max(10).default(0),
+  /** Глобальный азимут directional-bias (градусы, 0=север, 90=восток). null — выкл. */
+  globalDirectionBearingDeg: z.number().min(0).max(360).nullable().default(null),
   /** Веса жадной ассоциации (associationAlgorithm = "greedy-flow"). */
   greedyFlow: z
     .object({

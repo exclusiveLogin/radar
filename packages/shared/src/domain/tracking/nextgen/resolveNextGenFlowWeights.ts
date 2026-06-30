@@ -18,6 +18,10 @@ export function resolveNextGenFlowWeights(
       config.flowEmpiricalMultiplier ?? DEFAULT_FLOW_ALIGNMENT.flowEmpiricalMultiplier,
     counterFlowRejectCos:
       config.counterFlowRejectCos ?? DEFAULT_FLOW_ALIGNMENT.counterFlowRejectCos,
+    globalDirectionWeight:
+      config.globalDirectionWeight ?? DEFAULT_FLOW_ALIGNMENT.globalDirectionWeight,
+    globalDirectionBearingDeg:
+      config.globalDirectionBearingDeg ?? DEFAULT_FLOW_ALIGNMENT.globalDirectionBearingDeg,
   };
 }
 

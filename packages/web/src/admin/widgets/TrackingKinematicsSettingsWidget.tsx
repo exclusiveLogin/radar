@@ -188,6 +188,8 @@ function configSignature(
     flowWeight: cfg?.flowWeight,
     counterFlowPenalty: cfg?.counterFlowPenalty,
     flowEmpiricalMultiplier: cfg?.flowEmpiricalMultiplier,
+    globalDirectionWeight: cfg?.globalDirectionWeight,
+    globalDirectionBearingDeg: cfg?.globalDirectionBearingDeg ?? null,
     counterFlowRejectCos: cfg?.counterFlowRejectCos ?? null,
     greedyFlow: cfg?.greedyFlow ?? null,
     nextgen: cfg?.nextgen ?? null,
@@ -216,6 +218,16 @@ export function TrackingKinematicsSettingsWidget() {
   );
   const [flowEmpiricalMultiplier, setFlowEmpiricalMultiplier] = useState(
     DEFAULT_FLOW_ALIGNMENT.flowEmpiricalMultiplier,
+  );
+  const [globalDirectionWeight, setGlobalDirectionWeight] = useState(
+    DEFAULT_FLOW_ALIGNMENT.globalDirectionWeight ?? 0,
+  );
+  const [globalDirectionBearingDeg, setGlobalDirectionBearingDeg] = useState(
+    DEFAULT_FLOW_ALIGNMENT.globalDirectionBearingDeg ?? 45,
+  );
+  const [globalDirectionEnabled, setGlobalDirectionEnabled] = useState(
+    (DEFAULT_FLOW_ALIGNMENT.globalDirectionBearingDeg ?? null) != null
+      && (DEFAULT_FLOW_ALIGNMENT.globalDirectionWeight ?? 0) > 0,
   );
   // Жёсткий запрет противотока: enabled-флаг + порог cos (хранится как null при выкл).
   const [counterFlowRejectEnabled, setCounterFlowRejectEnabled] = useState(false);
@@ -259,6 +271,11 @@ export function TrackingKinematicsSettingsWidget() {
     setFlowEmpiricalMultiplier(
       cfg.flowEmpiricalMultiplier ?? DEFAULT_FLOW_ALIGNMENT.flowEmpiricalMultiplier,
     );
+    const globalW = cfg.globalDirectionWeight ?? DEFAULT_FLOW_ALIGNMENT.globalDirectionWeight ?? 0;
+    const globalBearing = cfg.globalDirectionBearingDeg ?? DEFAULT_FLOW_ALIGNMENT.globalDirectionBearingDeg ?? 45;
+    setGlobalDirectionWeight(globalW);
+    setGlobalDirectionBearingDeg(globalBearing);
+    setGlobalDirectionEnabled((cfg.globalDirectionBearingDeg ?? null) != null && globalW > 0);
     const rejCos = cfg.counterFlowRejectCos ?? null;
     setCounterFlowRejectEnabled(rejCos != null);
     setCounterFlowRejectCos(rejCos ?? -0.2);
@@ -293,6 +310,12 @@ export function TrackingKinematicsSettingsWidget() {
     setFlowWeight(DEFAULT_FLOW_ALIGNMENT.flowWeight);
     setCounterFlowPenalty(DEFAULT_FLOW_ALIGNMENT.counterFlowPenalty);
     setFlowEmpiricalMultiplier(DEFAULT_FLOW_ALIGNMENT.flowEmpiricalMultiplier);
+    setGlobalDirectionWeight(DEFAULT_FLOW_ALIGNMENT.globalDirectionWeight ?? 0);
+    setGlobalDirectionBearingDeg(DEFAULT_FLOW_ALIGNMENT.globalDirectionBearingDeg ?? 45);
+    setGlobalDirectionEnabled(
+      (DEFAULT_FLOW_ALIGNMENT.globalDirectionBearingDeg ?? null) != null
+      && (DEFAULT_FLOW_ALIGNMENT.globalDirectionWeight ?? 0) > 0,
+    );
     setCounterFlowRejectEnabled(false);
     setCounterFlowRejectCos(-0.2);
     setGreedyFlow(DEFAULT_GREEDY_FLOW);
@@ -321,6 +344,8 @@ export function TrackingKinematicsSettingsWidget() {
         flowWeight,
         counterFlowPenalty,
         flowEmpiricalMultiplier,
+        globalDirectionWeight: globalDirectionEnabled ? globalDirectionWeight : 0,
+        globalDirectionBearingDeg: globalDirectionEnabled ? globalDirectionBearingDeg : null,
         counterFlowRejectCos: counterFlowRejectEnabled ? counterFlowRejectCos : null,
         greedyFlow,
         nextgen,
@@ -603,6 +628,47 @@ export function TrackingKinematicsSettingsWidget() {
             onChange={setFlowEmpiricalMultiplier}
           />
         </div>
+        <label
+          style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: 12, margin: "10px 0 4px" }}
+          title={H.globalDirectionWeight}
+        >
+          <input
+            type="checkbox"
+            checked={globalDirectionEnabled}
+            onChange={e => setGlobalDirectionEnabled(e.target.checked)}
+            style={{ marginTop: 2 }}
+          />
+          <span>
+            Глобальный directional-bias (доп. cos-компонента направления)
+            <span className="ds-field__hint" style={{ display: "block", marginTop: 2 }}>
+              {H.globalDirectionWeight}
+            </span>
+          </span>
+        </label>
+        {globalDirectionEnabled && (
+          <div className="ds-slider-grid">
+            <CoeffSlider
+              label="Сила глобального bias γ_global"
+              title="Мягкий приоритет общего направления поверх A/B. 0.2–0.8 обычно достаточно."
+              hint={H.globalDirectionWeight}
+              value={globalDirectionWeight}
+              min={0}
+              max={2}
+              step={0.05}
+              onChange={setGlobalDirectionWeight}
+            />
+            <CoeffSlider
+              label="Глобальный азимут, ° (0=С, 90=В)"
+              title="Опорное направление глобального bias."
+              hint={H.globalDirectionBearingDeg}
+              value={globalDirectionBearingDeg}
+              min={0}
+              max={360}
+              step={1}
+              onChange={setGlobalDirectionBearingDeg}
+            />
+          </div>
+        )}
         <label
           style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: 12, margin: "10px 0 4px" }}
           title={H.counterFlowReject}

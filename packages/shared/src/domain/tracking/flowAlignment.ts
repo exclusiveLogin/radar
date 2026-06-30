@@ -24,6 +24,16 @@ export type FlowAlignmentWeights = {
    * шаг с компонентой к фронту; −0.2 — допускать боковой дрейф вдоль фронта.
    */
   counterFlowRejectCos?: number | null;
+  /**
+   * Глобальный bias направления (cos): вес мягкого смещения результирующего тока.
+   * 0/null — выключено. Работает поверх A(front→rear) и B(corridor), без hard-gate.
+   */
+  globalDirectionWeight?: number | null;
+  /**
+   * Глобальный азимут bias (градусы, 0=север, 90=восток). null — выключено.
+   * Пример: 45 = на северо-восток (от Украины вглубь РФ в среднем).
+   */
+  globalDirectionBearingDeg?: number | null;
 };
 
 export const DEFAULT_FLOW_ALIGNMENT: FlowAlignmentWeights = {
@@ -31,6 +41,8 @@ export const DEFAULT_FLOW_ALIGNMENT: FlowAlignmentWeights = {
   counterFlowPenalty: 1,
   flowEmpiricalMultiplier: 1,
   counterFlowRejectCos: null,
+  globalDirectionWeight: 0,
+  globalDirectionBearingDeg: null,
 };
 
 /**
@@ -93,16 +105,30 @@ export function resolveFlowBearingDeg(
   const fA = bearingDeg(nearestFrontLat, nearestFrontLon, pointLat, pointLon);
 
   const strength = (corridor?.count ?? 0) * Math.max(0, weights.flowEmpiricalMultiplier);
-  if (strength <= 0 || corridor == null) return fA;
-
-  const w = strength / (1 + strength);
   const [ax, ay] = unitVectorFromBearingDeg(fA);
-  const [bx, by] = unitVectorFromBearingDeg(corridor.bearingDeg);
-  const bx2 = (1 - w) * ax + w * bx;
-  const by2 = (1 - w) * ay + w * by;
-  const len = Math.hypot(bx2, by2);
+  let vx = ax;
+  let vy = ay;
+
+  if (strength > 0 && corridor != null) {
+    const w = strength / (1 + strength);
+    const [bx, by] = unitVectorFromBearingDeg(corridor.bearingDeg);
+    vx = (1 - w) * vx + w * bx;
+    vy = (1 - w) * vy + w * by;
+  }
+
+  const globalBearing = weights.globalDirectionBearingDeg;
+  const globalWeightRaw = weights.globalDirectionWeight ?? 0;
+  const globalWeight = Math.max(0, globalWeightRaw);
+  if (globalBearing != null && globalWeight > 0) {
+    const wg = globalWeight / (1 + globalWeight);
+    const [gx, gy] = unitVectorFromBearingDeg(((globalBearing % 360) + 360) % 360);
+    vx = (1 - wg) * vx + wg * gx;
+    vy = (1 - wg) * vy + wg * gy;
+  }
+
+  const len = Math.hypot(vx, vy);
   if (len < 1e-9) return fA;
-  return ((Math.atan2(bx2, by2) * 180) / Math.PI + 360) % 360;
+  return ((Math.atan2(vx, vy) * 180) / Math.PI + 360) % 360;
 }
 
 /** ρ' = ρ · (1 + γ_против·max(0,−a)) / (1 + γ_ток·max(0,+a)) */
