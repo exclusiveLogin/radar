@@ -149,7 +149,10 @@ export async function runTrackingRebuild(
 
   // 4. Сохраняем в БД
   if (persist && builtTracks.tracks.length > 0) {
-    await persistTracks(ds, builtTracks, rebuildGen);
+    await persistTracks(ds, builtTracks, rebuildGen, {
+      // Полная перестройка: L1 становится снимком текущего rebuild.
+      pruneByRebuildGen: true,
+    });
   }
 
   return {
@@ -191,6 +194,18 @@ type NextGenPhase2Progress = {
   phase2ReliabilityP95: number;
 };
 
+type NextGenPhase3Progress = {
+  phase3LinksConsidered: number;
+  phase3LinksAccepted: number;
+  phase3NodesSeeded: number;
+  phase3RejectGap: number;
+  phase3RejectDistance: number;
+  phase3RejectVelocity: number;
+  phase3RejectCounterFlow: number;
+  phase3RejectTurn: number;
+  phase3RejectKalmanInnovation: number;
+};
+
 async function emitProgress(
   onProgress: IncrementalBatchOptions["onProgress"],
   stats: Partial<TrackingRebuildStats>,
@@ -224,6 +239,17 @@ export async function runIncrementalBatch(
     phase2PairsRejectedByKinematics: 0,
     phase2ReliabilityAvg: 0,
     phase2ReliabilityP95: 0,
+  };
+  const nextGenPhase3Agg: NextGenPhase3Progress = {
+    phase3LinksConsidered: 0,
+    phase3LinksAccepted: 0,
+    phase3NodesSeeded: 0,
+    phase3RejectGap: 0,
+    phase3RejectDistance: 0,
+    phase3RejectVelocity: 0,
+    phase3RejectCounterFlow: 0,
+    phase3RejectTurn: 0,
+    phase3RejectKalmanInnovation: 0,
   };
   let nextGenProfilesWithAccepted = 0;
   const built: BuiltTracks = { tracks: [], nodes: [] };
@@ -298,6 +324,17 @@ export async function runIncrementalBatch(
         nextGenPhase2Agg.phase2ReliabilityP95 += profileBuilt.nextgenPhase2.phase2ReliabilityP95;
       }
     }
+    if (profileBuilt.nextgenPhase3) {
+      nextGenPhase3Agg.phase3LinksConsidered += profileBuilt.nextgenPhase3.phase3LinksConsidered;
+      nextGenPhase3Agg.phase3LinksAccepted += profileBuilt.nextgenPhase3.phase3LinksAccepted;
+      nextGenPhase3Agg.phase3NodesSeeded += profileBuilt.nextgenPhase3.phase3NodesSeeded;
+      nextGenPhase3Agg.phase3RejectGap += profileBuilt.nextgenPhase3.phase3RejectGap;
+      nextGenPhase3Agg.phase3RejectDistance += profileBuilt.nextgenPhase3.phase3RejectDistance;
+      nextGenPhase3Agg.phase3RejectVelocity += profileBuilt.nextgenPhase3.phase3RejectVelocity;
+      nextGenPhase3Agg.phase3RejectCounterFlow += profileBuilt.nextgenPhase3.phase3RejectCounterFlow;
+      nextGenPhase3Agg.phase3RejectTurn += profileBuilt.nextgenPhase3.phase3RejectTurn;
+      nextGenPhase3Agg.phase3RejectKalmanInnovation += profileBuilt.nextgenPhase3.phase3RejectKalmanInnovation;
+    }
 
     await emitProgress(opts.onProgress, {
       stage: "kalman",
@@ -317,6 +354,19 @@ export async function runIncrementalBatch(
             phase2ReliabilityP95: nextGenProfilesWithAccepted > 0
               ? nextGenPhase2Agg.phase2ReliabilityP95 / nextGenProfilesWithAccepted
               : 0,
+          }
+        : {}),
+      ...(nextGenPhase3Agg.phase3LinksConsidered > 0
+        ? {
+            phase3LinksConsidered: nextGenPhase3Agg.phase3LinksConsidered,
+            phase3LinksAccepted: nextGenPhase3Agg.phase3LinksAccepted,
+            phase3NodesSeeded: nextGenPhase3Agg.phase3NodesSeeded,
+            phase3RejectGap: nextGenPhase3Agg.phase3RejectGap,
+            phase3RejectDistance: nextGenPhase3Agg.phase3RejectDistance,
+            phase3RejectVelocity: nextGenPhase3Agg.phase3RejectVelocity,
+            phase3RejectCounterFlow: nextGenPhase3Agg.phase3RejectCounterFlow,
+            phase3RejectTurn: nextGenPhase3Agg.phase3RejectTurn,
+            phase3RejectKalmanInnovation: nextGenPhase3Agg.phase3RejectKalmanInnovation,
           }
         : {}),
     });
@@ -342,6 +392,19 @@ export async function runIncrementalBatch(
             : 0,
         }
       : {}),
+    ...(nextGenPhase3Agg.phase3LinksConsidered > 0
+      ? {
+          phase3LinksConsidered: nextGenPhase3Agg.phase3LinksConsidered,
+          phase3LinksAccepted: nextGenPhase3Agg.phase3LinksAccepted,
+          phase3NodesSeeded: nextGenPhase3Agg.phase3NodesSeeded,
+          phase3RejectGap: nextGenPhase3Agg.phase3RejectGap,
+          phase3RejectDistance: nextGenPhase3Agg.phase3RejectDistance,
+          phase3RejectVelocity: nextGenPhase3Agg.phase3RejectVelocity,
+          phase3RejectCounterFlow: nextGenPhase3Agg.phase3RejectCounterFlow,
+          phase3RejectTurn: nextGenPhase3Agg.phase3RejectTurn,
+          phase3RejectKalmanInnovation: nextGenPhase3Agg.phase3RejectKalmanInnovation,
+        }
+      : {}),
   });
 
   // Точки текущего chunk всегда consumed после попытки assign — иначе winner без link
@@ -362,7 +425,7 @@ export async function runIncrementalBatch(
       fn => ds.transaction(async em => fn((sql, params) => em.query(sql, params))),
       async query => {
         if (built.tracks.length > 0 || built.nodes.length > 0) {
-          await persistTracksL1(query, built, opts.rebuildGen);
+          await persistTracksL1(query, built, opts.rebuildGen, { pruneByRebuildGen: false });
         }
         await markPipelineCandidatesConsumedTx(query, consumedIds);
       },
@@ -390,6 +453,19 @@ export async function runIncrementalBatch(
           phase2ReliabilityP95: nextGenProfilesWithAccepted > 0
             ? nextGenPhase2Agg.phase2ReliabilityP95 / nextGenProfilesWithAccepted
             : 0,
+        }
+      : {}),
+    ...(nextGenPhase3Agg.phase3LinksConsidered > 0
+      ? {
+          phase3LinksConsidered: nextGenPhase3Agg.phase3LinksConsidered,
+          phase3LinksAccepted: nextGenPhase3Agg.phase3LinksAccepted,
+          phase3NodesSeeded: nextGenPhase3Agg.phase3NodesSeeded,
+          phase3RejectGap: nextGenPhase3Agg.phase3RejectGap,
+          phase3RejectDistance: nextGenPhase3Agg.phase3RejectDistance,
+          phase3RejectVelocity: nextGenPhase3Agg.phase3RejectVelocity,
+          phase3RejectCounterFlow: nextGenPhase3Agg.phase3RejectCounterFlow,
+          phase3RejectTurn: nextGenPhase3Agg.phase3RejectTurn,
+          phase3RejectKalmanInnovation: nextGenPhase3Agg.phase3RejectKalmanInnovation,
         }
       : {}),
   });
@@ -597,7 +673,11 @@ function buildTracksForProfile(
   assoc: AssociationRuntime = resolveAssociationRuntime(),
   config?: TrackingPipelineConfig,
   flowField?: H3VectorFlowMap,
-): BuiltTracks & { handledIds: Set<string>; nextgenPhase2?: NextGenPhase2Progress } {
+): BuiltTracks & {
+  handledIds: Set<string>;
+  nextgenPhase2?: NextGenPhase2Progress;
+  nextgenPhase3?: NextGenPhase3Progress;
+} {
   // NextGen — отдельный batch-построитель (не GNN assignBatch).
   if (assoc.associationAlgorithm === "nextgen-gravity") {
     const built = buildTracksNextGen(candidates, rebuildAt, config, flowField, seedOpen);
@@ -950,7 +1030,7 @@ function buildTracksNextGen(
   config?: TrackingPipelineConfig,
   flowField?: H3VectorFlowMap,
   seedOpen: MutableTrack[] = [],
-): BuiltTracks & { nextgenPhase2: NextGenPhase2Progress } {
+): BuiltTracks & { nextgenPhase2: NextGenPhase2Progress; nextgenPhase3: NextGenPhase3Progress } {
   const flowMap = flowField ?? new H3VectorFlowMap(config?.nextgen?.h3Resolution ?? 8);
   const orchestrator = new NextGenOrchestrator(flowMap, config ?? {} as TrackingPipelineConfig);
   const byProfile = groupByProfile(candidates.filter(canEnterAttention));
@@ -961,6 +1041,17 @@ function buildTracksNextGen(
     phase2PairsRejectedByKinematics: 0,
     phase2ReliabilityAvg: 0,
     phase2ReliabilityP95: 0,
+  };
+  const phase3Total: NextGenPhase3Progress = {
+    phase3LinksConsidered: 0,
+    phase3LinksAccepted: 0,
+    phase3NodesSeeded: 0,
+    phase3RejectGap: 0,
+    phase3RejectDistance: 0,
+    phase3RejectVelocity: 0,
+    phase3RejectCounterFlow: 0,
+    phase3RejectTurn: 0,
+    phase3RejectKalmanInnovation: 0,
   };
   let profilesAccepted = 0;
 
@@ -985,6 +1076,15 @@ function buildTracksNextGen(
       phase2Total.phase2ReliabilityAvg += built.phase2.reliabilityAvg;
       phase2Total.phase2ReliabilityP95 += built.phase2.reliabilityP95;
     }
+    phase3Total.phase3LinksConsidered += built.phase3.linksConsidered;
+    phase3Total.phase3LinksAccepted += built.phase3.linksAccepted;
+    phase3Total.phase3NodesSeeded += built.phase3.nodesSeeded;
+    phase3Total.phase3RejectGap += built.phase3.rejectGap;
+    phase3Total.phase3RejectDistance += built.phase3.rejectDistance;
+    phase3Total.phase3RejectVelocity += built.phase3.rejectVelocity;
+    phase3Total.phase3RejectCounterFlow += built.phase3.rejectCounterFlow;
+    phase3Total.phase3RejectTurn += built.phase3.rejectTurn;
+    phase3Total.phase3RejectKalmanInnovation += built.phase3.rejectKalmanInnovation;
 
     for (const t of tracks) {
       mutables.push({
@@ -1009,6 +1109,7 @@ function buildTracksNextGen(
       phase2ReliabilityAvg: profilesAccepted > 0 ? phase2Total.phase2ReliabilityAvg / profilesAccepted : 0,
       phase2ReliabilityP95: profilesAccepted > 0 ? phase2Total.phase2ReliabilityP95 / profilesAccepted : 0,
     },
+    nextgenPhase3: phase3Total,
   };
 }
 
@@ -1160,12 +1261,15 @@ async function persistTracksL1(
   query: TrackingPgQueryFn,
   built: BuiltTracks,
   rebuildGen: string,
+  options?: { pruneByRebuildGen?: boolean },
 ): Promise<void> {
-  await query(
-    `DELETE FROM trajectory_nodes WHERE track_id IN (SELECT id FROM trajectory_tracks WHERE rebuild_gen != $1)`,
-    [rebuildGen],
-  );
-  await query(`DELETE FROM trajectory_tracks WHERE rebuild_gen != $1`, [rebuildGen]);
+  if (options?.pruneByRebuildGen ?? true) {
+    await query(
+      `DELETE FROM trajectory_nodes WHERE track_id IN (SELECT id FROM trajectory_tracks WHERE rebuild_gen != $1)`,
+      [rebuildGen],
+    );
+    await query(`DELETE FROM trajectory_tracks WHERE rebuild_gen != $1`, [rebuildGen]);
+  }
 
   if (built.tracks.length > 0) {
     const trackRows = built.tracks.map(t =>
@@ -1218,9 +1322,10 @@ async function persistTracks(
   ds: DataSource,
   built: BuiltTracks,
   rebuildGen: string,
+  options?: { pruneByRebuildGen?: boolean },
 ): Promise<void> {
   await withTrackingL1Transaction(
     fn => ds.transaction(async em => fn((sql, params) => em.query(sql, params))),
-    query => persistTracksL1(query, built, rebuildGen),
+    query => persistTracksL1(query, built, rebuildGen, options),
   );
 }

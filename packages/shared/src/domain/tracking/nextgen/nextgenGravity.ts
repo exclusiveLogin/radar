@@ -36,6 +36,18 @@ export interface LinkEvaluation {
   alignment: number;
 }
 
+export type NextGenGravityRejectReason =
+  | "gap"
+  | "distance"
+  | "velocity"
+  | "counter_flow"
+  | "turn";
+
+export type NextGenGravityDecision = {
+  link: LinkEvaluation | null;
+  rejectReason?: NextGenGravityRejectReason;
+};
+
 /** Доля скидки стоимости в самом «тяжёлом» коридоре (cellStrength=1). */
 const MAX_GRAVITY_DISCOUNT = 0.5;
 /** Вклад H3-консенсуса против гео-тока фронт→тыл при их смешивании. */
@@ -100,19 +112,31 @@ export function evaluateLink(
   incomingBearingDeg?: number | null,
   turn: TurnPenaltyConfig = DEFAULT_TURN_PENALTY,
 ): LinkEvaluation | null {
+  return evaluateLinkWithReason(a, b, kin, flowMap, weights, incomingBearingDeg, turn).link;
+}
+
+export function evaluateLinkWithReason(
+  a: FlowPoint,
+  b: FlowPoint,
+  kin: ProfileKinematics,
+  flowMap: H3VectorFlowMap,
+  weights: FlowAlignmentWeights,
+  incomingBearingDeg?: number | null,
+  turn: TurnPenaltyConfig = DEFAULT_TURN_PENALTY,
+): NextGenGravityDecision {
   const dtMs = b.occurredAt.getTime() - a.occurredAt.getTime();
-  if (dtMs <= 0 || dtMs > kin.maxGapMs) return null;
+  if (dtMs <= 0 || dtMs > kin.maxGapMs) return { link: null, rejectReason: "gap" };
 
   const dist = haversineDistanceM(a.lat, a.lon, b.lat, b.lon);
-  if (dist > kin.maxLinkDistanceM) return null;
-  if (dist / (dtMs / 1000) > kin.maxVelocityMs) return null;
+  if (dist > kin.maxLinkDistanceM) return { link: null, rejectReason: "distance" };
+  if (dist / (dtMs / 1000) > kin.maxVelocityMs) return { link: null, rejectReason: "velocity" };
 
   const alignment = blendedAlignment(a, b, flowMap, weights);
-  if (isCounterFlowRejected(alignment, weights)) return null;
+  if (isCounterFlowRejected(alignment, weights)) return { link: null, rejectReason: "counter_flow" };
 
   // Кинематическая гладкость: резкий поворот трассы дорог, разворот — запрещён.
   const turnFactor = resolveTurnFactor(a, b, incomingBearingDeg, turn);
-  if (turnFactor == null) return null;
+  if (turnFactor == null) return { link: null, rejectReason: "turn" };
 
   // Базовая стоимость: ближе и быстрее = дешевле (0..2).
   const baseCost = dist / kin.maxLinkDistanceM + dtMs / kin.maxGapMs;
@@ -124,8 +148,10 @@ export function evaluateLink(
     flowMap.cellStrength(a.lat, a.lon) * 0.5,
   );
   return {
-    cost: flowAdjusted * turnFactor * (1 - MAX_GRAVITY_DISCOUNT * strength),
-    alignment,
+    link: {
+      cost: flowAdjusted * turnFactor * (1 - MAX_GRAVITY_DISCOUNT * strength),
+      alignment,
+    },
   };
 }
 

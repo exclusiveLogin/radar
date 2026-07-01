@@ -53,6 +53,19 @@ export const trackingRebuildStatsSchema = z.object({
   phase2ReliabilityAvg: z.number().min(0).max(1).optional(),
   /** Ф2 NextGen: P95 достоверности принятых пар (0..1). */
   phase2ReliabilityP95: z.number().min(0).max(1).optional(),
+  /** Ф3 NextGen: сколько candidate→track линков оценено. */
+  phase3LinksConsidered: z.number().int().nonnegative().optional(),
+  /** Ф3 NextGen: сколько линков принято и привело к append ноды. */
+  phase3LinksAccepted: z.number().int().nonnegative().optional(),
+  /** Ф3 NextGen: сколько нод засеяно новым треком (не нашли валидный link). */
+  phase3NodesSeeded: z.number().int().nonnegative().optional(),
+  /** Ф3 NextGen reject-диагностика по причинам. */
+  phase3RejectGap: z.number().int().nonnegative().optional(),
+  phase3RejectDistance: z.number().int().nonnegative().optional(),
+  phase3RejectVelocity: z.number().int().nonnegative().optional(),
+  phase3RejectCounterFlow: z.number().int().nonnegative().optional(),
+  phase3RejectTurn: z.number().int().nonnegative().optional(),
+  phase3RejectKalmanInnovation: z.number().int().nonnegative().optional(),
   elapsedMs: z.number().int().nonnegative().optional(),
 });
 

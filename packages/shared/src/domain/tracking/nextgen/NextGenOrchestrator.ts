@@ -33,6 +33,7 @@ import type { NextGenSeedTrack } from "./nextgenKalmanLink";
 
 import type { ProfileKinematics } from "../profileKinematics";
 import type { NextGenPhase2Stats } from "./phase2-attention/NextGenPhase2";
+import type { NextGenPhase3Stats } from "./phase3-gravity/NextGenPhase3";
 
 import {
 
@@ -69,7 +70,7 @@ export class NextGenOrchestrator {
     kin: ProfileKinematics,
     profile: import("../types").ThreatProfile,
     seedTracks: readonly NextGenSeedTrack[] = [],
-  ): { tracks: TrajectoryTrack[]; phase2: NextGenPhase2Stats } {
+  ): { tracks: TrajectoryTrack[]; phase2: NextGenPhase2Stats; phase3: NextGenPhase3Stats } {
 
     const flowWeights = resolveNextGenFlowWeights(this.config);
 
@@ -124,8 +125,7 @@ export class NextGenOrchestrator {
 
     // --- Фаза 3: хронологическая сборка по всем нодам Ф1 с учётом H3-весов. ---
 
-    return {
-      tracks: NextGenPhase3.assemble(
+    const phase3 = NextGenPhase3.assemble(
 
       nodes,
 
@@ -141,7 +141,10 @@ export class NextGenOrchestrator {
 
       minBackboneNodes,
       seedTracks,
-      ),
+    );
+    return {
+      tracks: phase3.tracks,
+      phase3: phase3.stats,
       phase2: phase2.stats,
     };
 

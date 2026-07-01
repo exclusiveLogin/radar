@@ -34,8 +34,12 @@ export const TRACKS_FLOW_SOURCE = "tracks-flow";
 
 /** Слой сплошных линий треков (финализированные узлы). */
 export const TRACKS_LINES_LAYER = "tracks-lines";
+/** Невидимый расширенный hit-layer для hover/click по сплошным линиям. */
+export const TRACKS_LINES_HIT_LAYER = "tracks-lines-hit";
 /** Слой пунктирных линий (segment_only) — только пока pipeline активен. */
 export const TRACKS_LINES_DASHED_LAYER = "tracks-lines-dashed";
+/** Невидимый расширенный hit-layer для hover/click по пунктиру. */
+export const TRACKS_LINES_DASHED_HIT_LAYER = "tracks-lines-dashed-hit";
 /** Слой маркеров начала трека (origin). */
 export const TRACKS_ORIGIN_LAYER = "tracks-origin";
 /** Слой линий flow-коридоров (толщина ∝ weight). */
@@ -65,7 +69,9 @@ export const GEO_ENTITY_LAYER_ORDER = [
   EVENTS_HEATMAP_LAYER,
   EVENTS_HEATMAP_POINTS_LAYER,
   TRACKS_FLOW_LAYER,
+  TRACKS_LINES_HIT_LAYER,
   TRACKS_LINES_LAYER,
+  TRACKS_LINES_DASHED_HIT_LAYER,
   TRACKS_LINES_DASHED_LAYER,
   TRACKS_LOCUS_LAYER,
   TRACKS_LOCUS_OUTLINE_LAYER,
@@ -89,7 +95,12 @@ export const GEO_OVERLAY_LAYERS: Record<
   places: [PLACES_LAYER],
   vicinity: [VICINITY_SCOPES_FILL, VICINITY_SCOPES_OUTLINE],
   heatmap: [EVENTS_HEATMAP_LAYER, EVENTS_HEATMAP_POINTS_LAYER],
-  tracks: [TRACKS_LINES_LAYER, TRACKS_ORIGIN_LAYER],
+  tracks: [
+    TRACKS_LINES_HIT_LAYER,
+    TRACKS_LINES_LAYER,
+    TRACKS_LINES_DASHED_HIT_LAYER,
+    TRACKS_ORIGIN_LAYER,
+  ],
   tracksMotion: [],
   locusDebug: [TRACKS_LOCUS_LAYER, TRACKS_LOCUS_OUTLINE_LAYER],
   tracksFlow: [TRACKS_FLOW_LAYER],
@@ -139,7 +150,9 @@ export const USER_LAYER_IDS = new Set([
   REGIONS_THREAT_LAYER,
   PLACES_LAYER,
   TRACKS_LINES_LAYER,
+  TRACKS_LINES_HIT_LAYER,
   TRACKS_LINES_DASHED_LAYER,
+  TRACKS_LINES_DASHED_HIT_LAYER,
   TRACKS_ORIGIN_LAYER,
   TRACKS_LOCUS_LAYER,
   TRACKS_LOCUS_OUTLINE_LAYER,

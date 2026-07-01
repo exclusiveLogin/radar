@@ -47,7 +47,15 @@ import { buildDistrictsCollection, buildRegionsCollection } from "../../shared/s
 import { resetAllGeoMapLayerFetchStatus } from "../../shared/state/geoMapLayerFetchStore";
 import { resetGeoMapStats, setGeoMapStats } from "../../shared/state/geoMapStatsStore";
 import { selectRegion, selectedRegion$ } from "../../shared/state/selectionStore";
-import { tracksFlow$, tracksGravity$, tracksList$, tracksLoading$ } from "../../shared/state/trackStore";
+import {
+  setLocusDebugFocus,
+  selectTrack,
+  selectedTrackId$,
+  tracksFlow$,
+  tracksGravity$,
+  tracksList$,
+  tracksLoading$,
+} from "../../shared/state/trackStore";
 import { theme$ } from "../../shared/state/themeStore";
 import {
   DISTRICTS_FILL,
@@ -72,7 +80,9 @@ import {
   TRACKS_FLOW_SOURCE,
   TRACKS_GRAVITY_LAYER,
   TRACKS_GRAVITY_SOURCE,
+  TRACKS_LINES_DASHED_HIT_LAYER,
   TRACKS_LINES_LAYER,
+  TRACKS_LINES_HIT_LAYER,
   TRACKS_LINES_DASHED_LAYER,
   TRACKS_LOCUS_LAYER,
   TRACKS_LOCUS_OUTLINE_LAYER,
@@ -118,6 +128,7 @@ import {
 } from "./tracksGeoJson";
 import {
   tracksFlowLinesPaint,
+  tracksHitLinesPaint,
   tracksLinesPaint,
   tracksOriginPaint,
 } from "./tracksMapPaint";
@@ -147,6 +158,10 @@ export function useGeoMapLifecycle(containerRef: RefObject<HTMLDivElement | null
      * (иначе code === prev → early return → flyToRegion не вызывается).
      */
     let highlightedCode: string | null = null;
+    /** Track, зафиксированный кликом/карточкой. */
+    let focusedTrackId: string | null = null;
+    /** Track под курсором (временный debug-фокус). */
+    let hoveredTrackId: string | null = null;
     let placePopup: Popup | null = null;
     let regionPopup: Popup | null = null;
     let activePlacePopupId: string | null = null;
@@ -411,6 +426,8 @@ export function useGeoMapLifecycle(containerRef: RefObject<HTMLDivElement | null
       const tracksFetchPending =
         needsTracksData && tracksLoading$.value && !tracksList$.value;
 
+      const activeLocusTrackId = focusedTrackId ?? hoveredTrackId;
+
       whenStyleReady(map, () => {
         if (!map || disposed) return;
 
@@ -448,7 +465,9 @@ export function useGeoMapLifecycle(containerRef: RefObject<HTMLDivElement | null
         if (layers.locusDebug && !tracksFetchPending) {
           runtime.sources.apply(
             TRACKS_LOCUS_SOURCE,
-            tracksLocusDebugToGeoJson(tracksList$.value) as GeoJsonCollection,
+            tracksLocusDebugToGeoJson(tracksList$.value, {
+              trackId: activeLocusTrackId,
+            }) as GeoJsonCollection,
           );
         }
       });
@@ -604,6 +623,20 @@ export function useGeoMapLifecycle(containerRef: RefObject<HTMLDivElement | null
           paint: tracksLinesPaint() as never,
         });
       }
+      if (!map.getLayer(TRACKS_LINES_HIT_LAYER)) {
+        map.addLayer({
+          id: TRACKS_LINES_HIT_LAYER,
+          type: "line",
+          source: TRACKS_SOURCE,
+          filter: [
+            "all",
+            ["==", ["get", "kind"], "track-line"],
+            ["!=", ["get", "mode"], "segment_only"],
+          ],
+          layout: { visibility: "none" },
+          paint: tracksHitLinesPaint() as never,
+        });
+      }
       if (!map.getLayer(TRACKS_LINES_DASHED_LAYER)) {
         map.addLayer({
           id: TRACKS_LINES_DASHED_LAYER,
@@ -616,6 +649,20 @@ export function useGeoMapLifecycle(containerRef: RefObject<HTMLDivElement | null
           ],
           layout: { visibility: "none" },
           paint: tracksLinesPaint(true) as never,
+        });
+      }
+      if (!map.getLayer(TRACKS_LINES_DASHED_HIT_LAYER)) {
+        map.addLayer({
+          id: TRACKS_LINES_DASHED_HIT_LAYER,
+          type: "line",
+          source: TRACKS_SOURCE,
+          filter: [
+            "all",
+            ["==", ["get", "kind"], "track-line"],
+            ["==", ["get", "mode"], "segment_only"],
+          ],
+          layout: { visibility: "none" },
+          paint: tracksHitLinesPaint() as never,
         });
       }
       if (!map.getLayer(TRACKS_ORIGIN_LAYER)) {
@@ -667,22 +714,26 @@ export function useGeoMapLifecycle(containerRef: RefObject<HTMLDivElement | null
       const locusFillFilter = [
         "in",
         ["get", "kind"],
-        ["literal", ["kalman-locus-fill", "kalman-locus-fill-out"]],
+        ["literal", ["kalman-locus-fill", "kalman-locus-fill-out", "kalman-locus-fill-terminal"]],
       ];
       const locusOutlineFilter = [
         "in",
         ["get", "kind"],
-        ["literal", ["kalman-locus-outline", "kalman-locus-outline-out"]],
+        ["literal", ["kalman-locus-outline", "kalman-locus-outline-out", "kalman-locus-outline-terminal"]],
       ];
       // in/out подсветка: точка следующей ноды попала в локус (зелёный) или нет (красный).
       const locusFillColor = [
         "case",
+        ["==", ["get", "kind"], "kalman-locus-fill-terminal"],
+        "rgba(209, 170, 96, 0.12)",
         ["get", "inLocus"],
         "rgba(168, 147, 94, 0.13)",
         "rgba(186, 92, 64, 0.11)",
       ];
       const locusLineColor = [
         "case",
+        ["==", ["get", "kind"], "kalman-locus-outline-terminal"],
+        "rgba(221, 178, 92, 0.95)",
         ["get", "inLocus"],
         "rgba(188, 157, 96, 0.86)",
         "rgba(209, 106, 72, 0.9)",
@@ -849,6 +900,49 @@ export function useGeoMapLifecycle(containerRef: RefObject<HTMLDivElement | null
         }
       };
 
+      const trackIdFromEvent = (event: MapLayerMouseEvent): string | null => {
+        const trackId = event.features?.[0]?.properties?.trackId;
+        return typeof trackId === "string" && trackId.length > 0 ? trackId : null;
+      };
+
+      const applyLocusFocus = (): void => {
+        if (!map || disposed || !geoMapLayers$.value.locusDebug) return;
+        whenStyleReady(map, () => {
+          if (!map || disposed) return;
+          runtime.sources.apply(
+            TRACKS_LOCUS_SOURCE,
+            tracksLocusDebugToGeoJson(tracksList$.value, {
+              trackId: focusedTrackId ?? hoveredTrackId,
+            }) as GeoJsonCollection,
+          );
+        });
+      };
+
+      const onTrackHover = (event: MapLayerMouseEvent): void => {
+        if (focusedTrackId) return;
+        const trackId = trackIdFromEvent(event);
+        if (!trackId || trackId === hoveredTrackId) return;
+        hoveredTrackId = trackId;
+        if (map) map.getCanvas().style.cursor = "pointer";
+        setLocusDebugFocus("hover", trackId);
+        applyLocusFocus();
+      };
+
+      const onTrackHoverEnd = (): void => {
+        if (focusedTrackId) return;
+        if (!hoveredTrackId) return;
+        hoveredTrackId = null;
+        if (map) map.getCanvas().style.cursor = "";
+        setLocusDebugFocus("none", null);
+        applyLocusFocus();
+      };
+
+      const onTrackPick = (event: MapLayerMouseEvent): void => {
+        const trackId = trackIdFromEvent(event);
+        if (!trackId) return;
+        selectTrack(trackId === focusedTrackId ? null : trackId);
+      };
+
       /** Popup place/района: сначала локальные строки, затем обогащение rawText с API. */
       const showPlacePopup = (lngLat: MapLayerMouseEvent["lngLat"], placeId: string): void => {
         if (!map) return;
@@ -971,6 +1065,26 @@ export function useGeoMapLifecycle(containerRef: RefObject<HTMLDivElement | null
       map.on("mouseleave", DISTRICTS_OUTLINE, onPlaceHoverEnd);
       map.on("mousemove", REGIONS_FILL, onRegionHover);
       map.on("mouseleave", REGIONS_FILL, onRegionHoverEnd);
+      map.on("click", TRACKS_LINES_LAYER, onTrackPick);
+      map.on("click", TRACKS_LINES_DASHED_LAYER, onTrackPick);
+      map.on("click", TRACKS_LINES_HIT_LAYER, onTrackPick);
+      map.on("click", TRACKS_LINES_DASHED_HIT_LAYER, onTrackPick);
+      map.on("click", TRACKS_ORIGIN_LAYER, onTrackPick);
+      map.on("mouseenter", TRACKS_LINES_LAYER, onTrackHover);
+      map.on("mousemove", TRACKS_LINES_LAYER, onTrackHover);
+      map.on("mouseleave", TRACKS_LINES_LAYER, onTrackHoverEnd);
+      map.on("mouseenter", TRACKS_LINES_DASHED_LAYER, onTrackHover);
+      map.on("mousemove", TRACKS_LINES_DASHED_LAYER, onTrackHover);
+      map.on("mouseleave", TRACKS_LINES_DASHED_LAYER, onTrackHoverEnd);
+      map.on("mouseenter", TRACKS_LINES_HIT_LAYER, onTrackHover);
+      map.on("mousemove", TRACKS_LINES_HIT_LAYER, onTrackHover);
+      map.on("mouseleave", TRACKS_LINES_HIT_LAYER, onTrackHoverEnd);
+      map.on("mouseenter", TRACKS_LINES_DASHED_HIT_LAYER, onTrackHover);
+      map.on("mousemove", TRACKS_LINES_DASHED_HIT_LAYER, onTrackHover);
+      map.on("mouseleave", TRACKS_LINES_DASHED_HIT_LAYER, onTrackHoverEnd);
+      map.on("mouseenter", TRACKS_ORIGIN_LAYER, onTrackHover);
+      map.on("mousemove", TRACKS_ORIGIN_LAYER, onTrackHover);
+      map.on("mouseleave", TRACKS_ORIGIN_LAYER, onTrackHoverEnd);
 
       // Только пользовательский pan/zoom — программный fitBounds не блокирует auto-fit.
       map.on("movestart", (event: MapLibreEvent) => {
@@ -1145,6 +1259,20 @@ export function useGeoMapLifecycle(containerRef: RefObject<HTMLDivElement | null
           });
           }),
         );
+        storeSubscriptions.add(
+          selectedTrackId$.pipe(takeUntil(destroy$)).subscribe((trackId) => {
+            focusedTrackId = trackId;
+            if (trackId) {
+              hoveredTrackId = null;
+              setLocusDebugFocus("pinned", trackId);
+            } else if (hoveredTrackId) {
+              setLocusDebugFocus("hover", hoveredTrackId);
+            } else {
+              setLocusDebugFocus("none", null);
+            }
+            applyTracksLayers();
+          }),
+        );
       };
 
       disposeMapBootstrap = wireMapBootstrap({
@@ -1165,6 +1293,7 @@ export function useGeoMapLifecycle(containerRef: RefObject<HTMLDivElement | null
       resetAllGeoMapLayerFetchStatus();
       resetGeoMapStats();
       runtime.dispose();
+      setLocusDebugFocus("none", null);
       tracksDeckOverlay?.dispose();
       tracksDeckOverlay = null;
       placePopup?.remove();

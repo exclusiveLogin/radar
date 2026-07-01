@@ -115,7 +115,11 @@ export class TrackingAdminService {
     let totalTracks = 0;
     let metrics: TrackingPipelineMetrics;
     if (metricsLite) {
-      metrics = this.buildLiteMetrics(activeRun, config);
+      metrics = this.buildLiteMetrics(
+        activeRun,
+        config,
+        Number(pipeline.total_candidates ?? 0),
+      );
       if (!this.l1ResetGate.isPaused()) {
         try {
           totalTracks = await this.countTracksSafe();
@@ -674,11 +678,20 @@ export class TrackingAdminService {
   private buildLiteMetrics(
     activeRun: TrackingRebuildRun | null,
     config: TrackingPipelineConfig,
+    pipelineTotalCandidates: number,
   ): TrackingPipelineMetrics {
     const stats = activeRun?.stats ?? {};
-    const totalTargetCandidates = stats.totalCandidates ?? 0;
     const processedCandidates = stats.processedCandidates ?? 0;
-    const unconsumedPipeline = Math.max(0, totalTargetCandidates - processedCandidates);
+    const pendingCandidates = stats.pendingCandidates ?? 0;
+    const totalTargetCandidates = Math.max(
+      stats.totalCandidates ?? 0,
+      pipelineTotalCandidates,
+      processedCandidates + pendingCandidates,
+    );
+    const unconsumedPipeline = Math.max(
+      0,
+      stats.pendingCandidates ?? (totalTargetCandidates - processedCandidates),
+    );
     const percentPipelineProcessed =
       stats.percentApprox
       ?? (totalTargetCandidates > 0

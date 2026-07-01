@@ -18,8 +18,9 @@ import type { ProfileKinematics } from "../profileKinematics";
 import type { KalmanStateJson, TrajectoryNode } from "../types";
 import type { NextGenNode } from "./phase1-stdbscan/NextGenPhase1";
 import {
-  evaluateLink,
+  evaluateLinkWithReason,
   type LinkEvaluation,
+  type NextGenGravityRejectReason,
   type TurnPenaltyConfig,
 } from "./nextgenGravity";
 import type { H3VectorFlowMap } from "./flow-map/H3VectorFlowMap";
@@ -45,6 +46,13 @@ export type NextGenLinkTrackContext = {
   nodes: readonly TrajectoryNode[];
 };
 
+export type NextGenLinkRejectReason = "kalman_innovation" | NextGenGravityRejectReason;
+
+export type NextGenLinkDecision = {
+  link: LinkEvaluation | null;
+  rejectReason?: NextGenLinkRejectReason;
+};
+
 /**
  * Оценка ребра tail→node: сначала Kalman-локус (огурец), затем гравитация H3+ток.
  * Без kalmanState — только кинематика + среда (старт / segment_only история).
@@ -58,8 +66,28 @@ export function evaluateNextGenLink(
   incomingBearingDeg: number | null | undefined,
   turn: TurnPenaltyConfig,
 ): LinkEvaluation | null {
+  return evaluateNextGenLinkWithReason(
+    tail,
+    node,
+    kin,
+    flowMap,
+    weights,
+    incomingBearingDeg,
+    turn,
+  ).link;
+}
+
+export function evaluateNextGenLinkWithReason(
+  tail: NextGenLinkTrackContext,
+  node: NextGenNode,
+  kin: ProfileKinematics,
+  flowMap: H3VectorFlowMap,
+  weights: FlowAlignmentWeights,
+  incomingBearingDeg: number | null | undefined,
+  turn: TurnPenaltyConfig,
+): NextGenLinkDecision {
   const gapMs = node.occurredAt.getTime() - tail.lastAt.getTime();
-  if (gapMs <= 0 || gapMs > kin.maxGapMs) return null;
+  if (gapMs <= 0 || gapMs > kin.maxGapMs) return { link: null, rejectReason: "gap" };
 
   const tailFlow = {
     lat: tail.lastLat,
@@ -105,11 +133,13 @@ export function evaluateNextGenLink(
       observedAtMs: node.occurredAt.getTime(),
     });
 
-    if (scored.rejectReason || !scored.inLocus) return null;
+    if (scored.rejectReason || !scored.inLocus) {
+      return { link: null, rejectReason: "kalman_innovation" };
+    }
     kalmanFactor = 1 + normalizedKalmanRho(scored.dM2, kin.chi2Threshold);
   }
 
-  const gravity = evaluateLink(
+  const gravity = evaluateLinkWithReason(
     tailFlow,
     node,
     kin,
@@ -118,7 +148,14 @@ export function evaluateNextGenLink(
     incomingBearingDeg,
     turn,
   );
-  if (!gravity) return null;
+  if (!gravity.link) {
+    return { link: null, rejectReason: gravity.rejectReason };
+  }
 
-  return { cost: gravity.cost * kalmanFactor, alignment: gravity.alignment };
+  return {
+    link: {
+      cost: gravity.link.cost * kalmanFactor,
+      alignment: gravity.link.alignment,
+    },
+  };
 }

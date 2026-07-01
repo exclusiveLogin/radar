@@ -13,6 +13,7 @@ import {
   type GeoMapLayerId,
 } from "../../shared/state/mapLayerStore";
 import { historicalAsOf$ } from "../../shared/state/mapStore";
+import { locusDebugFocus$ } from "../../shared/state/trackStore";
 import { MapHeatmapControls } from "../map-heatmap/MapHeatmapControls";
 
 function LayerSwitch({
@@ -69,6 +70,7 @@ function TimelineLayerHint() {
  */
 export function MapLayersPanel({ onClose }: { onClose?: () => void }) {
   const layers = useObservable(geoMapLayers$, geoMapLayers$.value);
+  const locusFocus = useObservable(locusDebugFocus$, { mode: "none", trackId: null });
   const fetchStatuses = useObservable(geoMapFetchStatuses$, {
     regions: GEO_MAP_LAYER_FETCH_IDLE,
     districts: GEO_MAP_LAYER_FETCH_IDLE,
@@ -95,6 +97,14 @@ export function MapLayersPanel({ onClose }: { onClose?: () => void }) {
         ) : null}
       </header>
       <div className="map-layers-panel__list">
+        {layers.locusDebug && (
+          <div className="map-layers__subpanel" style={{ marginBottom: 8 }}>
+            <span className="map-layers__hint">
+              Locus: {locusFocus.mode === "none" ? "off" : locusFocus.mode}
+              {locusFocus.trackId ? ` · ${locusFocus.trackId.slice(0, 8)}` : ""}
+            </span>
+          </div>
+        )}
         {GEO_MAP_LAYER_ORDER.map((id) => {
           const enabled = layers[id];
           const status = resolveGeoMapLayerFetchStatus(id, fetchStatuses);

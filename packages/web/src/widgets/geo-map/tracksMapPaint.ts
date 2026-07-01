@@ -3,6 +3,7 @@ import type { ThreatProfile } from "@radar/shared";
 /** SSOT: толщина и прозрачность статических L1-линий (MapLibre). */
 export const TRACKS_STATIC_LINE_WIDTH = 1.2;
 export const TRACKS_STATIC_LINE_OPACITY = 0.35;
+export const TRACKS_HIT_LINE_WIDTH = 18;
 
 /** SSOT: RGBA по threatProfile — для Deck.gl TripsLayer и MapLibre hex. */
 const THREAT_PROFILE_COLORS: Record<ThreatProfile, [number, number, number]> = {
@@ -106,6 +107,25 @@ export function tracksLinesPaint(dashed = false): Record<string, unknown> {
       12,
       0.75,
     ],
+  };
+}
+
+/** Широкий почти невидимый слой для удобного hit-test треков. */
+export function tracksHitLinesPaint(): Record<string, unknown> {
+  return {
+    "line-color": "#ffffff",
+    "line-width": [
+      "interpolate",
+      ["linear"],
+      ["zoom"],
+      4,
+      TRACKS_HIT_LINE_WIDTH * 0.8,
+      8,
+      TRACKS_HIT_LINE_WIDTH,
+      12,
+      TRACKS_HIT_LINE_WIDTH * 1.2,
+    ],
+    "line-opacity": 0.01,
   };
 }
 

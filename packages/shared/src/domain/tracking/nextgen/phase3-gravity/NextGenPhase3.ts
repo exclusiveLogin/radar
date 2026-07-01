@@ -11,7 +11,11 @@ import { haversineDistanceM } from "../../haversine";
 import type { ProfileKinematics } from "../../profileKinematics";
 import type { FlowAlignmentWeights } from "../../flowAlignment";
 import type { H3VectorFlowMap } from "../flow-map/H3VectorFlowMap";
-import { evaluateNextGenLink, type NextGenSeedTrack } from "../nextgenKalmanLink";
+import {
+  evaluateNextGenLinkWithReason,
+  type NextGenLinkRejectReason,
+  type NextGenSeedTrack,
+} from "../nextgenKalmanLink";
 import type { TurnPenaltyConfig } from "../nextgenGravity";
 import type { NodeMode, ThreatProfile, TrajectoryTrack } from "../../types";
 import type { NextGenNode } from "../phase1-stdbscan/NextGenPhase1";
@@ -27,6 +31,18 @@ import { buildTrackMetadata } from "../../buildTrackMetadata";
 /** Минимум нод для сплошной магистрали (иначе пунктир). */
 const DEFAULT_MIN_BACKBONE_NODES = 3;
 
+export interface NextGenPhase3Stats {
+  linksConsidered: number;
+  linksAccepted: number;
+  nodesSeeded: number;
+  rejectGap: number;
+  rejectDistance: number;
+  rejectVelocity: number;
+  rejectCounterFlow: number;
+  rejectTurn: number;
+  rejectKalmanInnovation: number;
+}
+
 export class NextGenPhase3 {
   /**
    * Forward pass: ноды батча по времени → лучший open-трек (min evaluateNextGenLink) или seed.
@@ -41,7 +57,7 @@ export class NextGenPhase3 {
     profile: ThreatProfile,
     minBackboneNodes: number = DEFAULT_MIN_BACKBONE_NODES,
     seedTracks: readonly NextGenSeedTrack[] = [],
-  ): TrajectoryTrack[] {
+  ): { tracks: TrajectoryTrack[]; stats: NextGenPhase3Stats } {
     const sorted = [...nodes].sort(
       (a, b) => a.occurredAt.getTime() - b.occurredAt.getTime(),
     );
@@ -55,6 +71,17 @@ export class NextGenPhase3 {
     }));
 
     const used = new Set<string>();
+    const stats: NextGenPhase3Stats = {
+      linksConsidered: 0,
+      linksAccepted: 0,
+      nodesSeeded: 0,
+      rejectGap: 0,
+      rejectDistance: 0,
+      rejectVelocity: 0,
+      rejectCounterFlow: 0,
+      rejectTurn: 0,
+      rejectKalmanInnovation: 0,
+    };
     /** Треки, изменённые в этом прогоне — только их отдаём наружу (не весь open pool из БД). */
     const touchedTrackIds = new Set<string>();
     for (const track of openTracks) {
@@ -83,7 +110,7 @@ export class NextGenPhase3 {
           : null;
 
         const ctx = tailLinkContext(track);
-        const link = evaluateNextGenLink(
+        const decision = evaluateNextGenLinkWithReason(
           { ...ctx, nearestFrontLat: node.nearestFrontLat, nearestFrontLon: node.nearestFrontLon },
           node,
           kin,
@@ -92,8 +119,13 @@ export class NextGenPhase3 {
           incomingBearing,
           turn,
         );
-        if (link && link.cost < bestCost) {
-          bestCost = link.cost;
+        stats.linksConsidered += 1;
+        if (!decision.link) {
+          this.bumpReject(stats, decision.rejectReason);
+          continue;
+        }
+        if (decision.link.cost < bestCost) {
+          bestCost = decision.link.cost;
           bestTrack = track;
         }
       }
@@ -101,19 +133,52 @@ export class NextGenPhase3 {
       if (bestTrack) {
         appendNodeToOpenTrack(bestTrack, node, kin);
         touchedTrackIds.add(bestTrack.trackId);
+        stats.linksAccepted += 1;
       } else {
         const seeded = createOpenTrackFromNode(node, kin);
         openTracks.push(seeded);
         touchedTrackIds.add(seeded.trackId);
+        stats.nodesSeeded += 1;
       }
       used.add(node.eventLocationId);
     }
 
     const rebuildAt = sorted[sorted.length - 1]?.occurredAt ?? new Date();
 
-    return openTracks
+    return {
+      tracks: openTracks
       .filter(t => t.nodes.length > 0 && touchedTrackIds.has(t.trackId))
-      .map(t => toTrajectoryTrack(t, profile, kin, rebuildAt, minBackboneNodes));
+      .map(t => toTrajectoryTrack(t, profile, kin, rebuildAt, minBackboneNodes)),
+      stats,
+    };
+  }
+
+  private static bumpReject(
+    stats: NextGenPhase3Stats,
+    reason: NextGenLinkRejectReason | undefined,
+  ): void {
+    switch (reason) {
+      case "gap":
+        stats.rejectGap += 1;
+        break;
+      case "distance":
+        stats.rejectDistance += 1;
+        break;
+      case "velocity":
+        stats.rejectVelocity += 1;
+        break;
+      case "counter_flow":
+        stats.rejectCounterFlow += 1;
+        break;
+      case "turn":
+        stats.rejectTurn += 1;
+        break;
+      case "kalman_innovation":
+        stats.rejectKalmanInnovation += 1;
+        break;
+      default:
+        break;
+    }
   }
 }
 

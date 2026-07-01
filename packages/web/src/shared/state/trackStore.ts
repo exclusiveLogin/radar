@@ -4,8 +4,8 @@
  * - выбранный трек (для карточки)
  * - данные flow-коридоров (L2)
  *
- * Lifecycle жёстко привязан к historicalAsOf$ — при смене replay/live
- * данные сбрасываются и запрашиваются заново.
+ * Данные не сбрасываются при переключении live/replay: стор переживает смену asOf.
+ * Сброс выполняется только по явному событию rebuild/reset пайплайна.
  */
 import { BehaviorSubject } from "rxjs";
 import type { TracksListResponse, TracksFlowResponse, TracksGravityResponse } from "@radar/shared";
@@ -31,6 +31,17 @@ export const tracksRevision$ = new BehaviorSubject(0);
 /** Активен ли билд треков (для пунктира segment_only на карте). */
 export const tracksPipelineActive$ = new BehaviorSubject(false);
 
+export type LocusDebugFocus = {
+  mode: "none" | "hover" | "pinned";
+  trackId: string | null;
+};
+
+/** Текущий источник фокуса локусов debug (hover/click). */
+export const locusDebugFocus$ = new BehaviorSubject<LocusDebugFocus>({
+  mode: "none",
+  trackId: null,
+});
+
 /** Уведомить подписчиков об обновлении треков (WS poller). */
 export function bumpTracksRevision(): void {
   tracksRevision$.next(tracksRevision$.value + 1);
@@ -53,7 +64,12 @@ export function setTrackThreatProfileFilter(
   trackThreatProfileFilter$.next(profile);
 }
 
-/** Сбросить всё состояние треков (при смене live/replay). */
+/** Обновить источник фокуса локусов debug. */
+export function setLocusDebugFocus(mode: LocusDebugFocus["mode"], trackId: string | null): void {
+  locusDebugFocus$.next({ mode, trackId });
+}
+
+/** Сбросить всё состояние треков (только при rebuild/reset). */
 export function resetTrackStore(): void {
   tracksList$.next(null);
   selectedTrackId$.next(null);
@@ -61,4 +77,5 @@ export function resetTrackStore(): void {
   tracksGravity$.next(null);
   tracksLoading$.next(false);
   tracksPipelineActive$.next(false);
+  locusDebugFocus$.next({ mode: "none", trackId: null });
 }
