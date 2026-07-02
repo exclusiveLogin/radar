@@ -54,6 +54,7 @@ npm run radar -- pipeline status
 |------|--------|
 | Ingest / Telegram | [ingest-providers.md](./ingest-providers.md), [domain/contexts/ingest.md](./domain/contexts/ingest.md), [backfill-v2-pipeline.md](./backfill-v2-pipeline.md) |
 | CLI / операции | [radar-cli.md](./radar-cli.md), [cheatsheet.md](./cheatsheet.md), [phase-commands.md](./phase-commands.md) |
+| Tracking (live + debug) | [runbook/tracking-pipeline.md](./runbook/tracking-pipeline.md), [features/tracking-live-locus-debug.md](./features/tracking-live-locus-debug.md), [sdd/tracking/phase-6-tracks-realtime.md](./sdd/tracking/phase-6-tracks-realtime.md) |
 | Слои и wiring | [architecture-layers-and-wiring.md](./architecture-layers-and-wiring.md) |
 | Потоки в коде | [domain/how-it-works.md](./domain/how-it-works.md) |
 | Parse / domain pack | [master-implementation-roadmap.md](./rfc/master-implementation-roadmap.md), [parse-inspect.md](./parse-inspect.md), [adr-014](./adr-014-operational-domain-profile.md) |

@@ -23,6 +23,8 @@ npm run radar -- tracking rebuild -- --since=2024-01-01T00:00:00Z
 
 Карта: панель слоёв → **Треки** / **Flow коридоры**.
 
+Визуальная диагностика live/locus: [tracking-live-locus-debug.md](../features/tracking-live-locus-debug.md).
+
 ## Операции
 
 | Действие | CLI | Admin |
