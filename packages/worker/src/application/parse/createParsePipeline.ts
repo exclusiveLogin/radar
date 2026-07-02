@@ -7,8 +7,8 @@ import {
   InMemoryPlaceRepository,
   InMemoryRegionRepository,
 } from "../handlers/inMemoryRepositories.js";
-import { createParseWorkspaceStack } from "../parse/createParseWorkspaceStack.js";
-import { createTestGeoValidation } from "../parse/createTestGeoValidation.js";
+import { createParseWorkspaceStack } from "./createParseWorkspaceStack.js";
+import { createTestGeoValidation } from "./createTestGeoValidation.js";
 import { ParsePipelineService } from "./parsePipelineService.js";
 import { PlaceScanService } from "../../domain/parse/geo/placeScanService.js";
 

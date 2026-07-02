@@ -3,7 +3,7 @@
  * Smoke: ParseWorkerPool поднимает worker_threads и выполняет parse.
  * Запуск из packages/worker: npx tsx scripts/verify-parse-threads.mjs
  */
-import { ParseWorkerPool } from "../src/application/parsing/parseWorkerPool.ts";
+import { ParseWorkerPool } from "../src/application/parse/parseWorkerPool.ts";
 import {
   DEFAULT_PIPELINE_ORDER,
   resolveEnricherFlagsFromEnv,

@@ -5,7 +5,7 @@ export * from "./nextgenGravity";
 export * from "./nextgenKalmanLink";
 export * from "./nextgenTrackStep";
 export * from "./resolveNextGenFlowWeights";
-export * from "./NextGenOrchestrator";
 export * from "./phase1-stdbscan/NextGenPhase1";
 export * from "./phase2-attention/NextGenPhase2";
 export * from "./phase3-gravity/NextGenPhase3";
+export * from "./trackingPhaseManifest";

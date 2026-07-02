@@ -9,7 +9,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { MONOREPO_ROOT } from "@repo/root";
 import type { ClassifiedPost } from "@radar/shared";
-import { createParsePipeline } from "../application/parsing/createParsePipeline.js";
+import { createParsePipeline } from "../application/parse/createParsePipeline.js";
 import { loadIngestParsePhases } from "../application/parse/loadIngestParsePhases.js";
 import { InMemoryRegionRepository } from "../application/handlers/inMemoryRepositories.js";
 import { classifyContentKind } from "../domain/parsing/classifyContentKind.js";

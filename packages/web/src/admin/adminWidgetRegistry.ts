@@ -11,10 +11,9 @@ import { ParseErrorsWidget } from "./widgets/ParseErrorsWidget";
 import { TelemetryWidget } from "./widgets/TelemetryWidget";
 import { WorkerRunnersWidget } from "./widgets/WorkerRunnersWidget";
 import { TrackingPipelineWidget } from "./widgets/TrackingPipelineWidget";
-import { TrackingScannersWidget } from "./widgets/TrackingScannersWidget";
+import { TrackingPhaseProgressWidget } from "./widgets/TrackingPhaseProgressWidget";
 import { TrackingKinematicsSettingsWidget } from "./widgets/TrackingKinematicsSettingsWidget";
 import { TrackingRunHistoryWidget } from "./widgets/TrackingRunHistoryWidget";
-import { TrackingTuneWidget } from "./widgets/TrackingTuneWidget";
 
 /** Ширина ячейки в 12-колоночной сетке дашборда. */
 export type AdminWidgetSpan = 3 | 4 | 6 | 8 | 12;
@@ -70,10 +69,9 @@ export const ADMIN_LAYOUT_SECTIONS: AdminLayoutSection[] = [
     title: "Треки",
     widgets: [
       { id: "tracking-pipeline", component: TrackingPipelineWidget, span: 12 },
-      { id: "tracking-scanners", component: TrackingScannersWidget, span: 12 },
+      { id: "tracking-phase-progress", component: TrackingPhaseProgressWidget, span: 12 },
       { id: "tracking-settings", component: TrackingKinematicsSettingsWidget, span: 12 },
       { id: "tracking-runs", component: TrackingRunHistoryWidget, span: 12 },
-      { id: "tracking-tune", component: TrackingTuneWidget, span: 12 },
     ],
   },
   {

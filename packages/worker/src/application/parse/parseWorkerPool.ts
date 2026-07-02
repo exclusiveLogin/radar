@@ -13,10 +13,10 @@ const here = path.dirname(fileURLToPath(import.meta.url));
  * tsx/--import в worker_threads на Windows не резолвит импорты `.js` → `.ts`.
  */
 function resolveParseWorkerEntry(): URL {
-  const distJs = path.resolve(here, "../../../dist/application/parsing/parsePipeline.worker.js");
+  const distJs = path.resolve(here, "../../../dist/application/parse/parsePipeline.worker.js");
   if (!fs.existsSync(distJs)) {
     throw new Error(
-      "Нет dist/application/parsing/parsePipeline.worker.js — выполните: npm run build -w @radar/worker",
+      "Нет dist/application/parse/parsePipeline.worker.js — выполните: npm run build -w @radar/worker",
     );
   }
   return pathToFileURL(distJs);

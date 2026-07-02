@@ -10,18 +10,67 @@
 import { z } from "zod";
 import { threatProfileSchema } from "../map/tracks";
 
+export const trackingPhaseIdSchema = z.enum([
+  "cluster",
+  "filter",
+  "field_train",
+  "join",
+  "optimize",
+]);
+
 export const trackingRebuildStageSchema = z.enum([
   "idle",
   "loading",
-  "stdbscan",
-  "kalman",
+  "cluster",
+  "join",
   "persisting",
   "done",
+  /** @deprecated legacy-имена стадий тика, оставлены для чтения истории старых runs. */
+  "stdbscan",
+  "kalman",
 ]);
 
 export const trackingWatermarkSchema = z.object({
   lastOccurredAt: z.string().datetime(),
   lastEventLocationId: z.string().uuid(),
+});
+
+/** cluster: сколько кандидатов вошло / сколько узлов сформировал ST-DBSCAN. */
+export const trackingClusterPhaseStatsSchema = z.object({
+  candidatesIn: z.number().int().nonnegative(),
+  nodesOut: z.number().int().nonnegative(),
+});
+
+/** field_train: обучение H3-поля на парах узлов (Ф2 NextGen). */
+export const trackingFieldTrainPhaseStatsSchema = z.object({
+  pairsConsidered: z.number().int().nonnegative(),
+  pairsAccepted: z.number().int().nonnegative(),
+  pairsRejectedByKinematics: z.number().int().nonnegative(),
+  reliabilityAvg: z.number().min(0).max(1),
+  reliabilityP95: z.number().min(0).max(1),
+});
+
+/** join: хронологическая сборка треков по Kalman-локусу + H3-гравитации (Ф3 NextGen). */
+export const trackingJoinPhaseStatsSchema = z.object({
+  linksConsidered: z.number().int().nonnegative(),
+  linksAccepted: z.number().int().nonnegative(),
+  nodesSeeded: z.number().int().nonnegative(),
+  tracksOpen: z.number().int().nonnegative(),
+  tracksClosed: z.number().int().nonnegative(),
+  nodesAdded: z.number().int().nonnegative(),
+  rejectGap: z.number().int().nonnegative(),
+  rejectDistance: z.number().int().nonnegative(),
+  rejectVelocity: z.number().int().nonnegative(),
+  rejectCounterFlow: z.number().int().nonnegative(),
+  rejectTurn: z.number().int().nonnegative(),
+  rejectKalmanInnovation: z.number().int().nonnegative(),
+});
+
+/** Разбивка статистики run/тика по фазам NextGen (filter/optimize — без stats, identity passthrough). */
+export const trackingPhaseStatsSchema = z.object({
+  cluster: trackingClusterPhaseStatsSchema.optional(),
+  field_train: trackingFieldTrainPhaseStatsSchema.optional(),
+  join: trackingJoinPhaseStatsSchema.optional(),
 });
 
 export const trackingRebuildStatsSchema = z.object({
@@ -67,6 +116,8 @@ export const trackingRebuildStatsSchema = z.object({
   phase3RejectTurn: z.number().int().nonnegative().optional(),
   phase3RejectKalmanInnovation: z.number().int().nonnegative().optional(),
   elapsedMs: z.number().int().nonnegative().optional(),
+  /** Статистика по 5-фазному NextGen pipeline (SSOT для UI-блоков по фазам). */
+  phaseStats: trackingPhaseStatsSchema.optional(),
 });
 
 /** Агрегированные метрики пайплайна для админки. */
@@ -124,8 +175,6 @@ export const trackingPipelineConfigSchema = z.object({
   seedFrontProximityD0Km: z.number().positive().max(10000).default(400),
   /** Точка во все in-locus треки (self-attention fan-out). */
   reuseAcrossTracks: z.boolean().default(false),
-  /** Алгоритм ассоциации (GNN default; PDAF/JPDAF — backlog; greedy-flow — жадный по току; nextgen-gravity — 4-phase H3 gravity). */
-  associationAlgorithm: z.enum(["gnn", "pdaf", "jpdaf", "greedy-flow", "nextgen-gravity"]).default("gnn"),
   /** γ_ток — бонус за движение по потоку (1 = умеренный эффект, 0 = выкл). */
   flowWeight: z.number().min(0).max(10).default(1),
   /** γ_против — штраф за противоток (1 = умеренный эффект, 0 = выкл). */
@@ -141,21 +190,6 @@ export const trackingPipelineConfigSchema = z.object({
   globalDirectionWeight: z.number().min(0).max(10).default(0),
   /** Глобальный азимут directional-bias (градусы, 0=север, 90=восток). null — выкл. */
   globalDirectionBearingDeg: z.number().min(0).max(360).nullable().default(null),
-  /** Веса жадной ассоциации (associationAlgorithm = "greedy-flow"). */
-  greedyFlow: z
-    .object({
-      /** Вклад дистанции (м) в стоимость ребра. */
-      distWeightM: z.number().min(0).default(1),
-      /** Штраф за час разрыва (м-эквивалент на 1 ч). */
-      dtPenaltyPerHourM: z.number().min(0).default(20_000),
-      /** Награда за совпадение с током (м-эквивалент при align=1). */
-      flowAlignRewardM: z.number().min(0).default(50_000),
-      /** Допуск «не глубже» (м): шаг к фронту разрешён не более чем на ε. */
-      depthToleranceM: z.number().min(0).default(20_000),
-      /** Жёсткий gate против тока: мин. cos∠(шаг, ток). null — выкл. */
-      counterFlowRejectCos: z.number().min(-1).max(1).nullable().default(-0.2),
-    })
-    .default({}),
   /** Режим ST-DBSCAN: collapse (legacy) или magnet (веса без схлопывания). */
   clusteringMode: z.enum(["collapse", "magnet"]).default("collapse"),
   /** Параметры 4-х фазного алгоритма NextGen Gravity. */
@@ -193,10 +227,6 @@ export const trackingPipelineConfigSchema = z.object({
       geohashPrecision: z.number().int().min(3).max(10).default(5),
     })
     .default({}),
-  tieEpsilon: z.number().positive().default(0.5),
-  maxTuneEpochs: z.number().int().min(1).max(50).default(12),
-  initialStepFraction: z.number().min(0.1).max(1).default(0.5),
-  minStepFraction: z.number().min(0.01).max(0.5).default(0.05),
   profiles: z
     .record(
       threatProfileSchema,
@@ -240,6 +270,12 @@ export const trackingPipelineStatusSchema = z.object({
   remainingCandidates: z.number().int().nonnegative().optional(),
 });
 
+/** Состав фаз NextGen pipeline (id + enabled) — источник для phase-блоков в admin UI. */
+export const trackingPhaseManifestEntrySchema = z.object({
+  id: trackingPhaseIdSchema,
+  enabled: z.boolean(),
+});
+
 export const trackingStatusResponseSchema = z.object({
   enabled: z.boolean(),
   paused: z.boolean(),
@@ -253,39 +289,20 @@ export const trackingStatusResponseSchema = z.object({
   percentApprox: z.number().min(0).max(100),
   metrics: trackingPipelineMetricsSchema,
   config: trackingPipelineConfigSchema,
+  /** Состав фаз pipeline (SSOT: @radar/shared DEFAULT_TRACKING_PHASE_MANIFEST). */
+  phaseManifest: z.array(trackingPhaseManifestEntrySchema),
 });
 
 export type TrackingPipelineMetrics = z.infer<typeof trackingPipelineMetricsSchema>;
 
 export type TrackingRebuildStage = z.infer<typeof trackingRebuildStageSchema>;
 export type TrackingWatermark = z.infer<typeof trackingWatermarkSchema>;
+export type TrackingClusterPhaseStats = z.infer<typeof trackingClusterPhaseStatsSchema>;
+export type TrackingFieldTrainPhaseStats = z.infer<typeof trackingFieldTrainPhaseStatsSchema>;
+export type TrackingJoinPhaseStats = z.infer<typeof trackingJoinPhaseStatsSchema>;
+export type TrackingPhaseStats = z.infer<typeof trackingPhaseStatsSchema>;
 export type TrackingRebuildStats = z.infer<typeof trackingRebuildStatsSchema>;
 export type TrackingRebuildRun = z.infer<typeof trackingRebuildRunSchema>;
 export type TrackingPipelineConfig = z.infer<typeof trackingPipelineConfigSchema>;
 export type TrackingPipelineStatus = z.infer<typeof trackingPipelineStatusSchema>;
 export type TrackingStatusResponse = z.infer<typeof trackingStatusResponseSchema>;
-
-export const trackingTuneRunStatusSchema = z.enum(["running", "done", "failed", "cancelled"]);
-
-export const trackingTuneRunSchema = z.object({
-  id: z.string().uuid(),
-  status: trackingTuneRunStatusSchema,
-  paramsIn: z.record(z.unknown()),
-  epochsDone: z.number().int().nonnegative(),
-  maxEpochs: z.number().int().positive(),
-  bestConfig: z.record(z.unknown()).nullable(),
-  bestFitness: z.number().nullable(),
-  grid: z.array(z.record(z.unknown())),
-  error: z.string().nullable().optional(),
-  createdAt: z.string().datetime(),
-  finishedAt: z.string().datetime().nullable(),
-});
-
-export const trackingTuneStartRequestSchema = z.object({
-  profile: threatProfileSchema.default("uav"),
-  maxEpochs: z.number().int().min(1).max(50).optional(),
-  sampleLimit: z.number().int().min(100).max(5000).optional(),
-});
-
-export type TrackingTuneRun = z.infer<typeof trackingTuneRunSchema>;
-export type TrackingTuneStartRequest = z.infer<typeof trackingTuneStartRequestSchema>;

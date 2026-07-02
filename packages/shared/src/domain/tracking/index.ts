@@ -84,22 +84,6 @@ export {
 } from "./flowAlignment";
 export type { FlowAlignmentWeights } from "./flowAlignment";
 
-export { resolveAssignmentsForAlgorithm } from "./associationDispatch";
-export type { AssociationAlgorithm, AssociationDispatchOpts } from "./associationDispatch";
-export { buildGreedyFlowChains, depthFromFrontM, DEFAULT_GREEDY_FLOW } from "./greedyFlowAssociation";
-export type { GreedyFlowWeights, GreedyFlowOpts } from "./greedyFlowAssociation";
-
-export { buildAttentionMatrix, DEFAULT_MAX_SOFT } from "./attentionMatrix";
-export type { TrackAttentionTarget, LinkCell, AttentionMatrixRow, BuildMatrixOpts } from "./attentionMatrix";
-
-export {
-  resolveRowAssignment,
-  resolveAssignments,
-  DEFAULT_TIE_EPSILON,
-  DEFAULT_MAX_CONSECUTIVE_SOFT,
-} from "./assignCandidates";
-export type { AssignDecision, AssignStats, ResolveOpts } from "./assignCandidates";
-
 export { resolveThreatProfile } from "./threatProfile";
 export { resolveNodeMode } from "./resolveNodeMode";
 export { observationCovarianceMeters, scaleObservationCovariance } from "./observationCovariance";
@@ -158,23 +142,11 @@ export {
   EMPTY_CORRIDOR_ROLLUP_INDEX,
 } from "./flow/corridorRollupIndex";
 export type { CorridorRollupEntry, CorridorRollupIndex } from "./flow/corridorRollupIndex";
-export {
-  buildCorridorFromCandidates,
-  corridorMaxSpatialM,
-  temporalAssignSlices,
-} from "./flow/buildCorridorFromCandidates";
-export type { BuildCorridorOpts } from "./flow/buildCorridorFromCandidates";
 
 export { rollupSegmentCounts } from "./flow/rollupSegmentCounts";
 export type { SegmentRollup } from "./flow/rollupSegmentCounts";
 export { buildSegmentKey } from "./flow/segmentKey";
 export { filterEdgesByAsOf, filterNodesByAsOf } from "./flow/applyAsOfFilter";
-
-export { computeTrackingFitness } from "./trackingFitness";
-export type { FitnessInput, FitnessResult, FitnessWeights } from "./trackingFitness";
-
-export { patternSearchStep, defaultTuneAxes, probeCenter, patternMove, tuneCenterFromProfile, tuneCenterToProfilePatch } from "./configSampler";
-export type { TuneAxis, TuneCenter, PatternSearchState } from "./configSampler";
 
 export {
   resolveTrackingPipelineStatus,

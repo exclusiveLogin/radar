@@ -24,7 +24,7 @@ import { ParseRawMessageHandler } from "../handlers/parseRawMessageHandler.js";
 import { createParseWorkspaceStack } from "../parse/createParseWorkspaceStack.js";
 import type { ParsePhaseContext } from "../parse/parsePhaseContext.js";
 import { resolvePhaseRunKind } from "../parse/parseWorkspaceRunModes.js";
-import type { GeoValidationService } from "../parsing/geoValidationService.js";
+import type { GeoValidationService } from "../parse/geoValidationService.js";
 import { notifyMapPushSnapshotAfterPhase } from "../../infrastructure/notifyMapPushSnapshot.js";
 import { prerequisitePhaseIds } from "./phaseOrder.js";
 

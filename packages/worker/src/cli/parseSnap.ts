@@ -6,7 +6,7 @@ import {
   type WorkerCompositionOptions,
 } from "../application/createWorkerCompositionRoot.js";
 import { WorkerStorageMode } from "../infrastructure/persistence/storageMode.js";
-import { GeoValidationService } from "../application/parsing/geoValidationService.js";
+import { GeoValidationService } from "../application/parse/geoValidationService.js";
 import {
   InMemoryPlaceAliasRepository,
   InMemoryPlaceRepository,

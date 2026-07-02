@@ -6,7 +6,7 @@ import type {
   ParseWorkspace,
 } from "@radar/shared";
 import { canonicalRegionCode } from "@radar/shared";
-import type { GeoValidationService } from "../../application/parsing/geoValidationService.js";
+import type { GeoValidationService } from "../../application/parse/geoValidationService.js";
 import { applyVicinityScope } from "./applyVicinityScope.js";
 import { deriveEventLocationsFromCandidate } from "./deriveEventLocationsFromCandidate.js";
 import { listActiveCandidates } from "./parseProcessorContract.js";

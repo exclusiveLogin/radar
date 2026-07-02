@@ -64,10 +64,6 @@ export async function runWorkerBootstrap(): Promise<void> {
       runtime.trackingRebuildDaemon.start();
       console.log("TrackingRebuildDaemon запущен (trajectory_tracks).");
     }
-    if (roleRunsTrackingDaemon(workerRole) && runtime.trackingTuneDaemon) {
-      runtime.trackingTuneDaemon.start();
-      console.log("TrackingTuneDaemon запущен (tracking_tune_runs).");
-    }
 
     workerRuntimeStatus.setRunning();
 

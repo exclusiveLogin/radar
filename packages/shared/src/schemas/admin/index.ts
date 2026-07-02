@@ -21,16 +21,19 @@ export {
   parsePipelineStartResponseSchema,
 } from "./parse-pipeline";
 export {
+  trackingPhaseIdSchema,
   trackingRebuildStageSchema,
   trackingWatermarkSchema,
+  trackingClusterPhaseStatsSchema,
+  trackingFieldTrainPhaseStatsSchema,
+  trackingJoinPhaseStatsSchema,
+  trackingPhaseStatsSchema,
   trackingRebuildStatsSchema,
   trackingRebuildRunSchema,
   trackingPipelineConfigSchema,
   trackingPipelineMetricsSchema,
+  trackingPhaseManifestEntrySchema,
   trackingStatusResponseSchema,
-  trackingTuneRunSchema,
-  trackingTuneRunStatusSchema,
-  trackingTuneStartRequestSchema,
 } from "./tracking";
 
 // --- type-only exports ---
@@ -58,11 +61,14 @@ export type {
 export type {
   TrackingRebuildStage,
   TrackingWatermark,
+  TrackingClusterPhaseStats,
+  TrackingFieldTrainPhaseStats,
+  TrackingJoinPhaseStats,
+  TrackingPhaseStats,
   TrackingRebuildStats,
   TrackingRebuildRun,
   TrackingPipelineConfig,
   TrackingPipelineMetrics,
+  TrackingPipelineStatus,
   TrackingStatusResponse,
-  TrackingTuneRun,
-  TrackingTuneStartRequest,
 } from "./tracking";

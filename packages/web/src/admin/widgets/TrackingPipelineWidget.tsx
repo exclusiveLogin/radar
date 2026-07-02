@@ -29,21 +29,7 @@ export function TrackingPipelineWidget() {
     if (v != null) setBatchSize(String(v));
   }, [status?.config?.batchSize]);
 
-  const runStats = status?.activeRun?.stats ?? status?.lastRun?.stats;
   const activeRun = status?.activeRun;
-  const phase2PairsConsidered = runStats?.phase2PairsConsidered ?? 0;
-  const phase2PairsAccepted = runStats?.phase2PairsAccepted ?? 0;
-  const phase2PairsRejectedByKinematics = runStats?.phase2PairsRejectedByKinematics ?? 0;
-  const phase2ReliabilityAvg = runStats?.phase2ReliabilityAvg;
-  const phase2ReliabilityP95 = runStats?.phase2ReliabilityP95;
-  const phase3LinksConsidered = runStats?.phase3LinksConsidered ?? 0;
-  const phase3LinksAccepted = runStats?.phase3LinksAccepted ?? 0;
-  const phase3NodesSeeded = runStats?.phase3NodesSeeded ?? 0;
-  const phase3RejectKalmanInnovation = runStats?.phase3RejectKalmanInnovation ?? 0;
-  const phase3RejectCounterFlow = runStats?.phase3RejectCounterFlow ?? 0;
-  const phase3RejectTurn = runStats?.phase3RejectTurn ?? 0;
-  const phase3RejectDistance = runStats?.phase3RejectDistance ?? 0;
-  const phase3RejectVelocity = runStats?.phase3RejectVelocity ?? 0;
 
   const run = async (kind: PendingAction, action: () => Promise<unknown>) => {
     setPending(kind);
@@ -222,31 +208,8 @@ export function TrackingPipelineWidget() {
               {activeRun?.stats?.stage && activeRun.stats.stage !== "idle" && (
                 <> · стадия: {activeRun.stats.stage}</>
               )}
+              {" · "}разбивка по фазам — в блоке «Прогресс по фазам» ниже
             </span>
-            {phase2PairsConsidered > 0 && (
-              <span>
-                {" · "}Ф2 пары: {phase2PairsAccepted.toLocaleString("ru-RU")}
-                /{phase2PairsConsidered.toLocaleString("ru-RU")}
-                {" · "}кинематика reject: {phase2PairsRejectedByKinematics.toLocaleString("ru-RU")}
-                {phase2ReliabilityAvg != null && (
-                  <>{" · "}rel avg: {(phase2ReliabilityAvg * 100).toFixed(1)}%</>
-                )}
-                {phase2ReliabilityP95 != null && (
-                  <>{" · "}rel p95: {(phase2ReliabilityP95 * 100).toFixed(1)}%</>
-                )}
-              </span>
-            )}
-            {phase3LinksConsidered > 0 && (
-              <span>
-                {" · "}Ф3 links: {phase3LinksAccepted.toLocaleString("ru-RU")}
-                /{phase3LinksConsidered.toLocaleString("ru-RU")}
-                {" · "}seed: {phase3NodesSeeded.toLocaleString("ru-RU")}
-                {" · "}rej kalman: {phase3RejectKalmanInnovation.toLocaleString("ru-RU")}
-                {" · "}rej flow: {phase3RejectCounterFlow.toLocaleString("ru-RU")}
-                {" · "}rej turn: {phase3RejectTurn.toLocaleString("ru-RU")}
-                {" · "}rej dist/vel: {(phase3RejectDistance + phase3RejectVelocity).toLocaleString("ru-RU")}
-              </span>
-            )}
           </div>
         )}
       </div>

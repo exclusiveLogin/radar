@@ -16,7 +16,7 @@ import { buildMaterializedEventLocations } from "../../domain/parse/buildMateria
 import { resolveEventTypeForCandidate } from "../../domain/parse/resolveEventTypeForCandidate.js";
 import { createEmptyParseWorkspace } from "../../domain/parse/parseWorkspaceFactory.js";
 import { listActiveCandidates } from "../../domain/parse/parseProcessorContract.js";
-import type { ParseWorkspaceMessageService } from "../parse/ParseWorkspaceMessageService.js";
+import type { ParseWorkspaceMessageService } from "./ParseWorkspaceMessageService.js";
 import {
   lastEventPass,
   runIngestParsePasses,

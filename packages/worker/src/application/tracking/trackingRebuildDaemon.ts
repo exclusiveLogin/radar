@@ -4,7 +4,6 @@
 import type { DataSource } from "typeorm";
 import {
   trackingPipelineConfigSchema,
-  resolveDaemonBatchSize,
   resolveNextGenDaemonBatchSize,
   H3VectorFlowMap,
   type TrackingPipelineConfig,
@@ -136,10 +135,7 @@ export class TrackingRebuildDaemon {
       elapsedMs: Date.now() - runStartedMs,
     });
 
-    const batchSize =
-      config.associationAlgorithm === "nextgen-gravity"
-        ? resolveNextGenDaemonBatchSize(config.batchSize)
-        : resolveDaemonBatchSize(config.batchSize);
+    const batchSize = resolveNextGenDaemonBatchSize(config.batchSize);
     const chunk = allPending.slice(0, batchSize);
 
     const totalCandidates =
@@ -150,10 +146,7 @@ export class TrackingRebuildDaemon {
 
     let collapsedTotal = 0;
     let lastScannerStats: Partial<TrackingRebuildStats> = {};
-    const flowField =
-      config.associationAlgorithm === "nextgen-gravity"
-        ? this.acquireFlowField(run.id, config)
-        : undefined;
+    const flowField = this.acquireFlowField(run.id, config);
     const result = await runIncrementalBatch(this.ds, {
       candidates: chunk,
       dedupClosure: closure,

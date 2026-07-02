@@ -1,9 +1,9 @@
 import { MONOREPO_ROOT } from "@repo/root";
-import { GeoValidationService } from "../application/parsing/geoValidationService.js";
+import { GeoValidationService } from "../application/parse/geoValidationService.js";
 import {
   runPlaceCatalogDedup,
   runPlaceCatalogHeal,
-} from "../application/parsing/placeCatalogHealer.js";
+} from "../application/parse/placeCatalogHealer.js";
 import type { PlaceCatalogHealScope } from "../domain/parsing/placeCatalogHealRule.js";
 import { createWorkerCompositionRoot } from "../application/createWorkerCompositionRoot.js";
 import { loadRootEnv } from "../infrastructure/config/loadRootEnv.js";

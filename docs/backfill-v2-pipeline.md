@@ -539,9 +539,9 @@ erDiagram
 | Поток Telegram + FloodWait | `packages/worker/src/infrastructure/ingest-adapters/telegram/telegramRawIngestAdapter.ts` |
 | Порт `streamHistory` | `packages/shared/src/ports/ingest-adapters.ts` |
 | Репозиторий задач | `packages/api/src/infrastructure/persistence/typeorm-ingest-backfill-job.repository.ts` |
-| Пул parse threads | `packages/worker/src/application/parsing/parseWorkerPool.ts` |
-| Worker entry parse | `packages/worker/src/application/parsing/parsePipeline.worker.ts` |
-| SSOT сборки pipeline | `packages/worker/src/application/parsing/createParsePipeline.ts` |
+| Пул parse threads | `packages/worker/src/application/parse/parseWorkerPool.ts` |
+| Worker entry parse | `packages/worker/src/application/parse/parsePipeline.worker.ts` |
+| SSOT сборки pipeline | `packages/worker/src/application/parse/createParsePipeline.ts` |
 | Parse use case | `packages/worker/src/application/handlers/parseRawMessageHandler.ts` |
 | Wiring | `packages/worker/src/application/createWorkerCompositionRoot.ts` |
 | Старт демона | `packages/worker/src/application/runBootstrap.ts` |

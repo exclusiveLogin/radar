@@ -5,7 +5,7 @@ import {
   auditNoiseBuckets,
   runPlaceCatalogSweep,
   type PlaceSweepFilters,
-} from "../application/parsing/placeCatalogSweep.js";
+} from "../application/parse/placeCatalogSweep.js";
 import { isGarbageIngestPlaceName } from "../domain/parsing/channelCityListPromo.js";
 import { loadRootEnv } from "../infrastructure/config/loadRootEnv.js";
 import { WorkerStorageMode } from "../infrastructure/persistence/storageMode.js";

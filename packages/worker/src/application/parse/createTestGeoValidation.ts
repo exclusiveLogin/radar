@@ -3,7 +3,7 @@ import {
   InMemoryPlaceAliasRepository,
   InMemoryPlaceRepository,
 } from "../handlers/inMemoryRepositories.js";
-import { GeoValidationService } from "../parsing/geoValidationService.js";
+import { GeoValidationService } from "./geoValidationService.js";
 
 /** GeoValidationService для тестов и offline parse pipeline. */
 export function createTestGeoValidation(

@@ -1,5 +1,5 @@
 import { MONOREPO_ROOT } from "@repo/root";
-import { purgeGarbageCatalogPlaces } from "../application/parsing/placeCatalogHealer.js";
+import { purgeGarbageCatalogPlaces } from "../application/parse/placeCatalogHealer.js";
 import { createWorkerCompositionRoot } from "../application/createWorkerCompositionRoot.js";
 import { loadRootEnv } from "../infrastructure/config/loadRootEnv.js";
 import { WorkerStorageMode } from "../infrastructure/persistence/storageMode.js";

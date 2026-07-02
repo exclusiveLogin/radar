@@ -16,7 +16,7 @@ const full = process.argv.includes('--full');
 const sharedDist = 'file:packages/shared/dist/index.js';
 const apiDistMain = 'file:packages/api/dist/main.js';
 const workerParseDist =
-  'file:packages/worker/dist/application/parsing/parsePipeline.worker.js';
+  'file:packages/worker/dist/application/parse/parsePipeline.worker.js';
 /** Readiness: порт + БД, чтобы фронт не ловил ECONNREFUSED на /api/map/snapshot. */
 const apiReady = 'http://127.0.0.1:3000/api/ready';
 const waitTimeoutMs = 120_000;

@@ -179,8 +179,13 @@ export {
   adminWsClientMessageSchema,
   adminWsServerMessageSchema,
   phasesUpdatePayloadSchema,
+  trackingPhaseIdSchema,
   trackingRebuildStageSchema,
   trackingWatermarkSchema,
+  trackingClusterPhaseStatsSchema,
+  trackingFieldTrainPhaseStatsSchema,
+  trackingJoinPhaseStatsSchema,
+  trackingPhaseStatsSchema,
   trackingRebuildStatsSchema,
   trackingRebuildRunSchema,
   parsePipelineJobKindSchema,
@@ -189,10 +194,8 @@ export {
   parsePipelineStartResponseSchema,
   trackingPipelineConfigSchema,
   trackingPipelineMetricsSchema,
+  trackingPhaseManifestEntrySchema,
   trackingStatusResponseSchema,
-  trackingTuneRunSchema,
-  trackingTuneRunStatusSchema,
-  trackingTuneStartRequestSchema,
 } from "./admin";
 
 // --- type-only exports ---
@@ -366,13 +369,16 @@ export type {
   ParsePipelineStartResponse,
   TrackingRebuildStage,
   TrackingWatermark,
+  TrackingClusterPhaseStats,
+  TrackingFieldTrainPhaseStats,
+  TrackingJoinPhaseStats,
+  TrackingPhaseStats,
   TrackingRebuildStats,
   TrackingRebuildRun,
   TrackingPipelineConfig,
   TrackingPipelineMetrics,
+  TrackingPipelineStatus,
   TrackingStatusResponse,
-  TrackingTuneRun,
-  TrackingTuneStartRequest,
 } from "./admin";
 
 export {

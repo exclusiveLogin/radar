@@ -64,7 +64,6 @@
     "tracking:status": "tsx src/cli/trackingCli.ts status",
     "tracking:rebuild": "tsx src/cli/trackingCli.ts rebuild",
     "tracking:reset": "tsx src/cli/trackingCli.ts reset",
-    "tracking:sweep": "tsx src/cli/trackingSweepCli.ts",
     "tracking:kinematics": "tsx src/cli/trackingKinematicsCli.ts",
     "tracking:direction": "tsx src/cli/trackingDirectionCli.ts",
     "tracking:enable": "tsx src/cli/trackingCli.ts enable",

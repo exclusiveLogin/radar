@@ -7,7 +7,7 @@ import type {
   ParseWorkspace,
 } from "@radar/shared";
 import { normalizeParseWorkspace } from "@radar/shared";
-import type { GeoValidationService } from "../parsing/geoValidationService.js";
+import type { GeoValidationService } from "./geoValidationService.js";
 import { planFinalize } from "../../domain/parse/ParseFinalizerService.js";
 import { buildMaterializedEventLocations } from "../../domain/parse/buildMaterializedEventLocations.js";
 import { runParseWorkspaceOrchestrator } from "../../domain/parse/ParseWorkspaceOrchestrator.js";

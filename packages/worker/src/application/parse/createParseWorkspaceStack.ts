@@ -7,7 +7,7 @@ import type {
   IRegionRepository,
   IPlaceScanPort,
 } from "@radar/shared";
-import type { GeoValidationService } from "../parsing/geoValidationService.js";
+import type { GeoValidationService } from "./geoValidationService.js";
 import {
   ParseWorkspaceMessageService,
   type StoredParseWorkspace,

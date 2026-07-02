@@ -353,7 +353,7 @@ On-prem **не означает** fork репозитория: меняется 
 |------|------------|------|------|
 | `infrastructure/classifiers/ruleBasedEventClassifier.ts` | вызывает parsePost | **core** + inject pack | D1 |
 | `infrastructure/geo-catalog/geoCatalog.ts` | strip `(?:бпла\|фиксация\|…)` | **geo-grooming** | D1 |
-| `application/parsing/createParsePipeline.ts` | wiring classifier | **loader** inject ODP | D2 |
+| `application/parse/createParsePipeline.ts` | wiring classifier | **loader** inject ODP | D2 |
 
 ### 13.3 Shared contracts — `packages/shared/`
 

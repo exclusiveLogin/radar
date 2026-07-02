@@ -39,11 +39,6 @@ export type { SeedWeights } from "./domain/tracking/pointWeightModel";
 export { DEFAULT_FLOW_ALIGNMENT } from "./domain/tracking/flowAlignment";
 export type { FlowAlignmentWeights } from "./domain/tracking/flowAlignment";
 export {
-  DEFAULT_GREEDY_FLOW,
-} from "./domain/tracking/greedyFlowAssociation";
-export type { GreedyFlowWeights } from "./domain/tracking/greedyFlowAssociation";
-export type { AssociationAlgorithm } from "./domain/tracking/associationDispatch";
-export {
   DEFAULT_MAGNETIZE_WEIGHTS,
 } from "./domain/tracking/stdbscan/stdbscanMagnetize";
 export {
