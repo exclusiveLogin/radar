@@ -196,6 +196,14 @@ export {
   trackingPipelineMetricsSchema,
   trackingPhaseManifestEntrySchema,
   trackingStatusResponseSchema,
+  pipelineKeySchema,
+  workbookPhaseDescriptorSchema,
+  workbookRegistryEntrySchema,
+  workloadStatusSchema,
+  activeWorkloadSchema,
+  runOutcomeSchema,
+  runHistoryEntrySchema,
+  workbookObservabilityResponseSchema,
 } from "./admin";
 
 // --- type-only exports ---
@@ -379,6 +387,14 @@ export type {
   TrackingPipelineMetrics,
   TrackingPipelineStatus,
   TrackingStatusResponse,
+  PipelineKey,
+  WorkbookPhaseDescriptorDto,
+  WorkbookRegistryEntry,
+  WorkloadStatus,
+  ActiveWorkload,
+  WorkbookRunOutcome,
+  RunHistoryEntry,
+  WorkbookObservabilityResponse,
 } from "./admin";
 
 export {

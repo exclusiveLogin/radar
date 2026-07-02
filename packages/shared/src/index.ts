@@ -292,6 +292,15 @@ export {
   type TrackingPhaseManifest,
   DEFAULT_TRACKING_PHASE_MANIFEST,
 } from "./domain/tracking";
+export {
+  createWorkbook,
+  type WorkbookPhaseDescriptor,
+  type WorkbookDescriptor,
+  type WorkbookEvalFn,
+  type WorkbookDefinition,
+  type WorkbookInstance,
+  type RunControlSignal as WorkbookRunControlSignal,
+} from "./domain/workbook";
 export { InProcessEventBus } from "./events/inProcessEventBus";
 export { mergePlaceContribution, monotonicTrustState } from "./ports/placeContributionMerge";
 export { mergeContribution } from "./domain/mergeContribution";

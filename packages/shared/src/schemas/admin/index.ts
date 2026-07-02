@@ -35,6 +35,16 @@ export {
   trackingPhaseManifestEntrySchema,
   trackingStatusResponseSchema,
 } from "./tracking";
+export {
+  pipelineKeySchema,
+  workbookPhaseDescriptorSchema,
+  workbookRegistryEntrySchema,
+  workloadStatusSchema,
+  activeWorkloadSchema,
+  runOutcomeSchema,
+  runHistoryEntrySchema,
+  workbookObservabilityResponseSchema,
+} from "./workbook";
 
 // --- type-only exports ---
 export type {
@@ -72,3 +82,13 @@ export type {
   TrackingPipelineStatus,
   TrackingStatusResponse,
 } from "./tracking";
+export type {
+  PipelineKey,
+  WorkbookPhaseDescriptorDto,
+  WorkbookRegistryEntry,
+  WorkloadStatus,
+  ActiveWorkload,
+  RunOutcome as WorkbookRunOutcome,
+  RunHistoryEntry,
+  WorkbookObservabilityResponse,
+} from "./workbook";

@@ -35,6 +35,7 @@ import { createRawMessageIngestedHandler } from "./subscribers/rawMessageIngeste
 import { CoverageEnqueuer } from "./phases/coverageEnqueuer.js";
 import { PhaseRunner } from "./phases/phaseRunner.js";
 import { IngestParseDaemonService } from "./phases/ingestParseDaemonService.js";
+import { ParseRunnerRegistry } from "./parse/runner/parseRunnerRegistry.js";
 import { PhaseManualRunPoller } from "./phases/phaseManualRunPoller.js";
 import { PlaceEnrichmentDaemonService } from "./geo-parse/placeEnrichmentDaemonService.js";
 import { PlaceEnrichmentRunner } from "./geo-parse/placeEnrichmentRunner.js";
@@ -72,6 +73,11 @@ import {
   TrackingRebuildDaemon,
   isTrackingDaemonEnabled,
 } from "./tracking/trackingRebuildDaemon.js";
+import {
+  createTrackingRunner,
+  isTrackingRunnerPlatformEnabled,
+  type TrackingRunner,
+} from "./tracking/runner/trackingRunner.js";
 import {
   WorkerStorageMode,
   resolveWorkerStorageModeFromEnv,
@@ -145,8 +151,10 @@ export async function createWorkerCompositionRoot(
   let outboxRelay: { start: () => void; stop: () => void } | undefined;
   let ingestOrchestrator: IngestOrchestrator | undefined;
   let backfillDaemon: BackfillDaemonService | undefined;
-  let trackingRebuildDaemon: TrackingRebuildDaemon | undefined;
-  let ingestParseDaemon: IngestParseDaemonService | undefined;
+  /** Взаимоисключимые раннеры: runner-platform (Wave 3, за флагом) либо legacy setInterval-демон. */
+  let trackingRebuildDaemon: TrackingRebuildDaemon | TrackingRunner | undefined;
+  /** Взаимоисключимые раннеры: runner-platform (Wave 4, за флагом) либо legacy scheduled-демон. */
+  let ingestParseDaemon: IngestParseDaemonService | ParseRunnerRegistry | undefined;
   let placeEnrichmentDaemon: PlaceEnrichmentDaemonService | undefined;
   let phaseManualRunPoller: PhaseManualRunPoller | undefined;
   let phaseRunner: PhaseRunner | undefined;
@@ -209,7 +217,7 @@ export async function createWorkerCompositionRoot(
     shutdown = async () => {
       outboxRelay?.stop();
       phaseManualRunPoller?.stop();
-      ingestParseDaemon?.stop();
+      await ingestParseDaemon?.stop();
       placeEnrichmentDaemon?.stop();
       await backfillDaemon?.stop();
       await trackingRebuildDaemon?.stop();
@@ -332,12 +340,22 @@ export async function createWorkerCompositionRoot(
       IngestParseDaemonService.enabled() &&
       options.startIngestParseDaemon !== false;
     if (startPhaseDaemons) {
-      ingestParseDaemon = new IngestParseDaemonService(
-        workerRepos.phaseDefinitions,
-        workerRepos.phaseRuns,
-        workerRepos.phaseCoverage,
-        phaseRunner,
-      );
+      // Wave 4 (tracking-parse-architecture-refactor): за флагом — runner platform (по workload
+      // на scheduled-фазу), иначе legacy `Map<phaseId, setInterval>` демон. Один и тот же
+      // phase_coverage claim-queue — одновременно не запускаются.
+      ingestParseDaemon = ParseRunnerRegistry.enabled()
+        ? new ParseRunnerRegistry({
+            phases: workerRepos.phaseDefinitions,
+            phaseRuns: workerRepos.phaseRuns,
+            coverage: workerRepos.phaseCoverage,
+            runner: phaseRunner,
+          })
+        : new IngestParseDaemonService(
+            workerRepos.phaseDefinitions,
+            workerRepos.phaseRuns,
+            workerRepos.phaseCoverage,
+            phaseRunner,
+          );
       ingestParseDaemon.start();
       phaseManualRunPoller = new PhaseManualRunPoller(
         workerRepos.phaseDefinitions,
@@ -406,7 +424,11 @@ export async function createWorkerCompositionRoot(
     }
 
     if (roleRunsTrackingDaemon(workerRole) && dataSource && isTrackingDaemonEnabled()) {
-      trackingRebuildDaemon = new TrackingRebuildDaemon(dataSource);
+      // Wave 3 (tracking-parse-architecture-refactor): за флагом — новый runner platform,
+      // иначе legacy setInterval-демон. Одновременно не запускаются (одна и та же БД-очередь).
+      trackingRebuildDaemon = isTrackingRunnerPlatformEnabled()
+        ? createTrackingRunner(dataSource)
+        : new TrackingRebuildDaemon(dataSource);
     }
   }
 

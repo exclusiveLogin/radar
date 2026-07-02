@@ -1,0 +1,185 @@
+/**
+ * ---
+ * layer: worker/application
+ * domain: tracking/runner
+ * purpose: Wave 3 (tracking-parse-architecture-refactor) — tracking-workload на runner platform.
+ *          Алгоритм НЕ переписан: `loadDedupClosure`/`runIncrementalBatch` — те же функции, что
+ *          использует legacy `TrackingRebuildDaemon`. Изменён только runtime-контур:
+ *          `trigger -> ingest(loadSlice) -> run(evaluate) -> materialize -> signaling(telemetry)`
+ *          вместо ручного `setInterval` + инлайн-SQL в классе демона.
+ *
+ *          За флагом `TRACKING_RUNNER_PLATFORM_ENABLED` (default off) — взаимоисключим с
+ *          legacy-демоном в createWorkerCompositionRoot.ts, НЕ запускается параллельно с ним.
+ *          Не валидирован против прод-нагрузки — включать только после отдельной проверки.
+ * ---
+ */
+import type { DataSource } from "typeorm";
+import {
+  H3VectorFlowMap,
+  maxEpsilonTemporalMs,
+  resolveNextGenDaemonBatchSize,
+  createWorkbook,
+} from "@radar/shared";
+import {
+  ensureActiveTrackingRun,
+  readTrackingPipelineState,
+  readTrackingRunControl,
+  resetTrackingWatermark,
+} from "../../../infrastructure/tracking/trackingPipelineStateRepository.js";
+import { loadDedupClosure, runIncrementalBatch, countTrackingPipelineRemaining } from "../trackingRebuildService.js";
+import { createWorkload, type Workload } from "../../runtime/workload/createWorkload.js";
+import { createTrackingMaterialize } from "./trackingMaterializationPorts.js";
+import { createTrackingTelemetryBridge, TRACKING_PIPELINE_KEY } from "./trackingTelemetryBridge.js";
+import type {
+  TrackingCursorSnapshot,
+  TrackingRunnerArtifact,
+  TrackingRunnerSlice,
+} from "./trackingRunnerContracts.js";
+
+const DEFAULT_INTERVAL_MS = 10_000;
+
+function readIntervalMs(): number {
+  const raw = Number(process.env.TRACKING_DAEMON_INTERVAL_MS);
+  return Number.isFinite(raw) && raw >= 5000 ? raw : DEFAULT_INTERVAL_MS;
+}
+
+export function isTrackingRunnerPlatformEnabled(): boolean {
+  return process.env.TRACKING_RUNNER_PLATFORM_ENABLED === "true";
+}
+
+export type TrackingRunner = Workload & {
+  telemetry: ReturnType<typeof createTrackingTelemetryBridge>["bus"];
+};
+
+export function createTrackingRunner(ds: DataSource): TrackingRunner {
+  const flowFieldByRun = new Map<string, H3VectorFlowMap>();
+  const telemetryBridge = createTrackingTelemetryBridge();
+
+  function acquireFlowField(runId: string, h3Resolution: number): H3VectorFlowMap {
+    const existing = flowFieldByRun.get(runId);
+    if (existing) return existing;
+    const field = new H3VectorFlowMap(h3Resolution);
+    flowFieldByRun.set(runId, field);
+    return field;
+  }
+
+  const workbook = createWorkbook<TrackingCursorSnapshot, TrackingRunnerSlice, TrackingRunnerArtifact>({
+    pipelineKey: TRACKING_PIPELINE_KEY,
+    phases: [{ id: "incremental-batch", enabled: true, label: "cluster+field_train+join (nextgen)" }],
+    evaluate: async (slice, ctx) => {
+      const control = await ctx.checkControl();
+      if (control !== "continue") {
+        return {
+          artifact: { runId: slice.run.id, result: null, stats: { stage: "idle" } },
+          nextCursor: await readTrackingPipelineState(ds),
+        };
+      }
+
+      try {
+        const flowField = acquireFlowField(slice.run.id, slice.config.nextgen?.h3Resolution ?? 8);
+        let lastStats: Parameters<NonNullable<Parameters<typeof runIncrementalBatch>[1]["onProgress"]>>[0] = {};
+        const result = await runIncrementalBatch(ds, {
+          candidates: slice.chunk,
+          dedupClosure: slice.closure,
+          fullPendingIds: slice.fullPendingIds,
+          rebuildGen: slice.run.rebuildGen,
+          config: slice.config,
+          flowField,
+          onProgress: async (stats) => {
+            lastStats = stats;
+          },
+        });
+
+        const remaining = await countTrackingPipelineRemaining(ds, { until: new Date() });
+        const isDone = remaining === 0;
+        if (isDone) flowFieldByRun.delete(slice.run.id);
+
+        const stats = {
+          ...lastStats,
+          stage: isDone ? ("done" as const) : ("idle" as const),
+          pendingCandidates: remaining,
+          totalCandidates: slice.totalCandidates,
+        };
+
+        return {
+          artifact: { runId: slice.run.id, result, stats },
+          nextCursor: await readTrackingPipelineState(ds),
+        };
+      } catch (error) {
+        flowFieldByRun.delete(slice.run.id);
+        const message = error instanceof Error ? error.message : String(error);
+        throw new Error(`tracking runner batch failed (run=${slice.run.id}): ${message}`, { cause: error });
+      }
+    },
+  });
+
+  async function loadSlice(_cursor: TrackingCursorSnapshot) {
+    const state = await readTrackingPipelineState(ds);
+    if (!state.enabled) return { slice: EMPTY_SLICE, isEmpty: true };
+
+    const until = new Date();
+    const lookbackMs = maxEpsilonTemporalMs(state.config.profiles);
+    const { pending, closure } = await loadDedupClosure(ds, { until, lookbackMs });
+
+    const run = await ensureActiveTrackingRun(ds, state, pending.length > 0);
+    if (!run) return { slice: EMPTY_SLICE, isEmpty: true };
+
+    if (pending.length === 0) {
+      const remaining = await countTrackingPipelineRemaining(ds, { until });
+      await createTrackingMaterialize(ds)({
+        runId: run.id,
+        result: null,
+        stats: { stage: "done", pendingCandidates: remaining },
+      });
+      return { slice: EMPTY_SLICE, isEmpty: true };
+    }
+
+    const control = await readTrackingRunControl(ds, run.id);
+    if (control?.pause || control?.cancel) return { slice: EMPTY_SLICE, isEmpty: true };
+
+    const batchSize = resolveNextGenDaemonBatchSize(state.config.batchSize);
+    const chunk = pending.slice(0, batchSize);
+    const totalCandidates = await countTrackingPipelineRemaining(ds, { until });
+
+    const slice: TrackingRunnerSlice = {
+      run,
+      chunk,
+      closure,
+      fullPendingIds: new Set(pending.map((c) => c.eventLocationId)),
+      totalCandidates,
+      config: state.config,
+    };
+    return { slice, isEmpty: false };
+  }
+
+  const workload = createWorkload({
+    workbook,
+    schedule: { mode: "hybrid", intervalMs: readIntervalMs() },
+    io: {
+      cursorStore: {
+        read: () => readTrackingPipelineState(ds),
+        // Реальный watermark уже персистится в materialize (advanceTrackingWatermark);
+        // read() каждый раз перечитывает свежее состояние из БД — write() здесь формальность.
+        write: async () => {},
+        reset: () => resetTrackingWatermark(ds),
+      },
+      loadSlice,
+      materialize: createTrackingMaterialize(ds),
+      emitProgress: telemetryBridge.emitProgress,
+    },
+    onUnhandledError: (error) => {
+      console.error("[tracking-runner] tick failed:", error);
+    },
+  });
+
+  return { ...workload, telemetry: telemetryBridge.bus };
+}
+
+const EMPTY_SLICE: TrackingRunnerSlice = {
+  run: { id: "", rebuildGen: "", startedAt: "" },
+  chunk: [],
+  closure: [],
+  fullPendingIds: new Set(),
+  totalCandidates: 0,
+  config: {} as TrackingRunnerSlice["config"],
+};
