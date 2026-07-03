@@ -61,6 +61,8 @@ export type { KalmanLocusEllipseInput } from "./domain/tracking/kalmanLocus";
 export { bearingDeg, resolveFlowBearingDeg } from "./domain/tracking/flowAlignment";
 export { DEFAULT_TURN_PENALTY } from "./domain/tracking/nextgen/nextgenGravity";
 
+export { NEXTGEN_RECOMMENDED_BATCH_SIZE } from "./domain/tracking/trackingBatchConstants";
+
 export {
   createWorkbook,
   type WorkbookPhaseDescriptor,

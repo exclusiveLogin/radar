@@ -12,6 +12,7 @@ import { TrackingInfraModule } from "./tracking/tracking-infra.module";
 import { MapModule } from "./map/map.module";
 import { ReadSideModule } from "./read-side/read-side.module";
 import { WorkerModule } from "./worker/worker.module";
+import { WorkbookAdminModule } from "./workbook-admin/workbook-admin.module";
 
 @Module({
   imports: [
@@ -42,6 +43,7 @@ import { WorkerModule } from "./worker/worker.module";
     TrackingAdminModule,
     ReadSideModule,
     WorkerModule,
+    WorkbookAdminModule,
   ],
 })
 export class AppModule {}

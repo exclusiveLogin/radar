@@ -52,6 +52,11 @@ export class ParseRunnerRegistry {
     this.workloads.clear();
   }
 
+  /** Wave 6 (chaining): будит все активные phase-workload'ы вне их интервала (событие вместо ожидания). */
+  enqueueAll(): void {
+    for (const workload of this.workloads.values()) workload.enqueue();
+  }
+
   private async refresh(): Promise<void> {
     if (this.stopped) return;
     const scheduled = await this.deps.phases.listEnabled("scheduled", "ingestParse");

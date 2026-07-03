@@ -80,13 +80,18 @@ test("evaluate runs drain and publishes telemetry when pending work exists", asy
 
   const workload = createParsePhaseWorkload(deps, phase);
   const received: unknown[] = [];
-  workload.telemetry.subscribe((envelope) => received.push(envelope.payload));
+  const phaseKeys: (string | undefined)[] = [];
+  workload.telemetry.subscribe((envelope) => {
+    received.push(envelope.payload);
+    phaseKeys.push(envelope.phaseKey);
+  });
 
   await workload.runOnce();
 
   assert.equal(runDrainCalls.length, 1);
   assert.equal(runDrainCalls[0]!.runId, "run-42");
   assert.deepEqual(received, [{ phaseId: phase.id, stats: { claimed: 3, processed: 3, ok: 3, failed: 0 } }]);
+  assert.deepEqual(phaseKeys, [`parse.${phase.id}`], "naming disambiguation: phaseKey = pipelineKey.phaseId");
 });
 
 test("loadSlice skips when a run is already active for the phase (no double-drain)", async () => {

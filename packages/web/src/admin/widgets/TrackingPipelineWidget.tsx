@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { NEXTGEN_RECOMMENDED_BATCH_SIZE } from "@radar/shared";
 import { Button, Field, Panel } from "../../shared/ds";
 import { useObservable } from "../../shared/hooks/useObservable";
 import { adminApi } from "../../shared/api/adminApi";
@@ -213,6 +214,13 @@ export function TrackingPipelineWidget() {
           </div>
         )}
       </div>
+      {Number(batchSize) > NEXTGEN_RECOMMENDED_BATCH_SIZE && (
+        <p style={{ fontSize: 11, color: "var(--warning, #c9a227)", marginTop: 6 }}>
+          ⚠️ Выше рекомендованных {NEXTGEN_RECOMMENDED_BATCH_SIZE}: фазы Cluster/Join (кластеризация +
+          Kalman-join) — O(n²) по кандидатам и Kalman × открытые треки, время/стоимость тика на большем
+          объёме не валидированы. Настройка применяется как есть — сначала проверьте на тесте.
+        </p>
+      )}
       {status?.watermark && (
         <p style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 6 }}>
           Watermark: {status.watermark.lastOccurredAt}

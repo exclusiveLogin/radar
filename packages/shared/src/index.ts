@@ -183,6 +183,14 @@ export {
   phaseRunStatsSchema,
   phaseRunSchema,
   phaseReplayRequestSchema,
+  pipelineKeySchema,
+  workbookPhaseDescriptorSchema,
+  workbookRegistryEntrySchema,
+  workloadStatusSchema,
+  activeWorkloadSchema,
+  runOutcomeSchema,
+  runHistoryEntrySchema,
+  workbookObservabilityResponseSchema,
 } from "./schemas";
 export {
   buildTrackEdges,
@@ -261,7 +269,7 @@ export {
   TRACKING_PERSIST_ADVISORY_LOCK_KEY,
   TRACKING_DAEMON_MAX_BATCH_SIZE,
   resolveDaemonBatchSize,
-  resolveNextGenDaemonBatchSize,
+  NEXTGEN_RECOMMENDED_BATCH_SIZE,
   TRACKING_RESET_TRUNCATE_SQL,
   withTrackingL1Transaction,
   withTrackingL1ReadRetry,
@@ -654,6 +662,14 @@ export type {
   PhaseRunLogEntry,
   PhaseRunStats,
   PhaseReplayRequest,
+  PipelineKey,
+  WorkbookPhaseDescriptorDto,
+  WorkbookRegistryEntry,
+  WorkloadStatus,
+  ActiveWorkload,
+  WorkbookRunOutcome,
+  RunHistoryEntry,
+  WorkbookObservabilityResponse,
 } from "./schemas";
 export type {
   ProfileKinematics,

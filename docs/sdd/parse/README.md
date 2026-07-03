@@ -21,6 +21,8 @@
 
 **Отладка workspace:** [parse-inspect.md](../../parse-inspect.md) — `parse:inspect` для agent-driven разбора сообщений.
 
+**Runner platform migration (Wave 4, инфраструктура запуска ingestParse-фаз):** [runner-platform-migration.md](./runner-platform-migration.md).
+
 ---
 
 ## Целевой поток

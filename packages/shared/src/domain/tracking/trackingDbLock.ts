@@ -4,6 +4,7 @@ import {
   withPgContendedReadRetry,
   withPgDeadlockRetry,
 } from "../../infrastructure/pgDeadlockRetry";
+import { NEXTGEN_RECOMMENDED_BATCH_SIZE } from "./trackingBatchConstants.js";
 
 /**
  * xact advisory lock — только внутри одной DB-транзакции (один connection из пула).
@@ -22,10 +23,7 @@ export function resolveDaemonBatchSize(configBatchSize?: number): number {
 /** @deprecated Используй resolveDaemonBatchSize — оставлено для обратной совместимости env. */
 export const TRACKING_DAEMON_MAX_BATCH_SIZE = resolveDaemonBatchSize(500);
 
-/** NextGen Ф2/Ф3 тяжёлые — ограничиваем chunk (O(n²) + Kalman × openTracks). */
-export function resolveNextGenDaemonBatchSize(configBatchSize?: number): number {
-  return Math.min(resolveDaemonBatchSize(configBatchSize), 250);
-}
+export { NEXTGEN_RECOMMENDED_BATCH_SIZE };
 
 export type TrackingPgQueryFn = (sql: string, params?: unknown[]) => Promise<unknown>;
 

@@ -16,8 +16,9 @@
 | **D4** | [phase-d4-event-type-dictionary.md](./phase-d4-event-type-dictionary.md) | D3 UI на presets | 2 |
 | **D5** | [phase-d5-threat-profile-rules.md](./phase-d5-threat-profile-rules.md) | Tracking T1 или parallel | 1 |
 | **D6** | [phase-d6-api-read-decoupling.md](./phase-d6-api-read-decoupling.md) | D4 dictionary validate | 2–3 |
+| **D7** | [phase-d7-workbook-runner-integration.md](./phase-d7-workbook-runner-integration.md) | — (независим от D1–D6) | минимальный срез готов |
 
-Порядок: **D1 параллельно Tracking T1** → D2–D3 → D4 → D5 → **D6** (read API).
+Порядок: **D1 параллельно Tracking T1** → D2–D3 → D4 → D5 → **D6** (read API). D7 — отдельная ветка, не блокирует и не блокируется D1–D6.
 
 ---
 

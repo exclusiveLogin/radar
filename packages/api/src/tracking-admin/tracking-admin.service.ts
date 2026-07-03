@@ -7,7 +7,7 @@ import {
   TRACKING_PERSIST_ADVISORY_LOCK_KEY,
   TRACKING_RESET_TRUNCATE_SQL,
   maxEpsilonTemporalMs,
-  resolveNextGenDaemonBatchSize,
+  resolveDaemonBatchSize,
   withTrackingL1Transaction,
   withTrackingL1ReadRetry,
   isPgContendedL1ResetError,
@@ -612,7 +612,7 @@ export class TrackingAdminService {
       ?? (runStartedAt && activeRun?.status === "running"
         ? Math.max(0, Date.now() - new Date(runStartedAt).getTime())
         : undefined);
-    const effectiveBatchSize = stats.batchSize ?? resolveNextGenDaemonBatchSize(config.batchSize);
+    const effectiveBatchSize = stats.batchSize ?? resolveDaemonBatchSize(config.batchSize);
     const tracksActive = stats.kalmanTracksOpen ?? 0;
     const tracksClosed = stats.kalmanTracksClosed ?? 0;
 
@@ -687,7 +687,7 @@ export class TrackingAdminService {
     const nodesInTracks = Number(nodes);
     const unconsumedPipeline = await this.countUnconsumedPipeline(until);
     const dedupClosureSize = await this.countDedupClosureSize(until, config, unconsumedPipeline);
-    const effectiveBatchSize = resolveNextGenDaemonBatchSize(config.batchSize);
+    const effectiveBatchSize = resolveDaemonBatchSize(config.batchSize);
     const percentNodesInTracks =
       totalTargetCandidates > 0
         ? Math.min(100, Math.round((nodesInTracks / totalTargetCandidates) * 100))

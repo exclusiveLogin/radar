@@ -162,7 +162,7 @@ export {
   TRACKING_PERSIST_ADVISORY_LOCK_KEY,
   TRACKING_DAEMON_MAX_BATCH_SIZE,
   resolveDaemonBatchSize,
-  resolveNextGenDaemonBatchSize,
+  NEXTGEN_RECOMMENDED_BATCH_SIZE,
   TRACKING_RESET_TRUNCATE_SQL,
   withTrackingL1Transaction,
   withTrackingL1ReadRetry,

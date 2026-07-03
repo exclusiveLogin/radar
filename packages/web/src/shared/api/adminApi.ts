@@ -26,6 +26,8 @@ import {
   trackingRebuildRunSchema,
   trackingPipelineConfigSchema,
   type TrackingPipelineConfig,
+  workbookObservabilityResponseSchema,
+  type WorkbookObservabilityResponse,
 } from "@radar/shared";
 import type { PhaseDefinition, PhaseRun, TrackingStatusResponse, TrackingRebuildRun } from "@radar/shared";
 import { z } from "zod";
@@ -243,4 +245,7 @@ export const adminApi = {
 
   parsePipelineReparse: (): Promise<ParsePipelineStartResponse> =>
     postJson("/api/admin/parse/reparse", undefined, parsePipelineStartResponseSchema),
+
+  workbookObservability: (): Promise<WorkbookObservabilityResponse> =>
+    getJson("/api/admin/workbook/observability", workbookObservabilityResponseSchema),
 };

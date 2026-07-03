@@ -17,7 +17,7 @@ import type { DataSource } from "typeorm";
 import {
   H3VectorFlowMap,
   maxEpsilonTemporalMs,
-  resolveNextGenDaemonBatchSize,
+  resolveDaemonBatchSize,
   createWorkbook,
 } from "@radar/shared";
 import {
@@ -137,7 +137,7 @@ export function createTrackingRunner(ds: DataSource): TrackingRunner {
     const control = await readTrackingRunControl(ds, run.id);
     if (control?.pause || control?.cancel) return { slice: EMPTY_SLICE, isEmpty: true };
 
-    const batchSize = resolveNextGenDaemonBatchSize(state.config.batchSize);
+    const batchSize = resolveDaemonBatchSize(state.config.batchSize);
     const chunk = pending.slice(0, batchSize);
     const totalCandidates = await countTrackingPipelineRemaining(ds, { until });
 
@@ -168,7 +168,7 @@ export function createTrackingRunner(ds: DataSource): TrackingRunner {
       emitProgress: telemetryBridge.emitProgress,
     },
     onUnhandledError: (error) => {
-      console.error("[tracking-runner] tick failed:", error);
+      console.error(`[${TRACKING_PIPELINE_KEY}] tick failed:`, error);
     },
   });
 

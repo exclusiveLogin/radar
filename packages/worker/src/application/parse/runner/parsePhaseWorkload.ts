@@ -85,7 +85,7 @@ export function createParsePhaseWorkload(
         loadSlice: async () => {
           const stale = await deps.phaseRuns.failStaleActiveRuns(phase.id, STALE_RUN_MS);
           if (stale > 0) {
-            console.warn(`[parse-runner:${phase.id}] failed ${stale} stale run(s)`);
+            console.warn(`[${PARSE_PIPELINE_KEY}.${phase.id}] failed ${stale} stale run(s)`);
           }
           const active = await deps.phaseRuns.findActiveForPhase(phase.id);
           if (active) return { slice: { phase }, isEmpty: true };
@@ -99,10 +99,11 @@ export function createParsePhaseWorkload(
         // `runDrain` уже сохраняет весь прогресс сам (phase_runs.stats/log/status) — здесь
         // materialize не нужен, тик полностью самодостаточен.
         materialize: async () => {},
-        emitProgress: (envelope) => telemetry.publish(envelope),
+        emitProgress: (envelope) =>
+          telemetry.publish({ ...envelope, phaseKey: `${PARSE_PIPELINE_KEY}.${phase.id}` }),
       },
       onUnhandledError: (error) => {
-        console.error(`[parse-runner:${phase.id}] tick failed:`, error);
+        console.error(`[${PARSE_PIPELINE_KEY}.${phase.id}] tick failed:`, error);
       },
     }),
     telemetry,

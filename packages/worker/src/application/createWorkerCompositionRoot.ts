@@ -39,6 +39,13 @@ import { ParseRunnerRegistry } from "./parse/runner/parseRunnerRegistry.js";
 import { PhaseManualRunPoller } from "./phases/phaseManualRunPoller.js";
 import { PlaceEnrichmentDaemonService } from "./geo-parse/placeEnrichmentDaemonService.js";
 import { PlaceEnrichmentRunner } from "./geo-parse/placeEnrichmentRunner.js";
+import {
+  createGeoEnrichRunner,
+  isGeoEnrichRunnerPlatformEnabled,
+  type GeoEnrichRunner,
+} from "./geo-parse/runner/geoEnrichRunner.js";
+import { wireBusTrigger } from "./runtime/workload/wireBusTrigger.js";
+import { odpResolve, type OdpResolution } from "../composition/odp/index.js";
 import { IngestRawMessageHandler } from "./handlers/ingestRawMessageHandler.js";
 import { ParseRawMessageHandler } from "./handlers/parseRawMessageHandler.js";
 import {
@@ -155,7 +162,8 @@ export async function createWorkerCompositionRoot(
   let trackingRebuildDaemon: TrackingRebuildDaemon | TrackingRunner | undefined;
   /** Взаимоисключимые раннеры: runner-platform (Wave 4, за флагом) либо legacy scheduled-демон. */
   let ingestParseDaemon: IngestParseDaemonService | ParseRunnerRegistry | undefined;
-  let placeEnrichmentDaemon: PlaceEnrichmentDaemonService | undefined;
+  /** Взаимоисключимые раннеры: runner-platform (Wave 5, за флагом) либо legacy scheduled-демон. */
+  let placeEnrichmentDaemon: PlaceEnrichmentDaemonService | GeoEnrichRunner | undefined;
   let phaseManualRunPoller: PhaseManualRunPoller | undefined;
   let phaseRunner: PhaseRunner | undefined;
   let coverageEnqueuer: CoverageEnqueuer | undefined;
@@ -364,12 +372,22 @@ export async function createWorkerCompositionRoot(
       );
       phaseManualRunPoller.start();
 
-      placeEnrichmentDaemon = new PlaceEnrichmentDaemonService(
-        workerRepos.phaseDefinitions,
-        workerRepos.phaseRuns,
-        workerRepos.placeEnrichmentJobs,
-        phaseRunner,
-      );
+      // Wave 5 (tracking-parse-architecture-refactor): за флагом — runner platform (один
+      // workload на все geoParse-фазы, та же последовательность dadata→nominatim→llm), иначе
+      // legacy `PlaceEnrichmentDaemonService`. Одна и та же place_enrichment_jobs очередь.
+      placeEnrichmentDaemon = isGeoEnrichRunnerPlatformEnabled()
+        ? createGeoEnrichRunner({
+            phases: workerRepos.phaseDefinitions,
+            phaseRuns: workerRepos.phaseRuns,
+            placeJobs: workerRepos.placeEnrichmentJobs,
+            runner: phaseRunner,
+          })
+        : new PlaceEnrichmentDaemonService(
+            workerRepos.phaseDefinitions,
+            workerRepos.phaseRuns,
+            workerRepos.placeEnrichmentJobs,
+            phaseRunner,
+          );
       placeEnrichmentDaemon.start();
     }
   } else {
@@ -432,10 +450,45 @@ export async function createWorkerCompositionRoot(
     }
   }
 
+  // Wave 6 (tracking-parse-architecture-refactor): ingest chaining raw->parse->tracking->geo-enrich
+  // как хореография по сигналам — bus-событие будит соответствующий workload раньше своего
+  // интервала. Работает только поверх runner-platform реализаций (за флагами Wave 3-5); поверх
+  // legacy-демонов — no-op (они не подписаны, продолжают жить на своих таймерах/подписках как раньше).
+  if (ingestParseDaemon instanceof ParseRunnerRegistry) {
+    const parseRunner = ingestParseDaemon;
+    wireBusTrigger(bus, "RawMessageIngested", {
+      debounceMs: 250,
+      onRoute: () => parseRunner.enqueueAll(),
+    });
+  }
+  if (trackingRebuildDaemon && !(trackingRebuildDaemon instanceof TrackingRebuildDaemon)) {
+    const trackingRunner = trackingRebuildDaemon;
+    wireBusTrigger(bus, "MessageParsed", {
+      debounceMs: 250,
+      onRoute: () => trackingRunner.enqueue(),
+    });
+  }
+  if (placeEnrichmentDaemon && !(placeEnrichmentDaemon instanceof PlaceEnrichmentDaemonService)) {
+    const geoRunner = placeEnrichmentDaemon;
+    wireBusTrigger(bus, "MessageParsed", {
+      debounceMs: 250,
+      onRoute: () => geoRunner.enqueue(),
+    });
+  }
+
+  // ODP (Operational Domain Profile): читает уже опубликованные флаги каждого домена — не
+  // управляет конструированием раннеров (это по-прежнему делает сам composition root выше),
+  // только декларирует список pipeline-контекстов и их текущий рантайм для лога/будущего UI.
+  const odp: OdpResolution[] = odpResolve();
+  for (const entry of odp) {
+    console.log(`[odp] ${entry.pipelineKey} → ${entry.runtime} (${entry.label})`);
+  }
+
   return {
     storageMode,
     workerRole,
     bus,
+    odp,
     metricsAggregator,
     placeScan,
     parsePipelineService: pipeline,

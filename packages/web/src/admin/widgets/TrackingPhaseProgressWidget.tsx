@@ -124,7 +124,10 @@ export function TrackingPhaseProgressWidget() {
   const processed = stats?.processedCandidates ?? m?.processedCandidates ?? 0;
   const total = stats?.totalCandidates ?? m?.totalTargetCandidates ?? 0;
   const tickPercent = stats?.percentApprox ?? m?.percentPipelineProcessed ?? 0;
-  const activePhaseId = runStatus === "running" ? stats?.stage : undefined;
+  // Все enabled-фазы выполняются вместе за один тик (единый phase-constructor, не отдельные
+  // раннеры) — точный "какая стадия сейчас" почти никогда не пойман поллингом (тик короче
+  // интервала опроса), поэтому честная семантика: фаза активна, пока активен весь run.
+  const isPipelineRunning = runStatus === "running";
 
   return (
     <Panel title="Прогресс по фазам">
@@ -145,7 +148,7 @@ export function TrackingPhaseProgressWidget() {
             key={entry.id}
             id={entry.id}
             enabled={entry.enabled}
-            active={entry.enabled && activePhaseId === entry.id}
+            active={entry.enabled && isPipelineRunning}
             rows={phaseRows(entry.id, stats?.phaseStats)}
           />
         ))}

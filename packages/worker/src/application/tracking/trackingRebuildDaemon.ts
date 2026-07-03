@@ -4,7 +4,7 @@
 import type { DataSource } from "typeorm";
 import {
   trackingPipelineConfigSchema,
-  resolveNextGenDaemonBatchSize,
+  resolveDaemonBatchSize,
   H3VectorFlowMap,
   type TrackingPipelineConfig,
   type TrackingRebuildStats,
@@ -135,7 +135,7 @@ export class TrackingRebuildDaemon {
       elapsedMs: Date.now() - runStartedMs,
     });
 
-    const batchSize = resolveNextGenDaemonBatchSize(config.batchSize);
+    const batchSize = resolveDaemonBatchSize(config.batchSize);
     const chunk = allPending.slice(0, batchSize);
 
     const totalCandidates =
