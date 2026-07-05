@@ -401,3 +401,48 @@ test("geo validation: catalogHeal запрещает created_new на parse-path
   assert.equal(result.location, null);
   assert.equal((await places.listActive()).length, 0);
 });
+
+test("geo validation: region-level RU-PRI подавляется при якорях СПб", async () => {
+  const regions = new InMemoryRegionRepository();
+  const places = new InMemoryPlaceRepository();
+  const aliases = new InMemoryPlaceAliasRepository();
+  const service = new GeoValidationService(regions, places, aliases);
+
+  const priId = "pri-id";
+  await regions.upsertMany([
+    {
+      id: priId,
+      code: "RU-PRI",
+      iso: "RU-PRI",
+      name: "Приморский",
+      nameWithType: "Приморский край",
+      shortName: "Приморский",
+      frontRegion: false,
+      borderRegion: false,
+    },
+  ]);
+
+  const text =
+    "аэ.Пулково, Кронштадт, Ломоносов, Петергоф, Приморский район, Василеостровский район";
+  const result = await service.validate(
+    text,
+    {
+      regionId: priId,
+      regionCode: "RU-PRI",
+      placeName: "Приморский",
+      precision: "region",
+      entityKind: "region",
+      source: "db",
+    },
+    {
+      catalogHeal: true,
+      localityAnchors: [
+        { name: "Пулково", regionCode: "RU-SPE", kind: "city" },
+        { name: "Кронштадт", regionCode: "RU-SPE", kind: "city" },
+      ],
+    },
+  );
+
+  assert.equal(result.decision, "rejected");
+  assert.equal(result.location, null);
+});

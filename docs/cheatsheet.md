@@ -203,11 +203,12 @@ ORDER BY rm.posted_at DESC LIMIT 10;
 Типовые сценарии reparse:
 
 ```powershell
-npm run radar -- parse run                              # после ingest
-npm run radar -- pipeline reset && npm run radar -- parse run   # перепарсить raw
+npm run radar -- parse run                              # полный reparse (сброс + wipe parsed внутри)
 npm run radar -- pipeline status
 npm run radar -- pipeline parity
 ```
+
+`pipeline reset` отдельно — только сброс без reparse (дальше `stack dev` / catch-up).
 
 ### Parse debug (agent)
 

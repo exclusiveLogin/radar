@@ -8,6 +8,7 @@ import type {
 import { canonicalRegionCode } from "@radar/shared";
 import type { GeoValidationService } from "../../application/parse/geoValidationService.js";
 import { applyVicinityScope } from "./applyVicinityScope.js";
+import { anchorsFromPlaceCandidates } from "./geo/filterRegionScanHits.js";
 import { deriveEventLocationsFromCandidate } from "./deriveEventLocationsFromCandidate.js";
 import { listActiveCandidates } from "./parseProcessorContract.js";
 
@@ -82,6 +83,12 @@ export async function buildMaterializedEventLocations(input: {
   const active = listActiveCandidates(input.workspace).filter((c) => idSet.has(c.id));
   const multiPlaceContext = countPlaceAnchors(listActiveCandidates(input.workspace)) > 1;
   const rawText = input.workspace.groomedText;
+  const localityAnchors = anchorsFromPlaceCandidates(listActiveCandidates(input.workspace));
+  const validationBase = {
+    ...PARSE_CATALOG_VALIDATION_CTX,
+    multiPlaceContext,
+    localityAnchors,
+  };
   const result: Record<string, EventLocation[]> = {};
 
   for (const candidate of active) {
@@ -91,10 +98,7 @@ export async function buildMaterializedEventLocations(input: {
     const validated: EventLocation[] = [];
     for (const rawDraft of drafts) {
       const draft = await enrichDraftCoords(rawDraft, candidate, input.places);
-      const decision = await input.validation.validate(rawText, draft, {
-        ...PARSE_CATALOG_VALIDATION_CTX,
-        multiPlaceContext,
-      });
+      const decision = await input.validation.validate(rawText, draft, validationBase);
       if (decision.decision === "rejected" || !decision.location) continue;
       validated.push(decision.location);
     }
@@ -109,10 +113,7 @@ export async function buildMaterializedEventLocations(input: {
     if (target) {
       const validatedFacets: EventLocation[] = [];
       for (const draft of regionFacets) {
-        const decision = await input.validation.validate(rawText, draft, {
-          ...PARSE_CATALOG_VALIDATION_CTX,
-          multiPlaceContext,
-        });
+        const decision = await input.validation.validate(rawText, draft, validationBase);
         if (decision.decision !== "rejected" && decision.location) {
           validatedFacets.push(decision.location);
         }

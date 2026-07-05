@@ -17,15 +17,21 @@ export type FullReparseInput = {
   forceLocks?: boolean;
 };
 
+export type FullReparseResult = {
+  messages: number;
+  phasesInvalidated: number;
+  mapPlacesCleared: number;
+  mapRegionsGrey: number;
+  workspacesDeleted: number;
+  parsedEventsDeleted: number;
+};
+
 /**
- * Полный reparse (контур rebuild): wipe parsed+workspace уже сделан снаружи,
+ * Полный reparse (контур rebuild): сброс карты + wipe parsed/workspace,
  * затем ingest-flow по каждому raw с нуля.
  * @see ../parse/parseWorkspaceRunModes.ts
  */
-export async function runFullReparseLikeIngest(input: FullReparseInput): Promise<{
-  messages: number;
-  phasesInvalidated: number;
-}> {
+export async function runFullReparseLikeIngest(input: FullReparseInput): Promise<FullReparseResult> {
   const [, scheduled] = await Promise.all([
     input.repos.phaseDefinitions.listEnabled("eager", "ingestParse"),
     input.repos.phaseDefinitions.listEnabled("scheduled", "ingestParse"),
@@ -35,9 +41,9 @@ export async function runFullReparseLikeIngest(input: FullReparseInput): Promise
   const mapReset = new MapStateFullReset({
     dataSource: input.dataSource,
   });
-  await mapReset.run(new Date(), "reparse:invalidate");
+  const mapResetResult = await mapReset.run(new Date(), "reparse:invalidate");
 
-  await clearParseLayerArtifacts(input.dataSource, {
+  const parseLayer = await clearParseLayerArtifacts(input.dataSource, {
     forceLocks: input.forceLocks,
   });
 
@@ -66,5 +72,12 @@ export async function runFullReparseLikeIngest(input: FullReparseInput): Promise
     }
   }
 
-  return { messages: rows.length, phasesInvalidated };
+  return {
+    messages: rows.length,
+    phasesInvalidated,
+    mapPlacesCleared: mapResetResult.placesCleared,
+    mapRegionsGrey: mapResetResult.regionsGrey,
+    workspacesDeleted: parseLayer.workspacesDeleted,
+    parsedEventsDeleted: parseLayer.parsedEventsDeleted,
+  };
 }

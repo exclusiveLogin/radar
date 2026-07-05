@@ -1,4 +1,8 @@
 import type { EventCandidate, IPlaceScanPort, ParseWorkspace, PlaceScanHit } from "@radar/shared";
+import {
+  anchorsFromDefinitePlaceHits,
+  filterRegionScanHits,
+} from "./geo/filterRegionScanHits.js";
 import { appendCandidate, rejectOwnCandidates } from "./parseProcessorContract.js";
 import { stripConsequencePhrases } from "../parsing/consequencePhrases.js";
 
@@ -52,13 +56,17 @@ export function runGeoProcessor(input: {
   // поэтому маскировка спанов здесь не влияет на классификацию.
   const text = stripConsequencePhrases(workspace.groomedText);
 
-  const regionHits = placeScan.matchRegions(text);
+  // Якоря — до regionScope, иначе ложный субъект («Приморский» → RU-PRI) режет НП СПб.
+  const unscopedPlaceHits = placeScan.matchPlaces(text, {});
+  const localityAnchors = anchorsFromDefinitePlaceHits(unscopedPlaceHits);
+  const regionHits = filterRegionScanHits(
+    text,
+    placeScan.matchRegions(text),
+    localityAnchors,
+  );
   const explicitRegionIsos = regionHits.map((h) => h.entry.regionIso);
   const regionScopeIso =
     explicitRegionIsos.length === 1 ? explicitRegionIsos[0] : undefined;
-
-  // Пустой ctx — без auto regionScope (pickRegionScopeIso иначе режет чужие place)
-  const unscopedPlaceHits = placeScan.matchPlaces(text, {});
   const scopedPlaceHits = regionScopeIso
     ? placeScan.matchPlaces(text, { regionScopeIso, explicitRegionIsos })
     : unscopedPlaceHits;

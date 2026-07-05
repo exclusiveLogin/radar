@@ -110,7 +110,7 @@ Legacy-алиасы: `parse-engine:system:wipe` → `system:wipe`; `vendor-inges
 ### parse
 
 - `phase wipe parse` — parsed + evloc; **raw остаётся**.
-- Операционный reparse: `pipeline reset` → `parse run`.
+- Операционный reparse: `parse run` (сброс parsed + карта внутри команды). `pipeline reset` — только wipe без reparse.
 
 ### geo (places)
 

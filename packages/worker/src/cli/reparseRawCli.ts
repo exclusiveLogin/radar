@@ -1,6 +1,5 @@
 import { MONOREPO_ROOT } from "@repo/root";
 import { createWorkerCompositionRoot } from "../application/createWorkerCompositionRoot.js";
-import { MapStateFullReset } from "../application/map-state/mapStateFullReset.js";
 import { runFullReparseLikeIngest } from "../application/phases/reparseOrchestrator.js";
 import { WorkerStorageMode } from "../infrastructure/persistence/storageMode.js";
 import { loadRootEnv } from "../infrastructure/config/loadRootEnv.js";
@@ -9,7 +8,8 @@ import { createProgress } from "./progress.js";
 import { hasAnyFlag, parseLongFlagsMap } from "./workerCliArgs.js";
 
 /**
- * Полный reparse: сброс карты + инвалидация parsed/coverage, затем ingest-поток (eager inline).
+ * Полный reparse: сброс карты + wipe parsed/workspace + ingest-поток по всем raw.
+ * Сброс внутри runFullReparseLikeIngest — отдельный pipeline reset перед этим не нужен.
  * Scheduled ingestParse — IngestParseDaemon, после eager по order в манифесте.
  */
 async function main(): Promise<void> {
@@ -29,13 +29,6 @@ async function main(): Promise<void> {
 
   const repos = runtime.workerRepos;
 
-  const reset = new MapStateFullReset({
-    dataSource: runtime.dataSource,
-  });
-  const resetResult = await reset.run();
-  console.log(
-    `Map state reset: places=${resetResult.placesCleared}, regions=${resetResult.regionsGrey}`,
-  );
   if (forceLocks) {
     console.log(
       "forceLocks: при lock timeout закроем блокирующие сессии dev/API (отключить: --no-force-locks)",
@@ -71,6 +64,10 @@ async function main(): Promise<void> {
   });
   progress.stop();
 
+  console.log(
+    `Reparse prep: map places=${result.mapPlacesCleared}, regions→grey=${result.mapRegionsGrey}, ` +
+      `parsed_events=${result.parsedEventsDeleted}, workspaces=${result.workspacesDeleted}`,
+  );
   console.log(
     `Reparse done: messages=${result.messages}, coverageInvalidated=${result.phasesInvalidated}. ` +
       "Scheduled ingestParse догонит IngestParseDaemon в worker:dev (после done catalog по order).",

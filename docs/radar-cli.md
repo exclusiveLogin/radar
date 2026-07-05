@@ -25,9 +25,9 @@ npm run radar -- help [stack|pipeline|ingest|parse|geo|phase|map|tracking|data|d
 | **Треки: rebuild** | `npm run radar -- tracking rebuild -- --since=2024-01-01T00:00:00Z` |
 | Импорт geo-каталога | `npm run radar -- geo catalog:import` |
 | Backfill архива | `npm run radar -- ingest backfill -- --all-bindings --batch-size=100` |
-| **Reparse / карта после ingest** | `npm run radar -- parse run` |
-| **После deploy P6 (ADR-012)** | `stack migrate` → restart worker → `pipeline reset` → `parse run` → `pipeline parity` |
-| Перепарсить без смены каталога | `npm run radar -- pipeline reset` → `parse run` |
+| **Reparse / карта после ingest** | `npm run radar -- parse run` (сброс parsed внутри, reset не нужен) |
+| **После deploy P6 (ADR-012)** | `stack migrate` → restart worker → `parse run` → `pipeline parity` |
+| Сброс parsed без reparse | `npm run radar -- pipeline reset` → `stack dev` / catch-up |
 | Статус очередей | `npm run radar -- pipeline status` |
 | Чистая система | **[cold-start.md](./cold-start.md)** — шаги 0→6 |
 
@@ -265,13 +265,11 @@ npm run radar -- pipeline parity
 npm run build
 npm run radar -- stack migrate
 # restart worker
-npm run radar -- pipeline reset
 npm run radar -- parse run
 npm run radar -- pipeline parity
 # опционально: npm run radar -- geo catalog:import
 
 # Перепарсить raw без смены каталога
-npm run radar -- pipeline reset
 npm run radar -- parse run
 
 # Чистая система

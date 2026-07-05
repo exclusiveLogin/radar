@@ -24,6 +24,11 @@ import {
   isTrustedGeocodeSource,
 } from "../../domain/geo/coordRegionReconcile.js";
 import {
+  shouldSuppressFederalSubjectMatch,
+  type LocalityAnchor,
+  type RegionCandidate,
+} from "../../domain/geo/geographicTextContext.js";
+import {
   isGarbageIngestPlaceName,
 } from "../../domain/parsing/channelCityListPromo.js";
 
@@ -44,6 +49,8 @@ export type GeoValidationContext = {
   multiPlaceContext?: boolean;
   /** Catalog heal: не создавать новый place — только match или reject. */
   catalogHeal?: boolean;
+  /** Якорные НП из workspace — safety net для ложных region-level матчей. */
+  localityAnchors?: LocalityAnchor[];
 };
 
 const TRUSTED_PROVIDERS = new Set<PlaceProvider>([
@@ -288,6 +295,30 @@ export class GeoValidationService {
     return location.entityKind === "region" || location.precision === "region";
   }
 
+  private toRegionCandidate(region: RegionRecord): RegionCandidate {
+    const aliases = [region.shortName, region.name, region.nameWithType].filter(
+      (value): value is string => Boolean(value?.trim()),
+    );
+    return {
+      code: canonicalRegionCode(region),
+      name: region.nameWithType ?? region.name,
+      fiasId: region.fiasId,
+      aliases,
+    };
+  }
+
+  private isSuppressedFederalSubjectMatch(
+    rawQuery: string,
+    region: RegionRecord,
+    context: GeoValidationContext,
+  ): boolean {
+    return shouldSuppressFederalSubjectMatch(
+      rawQuery,
+      this.toRegionCandidate(region),
+      context.localityAnchors ?? [],
+    );
+  }
+
   async validate(
     rawQuery: string,
     location: EventLocation,
@@ -296,6 +327,9 @@ export class GeoValidationService {
     if (this.isRegionLevelLocation(location)) {
       const region = await this.resolveRegionEntity(location);
       if (!region) {
+        return { decision: "rejected", location: null };
+      }
+      if (this.isSuppressedFederalSubjectMatch(rawQuery, region, context)) {
         return { decision: "rejected", location: null };
       }
       return {

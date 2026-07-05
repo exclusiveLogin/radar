@@ -10,7 +10,7 @@ export type ParseWorkspaceRunKind = "rebuild" | "phase_enrich" | "heal";
  * Не путать с FinalizeContext.mode (initial | refinalize | heal) — политика
  * reconcile в terminal finalizer (orphan sweep, candidateEventMap).
  *
- * ## 1. REBUILD (`pipeline reset` → `parse run`, eager catalog ingest)
+ * ## 1. REBUILD (`parse run`, eager catalog ingest)
  * - parsed_events + message_parse_workspace очищены (или первый ingest)
  * - raw → groom → catalog enricher → (optional) enrichers → finalize(mode=initial)
  *

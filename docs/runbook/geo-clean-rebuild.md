@@ -159,7 +159,7 @@ data/geo/catalog/  →  radar geo catalog:import
 
 
 
-> После переливки каталога нужен **`parse run`** (или `pipeline rebuild` + drain), не только `pipeline reset`.
+> После переливки каталога нужен **`parse run`** (сброс parsed внутри; отдельный `pipeline reset` не нужен).
 
 
 

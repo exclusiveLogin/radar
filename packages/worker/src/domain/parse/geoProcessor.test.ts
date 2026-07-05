@@ -109,6 +109,76 @@ test("geoProcessor co-mention: без anchors хиты не фильтруютс
   assert.equal(ws.candidates.length, 2, "Оба хита остаются когда нет definite anchors");
 });
 
+test("geoProcessor: Приморский район + НП СПб — без region-candidate RU-PRI", () => {
+  const TEXT =
+    "аэ.Пулково, Кронштадт, Ломоносов, Петергоф, Приморский район, Василеостровский район";
+
+  const priRegion = makeScanEntry({
+    placeId: "pri-region",
+    name: "Приморский",
+    nameWithType: "Приморский край",
+    regionShortName: "Приморский",
+    regionIso: "RU-PRI",
+    kind: "region",
+  });
+  const pulkovo = makeScanEntry({
+    placeId: "pulkovo",
+    name: "Пулково",
+    regionIso: "RU-SPE",
+    kind: "locality",
+  });
+  const kronstadt = makeScanEntry({
+    placeId: "kronstadt",
+    name: "Кронштадт",
+    regionIso: "RU-SPE",
+    kind: "city",
+  });
+
+  const placeScan = makeScanPort({
+    matchPlacesMap: new Map([
+      [TEXT, [makeHit(pulkovo, "Пулково"), makeHit(kronstadt, "Кронштадт")]],
+    ]),
+    regionHits: [makeHit(priRegion, "Приморский")],
+  });
+
+  const ws = { ...createEmptyParseWorkspace(randomUUID(), TEXT), groomedText: TEXT };
+  runGeoProcessor({ workspace: ws, placeScan });
+
+  const regionCandidates = ws.candidates.filter((c) => c.anchor.kind === "region");
+  const placeRegionCodes = new Set(
+    ws.candidates
+      .filter((c) => c.anchor.kind === "place")
+      .map((c) => c.anchor.regionCode),
+  );
+
+  assert.equal(regionCandidates.length, 0, "RU-PRI region-candidate не должен spawnиться");
+  assert.ok(placeRegionCodes.has("RU-SPE"), "НП СПб должны остаться");
+});
+
+test("geoProcessor: явный Приморский край — region-candidate RU-PRI сохраняется", () => {
+  const TEXT = "Приморский край\nОпасность по БПЛА";
+
+  const priRegion = makeScanEntry({
+    placeId: "pri-region",
+    name: "Приморский",
+    nameWithType: "Приморский край",
+    regionIso: "RU-PRI",
+    kind: "region",
+  });
+
+  const placeScan = makeScanPort({
+    matchPlacesMap: new Map([[TEXT, []]]),
+    regionHits: [makeHit(priRegion, "Приморский край")],
+  });
+
+  const ws = { ...createEmptyParseWorkspace(randomUUID(), TEXT), groomedText: TEXT };
+  runGeoProcessor({ workspace: ws, placeScan });
+
+  const regionCandidates = ws.candidates.filter((c) => c.anchor.kind === "region");
+  assert.equal(regionCandidates.length, 1);
+  assert.equal(regionCandidates[0]!.anchor.regionCode, "RU-PRI");
+});
+
 test("geoProcessor co-mention: с явным регионом в тексте co-mention не применяется", () => {
   const TEXT = "Приморск в Запорожской области";
 

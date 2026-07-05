@@ -23,7 +23,8 @@ function printPlan(): void {
 
 Не трогает: raw_messages, ingest_*, channels, places/regions (справочник), phase_definitions.
 
-После сброса: npm run radar -- stack dev --full  или  npm run radar -- parse run
+После сброса: npm run radar -- stack dev --full  (catch-up без reparse)
+              или  npm run radar -- parse run     (полный reparse, reset не нужен)
 `);
 }
 
