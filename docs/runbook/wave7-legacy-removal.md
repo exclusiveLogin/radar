@@ -2,15 +2,15 @@
 
 База: [ADR-016](../adr-016-runner-platform.md) · [prod-cutover.md](./prod-cutover.md) · [release-checklist.md](../sdd/runner-platform/release-checklist.md)
 
-**Статус: заблокирован** до prod cutover всех трёх доменов на runner platform.
+**Статус:** manifest migration complete ([ADR-021](../rfc/adr-021-manifest-env-ssot.md), f7028fd). Wave 7 **заблокирован** до prod cutover всех трёх доменов на `schedulingImpl=runner-platform`.
 
 ---
 
 ## Предусловия (hard gate)
 
-- [ ] `PARSE_RUNNER_PLATFORM_ENABLED=true` в prod ≥30 дней без rollback
-- [ ] `GEO_ENRICH_RUNNER_PLATFORM_ENABLED=true` в prod ≥30 дней
-- [ ] `TRACKING_RUNNER_PLATFORM_ENABLED=true` в prod ≥30 дней
+- [ ] `schedulingImpl=runner-platform` для parse в prod ≥30 дней без rollback
+- [ ] `schedulingImpl=runner-platform` для geo-enrich в prod ≥30 дней
+- [ ] `schedulingImpl=runner-platform` для tracking в prod ≥30 дней
 - [ ] Gate A–D pass задокументированы для каждого домена
 - [ ] Нет активных инцидентов по cursor/duplicate materialize
 
@@ -23,7 +23,7 @@
 | `IngestParseDaemonService` | parse | `parseRunnerRegistry` + jobKernel |
 | `PlaceEnrichmentDaemonService` | geo-enrich | `geoEnrichRunner` |
 | `TrackingRebuildDaemon` | tracking | `trackingRunner` |
-| Feature flags `*_RUNNER_PLATFORM_ENABLED` | all | `deployment.manifest.json` schedulingImpl |
+| Feature flags `*_RUNNER_PLATFORM_ENABLED` | all | **DONE** (ADR-021 f7028fd) → `deployment.manifest.json` `schedulingImpl` |
 | Ветвление legacy/runner в `createWorkerCompositionRoot.ts` | all | Только runner platform path |
 
 ---
@@ -41,28 +41,25 @@
 
 ### Фаза 1 — parse
 
-1. Убедиться prod на runner-platform ≥30d
+1. Убедиться prod на `schedulingImpl=runner-platform` ≥30d
 2. Удалить `IngestParseDaemonService` + imports
-3. Удалить `PARSE_RUNNER_PLATFORM_ENABLED` flag checks
-4. `typecheck` + staging smoke: ingest → parse → geo
+3. Smoke: ingest → parse → geo
 
 ### Фаза 2 — geo-enrich
 
 1. Удалить `PlaceEnrichmentDaemonService`
-2. Удалить `GEO_ENRICH_RUNNER_PLATFORM_ENABLED`
-3. Smoke: MessageParsed → geo jobs drain
+2. Smoke: MessageParsed → geo jobs drain
 
 ### Фаза 3 — tracking
 
 1. Удалить `TrackingRebuildDaemon`
-2. Удалить `TRACKING_RUNNER_PLATFORM_ENABLED`
-3. Smoke: tracks rebuild + map API
+2. Smoke: tracks rebuild + map API
 
 ### Фаза 4 — cleanup composition root
 
 1. Упростить `createWorkerCompositionRoot.ts` — один path
 2. `deployment.manifest.json` — default `schedulingImpl: runner-platform`
-3. Обновить docs, `.env.example` (убрать legacy flags)
+3. Обновить docs (legacy env flags уже удалены — ADR-021)
 
 ---
 

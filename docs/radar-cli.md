@@ -213,7 +213,7 @@ Legacy по шагам (не SSOT): `geo:regions:seed`, `geo:features:import`, `
 
 **API read-side:** `GET /api/map/tracks`, `GET /api/map/tracks/flow`.
 
-**Env:** `TRACKING_DAEMON_INTERVAL_MS` (default 10000), `TRACKING_DAEMON_ENABLED` (default true), `RADAR_WORKER_ROLE=tracking` — только tracking daemon.
+**Конфиг:** `worker.runtime.manifest.json` → `tracking.*` ([ADR-021](./rfc/adr-021-manifest-env-ssot.md)); `RADAR_WORKER_ROLE=tracking` — только tracking daemon.
 
 Runbook: [runbook/tracking-pipeline.md](./runbook/tracking-pipeline.md).
 

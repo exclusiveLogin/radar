@@ -49,11 +49,22 @@ $env:RADAR_WORKER_ROLE="tracking"
 npm run worker:dev
 ```
 
-| Env | Default | Смысл |
-|-----|---------|--------|
-| `TRACKING_DAEMON_INTERVAL_MS` | 10000 | Тик батча |
-| `TRACKING_DAEMON_ENABLED` | true | Глобальный kill-switch |
-| `TRACKING_DAEMON_MAX_BATCH_SIZE` | 500 (cap в коде) | Тик assign; config.batchSize выше — обрезается |
+## Worker runtime (ADR-021)
+
+`worker.runtime.manifest.json` → `tracking.*` (см. [ADR-021](../rfc/adr-021-manifest-env-ssot.md)):
+
+```json
+{ "tracking": { "enabled": true, "intervalMs": 10000 } }
+```
+
+| Поле manifest | Default | Смысл |
+|---------------|---------|--------|
+| `tracking.enabled` | `true` | Глобальный kill-switch |
+| `tracking.intervalMs` | `10000` | Тик батча |
+
+Env override: `WORKER__tracking__enabled`, `WORKER__tracking__intervalMs`.
+
+`RADAR_WORKER_ROLE=tracking` — только tracking daemon (host dev).
 
 **Важно:** в `docker-compose.app.yml` ingest/backfill/phase **не** гоняют треки — нужен `worker-tracking` или host `stack dev --full`.
 

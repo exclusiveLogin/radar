@@ -1,3 +1,5 @@
+> **Конфигурация:** [ADR-021 manifest env SSOT](../rfc/adr-021-manifest-env-ssot.md) — `deployment.manifest.json` → `infra.obs.*`. Ниже ADR-017 описывает **архитектуру** observability.
+
 # ADR-017: Observability embedded (Iter 1)
 
 **Статус:** accepted  
@@ -28,12 +30,33 @@ Bounded context **observability** с push-моделью:
 | `obs_trigger_counters` | (pipeline_key, event_type, source) | счётчик триггеров |
 | `obs_materialize_counters` | `pipeline_key` | счётчик materialize |
 
-### Env
+### Конфигурация (ADR-021)
+
+`deployment.manifest.json` → `infra.obs`:
+
+```json
+{
+  "infra": {
+    "obs": {
+      "mode": "embedded",
+      "readMode": "embedded",
+      "serviceUrl": "http://127.0.0.1:3020",
+      "dockerize": false
+    }
+  }
+}
+```
+
+Env override (`DEPLOY__`):
 
 ```bash
-RADAR_OBS_MODE=embedded   # default при RADAR_STORAGE_MODE=db
-RADAR_OBS_MODE=noop       # отключить запись
+DEPLOY__infra__obs__mode=embedded      # default при storageMode=db
+DEPLOY__infra__obs__mode=noop          # отключить запись
+DEPLOY__infra__obs__mode=service       # HTTP → obs-service (Iter 3)
+DEPLOY__infra__obs__dockerize=true     # docker profile obs
 ```
+
+> **Удалено:** `RADAR_OBS_MODE`, `DOCKERIZE_OBS` как каналы решения — см. [ADR-021](adr-021-manifest-env-ssot.md).
 
 `host_id` SSOT: `worker:{RADAR_WORKER_ROLE}`.
 
@@ -49,5 +72,5 @@ RADAR_OBS_MODE=noop       # отключить запись
 | Iter | Добавляет |
 |------|-----------|
 | 2 | Legacy + runner producers, idempotent upserts |
-| 3 | obs-service HTTP, `RADAR_OBS_MODE=service` |
+| 3 | obs-service HTTP, `infra.obs.mode=service` (manifest) |
 | 6 | Nest read + Discovery UI |

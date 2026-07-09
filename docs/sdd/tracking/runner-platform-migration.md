@@ -1,6 +1,6 @@
 # Tracking — Runner Platform Migration (Wave 3)
 
-Статус: код готов, за флагом `TRACKING_RUNNER_PLATFORM_ENABLED` (default off)
+Статус: код готов, opt-in через `deployment.manifest.json` → `schedulingImpl=runner-platform` (см. [ADR-021](../../rfc/adr-021-manifest-env-ssot.md))
 База: [ADR-016](../../adr-016-runner-platform.md), [SDD runner-platform](../runner-platform/README.md) · Индекс: [../README.md](../README.md)
 
 Это НЕ про алгоритм трекинга (nextgen-gravity, ADR-015) — про инфраструктурный контур запуска. Алгоритм не менялся: `loadDedupClosure`/`runIncrementalBatch` — те же функции, что использует legacy `TrackingRebuildDaemon`.

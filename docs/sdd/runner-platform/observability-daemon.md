@@ -67,13 +67,33 @@ curl http://127.0.0.1:3020/health
 
 ---
 
-## Env
+## Конфигурация (ADR-021)
 
-```env
-RADAR_OBS_MODE=embedded
-RADAR_OBS_SERVICE_URL=http://127.0.0.1:3020
-RADAR_OBS_READ_MODE=embedded
-OBS_PORT=3020
-DOCKERIZE_OBS=0
-DOCKERIZE_ALL=0
+`deployment.manifest.json` → `infra.obs` (см. [ADR-021](../../rfc/adr-021-manifest-env-ssot.md)):
+
+```json
+{
+  "infra": {
+    "obs": {
+      "mode": "embedded",
+      "readMode": "embedded",
+      "serviceUrl": "http://127.0.0.1:3020",
+      "dockerize": false,
+      "dockerizeAll": false,
+      "port": 3020
+    }
+  }
+}
 ```
+
+Env override:
+
+```bash
+DEPLOY__infra__obs__mode=embedded
+DEPLOY__infra__obs__readMode=embedded
+DEPLOY__infra__obs__serviceUrl=http://127.0.0.1:3020
+DEPLOY__infra__obs__dockerize=false
+DEPLOY__infra__obs__port=3020
+```
+
+> **Удалено:** `RADAR_OBS_MODE`, `DOCKERIZE_OBS`, `DOCKERIZE_ALL` как каналы решения.

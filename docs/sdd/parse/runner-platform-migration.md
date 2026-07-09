@@ -1,6 +1,6 @@
 # Parse — Runner Platform Migration (Wave 4)
 
-Статус: код готов, за флагом `PARSE_RUNNER_PLATFORM_ENABLED` (default off)
+Статус: код готов, opt-in через `deployment.manifest.json` → `schedulingImpl=runner-platform` (см. [ADR-021](../../rfc/adr-021-manifest-env-ssot.md))
 База: [ADR-016](../../adr-016-runner-platform.md), [SDD runner-platform](../runner-platform/README.md) · Индекс: [../README.md](../README.md)
 
 Не путать с P1–P6 (`ParseWorkspace`, processor registry, semantic segmenter выше в этом же индексе) — это про парсинг **содержимого** сообщения. Wave 4 — про инфраструктуру **запуска** ingestParse-фаз поверх raw.
@@ -38,7 +38,7 @@ Runner platform читает **raw как SSOT** + курсор на фазу (`
 
 ## Chaining (Wave 6)
 
-`wireBusTrigger(bus, "RawMessageIngested", { debounceMs: 250, onRoute: () => parseRunner.enqueueAll() })` — новое raw сообщение будит **все** активные phase-workload сразу, не дожидаясь их индивидуальных интервалов. Работает только когда `ingestParseDaemon instanceof ParseRunnerRegistry` (т.е. флаг включён) — для legacy демона это no-op.
+`wireBusTrigger(bus, "RawMessageIngested", { debounceMs: 250, onRoute: () => parseRunner.enqueueAll() })` — новое raw сообщение будит **все** активные phase-workload сразу, не дожидаясь их индивидуальных интервалов. Работает только когда `schedulingImpl=runner-platform` для parse (`ingestParseDaemon instanceof ParseRunnerRegistry`) — для legacy демона это no-op.
 
 ## Тесты
 

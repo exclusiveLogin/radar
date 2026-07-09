@@ -6,15 +6,18 @@
 
 ## Включение раннера на runner platform
 
-Legacy и runner-platform раннер одного домена **взаимоисключающие** — переключение только флагом в `createWorkerCompositionRoot.ts`, оба читают одни и те же БД-таблицы/очереди, гонки нет.
+Legacy и runner-platform раннер одного домена **взаимоисключающие** — переключение через `deployment.manifest.json` → `runners.pipelines[].schedulingImpl` (см. [ADR-021](../../rfc/adr-021-manifest-env-ssot.md)).
+
+```json
+// deployment.manifest.json — пример для tracking
+{ "pipelineKey": "tracking", "schedulingImpl": "runner-platform" }
+```
 
 ```powershell
-# tracking
-$env:TRACKING_RUNNER_PLATFORM_ENABLED="true"
-# parse
-$env:PARSE_RUNNER_PLATFORM_ENABLED="true"
-# geo-enrich
-$env:GEO_ENRICH_RUNNER_PLATFORM_ENABLED="true"
+# env override (DEPLOY__)
+$env:DEPLOY__runners__pipelines__tracking__schedulingImpl="runner-platform"
+$env:DEPLOY__runners__pipelines__parse__schedulingImpl="runner-platform"
+$env:DEPLOY__runners__pipelines__geo-enrich__schedulingImpl="runner-platform"
 
 npm run worker:dev
 ```
@@ -25,7 +28,7 @@ npm run worker:dev
 
 ## Откат (rollback)
 
-Просто снять флаг (`=false` или unset) и перезапустить воркер — легаси-демон стартует, как раньше. Курсоры/таблицы состояния общие (`state_track_pipeline`, `queue_parse_coverage`/`log_parse_phase_run`, `job_geo_place_enrich`) — переключение не теряет прогресс.
+Просто вернуть `schedulingImpl=legacy` в manifest (или снять `DEPLOY__` override) и перезапустить воркер — легаси-демон стартует, как раньше. Курсоры/таблицы состояния общие (`state_track_pipeline`, `queue_parse_coverage`/`log_parse_phase_run`, `job_geo_place_enrich`) — переключение не теряет прогресс.
 
 ## Enable / Reset / Rebuild — не поменялись
 
@@ -78,7 +81,7 @@ Obs write-path фиксирует status workload: `running` → `paused` → `r
 | `legacy` | Старый setInterval-демон |
 | `runner-platform` | jobKernel + workbook/workload |
 
-Источник: `odpResolve(deploymentManifest)` — читает `deployment.manifest.json` + `*_RUNNER_PLATFORM_ENABLED` env.
+Источник: `odpResolve(deploymentManifest)` — читает `deployment.manifest.json` → `schedulingImpl`.
 
 Admin UI: Workbook observability widget + Worker runners probe. Runtime snapshot: `GET /obs/v1/runtime/snapshot`.
 
@@ -94,14 +97,14 @@ Admin UI: Workbook observability widget + Worker runners probe. Runtime snapshot
 
 Если новый event-driven wake-up не срабатывает (например, `parse` не будится сразу после `RawMessageIngested`):
 
-1. Проверить, что `PARSE_RUNNER_PLATFORM_ENABLED=true` — `wireBusTrigger` подключается в `createWorkerCompositionRoot.ts` только для runner-platform раннера, для legacy-демона это no-op (он продолжает жить на своём `setInterval`).
+1. Проверить, что `schedulingImpl=runner-platform` для parse — `wireBusTrigger` подключается в `createWorkerCompositionRoot.ts` только для runner-platform раннера, для legacy-демона это no-op (он продолжает жить на своём `setInterval`).
 2. Debounce окна — `250ms` (см. `wireBusTrigger(bus, ..., { debounceMs: 250 })`) — несколько событий подряд коалесцируются в один `enqueue()`.
 3. Polling (`schedule: { mode: "hybrid", intervalMs }`) — резервный путь всегда работает, даже если событие потеряно: воркер догонит на следующем интервальном тике.
 
 ## Migration checklist (домен на runner platform)
 
 1. Убедиться, что legacy-демон и новый раннер читают одни и те же таблицы/очереди (без дублирования состояния).
-2. Включить флаг в dev/staging, прогнать Gate A (functional correctness) на golden fixtures домена.
+2. Включить `schedulingImpl=runner-platform` в dev/staging, прогнать Gate A (functional correctness) на golden fixtures домена.
 3. Прогнать Gate B (DB/poller/WS consistency) — сверить `activeWorkloads`/`runHistory` в Admin UI до/после переключения.
 4. Прогнать Gate C (operability: pause/resume/reset/restart) по таблице выше.
-5. Держать флаг off в проде до отдельного go-декишена — Wave 7 (удаление legacy) стартует только после подтверждённого cutover по всем трём доменам.
+5. Держать `schedulingImpl=legacy` в проде до отдельного go-решения — Wave 7 (удаление legacy) стартует только после подтверждённого cutover по всем трём доменам.

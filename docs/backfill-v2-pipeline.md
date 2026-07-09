@@ -33,8 +33,17 @@ TELEGRAM_API_ID=...
 TELEGRAM_API_HASH=...
 # опционально:
 # RADAR_SESSIONS_DIR=.radar/sessions
-# RADAR_BACKFILL_POLL_MS=15000
-# RADAR_BACKFILL_DAEMON_ENABLED=1
+```
+
+**Backfill daemon** — `worker.runtime.manifest.json` → `backfill.*` (см. [ADR-021](./rfc/adr-021-manifest-env-ssot.md)):
+
+```json
+{ "backfill": { "enabled": true, "pollMs": 15000 } }
+```
+
+```bash
+WORKER__backfill__enabled=true
+WORKER__backfill__pollMs=20000
 ```
 
 ### Шаг 1 — сессия (один раз)
@@ -157,7 +166,7 @@ npm run radar -- ingest backfill -- --all-bindings --batch-size=100
 
 1. `RADAR_STORAGE_MODE=db`?
 2. Worker запущен, в логе есть `BackfillDaemon запущен`?
-3. `RADAR_BACKFILL_DAEMON_ENABLED` не `0`?
+3. `worker.runtime.manifest.json` → `backfill.enabled` не `false`? (или `WORKER__backfill__enabled`)
 4. У provider есть `mtprotoSessionSlot`, слот задеплоен?
 5. `binding_mode` — user MTProto, не только bot?
 6. Задача не `failed` — если да, лог worker в момент `running`.
@@ -296,7 +305,7 @@ sequenceDiagram
   participant Parse as ParseRawMessageHandler
   participant Pool as ParseWorkerPool
 
-  loop poll каждые RADAR_BACKFILL_POLL_MS
+  loop poll каждые backfill.pollMs (manifest)
     Daemon->>DB: findRunnable() → job
     Daemon->>DB: status = running
   end
@@ -479,13 +488,20 @@ UUID binding/provider: см. SQL в [ingest-providers.md § Backfill](./ingest-p
 
 ---
 
-## Переменные окружения (worker)
+## Конфигурация worker (ADR-021)
 
-| Переменная | Default | Назначение |
-|------------|---------|------------|
+`worker.runtime.manifest.json` (см. [ADR-021](./rfc/adr-021-manifest-env-ssot.md)):
+
+| Поле manifest | Default | Назначение |
+|---------------|---------|------------|
+| `backfill.enabled` | `true` | Kill-switch демона backfill. |
+| `backfill.pollMs` | `15000` | Интервал опроса `job_ingest_backfill`. |
+
+Env override: `WORKER__backfill__enabled`, `WORKER__backfill__pollMs`.
+
+| Переменная `.env` | Default | Назначение |
+|-------------------|---------|------------|
 | `RADAR_STORAGE_MODE` | — | Должен быть `db` для демона и пула. |
-| `RADAR_BACKFILL_DAEMON_ENABLED` | включён | `0` / `false` — не стартовать демон. |
-| `RADAR_BACKFILL_POLL_MS` | `15000` | Интервал опроса `job_ingest_backfill`. |
 | `RADAR_PARSE_USE_WORKER_THREADS` | включён | `0` — parse только в main thread. |
 | `RADAR_PARSE_WORKER_POOL_SIZE` | `2` | Число потоков (1–8). |
 | `TELEGRAM_API_ID`, `TELEGRAM_API_HASH` | — | MTProto для `streamHistory`. |
