@@ -118,8 +118,8 @@ export class BackfillDaemonService {
     private readonly ingestHandler: IngestRawMessageHandler,
     private readonly sessionResolver: SessionResolver,
     private readonly telegramMtprotoApp: TelegramMtprotoAppCredentials,
-    private readonly pollMs = Number(process.env.RADAR_BACKFILL_POLL_MS ?? "15000"),
-    private readonly heartbeatMs = Number(process.env.RADAR_BACKFILL_HEARTBEAT_MS ?? "15000"),
+    private readonly pollMs: number,
+    private readonly heartbeatMs: number,
   ) {}
 
   start(): void {
@@ -403,9 +403,3 @@ export class BackfillDaemonService {
   }
 }
 
-/** Включён ли демон (по умолчанию в db mode — да). */
-export function isBackfillDaemonEnabled(): boolean {
-  const flag = process.env.RADAR_BACKFILL_DAEMON_ENABLED?.trim();
-  if (flag === "0" || flag === "false") return false;
-  return true;
-}

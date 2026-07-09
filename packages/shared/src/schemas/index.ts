@@ -234,7 +234,6 @@ export {
   deploymentTransportSchema,
   deploymentManifestSchema,
   DEFAULT_DEPLOYMENT_MANIFEST,
-  applyDeploymentEnvOverlay,
 } from "../deployment/deploymentManifest.schema.js";
 
 // --- type-only exports ---

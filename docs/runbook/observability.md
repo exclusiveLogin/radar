@@ -1,6 +1,6 @@
 # Runbook — Observability (embedded vs service)
 
-База: [ADR-017](../rfc/adr-017-observability-embedded.md) · [ADR-018](../rfc/adr-018-deployment-manifest.md) · SDD: [observability-daemon.md](../sdd/runner-platform/observability-daemon.md)
+База: [ADR-017](../rfc/adr-017-observability-embedded.md) · [ADR-018](../rfc/adr-018-deployment-manifest.md) · [ADR-021](../rfc/adr-021-manifest-env-ssot.md) · SDD: [observability-daemon.md](../sdd/runner-platform/observability-daemon.md)
 
 ---
 
@@ -12,20 +12,23 @@
 
 ## Два режима write-path
 
-| Режим | `RADAR_OBS_MODE` | Куда пишет worker | Когда |
+Конфиг: `deployment.manifest.json` → `infra.obs` (overlay: `DEPLOY__infra__obs__*`).
+Резолв: `resolveObsConfig(manifest.infra.obs, storageMode)`.
+
+| Режим | `infra.obs.mode` | Куда пишет worker | Когда |
 |-------|------------------|-------------------|-------|
 | **embedded** (default в db mode) | `embedded` | Postgres `obs_*` напрямую | Host dev, Docker без sidecar |
-| **service** | `service` | HTTP → obs-service → Postgres | Sidecar (`DOCKERIZE_OBS=1`) |
+| **service** | `service` | HTTP → obs-service → Postgres | Sidecar (`infra.obs.dockerize=true`) |
 | **выкл** | `noop` | никуда | memory mode, тесты |
 
-> `DOCKERIZE_OBS=1` или `DOCKERIZE_ALL=1` **автоматически** переключают write-path на `service`.
+> `infra.obs.dockerize=true` или `infra.obs.dockerizeAll=true` **автоматически** переключают write-path на `service`.
 
 ### Read-path (отдельно от write)
 
-| Режим | Env | Откуда читает API |
-|-------|-----|-------------------|
-| embedded | `RADAR_OBS_READ_MODE=embedded` (default) | SQL `obs_*` |
-| service | `RADAR_OBS_READ_MODE=service` | `GET {RADAR_OBS_SERVICE_URL}/obs/v1/runtime/snapshot` |
+| Режим | Manifest | Откуда читает API |
+|-------|----------|-------------------|
+| embedded | `infra.obs.readMode=embedded` (default) | SQL `obs_*` |
+| service | `infra.obs.readMode=service` | `GET {infra.obs.serviceUrl}/obs/v1/runtime/snapshot` |
 
 ---
 
@@ -34,11 +37,11 @@
 ```powershell
 # embedded (host dev)
 $env:RADAR_STORAGE_MODE="db"
-$env:RADAR_OBS_MODE="embedded"
+# default: deployment.manifest.json infra.obs.mode=embedded
 npm run worker:dev
 
-# service sidecar
-$env:DOCKERIZE_OBS="1"
+# service sidecar (manifest overlay)
+$env:DEPLOY__infra__obs__dockerize="true"
 docker compose --profile obs up -d
 npm run worker:dev
 
@@ -73,7 +76,7 @@ SELECT pipeline_key, event_type, source, count FROM obs_trigger_counters ORDER B
 
 | Симптом | Решение |
 |---------|---------|
-| `obs_hosts` пусто | `RADAR_STORAGE_MODE=db`, mode ≠ noop |
+| `obs_hosts` пусто | `RADAR_STORAGE_MODE=db`, `infra.obs.mode` ≠ noop |
 | Snapshot 404 | `docker compose --profile obs up -d` |
 | ECONNREFUSED на ingest | URL: `observability:3020` в Docker, `127.0.0.1` на хосте |
 

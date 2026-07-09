@@ -12,6 +12,18 @@
     "./deployment/deploymentManifest.loader.js": {
       "types": "./dist/deployment/deploymentManifest.loader.d.ts",
       "default": "./dist/deployment/deploymentManifest.loader.js"
+    },
+    "./manifest/domains/workerRuntime.loader.js": {
+      "types": "./dist/manifest/domains/workerRuntime.loader.d.ts",
+      "default": "./dist/manifest/domains/workerRuntime.loader.js"
+    },
+    "./manifest/domains/geoEnrichers.loader.js": {
+      "types": "./dist/manifest/domains/geoEnrichers.loader.d.ts",
+      "default": "./dist/manifest/domains/geoEnrichers.loader.js"
+    },
+    "./manifest/domains/ingest.loader.js": {
+      "types": "./dist/manifest/domains/ingest.loader.d.ts",
+      "default": "./dist/manifest/domains/ingest.loader.js"
     }
   },
   "files": [

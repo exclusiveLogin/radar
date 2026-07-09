@@ -204,7 +204,6 @@ export {
   deploymentTransportSchema,
   deploymentManifestSchema,
   DEFAULT_DEPLOYMENT_MANIFEST,
-  applyDeploymentEnvOverlay,
 } from "./schemas";
 export {
   buildTrackEdges,

@@ -5,40 +5,33 @@ export const NOMINATIM_DEFAULT_429_BACKOFF_MS = 15_000;
 export const NOMINATIM_DEFAULT_429_MAX_BACKOFF_MS = 120_000;
 export const NOMINATIM_DEFAULT_429_MAX_RETRIES = 4;
 
-export function loadNominatimMinIntervalMs(env: NodeJS.ProcessEnv = process.env): number {
-  const raw = env.RADAR_NOMINATIM_MIN_INTERVAL_MS;
-  if (raw === undefined || raw === "") return NOMINATIM_DEFAULT_MIN_INTERVAL_MS;
-  const parsed = Number(raw);
-  if (!Number.isFinite(parsed) || parsed < 0) return NOMINATIM_DEFAULT_MIN_INTERVAL_MS;
-  return parsed;
+import { loadGeoEnrichersManifest } from "@radar/shared/manifest/domains/geoEnrichers.loader.js";
+import { MONOREPO_ROOT } from "@repo/root";
+
+function geoNominatim() {
+  return loadGeoEnrichersManifest({ repoRoot: MONOREPO_ROOT }).nominatim;
 }
 
-export function loadNominatim429BackoffMs(env: NodeJS.ProcessEnv = process.env): number {
-  const raw = env.RADAR_NOMINATIM_429_BACKOFF_MS;
-  if (raw === undefined || raw === "") return NOMINATIM_DEFAULT_429_BACKOFF_MS;
-  const parsed = Number(raw);
-  if (!Number.isFinite(parsed) || parsed < 0) return NOMINATIM_DEFAULT_429_BACKOFF_MS;
-  return parsed;
+export function loadNominatimMinIntervalMs(_env: NodeJS.ProcessEnv = process.env): number {
+  return geoNominatim().minIntervalMs;
 }
 
-export function loadNominatim429MaxBackoffMs(env: NodeJS.ProcessEnv = process.env): number {
-  const raw = env.RADAR_NOMINATIM_429_MAX_BACKOFF_MS;
-  if (raw === undefined || raw === "") return NOMINATIM_DEFAULT_429_MAX_BACKOFF_MS;
-  const parsed = Number(raw);
-  if (!Number.isFinite(parsed) || parsed < 0) return NOMINATIM_DEFAULT_429_MAX_BACKOFF_MS;
-  return parsed;
+export function loadNominatim429BackoffMs(_env: NodeJS.ProcessEnv = process.env): number {
+  return geoNominatim().backoffMs;
 }
 
-export function loadNominatim429MaxRetries(env: NodeJS.ProcessEnv = process.env): number {
-  const raw = env.RADAR_NOMINATIM_429_MAX_RETRIES;
-  if (raw === undefined || raw === "") return NOMINATIM_DEFAULT_429_MAX_RETRIES;
-  const parsed = Number(raw);
-  if (!Number.isFinite(parsed) || parsed < 0) return NOMINATIM_DEFAULT_429_MAX_RETRIES;
-  return Math.floor(parsed);
+export function loadNominatim429MaxBackoffMs(_env: NodeJS.ProcessEnv = process.env): number {
+  return geoNominatim().maxBackoffMs;
+}
+
+export function loadNominatim429MaxRetries(_env: NodeJS.ProcessEnv = process.env): number {
+  return geoNominatim().maxRetries;
 }
 
 /** User-Agent обязателен для nominatim.openstreetmap.org. */
 export function loadNominatimUserAgent(env: NodeJS.ProcessEnv = process.env): string {
+  const fromManifest = geoNominatim().userAgent?.trim();
+  if (fromManifest) return fromManifest;
   const ua = env.RADAR_NOMINATIM_USER_AGENT?.trim();
   return ua || "radar-worker/0.1 (geo-parse; contact: local-dev)";
 }

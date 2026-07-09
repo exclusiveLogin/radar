@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "backfill": {
+    "enabled": true,
+    "pollMs": 15000,
+    "heartbeatMs": 15000
+  },
+  "parse": {
+    "useWorkerThreads": true,
+    "poolSize": 2,
+    "daemon": { "enabled": true, "pollMs": 15000 },
+    "claimOrder": "desc",
+    "runStaleMs": 7200000
+  },
+  "geo": {
+    "daemon": { "pollMs": 15000 },
+    "orphanRunMs": 3600000,
+    "runStaleMs": 7200000
+  },
+  "tracking": {
+    "enabled": true,
+    "intervalMs": 10000
+  },
+  "phase": {
+    "manualPollMs": 5000,
+    "mapSnapshotAfterPhase": true
+  },
+  "logging": {
+    "verboseParse": false
+  }
+}

@@ -8,26 +8,13 @@ import { resolveGeoEnrichmentProvider } from "@radar/shared";
 import { PhaseRunner } from "../../phases/phaseRunner.js";
 import { sortPhasesByOrder } from "../../phases/phaseOrder.js";
 import type { ObsTickReporter } from "./obsTickReporter.js";
+import { DEFAULT_WORKER_RUNTIME_MANIFEST } from "@radar/shared/manifest/domains/workerRuntime.loader.js";
 
-const DEFAULT_POLL_MS = 15_000;
-const DEFAULT_STALE_RUN_MS = 2 * 60 * 60 * 1000;
-/** Нет heartbeat у phase_run — считаем run сиротой (worker умер / рестарт). */
-const DEFAULT_ORPHAN_RUN_MS = 60_000;
-
-function resolvePollMs(): number {
-  const parsed = Number(process.env.RADAR_GEO_PARSE_DAEMON_POLL_MS);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_POLL_MS;
-}
-
-function resolveStaleRunMs(): number {
-  const parsed = Number(process.env.RADAR_PHASE_RUN_STALE_MS);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_STALE_RUN_MS;
-}
-
-function resolveOrphanRunMs(): number {
-  const parsed = Number(process.env.RADAR_GEO_ORPHAN_RUN_MS);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_ORPHAN_RUN_MS;
-}
+export type PlaceEnrichmentDaemonConfig = {
+  pollMs?: number;
+  orphanRunMs?: number;
+  runStaleMs?: number;
+};
 
 function resolvePhaseTickMs(phase: PhaseDefinitionRecord): number {
   return Math.max(phase.policy.intervalMs, phase.policy.minIntervalMs, 1000);
@@ -52,12 +39,25 @@ export class PlaceEnrichmentDaemonService {
     private readonly placeJobs: IPlaceEnrichmentJobRepository,
     private readonly runner: PhaseRunner,
     private readonly onObsTick?: ObsTickReporter,
+    private readonly config: PlaceEnrichmentDaemonConfig = {},
   ) {}
+
+  private pollMs(): number {
+    return this.config.pollMs ?? DEFAULT_WORKER_RUNTIME_MANIFEST.geo.daemon.pollMs;
+  }
+
+  private runStaleMs(): number {
+    return this.config.runStaleMs ?? DEFAULT_WORKER_RUNTIME_MANIFEST.geo.runStaleMs;
+  }
+
+  private orphanRunMs(): number {
+    return this.config.orphanRunMs ?? DEFAULT_WORKER_RUNTIME_MANIFEST.geo.orphanRunMs;
+  }
 
   start(): void {
     this.stopped = false;
     void this.bootstrap().then(() => this.refreshSchedules());
-    this.refreshTimer = setInterval(() => void this.refreshSchedules(), resolvePollMs());
+    this.refreshTimer = setInterval(() => void this.refreshSchedules(), this.pollMs());
   }
 
   /** После рестарта worker: reclaim processing и resume active geo run. */
@@ -149,7 +149,7 @@ export class PlaceEnrichmentDaemonService {
   private async tickPhase(phase: PhaseDefinitionRecord): Promise<void> {
     if (this.stopped) return;
     try {
-      const stale = await this.phaseRuns.failStaleActiveRuns(phase.id, resolveStaleRunMs());
+      const stale = await this.phaseRuns.failStaleActiveRuns(phase.id, this.runStaleMs());
       if (stale > 0) {
         console.warn(`GeoParseDaemon[${phase.id}]: failed ${stale} stale run(s)`);
       }
@@ -159,7 +159,7 @@ export class PlaceEnrichmentDaemonService {
 
       let active = await this.phaseRuns.findActiveForPhase(phase.id);
       if (active) {
-        const orphans = await this.phaseRuns.failStaleActiveRuns(phase.id, resolveOrphanRunMs());
+        const orphans = await this.phaseRuns.failStaleActiveRuns(phase.id, this.orphanRunMs());
         if (orphans > 0) {
           const reset = await this.placeJobs.resetProcessingForProvider(provider);
           console.warn(

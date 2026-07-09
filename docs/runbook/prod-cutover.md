@@ -6,30 +6,23 @@ Go-live чеклист после прохождения Gate A–D на staging
 
 ---
 
-## Env flags (prod)
+## Env / manifest (prod)
 
 ```env
-# Runner platform — по одному домену, не все сразу
-PARSE_RUNNER_PLATFORM_ENABLED=true
-GEO_ENRICH_RUNNER_PLATFORM_ENABLED=true
-TRACKING_RUNNER_PLATFORM_ENABLED=true
+# deployment.manifest.json — SSOT; env overlay через DEPLOY__*:
+DEPLOY__infra__obs__dockerize=true
+DEPLOY__infra__obs__mode=service
+DEPLOY__infra__obs__readMode=service
+DEPLOY__infra__obs__serviceUrl=http://observability:3020
+DEPLOY__runners__pipelines__parse__schedulingImpl=runner-platform
+DEPLOY__runners__pipelines__geo-enrich__schedulingImpl=runner-platform
+DEPLOY__runners__pipelines__tracking__schedulingImpl=runner-platform
 
-# Tracking daemon (отдельная worker-role в Docker)
-TRACKING_DAEMON_ENABLED=true
-
-# Observability
-RADAR_OBS_MODE=service          # рекомендуется sidecar в prod
-RADAR_OBS_READ_MODE=service
-RADAR_OBS_SERVICE_URL=http://observability:3020
-DOCKERIZE_OBS=1
-
-# Deployment manifest overlay (альтернатива env)
-DEPLOY_OBS_DOCKERIZE=1
-DEPLOY_OBS_MODE=service
-DEPLOY_PIPELINE_PARSE_SCHEDULING=runner-platform
+# worker.runtime.manifest.json:
+WORKER__tracking__enabled=true
 ```
 
-SSOT топологии: `deployment.manifest.json` + [ADR-018](../rfc/adr-018-deployment-manifest.md).
+SSOT топологии: `deployment.manifest.json` + [ADR-018](../rfc/adr-018-deployment-manifest.md) + [ADR-021](../rfc/adr-021-manifest-env-ssot.md).
 
 ---
 
@@ -96,8 +89,8 @@ SELECT sum(count) FROM obs_trigger_counters;
 ## Rollback (prod)
 
 ```powershell
-# 1. Снять флаг проблемного домена
-$env:PARSE_RUNNER_PLATFORM_ENABLED="false"
+# 1. Вернуть schedulingImpl: legacy для проблемного домена
+$env:DEPLOY__runners__pipelines__parse__schedulingImpl="legacy"
 
 # 2. Restart worker role
 # docker compose restart worker-phase

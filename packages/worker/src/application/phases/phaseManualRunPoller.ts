@@ -5,16 +5,6 @@ import type {
 } from "@radar/shared";
 import { PhaseRunner } from "./phaseRunner.js";
 
-const DEFAULT_POLL_MS = 5_000;
-
-function resolvePollMs(): number {
-  const parsed = Number(process.env.RADAR_PHASE_MANUAL_POLL_MS);
-  if (Number.isFinite(parsed) && parsed > 0) return parsed;
-  const daemonMs = Number(process.env.RADAR_PHASE_DAEMON_POLL_MS);
-  if (Number.isFinite(daemonMs) && daemonMs > 0) return Math.min(daemonMs, DEFAULT_POLL_MS);
-  return DEFAULT_POLL_MS;
-}
-
 /**
  * Подхватывает log_parse_phase_run (trigger=manual, status=pending) из админки Run
  * и исполняет drain до опустошения claimable-очереди (батчами policy.batchSize).
@@ -31,12 +21,13 @@ export class PhaseManualRunPoller {
     private readonly phases: IPhaseDefinitionRepository,
     private readonly phaseRuns: IPhaseRunRepository,
     private readonly runner: PhaseRunner,
+    private readonly pollMs: number,
   ) {}
 
   start(): void {
     this.stopped = false;
     void this.pollOnce();
-    this.timer = setInterval(() => void this.pollOnce(), resolvePollMs());
+    this.timer = setInterval(() => void this.pollOnce(), this.pollMs);
   }
 
   stop(): void {

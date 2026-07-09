@@ -2,11 +2,12 @@
  * ---
  * layer: shared/deployment
  * domain: deployment
- * purpose: SSOT deployment.manifest.json — схемы, defaults и env overlay (без node:fs, browser-safe).
+ * purpose: SSOT deployment.manifest.json — схемы и defaults (без node:fs, browser-safe).
+ *          Env overlay — через loadDomainManifest + DEPLOY__* (ADR-021).
  * ---
  */
 import { z } from "zod";
-import { pipelineKeySchema, type PipelineKey } from "../schemas/admin/workbook.js";
+import { pipelineKeySchema } from "../schemas/admin/workbook.js";
 
 /** Worker-role, на котором исполняется pipeline (см. RADAR_WORKER_ROLE). */
 export const deploymentHostSchema = z.enum(["all", "ingest", "backfill", "phase", "tracking"]);
@@ -35,15 +36,34 @@ export const deploymentRunnersSchema = z.object({
 });
 export type DeploymentRunners = z.infer<typeof deploymentRunnersSchema>;
 
+export const deploymentProcessSchema = z.object({
+  role: z.enum(["all", "ingest", "backfill", "phase", "tracking"]).default("all"),
+  storageMode: z.enum(["memory", "db", "fs"]).default("db"),
+});
+export type DeploymentProcess = z.infer<typeof deploymentProcessSchema>;
+
 export const deploymentInfraObsSchema = z.object({
+  mode: z.enum(["embedded", "service", "noop"]).default("embedded"),
+  readMode: z.enum(["embedded", "service"]).default("embedded"),
+  serviceUrl: z.string().default("http://127.0.0.1:3020"),
   dockerize: z.boolean().default(false),
   dockerizeAll: z.boolean().default(false),
-  mode: z.enum(["embedded", "service", "noop"]).optional(),
+  port: z.number().int().positive().default(3020),
+  host: z.string().default("0.0.0.0"),
+  staleMs: z.number().int().positive().default(120_000),
+  staleIntervalMs: z.number().int().positive().default(30_000),
 });
 export type DeploymentInfraObs = z.infer<typeof deploymentInfraObsSchema>;
 
+export const deploymentInfraComposeSchema = z.object({
+  apiPort: z.number().int().positive().default(3000),
+  webPort: z.number().int().positive().default(5173),
+});
+export type DeploymentInfraCompose = z.infer<typeof deploymentInfraComposeSchema>;
+
 export const deploymentInfraSchema = z.object({
   obs: deploymentInfraObsSchema.default({}),
+  compose: deploymentInfraComposeSchema.default({}),
 });
 export type DeploymentInfra = z.infer<typeof deploymentInfraSchema>;
 
@@ -53,15 +73,17 @@ export type DeploymentTransport = z.infer<typeof deploymentTransportSchema>;
 
 export const deploymentManifestSchema = z.object({
   version: z.literal(1).default(1),
+  process: deploymentProcessSchema.default({}),
   runners: deploymentRunnersSchema.default({ pipelines: [] }),
-  infra: deploymentInfraSchema.default({ obs: {} }),
+  infra: deploymentInfraSchema.default({ obs: {}, compose: {} }),
   transport: deploymentTransportSchema.default({}),
 });
 export type DeploymentManifest = z.infer<typeof deploymentManifestSchema>;
 
-/** Дефолтный manifest — parity с ODP_MANIFEST / docker split roles. */
+/** Дефолтный manifest — parity с docker split roles. */
 export const DEFAULT_DEPLOYMENT_MANIFEST: DeploymentManifest = deploymentManifestSchema.parse({
   version: 1,
+  process: { role: "all", storageMode: "db" },
   runners: {
     pipelines: [
       {
@@ -91,94 +113,18 @@ export const DEFAULT_DEPLOYMENT_MANIFEST: DeploymentManifest = deploymentManifes
     ],
   },
   infra: {
-    obs: { dockerize: false, dockerizeAll: false },
+    obs: {
+      mode: "embedded",
+      readMode: "embedded",
+      serviceUrl: "http://127.0.0.1:3020",
+      dockerize: false,
+      dockerizeAll: false,
+      port: 3020,
+      host: "0.0.0.0",
+      staleMs: 120_000,
+      staleIntervalMs: 30_000,
+    },
+    compose: { apiPort: 3000, webPort: 5173 },
   },
   transport: {},
 });
-
-const LEGACY_RUNNER_ENV: Record<PipelineKey, string> = {
-  tracking: "TRACKING_RUNNER_PLATFORM_ENABLED",
-  parse: "PARSE_RUNNER_PLATFORM_ENABLED",
-  "geo-enrich": "GEO_ENRICH_RUNNER_PLATFORM_ENABLED",
-};
-
-function pipelineKeyFromEnvSuffix(suffix: string): PipelineKey | undefined {
-  const normalized = suffix.toLowerCase().replace(/-/g, "_");
-  if (normalized === "tracking") return "tracking";
-  if (normalized === "parse") return "parse";
-  if (normalized === "geo_enrich" || normalized === "geoenrich") return "geo-enrich";
-  return undefined;
-}
-
-function envTruthy(raw: string | undefined): boolean {
-  if (!raw) return false;
-  return ["1", "true", "yes", "on"].includes(raw.trim().toLowerCase());
-}
-
-/** Overlay DEPLOY_* / legacy runner flags / deployment.local.json поверх base manifest. */
-export function applyDeploymentEnvOverlay(
-  manifest: DeploymentManifest,
-  env: NodeJS.ProcessEnv = process.env,
-): DeploymentManifest {
-  let result = manifest;
-
-  const obsPatch: Partial<DeploymentInfraObs> = {};
-  if (envTruthy(env.DEPLOY_OBS_DOCKERIZE)) obsPatch.dockerize = true;
-  if (envTruthy(env.DEPLOY_OBS_DOCKERIZE_ALL)) obsPatch.dockerizeAll = true;
-  if (env.DEPLOY_OBS_MODE?.trim()) {
-    obsPatch.mode = env.DEPLOY_OBS_MODE.trim() as DeploymentInfraObs["mode"];
-  }
-  if (Object.keys(obsPatch).length > 0) {
-    result = {
-      ...result,
-      infra: { ...result.infra, obs: { ...result.infra.obs, ...obsPatch } },
-    };
-  }
-
-  const pipelinePatches = new Map<PipelineKey, Partial<DeploymentPipelineEntry>>();
-  for (const [key, value] of Object.entries(env)) {
-    if (!key.startsWith("DEPLOY_PIPELINE_") || value == null) continue;
-    const rest = key.slice("DEPLOY_PIPELINE_".length);
-    const sep = rest.lastIndexOf("_");
-    if (sep <= 0) continue;
-    const pipelineKey = pipelineKeyFromEnvSuffix(rest.slice(0, sep));
-    if (!pipelineKey) continue;
-    const field = rest.slice(sep + 1).toLowerCase();
-    const patch = pipelinePatches.get(pipelineKey) ?? {};
-    if (field === "scheduling") {
-      patch.schedulingImpl = value.trim() as SchedulingImpl;
-    } else if (field === "host") {
-      patch.host = value.trim() as DeploymentHost;
-    } else if (field === "spawn") {
-      patch.spawn = value.trim() as DeploymentSpawn;
-    } else if (field === "enabled") {
-      patch.enabled = envTruthy(value);
-    }
-    pipelinePatches.set(pipelineKey, patch);
-  }
-
-  const pipelines = result.runners.pipelines.map((entry) => {
-    let next = { ...entry, ...(pipelinePatches.get(entry.pipelineKey) ?? {}) };
-    const legacyFlag = LEGACY_RUNNER_ENV[entry.pipelineKey];
-    if (env[legacyFlag] === "true") {
-      next = { ...next, schedulingImpl: "runner-platform" };
-    }
-    return next;
-  });
-
-  return deploymentManifestSchema.parse({
-    ...result,
-    runners: { pipelines },
-  });
-}
-
-/** Подмешивает infra.obs в process.env (DOCKERIZE_OBS/ALL, RADAR_OBS_MODE) если не заданы. */
-export function applyDeploymentInfraEnv(
-  manifest: DeploymentManifest,
-  env: NodeJS.ProcessEnv = process.env,
-): void {
-  const obs = manifest.infra.obs;
-  if (obs.dockerize && env.DOCKERIZE_OBS == null) env.DOCKERIZE_OBS = "1";
-  if (obs.dockerizeAll && env.DOCKERIZE_ALL == null) env.DOCKERIZE_ALL = "1";
-  if (obs.mode && env.RADAR_OBS_MODE == null) env.RADAR_OBS_MODE = obs.mode;
-}

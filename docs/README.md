@@ -13,7 +13,7 @@
 | **[shpargalka-operacii.md](./shpargalka-operacii.md)** | REST API, env, сценарии |
 | **[phase-commands.md](./phase-commands.md)** | Семантика wipe/reset/clear |
 | **[getting-started.md](./getting-started.md)** | Запуск всего продукта локально |
-| **[docker-dev-stack.md](./docker-dev-stack.md)** | Docker overlay: api/web/worker-роли, DOCKERIZE_OBS |
+| **[docker-dev-stack.md](./docker-dev-stack.md)** | Docker overlay: api/web/worker-роли, deployment.manifest.json infra.obs |
 | **[runbook/observability.md](./runbook/observability.md)** | Observability: embedded vs service, Discovery UI |
 | **[runbook/staging-gates.md](./runbook/staging-gates.md)** | Gate A–D checklist (staging) |
 | **[runbook/e2e-bus-chaining.md](./runbook/e2e-bus-chaining.md)** | E2E raw→parse→tracking→geo |

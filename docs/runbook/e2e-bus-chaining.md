@@ -7,10 +7,10 @@
 ## Предусловия
 
 ```powershell
-$env:PARSE_RUNNER_PLATFORM_ENABLED="true"
-$env:GEO_ENRICH_RUNNER_PLATFORM_ENABLED="true"
-$env:TRACKING_RUNNER_PLATFORM_ENABLED="true"
-$env:TRACKING_DAEMON_ENABLED="true"
+$env:DEPLOY__runners__pipelines__parse__schedulingImpl="runner-platform"
+$env:DEPLOY__runners__pipelines__geo-enrich__schedulingImpl="runner-platform"
+$env:DEPLOY__runners__pipelines__tracking__schedulingImpl="runner-platform"
+$env:WORKER__tracking__enabled="true"
 npm run radar -- stack dev --full
 ```
 
@@ -42,10 +42,10 @@ Polling (`hybrid schedule`) — резерв если событие потер�
 
 | Симптом | Fix |
 |---------|-----|
-| Parse не будится | `PARSE_RUNNER_PLATFORM_ENABLED=true` |
-| Tracking молчит | `TRACKING_RUNNER_PLATFORM_ENABLED` + daemon enabled |
-| Trigger count = 0 | `RADAR_OBS_MODE` ≠ noop |
-| Duplicate parse | Legacy + runner-platform одновременно — запрещено |
+| Parse не будится | `DEPLOY__runners__pipelines__parse__schedulingImpl=runner-platform` |
+| Tracking молчит | tracking `schedulingImpl` + `WORKER__tracking__enabled=true` |
+| Trigger count = 0 | `infra.obs.mode` ≠ noop (manifest) |
+| Duplicate parse | legacy + runner-platform одновременно — запрещено |
 
 ---
 

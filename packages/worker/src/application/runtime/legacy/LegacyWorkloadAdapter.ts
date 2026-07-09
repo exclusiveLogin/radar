@@ -4,9 +4,9 @@ import type {
   ObsWorkloadStatus,
   PipelineKey,
 } from "@radar/shared";
-import { IngestParseDaemonService } from "./ingestParseDaemonService.js";
-import { PlaceEnrichmentDaemonService } from "./placeEnrichmentDaemonService.js";
-import { TrackingRebuildDaemon } from "./trackingRebuildDaemon.js";
+import { IngestParseDaemonService, type IngestParseDaemonConfig } from "./ingestParseDaemonService.js";
+import { PlaceEnrichmentDaemonService, type PlaceEnrichmentDaemonConfig } from "./placeEnrichmentDaemonService.js";
+import { TrackingRebuildDaemon, type TrackingRebuildDaemonConfig } from "./trackingRebuildDaemon.js";
 import { buildWorkloadId, obsNow } from "../observability/obsContext.js";
 import { reportTrigger } from "../observability/workloadObsHooks.js";
 import type { ObsTickReporter } from "./obsTickReporter.js";
@@ -111,6 +111,7 @@ export function createLegacyIngestParseLauncher(
     runner: ConstructorParameters<typeof IngestParseDaemonService>[3];
   },
   obs: { recorder: IObservabilityRecorder; hostId: string },
+  config?: IngestParseDaemonConfig,
 ): LegacyWorkloadAdapter {
   return bindLegacyAdapter(
     (onTick) =>
@@ -120,6 +121,7 @@ export function createLegacyIngestParseLauncher(
         deps.coverage,
         deps.runner,
         onTick,
+        config,
       ),
     { pipelineKey: "parse", hostId: obs.hostId, recorder: obs.recorder },
   );
@@ -133,6 +135,7 @@ export function createLegacyGeoEnrichLauncher(
     runner: ConstructorParameters<typeof PlaceEnrichmentDaemonService>[3];
   },
   obs: { recorder: IObservabilityRecorder; hostId: string },
+  config?: PlaceEnrichmentDaemonConfig,
 ): LegacyWorkloadAdapter {
   return bindLegacyAdapter(
     (onTick) =>
@@ -142,6 +145,7 @@ export function createLegacyGeoEnrichLauncher(
         deps.placeJobs,
         deps.runner,
         onTick,
+        config,
       ),
     { pipelineKey: "geo-enrich", hostId: obs.hostId, recorder: obs.recorder },
   );
@@ -150,9 +154,10 @@ export function createLegacyGeoEnrichLauncher(
 export function createLegacyTrackingLauncher(
   dataSource: ConstructorParameters<typeof TrackingRebuildDaemon>[0],
   obs: { recorder: IObservabilityRecorder; hostId: string },
+  config?: TrackingRebuildDaemonConfig,
 ): LegacyWorkloadAdapter {
   return bindLegacyAdapter(
-    (onTick) => new TrackingRebuildDaemon(dataSource, onTick),
+    (onTick) => new TrackingRebuildDaemon(dataSource, onTick, config),
     { pipelineKey: "tracking", hostId: obs.hostId, recorder: obs.recorder },
   );
 }

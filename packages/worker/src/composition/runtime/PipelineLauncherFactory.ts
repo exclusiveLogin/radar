@@ -7,10 +7,11 @@
  */
 import type { DataSource } from "typeorm";
 import type { IObservabilityRecorder, PipelineKey } from "@radar/shared";
+import type { WorkerRuntimeManifest } from "@radar/shared/manifest/domains/workerRuntime.loader.js";
 import type { PhaseRunner } from "../../application/phases/phaseRunner.js";
-import { IngestParseDaemonService } from "../../application/runtime/legacy/ingestParseDaemonService.js";
-import { PlaceEnrichmentDaemonService } from "../../application/runtime/legacy/placeEnrichmentDaemonService.js";
-import { TrackingRebuildDaemon } from "../../application/runtime/legacy/trackingRebuildDaemon.js";
+import { IngestParseDaemonService, type IngestParseDaemonConfig } from "../../application/runtime/legacy/ingestParseDaemonService.js";
+import { PlaceEnrichmentDaemonService, type PlaceEnrichmentDaemonConfig } from "../../application/runtime/legacy/placeEnrichmentDaemonService.js";
+import { TrackingRebuildDaemon, type TrackingRebuildDaemonConfig } from "../../application/runtime/legacy/trackingRebuildDaemon.js";
 import {
   createLegacyGeoEnrichLauncher,
   createLegacyIngestParseLauncher,
@@ -34,6 +35,7 @@ export type PipelineLauncherFactoryDeps = {
   workerRepos: WorkerDbRepositories;
   phaseRunner?: PhaseRunner;
   obsBinding?: { recorder: IObservabilityRecorder; hostId: string };
+  workerRuntime: WorkerRuntimeManifest;
 };
 
 /** Runner-platform Workload → PipelineLauncher (+ optional enqueue). */
@@ -99,6 +101,21 @@ export function createPipelineLauncher(
 ): PipelineLauncher | null {
   const { entry, runtime, schedulingImpl } = resolved;
   const obsBinding = deps.obsBinding;
+  const { workerRuntime } = deps;
+  const trackingConfig: TrackingRebuildDaemonConfig = {
+    intervalMs: workerRuntime.tracking.intervalMs,
+    enabled: workerRuntime.tracking.enabled,
+  };
+  const parseDaemonConfig: IngestParseDaemonConfig = {
+    pollMs: workerRuntime.parse.daemon.pollMs,
+    runStaleMs: workerRuntime.parse.runStaleMs,
+    enabled: workerRuntime.parse.daemon.enabled,
+  };
+  const geoDaemonConfig: PlaceEnrichmentDaemonConfig = {
+    pollMs: workerRuntime.geo.daemon.pollMs,
+    orphanRunMs: workerRuntime.geo.orphanRunMs,
+    runStaleMs: workerRuntime.geo.runStaleMs,
+  };
 
   switch (entry.pipelineKey) {
     case "tracking": {
@@ -107,13 +124,17 @@ export function createPipelineLauncher(
         const runner = createTrackingRunner(
           deps.dataSource,
           obs ? createWorkloadObsConfig(obs) : undefined,
+          { intervalMs: workerRuntime.tracking.intervalMs },
         );
         return new RunnerPlatformLauncher("tracking", runner);
       }
       if (obsBinding) {
-        return createLegacyTrackingLauncher(deps.dataSource, obsBinding);
+        return createLegacyTrackingLauncher(deps.dataSource, obsBinding, trackingConfig);
       }
-      return wrapLegacyDaemon("tracking", new TrackingRebuildDaemon(deps.dataSource));
+      return wrapLegacyDaemon(
+        "tracking",
+        new TrackingRebuildDaemon(deps.dataSource, undefined, trackingConfig),
+      );
     }
     case "parse": {
       if (!deps.phaseRunner) return null;
@@ -130,7 +151,7 @@ export function createPipelineLauncher(
         );
       }
       if (obsBinding) {
-        return createLegacyIngestParseLauncher(parseDeps, obsBinding);
+        return createLegacyIngestParseLauncher(parseDeps, obsBinding, parseDaemonConfig);
       }
       return wrapLegacyDaemon(
         "parse",
@@ -139,6 +160,8 @@ export function createPipelineLauncher(
           parseDeps.phaseRuns,
           parseDeps.coverage,
           parseDeps.runner,
+          undefined,
+          parseDaemonConfig,
         ),
       );
     }
@@ -156,7 +179,7 @@ export function createPipelineLauncher(
         return new RunnerPlatformLauncher("geo-enrich", runner);
       }
       if (obsBinding) {
-        return createLegacyGeoEnrichLauncher(geoDeps, obsBinding);
+        return createLegacyGeoEnrichLauncher(geoDeps, obsBinding, geoDaemonConfig);
       }
       return wrapLegacyDaemon(
         "geo-enrich",
@@ -165,6 +188,8 @@ export function createPipelineLauncher(
           geoDeps.phaseRuns,
           geoDeps.placeJobs,
           geoDeps.runner,
+          undefined,
+          geoDaemonConfig,
         ),
       );
     }

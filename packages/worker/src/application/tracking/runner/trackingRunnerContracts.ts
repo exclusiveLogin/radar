@@ -2,9 +2,9 @@
  * ---
  * layer: worker/application
  * domain: tracking/runner
- * purpose: Типы для tracking-workload на runner platform (Wave 3, за флагом
- *          TRACKING_RUNNER_PLATFORM_ENABLED). Cursor здесь — снимок state_track_pipeline
- *          (enabled/config/watermark/activeRunId), а не только watermark: конфиг и enabled-флаг
+ * purpose: Типы для tracking-workload на runner platform (Wave 3).
+ *          schedulingImpl задаётся в deployment.manifest.json (ADR-021).
+ *          Cursor — снимок state_track_pipeline (enabled/config/watermark/activeRunId);
  *          могут меняться из админки в любой момент, поэтому перечитываются каждый тик — так же,
  *          как это делает существующий legacy-демон.
  * ---

@@ -18,10 +18,6 @@ import type { Workload } from "../../runtime/workload/createWorkload.js";
 
 const DEFAULT_REFRESH_MS = 15_000;
 
-function isParseRunnerPlatformEnabled(): boolean {
-  return process.env.PARSE_RUNNER_PLATFORM_ENABLED === "true";
-}
-
 export type ParseRunnerRegistryDeps = {
   phases: IPhaseDefinitionRepository;
   phaseRuns: IPhaseRunRepository;
@@ -37,10 +33,6 @@ export class ParseRunnerRegistry {
   private stopped = true;
 
   constructor(private readonly deps: ParseRunnerRegistryDeps) {}
-
-  static enabled(): boolean {
-    return isParseRunnerPlatformEnabled();
-  }
 
   start(): void {
     this.stopped = false;

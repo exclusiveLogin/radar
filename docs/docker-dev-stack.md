@@ -70,28 +70,28 @@ flowchart TB
 
 ---
 
-## Observability sidecar (`DOCKERIZE_OBS`, `DOCKERIZE_ALL`)
+## Observability sidecar (`deployment.manifest.json` → `infra.obs`)
 
-Флаги поднимают obs-service (profile `obs`) и переключают worker write-path на `service`.
+Флаги в manifest поднимают obs-service (profile `obs`) и переключают worker write-path на `service`.
 
-| Env | Эффект |
-|-----|--------|
-| `DOCKERIZE_OBS=1` | `docker compose --profile obs up -d` + `RADAR_OBS_MODE=service` |
-| `DOCKERIZE_ALL=1` | То же + все infra-профили из deployment manifest |
-| `DEPLOY_OBS_DOCKERIZE=1` | Overlay → `DOCKERIZE_OBS` (если не задан явно) |
+| Источник | Эффект |
+|----------|--------|
+| `infra.obs.dockerize: true` | `docker compose --profile obs up -d` |
+| `infra.obs.mode: service` | worker push в obs sidecar |
+| `DEPLOY__infra__obs__dockerize=true` | env overlay поверх manifest |
 
 ```powershell
-# .env
-DOCKERIZE_OBS=1
-RADAR_OBS_SERVICE_URL=http://observability:3020
-RADAR_OBS_READ_MODE=embedded
+# deployment.manifest.json или env overlay:
+# DEPLOY__infra__obs__dockerize=true
+# DEPLOY__infra__obs__mode=service
+# DEPLOY__infra__obs__serviceUrl=http://observability:3020
 
 npm run radar -- stack docker-dev
 # или host dev:
 npm run radar -- stack dev --full
 ```
 
-`dev-stack.mjs` / `cold-up.mjs` вызывают `applyDeploymentInfraEnv()` — флаги можно задать в `deployment.manifest.json`:
+`dev-stack.mjs` / `cold-up.mjs` читают `loadDeploymentManifest()` — override в `deployment.local.json` или `DEPLOY__*`:
 
 ```json
 "infra": { "obs": { "dockerize": true, "mode": "service" } }

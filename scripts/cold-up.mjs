@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Холодный старт: Docker (Postgres + Adminer + pgAdmin), npm install, сборка @radar/shared, миграции.
 // npm run cold:up  |  npm run cold:up -- -Geo -Dev -Llm -LlmUi  |  двойной дефис: -- --geo --dev --llm --llm-ui
-import { loadDeploymentManifest, applyDeploymentInfraEnv } from '@radar/shared/deployment/deploymentManifest.loader.js';
+import { loadDeploymentManifest } from '@radar/shared/deployment/deploymentManifest.loader.js';
 import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
@@ -143,11 +143,14 @@ async function main() {
     run('docker', ['compose', '--profile', 'llm-ui', 'up', '-d']);
   }
 
-  applyDeploymentInfraEnv(loadDeploymentManifest({ repoRoot }));
-
-  if (envTruthy('DOCKERIZE_OBS') || envTruthy('DOCKERIZE_ALL')) {
-    console.log('\n\x1b[32m[obs] docker compose --profile obs up -d\x1b[0m');
+  const deployment = loadDeploymentManifest({ repoRoot });
+  const obs = deployment.infra.obs;
+  if (obs.dockerize || obs.dockerizeAll) {
+    console.log('[obs] docker compose --profile obs up -d');
     run('docker', ['compose', '--profile', 'obs', 'up', '-d']);
+    process.env.RADAR_OBS_SERVICE_URL = obs.serviceUrl;
+    process.env.OBS_PORT = String(obs.port);
+    process.env.OBS_HOST = obs.host;
   }
 
   if (geo) {

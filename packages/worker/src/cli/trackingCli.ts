@@ -169,7 +169,7 @@ tracking CLI — пайплайн L1 треков
   npm run radar -- tracking reset
   npm run radar -- tracking enable -- --on
 
-Env: TRACKING_DAEMON_INTERVAL_MS, TRACKING_DAEMON_ENABLED, RADAR_WORKER_ROLE=tracking
+Env: WORKER__tracking__intervalMs, worker.runtime.manifest.json, RADAR_WORKER_ROLE=tracking
 `);
 }
 

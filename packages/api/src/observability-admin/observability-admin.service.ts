@@ -1,13 +1,24 @@
+import { join } from "node:path";
+import { createRequire } from "node:module";
 import { Inject, Injectable } from "@nestjs/common";
 import { runnerDiscoveryResponseSchema, type RunnerDiscoveryResponse } from "@radar/shared";
 import {
   createObsReadClient,
   type ObsReadClient,
 } from "../infrastructure/observability/create-obs-read-client";
+import { MONOREPO_ROOT } from "../monorepo-root.js";
 import { ReadSideQueryService } from "../read-side/read-side-query.service";
 import { WorkbookAdminService } from "../workbook-admin/workbook-admin.service";
 
+const nodeRequire = createRequire(__filename);
+
 export const OBS_READ_CLIENT = Symbol("OBS_READ_CLIENT");
+
+type DeploymentManifestModule = {
+  loadDeploymentManifest: (opts: { repoRoot: string }) => {
+    infra: { obs: { readMode: "embedded" | "service"; serviceUrl: string } };
+  };
+};
 
 /**
  * Read-side merge: obs runtime snapshot + workbook workloads + stats overview.
@@ -37,9 +48,18 @@ export class ObservabilityAdminService {
   }
 }
 
-/** Nest factory для ObsReadClient (embedded SQL vs obs-service HTTP). */
+/** Nest factory: readMode из deployment manifest (ADR-021). */
 export function obsReadClientFactory(
   dataSource: Parameters<typeof createObsReadClient>[0],
 ): ObsReadClient {
-  return createObsReadClient(dataSource);
+  const loaderPath = join(
+    MONOREPO_ROOT,
+    "packages/shared/dist/deployment/deploymentManifest.loader.js",
+  );
+  const { loadDeploymentManifest } = nodeRequire(loaderPath) as DeploymentManifestModule;
+  const manifest = loadDeploymentManifest({ repoRoot: MONOREPO_ROOT });
+  return createObsReadClient(dataSource, {
+    readMode: manifest.infra.obs.readMode,
+    serviceUrl: manifest.infra.obs.serviceUrl,
+  });
 }

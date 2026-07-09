@@ -8,8 +8,7 @@
  *          `trigger -> ingest(loadSlice) -> run(evaluate) -> materialize -> signaling(telemetry)`
  *          вместо ручного `setInterval` + инлайн-SQL в классе демона.
  *
- *          За флагом `TRACKING_RUNNER_PLATFORM_ENABLED` (default off) — взаимоисключим с
- *          legacy-демоном в createWorkerCompositionRoot.ts, НЕ запускается параллельно с ним.
+ *          schedulingImpl в deployment.manifest.json (ADR-021).
  *          Не валидирован против прод-нагрузки — включать только после отдельной проверки.
  * ---
  */
@@ -20,6 +19,7 @@ import {
   resolveDaemonBatchSize,
   createWorkbook,
 } from "@radar/shared";
+import { DEFAULT_WORKER_RUNTIME_MANIFEST } from "@radar/shared/manifest/domains/workerRuntime.loader.js";
 import {
   ensureActiveTrackingRun,
   readTrackingPipelineState,
@@ -38,16 +38,9 @@ import type {
   TrackingRunnerSlice,
 } from "./trackingRunnerContracts.js";
 
-const DEFAULT_INTERVAL_MS = 10_000;
-
-function readIntervalMs(): number {
-  const raw = Number(process.env.TRACKING_DAEMON_INTERVAL_MS);
-  return Number.isFinite(raw) && raw >= 5000 ? raw : DEFAULT_INTERVAL_MS;
-}
-
-export function isTrackingRunnerPlatformEnabled(): boolean {
-  return process.env.TRACKING_RUNNER_PLATFORM_ENABLED === "true";
-}
+export type CreateTrackingRunnerOptions = {
+  intervalMs?: number;
+};
 
 export type TrackingRunner = Workload & {
   telemetry: ReturnType<typeof createTrackingTelemetryBridge>["bus"];
@@ -56,7 +49,10 @@ export type TrackingRunner = Workload & {
 export function createTrackingRunner(
   ds: DataSource,
   obs?: JobKernelObsConfig,
+  options?: CreateTrackingRunnerOptions,
 ): TrackingRunner {
+  const intervalMs =
+    options?.intervalMs ?? DEFAULT_WORKER_RUNTIME_MANIFEST.tracking.intervalMs;
   const flowFieldByRun = new Map<string, H3VectorFlowMap>();
   const telemetryBridge = createTrackingTelemetryBridge();
 
@@ -160,7 +156,7 @@ export function createTrackingRunner(
 
   const workload = createWorkload({
     workbook,
-    schedule: { mode: "hybrid", intervalMs: readIntervalMs() },
+    schedule: { mode: "hybrid", intervalMs },
     io: {
       cursorStore: {
         read: () => readTrackingPipelineState(ds),

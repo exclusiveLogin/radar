@@ -43,7 +43,7 @@ export class ParseWorkerPool {
 
   constructor(
     private readonly workerConfig: ParsePipelineWorkerConfig,
-    poolSize = Number(process.env.RADAR_PARSE_WORKER_POOL_SIZE ?? "2"),
+    poolSize: number,
     private readonly obs?: ParseWorkerPoolObs,
   ) {
     this.poolSize = Math.max(1, Math.min(poolSize, 8));
@@ -103,9 +103,3 @@ export class ParseWorkerPool {
   }
 }
 
-/** Включён ли пул потоков (по умолчанию — да в db mode). */
-export function isParseWorkerPoolEnabled(): boolean {
-  const flag = process.env.RADAR_PARSE_USE_WORKER_THREADS?.trim();
-  if (flag === "0" || flag === "false") return false;
-  return true;
-}

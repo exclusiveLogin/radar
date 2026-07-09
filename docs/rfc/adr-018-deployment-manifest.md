@@ -2,7 +2,7 @@
 
 **Статус:** accepted  
 **Дата:** 2026-07-09  
-**Связано:** [ADR-017](./adr-017-observability-embedded.md), [ADR-016](./adr-016-runner-platform.md)
+**Связано:** [ADR-017](./adr-017-observability-embedded.md), [ADR-016](./adr-016-runner-platform.md), [ADR-021](./adr-021-manifest-env-ssot.md)
 
 ## Контекст
 
@@ -23,22 +23,25 @@
 1. `DEFAULT_DEPLOYMENT_MANIFEST` (TS)
 2. `deployment.manifest.json`
 3. `deployment.local.json` (gitignored локальные overrides)
-4. `DEPLOY_*` env + legacy `*_RUNNER_PLATFORM_ENABLED`
+4. `DEPLOY__nested__path=value` env (см. [ADR-021](./adr-021-manifest-env-ssot.md))
 
-### Env keys
+### Env keys (ADR-021)
 
 ```bash
-DEPLOY_OBS_DOCKERIZE=1          # → DOCKERIZE_OBS (если не задан)
-DEPLOY_OBS_DOCKERIZE_ALL=1      # → DOCKERIZE_ALL
-DEPLOY_OBS_MODE=service         # → RADAR_OBS_MODE
-DEPLOY_PIPELINE_TRACKING_SCHEDULING=runner-platform
-DEPLOY_PIPELINE_PARSE_HOST=phase
+DEPLOY__infra__obs__dockerize=true
+DEPLOY__infra__obs__mode=service
+DEPLOY__infra__obs__readMode=embedded
+DEPLOY__runners__pipelines__parse__schedulingImpl=runner-platform
+DEPLOY__runners__pipelines__tracking__host=tracking
+DEPLOY__process__role=phase
 ```
+
+> **Удалено:** `DEPLOY_OBS_*`, `DEPLOY_PIPELINE_*`, `applyDeploymentInfraEnv`, `DOCKERIZE_OBS` как каналы решения.
 
 ### Consumers
 
-- `odpResolve()` — читает pipelines + host/spawn/schedulingImpl для admin badge
-- `dev-stack.mjs` / `cold-up.mjs` / `radar stack` — `applyDeploymentInfraEnv()` → DOCKERIZE_OBS/ALL
+- `resolveObsConfig(manifest.infra.obs)` — obs write/read (ADR-021)
+- `dev-stack.mjs` / `cold-up.mjs` / `radar stack` — `manifest.infra.obs.dockerize` для sidecar
 - Iter 5: `RuntimeResolver` + `PipelineLauncherFactory` — старт runners по host match
 
 ## Вне scope Iter 4

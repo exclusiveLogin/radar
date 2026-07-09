@@ -7,8 +7,7 @@
  *          select→enrich→merge) — та же функция, что использует legacy `PlaceEnrichmentDaemonService`.
  *          Одна фаза за раз, по order (dadata → nominatim → llm), nominatim ждёт пустую очередь
  *          dadata — та же политика, что и в legacy-демоне, перенесённая внутрь одного evaluate.
- *          За флагом `GEO_ENRICH_RUNNER_PLATFORM_ENABLED` (default off), взаимоисключим с
- *          `PlaceEnrichmentDaemonService`.
+ *          schedulingImpl в deployment.manifest.json (ADR-021).
  * ---
  */
 import type {
@@ -35,10 +34,6 @@ export const GEO_ENRICH_PIPELINE_KEY = "geo-enrich";
 const DEFAULT_REFRESH_MS = 15_000;
 const STALE_RUN_MS = 2 * 60 * 60 * 1000;
 const ORPHAN_RUN_MS = 60_000;
-
-export function isGeoEnrichRunnerPlatformEnabled(): boolean {
-  return process.env.GEO_ENRICH_RUNNER_PLATFORM_ENABLED === "true";
-}
 
 export type GeoEnrichPhaseOutcome = {
   phaseId: string;

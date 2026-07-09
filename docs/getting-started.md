@@ -94,13 +94,13 @@ npm run radar -- stack dev
 ### Шаг 3 — Observability smoke (5 мин)
 
 ```powershell
-# embedded mode (default) — нужен worker db mode
+# embedded mode (default в deployment.manifest.json) — нужен worker db mode
 $env:RADAR_STORAGE_MODE="db"
 npm run worker:dev
 
 # SQL: SELECT host_id, role FROM obs_hosts;
-# или sidecar:
-$env:DOCKERIZE_OBS="1"
+# или sidecar — override в manifest или env:
+# DEPLOY__infra__obs__dockerize=true
 npm run radar -- stack dev --full
 curl http://127.0.0.1:3020/health
 ```
@@ -122,7 +122,7 @@ Admin UI → Workbook observability + Worker runners.
 Runner platform (dev only):
 
 ```powershell
-$env:PARSE_RUNNER_PLATFORM_ENABLED="true"
+$env:DEPLOY__runners__pipelines__parse__schedulingImpl="runner-platform"
 npm run worker:dev
 # лог: [odp] parse → runner-platform
 ```

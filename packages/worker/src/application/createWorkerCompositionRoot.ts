@@ -28,6 +28,7 @@ import type {
 } from "@radar/shared";
 import { InProcessEventBus } from "@radar/shared";
 import { loadDeploymentManifest } from "@radar/shared/deployment/deploymentManifest.loader.js";
+import { loadWorkerRuntimeManifest } from "@radar/shared/manifest/domains/workerRuntime.loader.js";
 import {
   ParseAttemptLogger,
   ParseAttemptWriter,
@@ -37,7 +38,6 @@ import { createPhaseIngestHandler } from "./subscribers/phaseIngestSubscriber.js
 import { createRawMessageIngestedHandler } from "./subscribers/rawMessageIngestedSubscriber.js";
 import { CoverageEnqueuer } from "./phases/coverageEnqueuer.js";
 import { PhaseRunner } from "./phases/phaseRunner.js";
-import { IngestParseDaemonService } from "./runtime/legacy/ingestParseDaemonService.js";
 import { PhaseManualRunPoller } from "./phases/phaseManualRunPoller.js";
 import {
   createPipelineLauncher,
@@ -72,14 +72,10 @@ import {
   type IngestParsePhaseSelection,
 } from "./parse/loadIngestParsePhases.js";
 import { createParsePipeline, type ParsePipelineWorkerConfig } from "./parse/createParsePipeline.js";
-import { isParseWorkerPoolEnabled, ParseWorkerPool } from "./parse/parseWorkerPool.js";
+import { ParseWorkerPool } from "./parse/parseWorkerPool.js";
 import {
   BackfillDaemonService,
-  isBackfillDaemonEnabled,
 } from "./ingest/backfillDaemonService.js";
-import {
-  isTrackingDaemonEnabled,
-} from "./runtime/legacy/trackingRebuildDaemon.js";
 import {
   WorkerStorageMode,
   resolveWorkerStorageModeFromEnv,
@@ -110,8 +106,7 @@ import {
 } from "../infrastructure/config/workerRole.js";
 import {
   buildObsHostId,
-  resolveObsModeFromEnv,
-  resolveObsServiceUrl,
+  resolveObsConfig,
 } from "../infrastructure/config/obsMode.js";
 import { createObservabilityRecorder } from "@radar/observability";
 import { createParseWorkerPoolObs } from "./runtime/observability/parseWorkerPoolObs.js";
@@ -149,13 +144,14 @@ export async function createWorkerCompositionRoot(
   const workerRole = options.workerRole ?? resolveWorkerRoleFromEnv();
   const hostStartedAt = new Date().toISOString();
   const deploymentManifest = loadDeploymentManifest({ repoRoot: MONOREPO_ROOT });
+  const workerRuntime = loadWorkerRuntimeManifest({ repoRoot: MONOREPO_ROOT });
   const runtimePipelines = resolveRuntimePipelines({
     manifest: deploymentManifest,
     workerRole,
   });
 
   const bus = new InProcessEventBus();
-  const parseAttemptLogger = new ParseAttemptLogger();
+  const parseAttemptLogger = new ParseAttemptLogger(workerRuntime.logging.verboseParse);
   const metricsAggregator = new MetricsAggregator();
 
   bus.subscribe("MessageParsed", parseAttemptLogger.handler);
@@ -246,12 +242,12 @@ export async function createWorkerCompositionRoot(
     };
   }
 
-  const obsMode = resolveObsModeFromEnv(storageMode);
-  if (obsMode !== "noop") {
+  const obsConfig = resolveObsConfig(deploymentManifest.infra.obs, storageMode);
+  if (obsConfig.mode !== "noop") {
     observabilityRecorder = createObservabilityRecorder({
-      mode: obsMode,
-      serviceUrl: resolveObsServiceUrl(),
-      dataSource: obsMode === "embedded" ? dataSource : undefined,
+      mode: obsConfig.mode,
+      serviceUrl: obsConfig.serviceUrl,
+      dataSource: obsConfig.mode === "embedded" ? dataSource : undefined,
     });
   }
 
@@ -290,14 +286,14 @@ export async function createWorkerCompositionRoot(
   });
   const validation = new GeoValidationService(regions, places, aliases);
 
-  if (storageMode === WorkerStorageMode.Db && isParseWorkerPoolEnabled()) {
+  if (storageMode === WorkerStorageMode.Db && workerRuntime.parse.useWorkerThreads) {
     const poolObs = observabilityRecorder
       ? createParseWorkerPoolObs({
           recorder: observabilityRecorder,
           hostId: buildObsHostId(workerRole),
         })
       : undefined;
-    parseWorkerPool = new ParseWorkerPool(parsePipelineWorkerConfig, undefined, poolObs);
+    parseWorkerPool = new ParseWorkerPool(parsePipelineWorkerConfig, workerRuntime.parse.poolSize, poolObs);
   }
 
   const ingestEventPublisher: IngestEventPublisher =
@@ -369,7 +365,7 @@ export async function createWorkerCompositionRoot(
     }
     const startPhaseDaemons =
       roleRunsPhaseDaemons(workerRole) &&
-      IngestParseDaemonService.enabled() &&
+      workerRuntime.parse.daemon.enabled &&
       options.startIngestParseDaemon !== false;
     if (startPhaseDaemons && dataSource) {
       const obsBinding = observabilityRecorder
@@ -380,6 +376,7 @@ export async function createWorkerCompositionRoot(
         workerRepos,
         phaseRunner,
         obsBinding,
+        workerRuntime,
       };
 
       const parseSpec = runtimePipelines.find((p) => p.entry.pipelineKey === "parse");
@@ -393,6 +390,7 @@ export async function createWorkerCompositionRoot(
         workerRepos.phaseDefinitions,
         workerRepos.phaseRuns,
         phaseRunner,
+        workerRuntime.phase.manualPollMs,
       );
       phaseManualRunPoller.start();
 
@@ -440,7 +438,7 @@ export async function createWorkerCompositionRoot(
       roleRunsBackfill(workerRole) &&
       backfillJobs &&
       cursors &&
-      isBackfillDaemonEnabled()
+      workerRuntime.backfill.enabled
     ) {
       backfillDaemon = new BackfillDaemonService(
         backfillJobs,
@@ -451,10 +449,12 @@ export async function createWorkerCompositionRoot(
         ingestRawMessageHandler,
         sessionResolver,
         telegramMtprotoApp,
+        workerRuntime.backfill.pollMs,
+        workerRuntime.backfill.heartbeatMs,
       );
     }
 
-    if (roleRunsTrackingDaemon(workerRole) && dataSource && workerRepos && isTrackingDaemonEnabled()) {
+    if (roleRunsTrackingDaemon(workerRole) && dataSource && workerRepos && workerRuntime.tracking.enabled) {
       const obsBinding = observabilityRecorder
         ? { recorder: observabilityRecorder, hostId: buildObsHostId(workerRole) }
         : undefined;
@@ -466,6 +466,7 @@ export async function createWorkerCompositionRoot(
             workerRepos,
             phaseRunner,
             obsBinding,
+            workerRuntime,
           }) ?? undefined;
         trackingRebuildDaemon?.start();
         if (trackingRebuildDaemon) pipelineLaunchers.push(trackingRebuildDaemon);

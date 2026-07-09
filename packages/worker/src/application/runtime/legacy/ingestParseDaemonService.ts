@@ -7,31 +7,13 @@ import type {
 import { PhaseRunner } from "../../phases/phaseRunner.js";
 import { sortPhasesByOrder } from "../../phases/phaseOrder.js";
 import type { ObsTickReporter } from "./obsTickReporter.js";
+import { DEFAULT_WORKER_RUNTIME_MANIFEST } from "@radar/shared/manifest/domains/workerRuntime.loader.js";
 
-const DEFAULT_POLL_MS = 15_000;
-const DEFAULT_STALE_RUN_MS = 2 * 60 * 60 * 1000;
-
-/** Включён ли демон ingestParse (legacy: RADAR_PHASE_DAEMON_ENABLED). */
-function isIngestParseDaemonEnabled(): boolean {
-  const raw =
-    process.env.RADAR_INGEST_PARSE_DAEMON_ENABLED?.trim().toLowerCase() ??
-    process.env.RADAR_PHASE_DAEMON_ENABLED?.trim().toLowerCase();
-  if (raw === "0" || raw === "false" || raw === "no") return false;
-  return process.env.RADAR_STORAGE_MODE?.trim().toLowerCase() === "db";
-}
-
-function resolvePollMs(): number {
-  const parsed = Number(
-    process.env.RADAR_INGEST_PARSE_DAEMON_POLL_MS ??
-      process.env.RADAR_PHASE_DAEMON_POLL_MS,
-  );
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_POLL_MS;
-}
-
-function resolveStaleRunMs(): number {
-  const parsed = Number(process.env.RADAR_PHASE_RUN_STALE_MS);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_STALE_RUN_MS;
-}
+export type IngestParseDaemonConfig = {
+  pollMs?: number;
+  runStaleMs?: number;
+  enabled?: boolean;
+};
 
 /**
  * Scheduled ingestParse-фазы: drain queue_parse_coverage → PhaseRunner.
@@ -49,10 +31,15 @@ export class IngestParseDaemonService {
     private readonly coverage: IPhaseCoverageRepository,
     private readonly runner: PhaseRunner,
     private readonly onObsTick?: ObsTickReporter,
+    private readonly config: IngestParseDaemonConfig = {},
   ) {}
 
-  static enabled(): boolean {
-    return isIngestParseDaemonEnabled();
+  private pollMs(): number {
+    return this.config.pollMs ?? DEFAULT_WORKER_RUNTIME_MANIFEST.parse.daemon.pollMs;
+  }
+
+  private runStaleMs(): number {
+    return this.config.runStaleMs ?? DEFAULT_WORKER_RUNTIME_MANIFEST.parse.runStaleMs;
   }
 
   start(): void {
@@ -60,7 +47,7 @@ export class IngestParseDaemonService {
     void this.refreshSchedules();
     this.scheduleRefreshTimer = setInterval(
       () => void this.refreshSchedules(),
-      resolvePollMs(),
+      this.pollMs(),
     );
   }
 
@@ -101,7 +88,7 @@ export class IngestParseDaemonService {
     if (this.stopped || this.running.has(phase.id)) return;
     this.running.add(phase.id);
     try {
-      const stale = await this.phaseRuns.failStaleActiveRuns(phase.id, resolveStaleRunMs());
+      const stale = await this.phaseRuns.failStaleActiveRuns(phase.id, this.runStaleMs());
       if (stale > 0) {
         console.warn(`IngestParseDaemon[${phase.id}]: failed ${stale} stale run(s)`);
       }

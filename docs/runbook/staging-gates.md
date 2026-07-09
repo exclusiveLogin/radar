@@ -10,9 +10,9 @@
 
 ```powershell
 $env:RADAR_STORAGE_MODE="db"
-$env:TRACKING_RUNNER_PLATFORM_ENABLED="false"
-$env:PARSE_RUNNER_PLATFORM_ENABLED="false"
-$env:GEO_ENRICH_RUNNER_PLATFORM_ENABLED="false"
+# runner-platform: deployment.manifest.json или DEPLOY__ overlay
+$env:DEPLOY__runners__pipelines__parse__schedulingImpl="legacy"
+$env:DEPLOY__runners__pipelines__tracking__schedulingImpl="legacy"
 npm run radar -- stack dev --full
 npm run radar -- pipeline status
 ```
@@ -25,7 +25,7 @@ npm run radar -- pipeline status
 
 | # | Шаг | Pass |
 |---|-----|------|
-| A1 | Включить флаг одного домена, restart worker | `[odp] → runner-platform` в логе |
+| A1 | Включить `schedulingImpl: runner-platform` для домена (manifest или `DEPLOY__*`), restart worker | `[odp] → runner-platform` в логе |
 | A2 | Replay/live ≥1ч | — |
 | A3 | Counts mat_parse_event ±delta ожидаемый | SQL |
 | A4 | Golden fixtures / unit tests | CI green |
@@ -60,7 +60,7 @@ npm run radar -- pipeline status
 
 | # | Шаг | Pass |
 |---|-----|------|
-| D1 | Флаг=false, restart | `[odp] → legacy` |
+| D1 | `schedulingImpl: legacy` (manifest/env), restart | `[odp] → legacy` |
 | D2 | Cursor тот же | SQL watermark |
 | D3 | Нет параллельного tick | Один раннер |
 

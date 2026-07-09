@@ -1,6 +1,5 @@
 export {
   createGeoEnrichRunner,
-  isGeoEnrichRunnerPlatformEnabled,
   GEO_ENRICH_PIPELINE_KEY,
   type GeoEnrichRunner,
   type GeoEnrichRunnerDeps,

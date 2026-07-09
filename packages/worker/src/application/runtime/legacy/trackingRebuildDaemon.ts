@@ -12,6 +12,7 @@ import {
   maxEpsilonTemporalMs,
 } from "@radar/shared";
 import { randomUUID } from "crypto";
+import { DEFAULT_WORKER_RUNTIME_MANIFEST } from "@radar/shared/manifest/domains/workerRuntime.loader.js";
 import {
   countTrackingPipelineRemaining,
   loadDedupClosure,
@@ -29,16 +30,10 @@ type PipelineState = {
 
 type RunControl = { pause?: boolean; cancel?: boolean };
 
-const DEFAULT_INTERVAL_MS = 10_000;
-
-function readIntervalMs(): number {
-  const raw = Number(process.env.TRACKING_DAEMON_INTERVAL_MS);
-  return Number.isFinite(raw) && raw >= 5000 ? raw : DEFAULT_INTERVAL_MS;
-}
-
-function isEnabled(): boolean {
-  return process.env.TRACKING_DAEMON_ENABLED !== "false";
-}
+export type TrackingRebuildDaemonConfig = {
+  intervalMs?: number;
+  enabled?: boolean;
+};
 
 export class TrackingRebuildDaemon {
   private timer: ReturnType<typeof setInterval> | null = null;
@@ -48,6 +43,7 @@ export class TrackingRebuildDaemon {
   constructor(
     private readonly ds: DataSource,
     private readonly onObsTick?: ObsTickReporter,
+    private readonly config: TrackingRebuildDaemonConfig = {},
   ) {}
 
   private acquireFlowField(runId: string, config: TrackingPipelineConfig): H3VectorFlowMap {
@@ -59,8 +55,9 @@ export class TrackingRebuildDaemon {
   }
 
   start(): void {
-    if (!isEnabled()) return;
-    const intervalMs = readIntervalMs();
+    if (this.config.enabled === false) return;
+    const intervalMs =
+      this.config.intervalMs ?? DEFAULT_WORKER_RUNTIME_MANIFEST.tracking.intervalMs;
     this.timer = setInterval(() => void this.runCycle(), intervalMs);
     void this.runCycle();
   }
@@ -358,6 +355,3 @@ function mergeConfig(raw: unknown): TrackingPipelineConfig {
   return trackingPipelineConfigSchema.parse(raw ?? {});
 }
 
-export function isTrackingDaemonEnabled(): boolean {
-  return isEnabled();
-}
