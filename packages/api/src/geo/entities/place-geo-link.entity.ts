@@ -1,4 +1,5 @@
 /**
+ * @see ../../../../../docs/database-table-naming.md
  * Связь place(kind=region) ↔ geo_feature(layer=subject).
  * Создаётся при geo:features:import для субъектов.
  */

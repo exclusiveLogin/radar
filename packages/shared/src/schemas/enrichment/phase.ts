@@ -1,6 +1,6 @@
 /**
  * Phase-pipeline v2 (ADR-003): фаза = enrichers[] + policy + trigger.
- * Ingest доставляет raw_messages; фазы маркируют phase_coverage и мержат в накопитель.
+ * Ingest доставляет mat_ingest_raw; фазы маркируют queue_parse_coverage и мержат в накопитель.
  */
 import { z } from "zod";
 
@@ -25,7 +25,7 @@ export type PhaseScope = z.infer<typeof phaseScopeSchema>;
 export const phaseKindSchema = z.enum(["eager", "lazy"]);
 export type PhaseKind = z.infer<typeof phaseKindSchema>;
 
-/** @deprecated Используйте phaseId; оставлено для миграции enrichment_queue. */
+/** @deprecated Используйте phaseId; оставлено для миграции queue_parse_enrichment. */
 export const enrichStageSchema = z.enum(["llm", "dadata", "nominatim"]);
 export type EnrichStage = z.infer<typeof enrichStageSchema>;
 

@@ -24,8 +24,9 @@ if [ ! -d node_modules ] || [ ! -f node_modules/.package-lock.json ]; then
   npm ci
 fi
 
-echo "[entrypoint] build @radar/shared + @radar/api (worker entity dist)..."
+echo "[entrypoint] build @radar/shared + @radar/observability + @radar/api (worker entity dist)..."
 npm run build -w @radar/shared
+npm run build -w @radar/observability
 npm run build -w @repo/root
 npm run build -w @radar/api
 

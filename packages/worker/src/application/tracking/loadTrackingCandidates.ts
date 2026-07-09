@@ -27,15 +27,15 @@ const NOT_PROCESSED_SQL = TRACKING_PIPELINE_NOT_PROCESSED_SQL;
 /** Worker: можно ли писать L1 (rebuild мог выключить пайплайн mid-tick). */
 export async function isTrackingPipelineEnabled(ds: DataSource): Promise<boolean> {
   const [row] = await ds.query<{ enabled: boolean }[]>(
-    `SELECT enabled FROM tracking_pipeline_state WHERE id = 'default'`,
+    `SELECT enabled FROM state_track_pipeline WHERE id = 'default'`,
   );
   return row?.enabled ?? false;
 }
 
 const CANDIDATES_FROM_SQL = `
-    FROM event_locations el
-    JOIN parsed_events pe ON pe.id = el.parsed_event_id
-    LEFT JOIN raw_messages rm ON rm.id = pe.raw_message_id
+    FROM mat_parse_location el
+    JOIN mat_parse_event pe ON pe.id = el.parsed_event_id
+    LEFT JOIN mat_ingest_raw rm ON rm.id = pe.raw_message_id
     LEFT JOIN status_dictionary sd ON sd.code = pe.event_type
     LEFT JOIN regions r ON r.id = el.region_id
     LEFT JOIN LATERAL (
@@ -143,7 +143,7 @@ export async function loadPendingTrackingCandidates(
 
 const CONSUMED_ANCHOR_SQL = `
   AND EXISTS (
-    SELECT 1 FROM tracking_pipeline_consumed tpc
+    SELECT 1 FROM state_track_consumed tpc
     WHERE tpc.event_location_id = el.id
   )`;
 
@@ -240,7 +240,7 @@ export async function markPipelineCandidatesConsumedTx(
   for (let i = 0; i < eventLocationIds.length; i += chunkSize) {
     const chunk = eventLocationIds.slice(i, i + chunkSize);
     await query(
-      `INSERT INTO tracking_pipeline_consumed (event_location_id, reason)
+      `INSERT INTO state_track_consumed (event_location_id, reason)
        SELECT unnest($1::uuid[]), $2
        ON CONFLICT (event_location_id) DO NOTHING`,
       [chunk, reason],
@@ -265,9 +265,9 @@ export async function countTrackingCandidates(ds: DataSource, until: Date): Prom
   const [{ count }] = await ds.query<{ count: string }[]>(
     `
     SELECT COUNT(*)::text AS count
-    FROM event_locations el
-    JOIN parsed_events pe ON pe.id = el.parsed_event_id
-    LEFT JOIN raw_messages rm ON rm.id = pe.raw_message_id
+    FROM mat_parse_location el
+    JOIN mat_parse_event pe ON pe.id = el.parsed_event_id
+    LEFT JOIN mat_ingest_raw rm ON rm.id = pe.raw_message_id
     WHERE
       ${EVENT_AT_SQL} <= $1
       AND el.lat IS NOT NULL AND el.lon IS NOT NULL
@@ -299,9 +299,9 @@ export async function countTrackingCandidateStats(
   const [{ count: targetCount }] = await ds.query<{ count: string }[]>(
     `
     SELECT COUNT(*)::text AS count
-    FROM event_locations el
-    JOIN parsed_events pe ON pe.id = el.parsed_event_id
-    LEFT JOIN raw_messages rm ON rm.id = pe.raw_message_id
+    FROM mat_parse_location el
+    JOIN mat_parse_event pe ON pe.id = el.parsed_event_id
+    LEFT JOIN mat_ingest_raw rm ON rm.id = pe.raw_message_id
     WHERE
       ${EVENT_AT_SQL} <= $1
       AND el.lat IS NOT NULL AND el.lon IS NOT NULL
@@ -312,11 +312,11 @@ export async function countTrackingCandidateStats(
   );
 
   const [{ nodes }] = await ds.query<{ nodes: string }[]>(
-    `SELECT COUNT(*)::text AS nodes FROM trajectory_nodes`,
+    `SELECT COUNT(*)::text AS nodes FROM mat_track_node`,
   );
 
   const trackRows = await ds.query<{ status: string; count: string }[]>(
-    `SELECT status, COUNT(*)::text AS count FROM trajectory_tracks GROUP BY status`,
+    `SELECT status, COUNT(*)::text AS count FROM mat_track GROUP BY status`,
   );
 
   const byStatus = Object.fromEntries(trackRows.map(r => [r.status, Number(r.count)]));

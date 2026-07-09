@@ -5,7 +5,7 @@ import type {
 } from "@radar/shared";
 
 /**
- * Ставит phase_coverage pending для новых raw и catch-up при включении фазы.
+ * Ставит queue_parse_coverage pending для новых raw и catch-up при включении фазы.
  */
 export class CoverageEnqueuer {
   constructor(

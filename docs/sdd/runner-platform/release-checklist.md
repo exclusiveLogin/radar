@@ -35,7 +35,7 @@ Legacy и runner-platform раннер каждого домена вызыва�
 ## Cutover checklist (на каждый домен, по одному за раз)
 
 1. **Staging**: включить флаг домена, прогнать реальный трафик (или replay) минимум 24ч.
-2. **Gate A (correctness)**: сверить результат обработки (tracks/parsed_events/enriched places) — идентичен снятому до переключения baseline.
+2. **Gate A (correctness)**: сверить результат обработки (tracks/mat_parse_event/enriched places) — идентичен снятому до переключения baseline.
 3. **Gate B (consistency)**: Admin UI (`Workbook Observability`) — `activeWorkloads`/`runHistory` отражают реальное состояние, WS не рассинхронизирован с БД.
 4. **Gate C (operability)**: вручную прогнать pause → resume → reset → restart процесса — раннер должен восстановиться без потери курсора (см. таблицу в [runbook.md](./runbook.md#enable--reset--rebuild--не-поменялись)).
 5. **Gate D (rollback)**: снять флаг — legacy демон должен подхватить то же состояние без ручного вмешательства (проверить на staging перед прод).

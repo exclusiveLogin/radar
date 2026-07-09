@@ -42,7 +42,7 @@ const IDLE: ParsePipelineStatusResponse = {
 
 /**
  * Запуск parse pipeline reset / reparse через worker CLI в фоне.
- * Прогресс reparse — по parse_attempts с момента старта job.
+ * Прогресс reparse — по log_parse_attempt с момента старта job.
  */
 @Injectable()
 export class ParsePipelineAdminService implements OnModuleDestroy {
@@ -189,7 +189,7 @@ export class ParsePipelineAdminService implements OnModuleDestroy {
          COUNT(*)::text AS processed,
          COUNT(*) FILTER (WHERE status = 'ok')::text AS ok,
          COUNT(*) FILTER (WHERE status = 'failed')::text AS failed
-       FROM parse_attempts
+       FROM log_parse_attempt
        WHERE created_at >= $1`,
       [job.startedAt],
     );
@@ -216,7 +216,7 @@ export class ParsePipelineAdminService implements OnModuleDestroy {
 
   private async countRawMessages(): Promise<number> {
     const [row] = await this.ds.query<Array<{ count: string }>>(
-      `SELECT COUNT(*)::text AS count FROM raw_messages`,
+      `SELECT COUNT(*)::text AS count FROM mat_ingest_raw`,
     );
     return Number(row?.count ?? 0);
   }

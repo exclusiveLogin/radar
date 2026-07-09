@@ -12,6 +12,8 @@
 import type { IPhaseCoverageRepository, IPhaseDefinitionRepository, IPhaseRunRepository } from "@radar/shared";
 import type { PhaseRunner } from "../../phases/phaseRunner.js";
 import { createParsePhaseWorkload } from "./parsePhaseWorkload.js";
+import type { WorkloadObsContext } from "../../runtime/observability/workloadObsHooks.js";
+import { createWorkloadObsConfig } from "../../runtime/observability/workloadObsHooks.js";
 import type { Workload } from "../../runtime/workload/createWorkload.js";
 
 const DEFAULT_REFRESH_MS = 15_000;
@@ -25,6 +27,8 @@ export type ParseRunnerRegistryDeps = {
   phaseRuns: IPhaseRunRepository;
   coverage: IPhaseCoverageRepository;
   runner: PhaseRunner;
+  /** Iter 2: obs context для phase workloads. */
+  obs?: WorkloadObsContext;
 };
 
 export class ParseRunnerRegistry {
@@ -71,7 +75,10 @@ export class ParseRunnerRegistry {
 
     for (const phase of scheduled) {
       if (this.workloads.has(phase.id)) continue;
-      const workload = createParsePhaseWorkload(this.deps, phase);
+      const phaseObs = this.deps.obs
+        ? createWorkloadObsConfig({ ...this.deps.obs, workloadIdSuffix: phase.id })
+        : undefined;
+      const workload = createParsePhaseWorkload(this.deps, phase, phaseObs);
       workload.start();
       this.workloads.set(phase.id, workload);
     }

@@ -160,7 +160,7 @@ export const PROFILE_KINEMATICS: Record<ThreatProfile, ProfileKinematics> = {
 type ProfileKinematicsOverrides = Partial<Record<ThreatProfile, Partial<ProfileKinematics>>>;
 
 /**
- * Defaults из PROFILE_KINEMATICS + overrides из tracking_pipeline_state.config.
+ * Defaults из PROFILE_KINEMATICS + overrides из state_track_pipeline.config.
  */
 export function resolveProfileKinematics(
   profile: ThreatProfile,

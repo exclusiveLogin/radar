@@ -6,7 +6,7 @@
 
 | Область | Статус |
 |---------|--------|
-| Схемы `trigger`, `policy`, `phase_coverage`, `phase_runs` | ✅ |
+| Схемы `trigger`, `policy`, `queue_parse_coverage`, `log_parse_phase_run` | ✅ |
 | Миграция `1748500000000-PhasePipelineV2` | ✅ |
 | `PhaseRunner`, `CoverageEnqueuer`, `IngestParseDaemon` | ✅ |
 | Ingest SSOT `phaseIngestFlow` | ✅ |
@@ -23,7 +23,7 @@
 
 | Компонент | Где | Что даёт |
 |-----------|-----|----------|
-| **Сводка системы** | `MessagesStatsWidget` (секция «Система») | KPI ingest/parse, полоска pipeline, карточки **phase_coverage** по фазам (`done★`, очередь) |
+| **Сводка системы** | `MessagesStatsWidget` (секция «Система») | KPI ingest/parse, полоска pipeline, карточки **queue_parse_coverage** по фазам (`done★`, очередь) |
 | **Parse-engine** | `PhasesWidget` (секция «Обогащение») | Ingest / Geo фазы: ВКЛ/ВЫКЛ, Run, очереди, активные runs, stop-all, clear queue |
 | **Worker runners** | `WorkerRunnersWidget` | health ingest/parse демонов рядом с фазами |
 | **Backfill V2** | `BackfillRunnerWidget` + `BackfillJobCard` | ingest raw; подсказка: parse → **Обогащение → Фазы** (не «карта готова» на `completed`) |
@@ -50,7 +50,7 @@ Layout: `/admin` → секции **Система** → **Обогащение*
 
 ```text
 Backfill completed (raw в БД)
-  → /admin «Сводка» — phase_coverage по catalog/llm/…
+  → /admin «Сводка» — queue_parse_coverage по catalog/llm/…
   → /admin «Parse-engine» — очереди, Run, runs
   → карта — после catalog (+ llm при enabled)
 ```

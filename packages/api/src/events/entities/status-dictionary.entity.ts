@@ -1,4 +1,5 @@
 /**
+ * @see ../../../../../docs/database-table-naming.md
  * Редактируемый справочник смыслов статусов (угроза, отбой, …) и подсказок для rule/LLM-классификатора.
  * Отделяет «код в сообщении» от UI-легенды и правил `include_on_map` без хардкода в парсере.
  * @see ../../../../../docs/domain/persistence-map.md#StatusDictionaryEntity

@@ -1,8 +1,8 @@
 /**
  * Постановка и статус разовой докачки истории (диапазон дат/id), инициируемой из admin/CLI.
- * Сами сообщения попадают в `raw_messages` с `ingest_mode=backfill`; эта таблица — учёт операции, не лог чата.
+ * Сами сообщения попадают в `mat_ingest_raw` с `ingest_mode=backfill`; эта таблица — учёт операции, не лог чата.
  * @see ../../../../../docs/domain/persistence-map.md#IngestBackfillJobEntity
- * @see ../../../../../docs/domain/contexts/ingest.md
+ * @see ../../../../../docs/database-table-naming.md`n * @see ../../../../../docs/domain/contexts/ingest.md
  */
 import {
   Column,
@@ -16,7 +16,7 @@ import {
 import { IngestBindingEntity } from "./ingest-binding.entity";
 import { IngestProviderEntity } from "./ingest-provider.entity";
 
-@Entity({ name: "ingest_backfill_jobs" })
+@Entity({ name: "job_ingest_backfill" })
 export class IngestBackfillJobEntity {
   @PrimaryGeneratedColumn("uuid")
   id!: string;

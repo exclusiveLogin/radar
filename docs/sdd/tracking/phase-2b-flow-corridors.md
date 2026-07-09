@@ -159,9 +159,9 @@ SSOT hash for rollup map.
 ```sql
 CREATE TABLE trajectory_edges (
   id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  track_id        uuid NOT NULL REFERENCES trajectory_tracks(id) ON DELETE CASCADE,
-  from_node_id    uuid NOT NULL REFERENCES trajectory_nodes(id) ON DELETE CASCADE,
-  to_node_id      uuid NOT NULL REFERENCES trajectory_nodes(id) ON DELETE CASCADE,
+  track_id        uuid NOT NULL REFERENCES mat_track(id) ON DELETE CASCADE,
+  from_node_id    uuid NOT NULL REFERENCES mat_track_node(id) ON DELETE CASCADE,
+  to_node_id      uuid NOT NULL REFERENCES mat_track_node(id) ON DELETE CASCADE,
   from_place_id   uuid NOT NULL,
   to_place_id     uuid NOT NULL,
   from_seq        int NOT NULL,

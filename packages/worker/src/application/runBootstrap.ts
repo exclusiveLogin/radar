@@ -48,27 +48,42 @@ export async function runWorkerBootstrap(): Promise<void> {
 
     if (roleRunsBackfill(workerRole) && runtime.backfillDaemon) {
       runtime.backfillDaemon.start();
-      console.log("BackfillDaemon запущен (ingest_backfill_jobs).");
+      console.log("BackfillDaemon запущен (job_ingest_backfill).");
     }
 
     if (roleRunsPhaseDaemons(workerRole) && runtime.ingestParseDaemon) {
-      console.log("IngestParseDaemon запущен (scheduled ingestParse → phase_coverage).");
+      console.log("IngestParseDaemon запущен (scheduled ingestParse → queue_parse_coverage).");
     }
     if (roleRunsPhaseDaemons(workerRole) && runtime.placeEnrichmentDaemon) {
       console.log(
-        "GeoParseDaemon запущен (scheduled geoParse → place_enrichment_jobs; в консоль: [geo:nominatim] ok|miss|fail, подробно: RADAR_VERBOSE_GEO_LOG=1).",
+        "GeoParseDaemon запущен (scheduled geoParse → job_geo_place_enrich; в консоль: [geo:nominatim] ok|miss|fail, подробно: RADAR_VERBOSE_GEO_LOG=1).",
       );
     }
 
     if (roleRunsTrackingDaemon(workerRole) && runtime.trackingRebuildDaemon) {
       runtime.trackingRebuildDaemon.start();
-      console.log("TrackingRebuildDaemon запущен (trajectory_tracks).");
+      console.log("TrackingRebuildDaemon запущен (mat_track).");
     }
 
     workerRuntimeStatus.setRunning();
 
+    let obsHeartbeatTimer: ReturnType<typeof setInterval> | undefined;
+    if (runtime.observabilityRecorder && runtime.obsHostSnapshot) {
+      obsHeartbeatTimer = setInterval(() => {
+        void runtime.observabilityRecorder!
+          .upsertHost({
+            ...runtime.obsHostSnapshot!,
+            lastSeenAt: new Date().toISOString(),
+          })
+          .catch((err: unknown) => {
+            console.warn("[obs] host heartbeat failed:", err);
+          });
+      }, 10_000);
+    }
+
     const shutdown = async () => {
       console.log("Остановка worker...");
+      if (obsHeartbeatTimer) clearInterval(obsHeartbeatTimer);
       workerRuntimeStatus.setStopped();
       probe.server?.close();
       await runtime.shutdown?.();

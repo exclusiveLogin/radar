@@ -19,7 +19,7 @@
 
 - в БД есть `status_dictionary` (типы событий, уровни на карте);
 - карта read-side уже читает словарь;
-- facts (`parsed_events`) **нейтральны** — это просто строки в БД.
+- facts (`mat_parse_event`) **нейтральны** — это просто строки в БД.
 
 **Идея:** отделить **движок платформы** от **пакета домена «БПЛА OSINT»**, как мод в игре — ядро одно, настройки снаружи.
 
@@ -246,7 +246,7 @@ Golden tests те же: «этот текст → этот тип» — толь
 
 ## 8. Что НЕ меняется
 
-- Цепочка facts: `raw_messages → parsed_events → event_locations`
+- Цепочка facts: `mat_ingest_raw → mat_parse_event → mat_parse_location`
 - Time Machine, operational fold (ADR-006)
 - Append-only: старые events не мутируем вручную
 - `status_dictionary` остаётся — расширяем колонками, не выкидываем

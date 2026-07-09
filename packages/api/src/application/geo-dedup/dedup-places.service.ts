@@ -52,9 +52,7 @@ export class PlaceDedupService {
 
     for (const table of [
       "place_aliases",
-      "event_locations",
-      "place_evidence",
-      "place_cache",
+      "mat_parse_location",
     ]) {
       await sql(`UPDATE ${table} SET place_id = $1 WHERE place_id = $2`, [survivor, loser]);
     }

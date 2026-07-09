@@ -27,6 +27,8 @@ import {
   resetTrackingWatermark,
 } from "../../../infrastructure/tracking/trackingPipelineStateRepository.js";
 import { loadDedupClosure, runIncrementalBatch, countTrackingPipelineRemaining } from "../trackingRebuildService.js";
+import type { JobKernelObsConfig } from "../../runtime/runner-platform/jobKernel.js";
+import { reportWorkloadLiveMetrics } from "../../runtime/observability/workloadObsHooks.js";
 import { createWorkload, type Workload } from "../../runtime/workload/createWorkload.js";
 import { createTrackingMaterialize } from "./trackingMaterializationPorts.js";
 import { createTrackingTelemetryBridge, TRACKING_PIPELINE_KEY } from "./trackingTelemetryBridge.js";
@@ -51,7 +53,10 @@ export type TrackingRunner = Workload & {
   telemetry: ReturnType<typeof createTrackingTelemetryBridge>["bus"];
 };
 
-export function createTrackingRunner(ds: DataSource): TrackingRunner {
+export function createTrackingRunner(
+  ds: DataSource,
+  obs?: JobKernelObsConfig,
+): TrackingRunner {
   const flowFieldByRun = new Map<string, H3VectorFlowMap>();
   const telemetryBridge = createTrackingTelemetryBridge();
 
@@ -87,6 +92,7 @@ export function createTrackingRunner(ds: DataSource): TrackingRunner {
           flowField,
           onProgress: async (stats) => {
             lastStats = stats;
+            if (obs) reportWorkloadLiveMetrics(obs, stats as Record<string, unknown>);
           },
         });
 
@@ -170,6 +176,7 @@ export function createTrackingRunner(ds: DataSource): TrackingRunner {
     onUnhandledError: (error) => {
       console.error(`[${TRACKING_PIPELINE_KEY}] tick failed:`, error);
     },
+    obs,
   });
 
   return { ...workload, telemetry: telemetryBridge.bus };

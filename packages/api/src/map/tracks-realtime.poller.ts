@@ -6,7 +6,7 @@ import type { DataSource } from "typeorm";
 type Emit = (message: WsServerMessage) => void;
 
 /**
- * WS realtime: эмит tracks-updated при изменении tracking_pipeline_state.updated_at.
+ * WS realtime: эмит tracks-updated при изменении state_track_pipeline.updated_at.
  */
 @Injectable()
 export class TracksRealtimePoller {
@@ -30,7 +30,7 @@ export class TracksRealtimePoller {
   private async tick(emit: Emit): Promise<void> {
     try {
       const [row] = await this.ds.query<{ updated_at: Date | string }[]>(
-        `SELECT updated_at FROM tracking_pipeline_state WHERE id = 'default'`,
+        `SELECT updated_at FROM state_track_pipeline WHERE id = 'default'`,
       );
       if (!row?.updated_at) return;
       const at =

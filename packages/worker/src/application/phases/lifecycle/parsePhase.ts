@@ -21,8 +21,8 @@ export async function wipeParsePhase(input: {
       dryRun: true,
       counts: {},
       notes: [
-        "TRUNCATE message_parse_workspace, parsed_events (+ event_locations), parse_attempts, event_evidence, place_enrichment_jobs.",
-        "raw_messages не трогает.",
+        "TRUNCATE work_parse_message, mat_parse_event (+ mat_parse_location), log_parse_attempt, mat_parse_evidence, job_geo_place_enrich.",
+        "mat_ingest_raw не трогает.",
       ],
     };
   }
@@ -35,11 +35,11 @@ export async function wipeParsePhase(input: {
 
   await clearOperationalMapState(input.dataSource, "parse:wipe");
   const parsedEvents = await clearParsedArtifacts(input.dataSource);
-  const parseAttempts = await truncateTableCounted(input.dataSource, "parse_attempts");
-  const eventEvidence = await truncateTableCounted(input.dataSource, "event_evidence");
+  const parseAttempts = await truncateTableCounted(input.dataSource, "log_parse_attempt");
+  const eventEvidence = await truncateTableCounted(input.dataSource, "mat_parse_evidence");
   const enrichmentJobs = await truncateTableCounted(
     input.dataSource,
-    "place_enrichment_jobs",
+    "job_geo_place_enrich",
   );
 
   return {
@@ -47,10 +47,10 @@ export async function wipeParsePhase(input: {
     action: "wipe",
     dryRun: false,
     counts: {
-      parsed_events: parsedEvents,
-      parse_attempts: parseAttempts,
-      event_evidence: eventEvidence,
-      place_enrichment_jobs: enrichmentJobs,
+      mat_parse_event: parsedEvents,
+      log_parse_attempt: parseAttempts,
+      mat_parse_evidence: eventEvidence,
+      job_geo_place_enrich: enrichmentJobs,
     },
   };
 }

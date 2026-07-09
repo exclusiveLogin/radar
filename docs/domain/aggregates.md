@@ -15,11 +15,11 @@
 
 | aggregateType | Таблица / сущность | aggregateId | Ключевые DomainEvent.type | Кто создаёт событие |
 |---------------|-------------------|-------------|---------------------------|---------------------|
-| `raw_message` | `raw_messages` | `raw_messages.id` | `RawMessageIngested`, `RawMessageDuplicate`, `MessageParseFailed`, `MessageParsed` (частично), `EnricherInvoked`, `EnricherCacheHit`, `EnricherFailed` | `IngestRawMessageHandler`, `ParseRawMessageHandler`, `ingest-admin` (outbox) |
-| `parsed_event` | `parsed_events` | `parsed_events.id` | `MessageParsed` | `ParseRawMessageHandler` |
+| `raw_message` | `mat_ingest_raw` | `mat_ingest_raw.id` | `RawMessageIngested`, `RawMessageDuplicate`, `MessageParseFailed`, `MessageParsed` (частично), `EnricherInvoked`, `EnricherCacheHit`, `EnricherFailed` | `IngestRawMessageHandler`, `ParseRawMessageHandler`, `ingest-admin` (outbox) |
+| `parsed_event` | `mat_parse_event` | `mat_parse_event.id` | `MessageParsed` | `ParseRawMessageHandler` |
 | `ingest_provider` | `ingest_providers` | `ingest_providers.id` | `IngestSourceUnavailable` | `IngestOrchestrator` (ошибка duty) |
 | `ingest_binding` | `ingest_bindings` | `ingest_bindings.id` | `IngestBackfillChunkCompleted` | `IngestOrchestrator.runBackfillChunk` |
-| `geo_sync` | `geo_sync_log` (audit) | id строки audit | `GeoSyncCompleted`, `GeoSyncFailed` | `GeoSyncApplyService` (API, outbox) |
+| `geo_sync` | `log_geo_sync` (audit) | id строки audit | `GeoSyncCompleted`, `GeoSyncFailed` | `GeoSyncApplyService` (API, outbox) |
 | `channel` | `channels` | (зарезервировано в enum) | — | *в коде присвоений не найдено* |
 | `session_slot` | (volume, не ORM) | (зарезервировано) | `SessionSlot*` в enum | *publish не найден* |
 | `system` | — | `null` | `MetricSampleEmitted`, … | *зарезервировано* |
@@ -53,7 +53,7 @@ flowchart LR
   Parse --> PE
 ```
 
-- `raw_message` → `parsed_event`: не через общий aggregate object, а `rawMessageId` в `parsed_events` + событие `MessageParsed` с новым `aggregateId`.
+- `raw_message` → `parsed_event`: не через общий aggregate object, а `rawMessageId` в `mat_parse_event` + событие `MessageParsed` с новым `aggregateId`.
 
 ---
 

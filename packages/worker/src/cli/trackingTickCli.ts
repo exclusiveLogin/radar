@@ -3,7 +3,7 @@
  */
 import { MONOREPO_ROOT } from "@repo/root";
 import { createWorkerCompositionRoot } from "../application/createWorkerCompositionRoot.js";
-import { TrackingRebuildDaemon } from "../application/tracking/trackingRebuildDaemon.js";
+import { TrackingRebuildDaemon } from "../application/runtime/legacy/trackingRebuildDaemon.js";
 import { WorkerStorageMode } from "../infrastructure/persistence/storageMode.js";
 import { loadRootEnv } from "../infrastructure/config/loadRootEnv.js";
 

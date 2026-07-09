@@ -9,7 +9,7 @@
 
 ## Контекст
 
-Tracking-домен ([ADR-007](./adr-007-trajectory-graph-kalman-worker.md)) строит **L1 — индивидуальные треки** из `event_locations` / event-places через Kalman. Они нужны для:
+Tracking-домен ([ADR-007](./adr-007-trajectory-graph-kalman-worker.md)) строит **L1 — индивидуальные треки** из `mat_parse_location` / event-places через Kalman. Они нужны для:
 
 - velocity, bearing, прогноза (эллипс P);
 - Kill/Pass ([ADR-010](./adr-010-pvo-kill-pass-layers.md));
@@ -33,7 +33,7 @@ OSINT-поток **не даёт стабильных object ID**. Нескол�
 ```text
 ┌─────────────────────────────────────────────────────────────┐
 │ L1 — Individual tracks (Kalman, ADR-007)                    │
-│   trajectory_tracks + trajectory_nodes                      │
+│   mat_track + mat_track_node                      │
 │   SSOT: kinematics, prediction, Kill/Pass                   │
 └─────────────────────────────────────────────────────────────┘
                               │
@@ -62,14 +62,14 @@ Worker ([ADR-007](./adr-007-trajectory-graph-kalman-worker.md)) по-прежн�
 facts → mode (ADR-008) → link → DISTINCT? → gate → Kalman → persist
 ```
 
-Дополнение к `trajectory_nodes` (additive migration):
+Дополнение к `mat_track_node` (additive migration):
 
 | Поле | Назначение |
 |------|------------|
 | `place_id` | uuid FK → `places`, nullable; SSOT якоря «event-place» для L2 |
 | `threat_profile` | `uav` \| `rocket` \| `balloon` \| `unknown` — denormalized для rollup filter |
 
-`place_id` берётся из `event_locations.place_id` на момент сборки трека. Node без `place_id` участвует в L1 (lat/lon), но **не** в place-based rollup L2 (v1).
+`place_id` берётся из `mat_parse_location.place_id` на момент сборки трека. Node без `place_id` участвует в L1 (lat/lon), но **не** в place-based rollup L2 (v1).
 
 ---
 
@@ -100,7 +100,7 @@ type SegmentKey = {
 
 ### Алгоритм rollup (v1)
 
-1. После persist/rebuild L1: `SELECT` все `trajectory_nodes` с `place_id IS NOT NULL`, упорядоченные `(track_id, seq)`.
+1. После persist/rebuild L1: `SELECT` все `mat_track_node` с `place_id IS NOT NULL`, упорядоченные `(track_id, seq)`.
 2. Для каждой пары `(node_i, node_{i+1})` где оба имеют `place_id` и `node_i.place_id ≠ node_{i+1}.place_id`:
    - построить `SegmentKey`;
    - `count += 1`;
@@ -122,9 +122,9 @@ type SegmentKey = {
 -- Материализованные рёбра (per track, для rebuild rollup и debug)
 trajectory_edges (
   id              uuid PK,
-  track_id        uuid FK → trajectory_tracks,
-  from_node_id    uuid FK → trajectory_nodes,
-  to_node_id      uuid FK → trajectory_nodes,
+  track_id        uuid FK → mat_track,
+  from_node_id    uuid FK → mat_track_node,
+  to_node_id      uuid FK → mat_track_node,
   from_place_id   uuid,
   to_place_id     uuid,
   from_seq        int,
@@ -333,7 +333,7 @@ Z-order снизу вверх: flow → fan → tracks → ellipse.
 | Зависимость | Статус |
 |-------------|--------|
 | ADR-007 — L1 треки в БД | блокер |
-| `trajectory_nodes.place_id` populated | блокer L2 |
+| `mat_track_node.place_id` populated | блокer L2 |
 | ADR-011 — Deck.gl overlay | блокер UI (можно MapLibre line-width v0) |
 | Feature-004 — ellipse | параллельно, не блокер L2 |
 

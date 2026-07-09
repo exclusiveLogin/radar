@@ -60,7 +60,7 @@
 | Проверка | Статус | Комментарий |
 |----------|--------|-------------|
 | Worker handlers → `InProcessEventBus` | OK | `createWorkerCompositionRoot` |
-| Worker handlers → `domain_events` | Gap | `append` не вызывается из worker |
+| Worker handlers → `event_outbox` | Gap | `append` не вызывается из worker |
 | `OutboxRelay` при worker db mode | OK | Поднят, но питает bus из БД |
 | API ingest-admin → outbox | OK | `publishRawMessageEvent` |
 | API geo-sync → outbox | OK | `events.append` |

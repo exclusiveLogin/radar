@@ -1,12 +1,13 @@
 /**
- * Покрытие сообщения фазой (phase_coverage): маркер «фаза X обработала raw_message».
+ * @see ../../../../../docs/database-table-naming.md
+ * Покрытие сообщения фазой (queue_parse_coverage): маркер «фаза X обработала raw_message».
  */
 import { Column, Entity, PrimaryGeneratedColumn, Unique } from "typeorm";
 
 type CoverageStatus = "pending" | "processing" | "done" | "failed";
 
-@Entity({ name: "phase_coverage" })
-@Unique("uq_phase_coverage_raw_phase", ["rawMessageId", "phaseId"])
+@Entity({ name: "queue_parse_coverage" })
+@Unique("uq_queue_parse_coverage_raw_phase", ["rawMessageId", "phaseId"])
 export class PhaseCoverageEntity {
   @PrimaryGeneratedColumn("uuid")
   id!: string;

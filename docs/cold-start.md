@@ -72,7 +72,7 @@ npm run radar -- system wipe -- --dry-run   # опционально: посмо
 npm run radar -- system wipe -- --confirm
 ```
 
-Удаляет: `raw_messages`, `parsed_events`, `event_locations`, places, regions, `geo_feature`, read-model карты, cursors/backfill, jobs.
+Удаляет: `mat_ingest_raw`, `mat_parse_event`, `mat_parse_location`, places, regions, `geo_feature`, read-model карты, cursors/backfill, jobs.
 
 **Не трогает:** `channels`, `ingest_providers`, `ingest_bindings`, `phase_definitions`, Telegram session на диске, файлы `data/geo/`.
 
@@ -126,7 +126,7 @@ npm run radar -- parse run
 npm run radar -- stack dev --full
 ```
 
-`parse run` = rebuild по `raw_messages` + drain ingest/geo очередей + обновление read-line карты.
+`parse run` = rebuild по `mat_ingest_raw` + drain ingest/geo очередей + обновление read-line карты.
 
 Проверка:
 

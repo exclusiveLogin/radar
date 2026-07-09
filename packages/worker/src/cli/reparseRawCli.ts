@@ -39,7 +39,7 @@ async function main(): Promise<void> {
   );
 
   const countRows = (await runtime.dataSource.query(
-    `SELECT COUNT(*)::int AS count FROM raw_messages`,
+    `SELECT COUNT(*)::int AS count FROM mat_ingest_raw`,
   )) as Array<{ count: number }>;
   const total = countRows[0]?.count ?? 0;
   const progress = createProgress("reparse:ingest-flow", total);
@@ -66,7 +66,7 @@ async function main(): Promise<void> {
 
   console.log(
     `Reparse prep: map places=${result.mapPlacesCleared}, regions→grey=${result.mapRegionsGrey}, ` +
-      `parsed_events=${result.parsedEventsDeleted}, workspaces=${result.workspacesDeleted}`,
+      `mat_parse_event=${result.parsedEventsDeleted}, workspaces=${result.workspacesDeleted}`,
   );
   console.log(
     `Reparse done: messages=${result.messages}, coverageInvalidated=${result.phasesInvalidated}. ` +

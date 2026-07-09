@@ -21,7 +21,7 @@ export class ReadSideController {
    */
   @Get("events")
   @ApiOperation({
-    summary: "[DEPRECATED] Лента parsed_events",
+    summary: "[DEPRECATED] Лента mat_parse_event",
     description: "Заменён на GET /map/events/recent (с region/place контекстом).",
     deprecated: true,
   })
@@ -35,8 +35,8 @@ export class ReadSideController {
    */
   @Get("events/:id/locations")
   @ApiOperation({
-    summary: "[DEPRECATED] event_locations по parsed_event",
-    description: "Сырые event_locations одного события. Только для отладки.",
+    summary: "[DEPRECATED] mat_parse_location по parsed_event",
+    description: "Сырые mat_parse_location одного события. Только для отладки.",
     deprecated: true,
   })
   @ApiParam({ name: "id", description: "parsedEventId (UUID)" })
@@ -96,7 +96,7 @@ export class ReadSideController {
    */
   @Get("places/status")
   @ApiOperation({
-    summary: "[DEPRECATED] Текущие place winners из event_locations",
+    summary: "[DEPRECATED] Текущие place winners из mat_parse_location",
     description: "Fold winners по place_id. Используй GET /map/snapshot.",
     deprecated: true,
   })
@@ -121,7 +121,7 @@ export class ReadSideController {
   @Get("places/status/history")
   @ApiOperation({
     summary: "[DEPRECATED] История статусов места (raw)",
-    description: "История фактов event_locations по place. Только для отладки.",
+    description: "История фактов mat_parse_location по place. Только для отладки.",
     deprecated: true,
   })
   @ApiQuery({ name: "placeId", required: false, schema: { type: "string", format: "uuid" } })

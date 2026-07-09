@@ -214,8 +214,8 @@ export class MapSnapshotQueryService {
               COALESCE((pe.extras->>'mass')::boolean, false) AS mass,
               COALESCE((pe.extras->>'uncertain')::boolean, false) AS uncertain,
               pe.event_subject AS event_subject
-       FROM event_locations el
-       INNER JOIN parsed_events pe ON pe.id = el.parsed_event_id
+       FROM mat_parse_location el
+       INNER JOIN mat_parse_event pe ON pe.id = el.parsed_event_id
        WHERE el.region_id = ANY($1::uuid[])
          AND el.occurred_at = ANY($2::timestamptz[])
          AND COALESCE(el.entity_kind, 'region') <> 'place'`,

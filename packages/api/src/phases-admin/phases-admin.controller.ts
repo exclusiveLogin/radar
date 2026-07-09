@@ -63,14 +63,14 @@ export class PhasesAdminController {
 
   @Post(":id/clear-queue")
   @ApiOperation({
-    summary: "Удалить pending/processing очередь фазы (geo jobs / phase_coverage) + cancel runs",
+    summary: "Удалить pending/processing очередь фазы (geo jobs / queue_parse_coverage) + cancel runs",
   })
   clearPhaseQueue(@Param("id") id: string) {
     return this.phases.clearPhaseQueue(id);
   }
 
   @Post(":id/reset-failed")
-  @ApiOperation({ summary: "Сбросить failed place_enrichment_jobs → pending (ручной retry)" })
+  @ApiOperation({ summary: "Сбросить failed job_geo_place_enrich → pending (ручной retry)" })
   resetFailedJobs(@Param("id") id: string) {
     return this.phases.resetFailedJobs(id);
   }

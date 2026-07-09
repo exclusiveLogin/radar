@@ -342,7 +342,7 @@ export interface IIngestBackfillJobRepository {
   touch(id: string): Promise<void>;
 }
 
-/** Запись технического следа парсинга (parse_attempts). */
+/** Запись технического следа парсинга (log_parse_attempt). */
 export type ParseAttemptInput = {
   rawMessageId: string;
   channelKey: string | null;
@@ -454,7 +454,7 @@ export interface IDomainEventRepository {
 /** Статус покрытия сообщения фазой. */
 export type PhaseCoverageStatus = "pending" | "processing" | "done" | "failed";
 
-/** Строка phase_coverage: фаза X для raw_message. */
+/** Строка queue_parse_coverage: фаза X для raw_message. */
 export type PhaseCoverageTask = {
   id: string;
   rawMessageId: string;

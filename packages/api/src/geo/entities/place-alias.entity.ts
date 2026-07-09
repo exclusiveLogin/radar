@@ -2,7 +2,7 @@
  * Альтернативные написания («Белгород», «г. Белгород») → один region или place при разборе текста канала.
  * Снижает дубли places и ошибки LLM: матч по нормализованной строке до вызова внешних enricher.
  * @see ../../../../../docs/domain/persistence-map.md#PlaceAliasEntity
- * @see ../../../../../docs/domain/contexts/geo-place.md
+ * @see ../../../../../docs/database-table-naming.md`n * @see ../../../../../docs/domain/contexts/geo-place.md
  */
 import { Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from "typeorm";
 import { PlaceEntity } from "./place.entity";

@@ -9,14 +9,15 @@ import {
   type TrackingPipelineConfig,
   type TrackingRebuildStats,
   type TrackingWatermark,
+  maxEpsilonTemporalMs,
 } from "@radar/shared";
 import { randomUUID } from "crypto";
 import {
   countTrackingPipelineRemaining,
   loadDedupClosure,
   runIncrementalBatch,
-} from "./trackingRebuildService.js";
-import { maxEpsilonTemporalMs } from "@radar/shared";
+} from "../../tracking/trackingRebuildService.js";
+import type { ObsTickReporter } from "./obsTickReporter.js";
 
 type PipelineState = {
   enabled: boolean;
@@ -42,12 +43,13 @@ function isEnabled(): boolean {
 export class TrackingRebuildDaemon {
   private timer: ReturnType<typeof setInterval> | null = null;
   private ticking = false;
-  /** Run-scoped H3-поля NextGen по run.id: батчи прогона обогащают, finish/fail обнуляет. */
   private readonly flowFieldByRun = new Map<string, H3VectorFlowMap>();
 
-  constructor(private readonly ds: DataSource) {}
+  constructor(
+    private readonly ds: DataSource,
+    private readonly onObsTick?: ObsTickReporter,
+  ) {}
 
-  /** Поле потока прогона (создаётся лениво только для nextgen-gravity). */
   private acquireFlowField(runId: string, config: TrackingPipelineConfig): H3VectorFlowMap {
     const existing = this.flowFieldByRun.get(runId);
     if (existing) return existing;
@@ -68,7 +70,6 @@ export class TrackingRebuildDaemon {
     this.timer = null;
   }
 
-  /** Один тик (CLI / тесты). */
   async runOnce(): Promise<void> {
     await this.runCycle();
   }
@@ -87,15 +88,12 @@ export class TrackingRebuildDaemon {
 
   private async processTick(): Promise<void> {
     const state = await this.loadPipelineState();
-    if (!state.enabled) {
-      return;
-    }
+    if (!state.enabled) return;
 
     const config = mergeConfig(state.config);
     const until = new Date();
     const lookbackMs = maxEpsilonTemporalMs(config.profiles);
 
-    // Heartbeat до тяжёлого loadDedupClosure — админка видит стадию loading.
     if (state.active_run_id) {
       await this.touchRunHeartbeat(state.active_run_id, { stage: "loading" });
     }
@@ -114,12 +112,10 @@ export class TrackingRebuildDaemon {
     }
 
     const { pending: allPending, closure } = closureLoad;
-
     const run = await this.ensureActiveRun(state, allPending.length > 0);
     if (!run) return;
 
     const runStartedMs = new Date(run.startedAt).getTime();
-
     const control = await this.readRunControl(run.id);
     if (control?.pause || control?.cancel) return;
 
@@ -128,21 +124,22 @@ export class TrackingRebuildDaemon {
       return;
     }
 
-    await this.updateRunStats(run.id, {
+    const loadingStats: Partial<TrackingRebuildStats> = {
       stage: "loading",
       pendingCandidates: allPending.length,
       dedupClosureSize: closure.length,
       elapsedMs: Date.now() - runStartedMs,
-    });
+    };
+    await this.updateRunStats(run.id, loadingStats);
+    void this.onObsTick?.(loadingStats as Record<string, unknown>);
 
     const batchSize = resolveDaemonBatchSize(config.batchSize);
     const chunk = allPending.slice(0, batchSize);
-
     const totalCandidates =
       Number((await this.readRunStats(run.id))?.totalCandidates)
       || (await countTrackingPipelineRemaining(this.ds, { until }));
     let processed = Number((await this.readRunStats(run.id))?.processedCandidates ?? 0);
-    const fullPendingIds = new Set(allPending.map(c => c.eventLocationId));
+    const fullPendingIds = new Set(allPending.map((c) => c.eventLocationId));
 
     let collapsedTotal = 0;
     let lastScannerStats: Partial<TrackingRebuildStats> = {};
@@ -154,7 +151,7 @@ export class TrackingRebuildDaemon {
       rebuildGen: run.rebuildGen,
       config,
       flowField,
-      onProgress: async stats => {
+      onProgress: async (stats) => {
         lastScannerStats = stats;
         const nextStats: Partial<TrackingRebuildStats> = {
           ...stats,
@@ -168,13 +165,14 @@ export class TrackingRebuildDaemon {
           elapsedMs: Date.now() - runStartedMs,
         };
         await this.updateRunStats(run.id, nextStats);
+        void this.onObsTick?.(nextStats as Record<string, unknown>);
       },
     });
     collapsedTotal = result.collapsedByDedup;
     processed += result.consumedCount;
 
     const remainingAfterBatch = await countTrackingPipelineRemaining(this.ds, { until });
-    await this.updateRunStats(run.id, {
+    const idleStats: Partial<TrackingRebuildStats> = {
       ...lastScannerStats,
       stage: "idle",
       pendingCandidates: remainingAfterBatch,
@@ -184,7 +182,9 @@ export class TrackingRebuildDaemon {
         totalCandidates > 0 ? Math.min(100, Math.round((processed / totalCandidates) * 100)) : 0,
       stdbscanCollapsed: collapsedTotal,
       elapsedMs: Date.now() - runStartedMs,
-    });
+    };
+    await this.updateRunStats(run.id, idleStats);
+    void this.onObsTick?.(idleStats as Record<string, unknown>);
 
     if (result.watermark) {
       await this.advanceWatermark(result.watermark, run.id, totalCandidates);
@@ -194,7 +194,7 @@ export class TrackingRebuildDaemon {
   private async loadPipelineState(): Promise<PipelineState> {
     const [row] = await this.ds.query<PipelineState[]>(
       `SELECT enabled, watermark, config, active_run_id, total_candidates
-       FROM tracking_pipeline_state WHERE id = 'default'`,
+       FROM state_track_pipeline WHERE id = 'default'`,
     );
     return (
       row ?? {
@@ -213,7 +213,7 @@ export class TrackingRebuildDaemon {
   ): Promise<{ id: string; rebuildGen: string; startedAt: string } | null> {
     if (state.active_run_id) {
       const [run] = await this.ds.query<{ id: string; rebuild_gen: string; status: string; started_at: string | Date }[]>(
-        `SELECT id, rebuild_gen, status, started_at FROM trajectory_rebuild_runs WHERE id = $1`,
+        `SELECT id, rebuild_gen, status, started_at FROM job_track_rebuild WHERE id = $1`,
         [state.active_run_id],
       );
       if (run?.status === "running") {
@@ -226,10 +226,9 @@ export class TrackingRebuildDaemon {
               : String(run.started_at),
         };
       }
-      // stale binding: run завершён, но active_run_id не сброшен — worker молчал
       if (run) {
         await this.ds.query(
-          `UPDATE tracking_pipeline_state SET active_run_id = NULL, updated_at = now() WHERE id = 'default'`,
+          `UPDATE state_track_pipeline SET active_run_id = NULL, updated_at = now() WHERE id = 'default'`,
         );
       }
     }
@@ -243,13 +242,13 @@ export class TrackingRebuildDaemon {
       : new Date(0).toISOString();
     const startedAt = new Date().toISOString();
     await this.ds.query(
-      `INSERT INTO trajectory_rebuild_runs
+      `INSERT INTO job_track_rebuild
        (id, status, mode, since, until, rebuild_gen, stats, started_at)
        VALUES ($1, 'running', 'incremental', $2, now(), $3, $4::jsonb, $5)`,
       [id, since, rebuildGen, JSON.stringify({ stage: "loading", elapsedMs: 0 }), startedAt],
     );
     await this.ds.query(
-      `UPDATE tracking_pipeline_state SET active_run_id = $1, updated_at = now() WHERE id = 'default'`,
+      `UPDATE state_track_pipeline SET active_run_id = $1, updated_at = now() WHERE id = 'default'`,
       [id],
     );
     return { id, rebuildGen, startedAt };
@@ -257,7 +256,7 @@ export class TrackingRebuildDaemon {
 
   private async readRunControl(runId: string): Promise<RunControl | null> {
     const [row] = await this.ds.query<{ control: RunControl | null }[]>(
-      `SELECT control FROM trajectory_rebuild_runs WHERE id = $1`,
+      `SELECT control FROM job_track_rebuild WHERE id = $1`,
       [runId],
     );
     return row?.control ?? null;
@@ -265,7 +264,7 @@ export class TrackingRebuildDaemon {
 
   private async readRunStats(runId: string): Promise<Partial<TrackingRebuildStats> | null> {
     const [row] = await this.ds.query<{ stats: Partial<TrackingRebuildStats> }[]>(
-      `SELECT stats FROM trajectory_rebuild_runs WHERE id = $1`,
+      `SELECT stats FROM job_track_rebuild WHERE id = $1`,
       [runId],
     );
     return row?.stats ?? null;
@@ -273,18 +272,17 @@ export class TrackingRebuildDaemon {
 
   private async updateRunStats(runId: string, stats: Partial<TrackingRebuildStats>): Promise<void> {
     await this.ds.query(
-      `UPDATE trajectory_rebuild_runs SET stats = stats || $1::jsonb WHERE id = $2`,
+      `UPDATE job_track_rebuild SET stats = stats || $1::jsonb WHERE id = $2`,
       [JSON.stringify(stats), runId],
     );
   }
 
-  /** Обновляет elapsed/stage без полного батча — для poll админки. */
   private async touchRunHeartbeat(
     runId: string,
     patch: Partial<TrackingRebuildStats>,
   ): Promise<void> {
     const [row] = await this.ds.query<{ status: string; started_at: string | Date }[]>(
-      `SELECT status, started_at FROM trajectory_rebuild_runs WHERE id = $1`,
+      `SELECT status, started_at FROM job_track_rebuild WHERE id = $1`,
       [runId],
     );
     if (row?.status !== "running") return;
@@ -303,13 +301,13 @@ export class TrackingRebuildDaemon {
     totalCandidates: number,
   ): Promise<void> {
     await this.ds.query(
-      `UPDATE tracking_pipeline_state
+      `UPDATE state_track_pipeline
        SET watermark = $1::jsonb, total_candidates = $2, updated_at = now()
        WHERE id = 'default'`,
       [JSON.stringify(watermark), totalCandidates],
     );
     await this.ds.query(
-      `UPDATE trajectory_rebuild_runs SET checkpoint = $1::jsonb WHERE id = $2`,
+      `UPDATE job_track_rebuild SET checkpoint = $1::jsonb WHERE id = $2`,
       [JSON.stringify(watermark), runId],
     );
   }
@@ -318,35 +316,34 @@ export class TrackingRebuildDaemon {
     this.flowFieldByRun.delete(runId);
     const stats = (await this.readRunStats(runId)) ?? {};
     const remaining = await countTrackingPipelineRemaining(this.ds, { until: new Date() });
+    const doneStats = {
+      ...stats,
+      stage: "done" as const,
+      pendingCandidates: remaining,
+    };
     await this.ds.query(
-      `UPDATE trajectory_rebuild_runs
+      `UPDATE job_track_rebuild
        SET status = 'done', finished_at = now(), stats = stats || $1::jsonb
        WHERE id = $2`,
-      [
-        JSON.stringify({
-          ...stats,
-          stage: "done",
-          pendingCandidates: remaining,
-        }),
-        runId,
-      ],
+      [JSON.stringify(doneStats), runId],
     );
+    void this.onObsTick?.(doneStats as Record<string, unknown>);
     await this.ds.query(
-      `UPDATE tracking_pipeline_state SET active_run_id = NULL, updated_at = now() WHERE id = 'default'`,
+      `UPDATE state_track_pipeline SET active_run_id = NULL, updated_at = now() WHERE id = 'default'`,
     );
   }
 
   private async failRun(runId: string, error: string, elapsedMs: number): Promise<void> {
     this.flowFieldByRun.delete(runId);
     await this.ds.query(
-      `UPDATE trajectory_rebuild_runs
+      `UPDATE job_track_rebuild
        SET status = 'failed', finished_at = now(), error = $1,
            stats = stats || $2::jsonb
        WHERE id = $3`,
       [error, JSON.stringify({ stage: "loading", elapsedMs }), runId],
     );
     await this.ds.query(
-      `UPDATE tracking_pipeline_state SET active_run_id = NULL, updated_at = now() WHERE id = 'default'`,
+      `UPDATE state_track_pipeline SET active_run_id = NULL, updated_at = now() WHERE id = 'default'`,
     );
   }
 }

@@ -26,7 +26,7 @@ function isPgUniqueViolation(error: unknown): boolean {
 }
 
 /**
- * Persistence raw_messages. Insert-ветка — `dataSource.transaction` (raw + telegram).
+ * Persistence mat_ingest_raw. Insert-ветка — `dataSource.transaction` (raw + telegram).
  * @see ../../../../../docs/domain/contexts/ingest.md
  * @see ../../../../../docs/domain/unit-of-work-and-transactions.md
  */
@@ -65,7 +65,7 @@ export class TypeOrmRawMessageRepository implements IRawMessageRepository {
       if (!insertedId) {
         const duplicateId = await this.resolveExistingId(raw, extension, channel.id);
         if (!duplicateId) {
-          throw new Error(`raw_messages hash conflict but row not found: ${raw.hash}`);
+          throw new Error(`mat_ingest_raw hash conflict but row not found: ${raw.hash}`);
         }
         return { inserted: false, id: duplicateId };
       }
@@ -134,7 +134,7 @@ export class TypeOrmRawMessageRepository implements IRawMessageRepository {
     const rows = readTypeOrmQueryRows<{ id: string }>(
       await manager.query(
         `
-        INSERT INTO raw_messages (
+        INSERT INTO mat_ingest_raw (
           id, channel_id, provider_key, source_kind, external_message_id,
           revision_key, source_sequence, ingest_mode, hash, posted_at,
           raw_text, raw_payload, fetched_at
@@ -240,7 +240,7 @@ export class TypeOrmRawMessageRepository implements IRawMessageRepository {
   }
 }
 
-/** Outbox append через domain_events — cross-process ingest. */
+/** Outbox append через event_outbox — cross-process ingest. */
 export class TypeOrmDomainEventOutbox implements IDomainEventOutbox {
   constructor(private readonly dataSource: DataSource) {}
 

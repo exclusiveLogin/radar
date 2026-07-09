@@ -21,7 +21,7 @@ import { isPlaceCentricGeoEnabled } from "../../infrastructure/config/placeCentr
 export type { ParsePhaseContext } from "../parse/parsePhaseContext.js";
 
 /**
- * Use case: raw → Parse Workspace → finalize → parsed_events.
+ * Use case: raw → Parse Workspace → finalize → mat_parse_event.
  * @see ../../../../../docs/rfc/parse-processor-workspace.md
  */
 export class ParseRawMessageHandler {

@@ -186,7 +186,7 @@ async function loadJobSnapshots(
   if (placeIds.length === 0) return new Map();
   const rows = (await dataSource.query(
     `SELECT place_id, provider, status, last_error
-     FROM place_enrichment_jobs
+     FROM job_geo_place_enrich
      WHERE place_id = ANY($1::uuid[])`,
     [placeIds],
   )) as Array<{
@@ -209,7 +209,7 @@ async function loadJobSnapshots(
   return byPlace;
 }
 
-/** Удаляет place или deprecate при ссылках из event_locations. */
+/** Удаляет place или deprecate при ссылках из mat_parse_location. */
 export async function removeSweepPlace(
   dataSource: DataSource,
   placeId: string,
@@ -221,7 +221,7 @@ export async function removeSweepPlace(
   }
 
   const refs = (await dataSource.query(
-    `SELECT COUNT(*)::int AS c FROM event_locations WHERE place_id = $1`,
+    `SELECT COUNT(*)::int AS c FROM mat_parse_location WHERE place_id = $1`,
     [placeId],
   )) as Array<{ c: number }>;
   if ((refs[0]?.c ?? 0) > 0) {
@@ -230,8 +230,8 @@ export async function removeSweepPlace(
   }
 
   await dataSource.query(`DELETE FROM place_aliases WHERE place_id = $1`, [placeId]);
-  await dataSource.query(`DELETE FROM place_enrichment_jobs WHERE place_id = $1`, [placeId]);
-  await dataSource.query(`DELETE FROM event_evidence WHERE place_id = $1`, [placeId]);
+  await dataSource.query(`DELETE FROM job_geo_place_enrich WHERE place_id = $1`, [placeId]);
+  await dataSource.query(`DELETE FROM mat_parse_evidence WHERE place_id = $1`, [placeId]);
   await dataSource.query(
     `UPDATE places SET parent_place_id = NULL WHERE parent_place_id = $1`,
     [placeId],

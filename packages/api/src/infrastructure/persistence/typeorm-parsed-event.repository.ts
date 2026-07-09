@@ -152,7 +152,7 @@ export class TypeOrmMessageParseWorkspaceRepository implements IMessageParseWork
     const rows = (await this.dataSource.query(
       `
         SELECT *
-        FROM message_parse_workspace
+        FROM work_parse_message
         WHERE raw_message_id = $1 AND status = 'finalized'
         ORDER BY created_at DESC
         LIMIT 1
@@ -165,7 +165,7 @@ export class TypeOrmMessageParseWorkspaceRepository implements IMessageParseWork
   async supersedeActiveForRaw(rawMessageId: string): Promise<void> {
     await this.dataSource.query(
       `
-        UPDATE message_parse_workspace
+        UPDATE work_parse_message
         SET status = 'superseded'
         WHERE raw_message_id = $1 AND status = 'finalized'
       `,
@@ -193,7 +193,7 @@ export class TypeOrmMessageParseWorkspaceRepository implements IMessageParseWork
       ]);
       await queryRunner.query(
         `
-          UPDATE message_parse_workspace
+          UPDATE work_parse_message
           SET status = 'superseded'
           WHERE raw_message_id = $1 AND status = 'finalized'
         `,
@@ -201,7 +201,7 @@ export class TypeOrmMessageParseWorkspaceRepository implements IMessageParseWork
       );
       const rows = (await queryRunner.query(
         `
-          INSERT INTO message_parse_workspace (
+          INSERT INTO work_parse_message (
             id, raw_message_id, parser_revision, status, groomed_text, workspace,
             spawned_event_ids, candidate_event_map, finalized_at, created_at
           )

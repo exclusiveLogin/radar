@@ -2,11 +2,11 @@
  * Журнал одного прогона загрузки geo-датасета (сколько region/place/alias, ошибки) — не оперативные события БПЛА.
  * `aggregateId` для `GeoSyncCompleted/Failed` = id этой строки; сами справочники обновляются в `regions`/`places`.
  * @see ../../../../../docs/domain/persistence-map.md#GeoSyncLogEntity
- * @see ../../../../../docs/domain/contexts/geo-place.md
+ * @see ../../../../../docs/database-table-naming.md`n * @see ../../../../../docs/domain/contexts/geo-place.md
  */
 import { Column, CreateDateColumn, Entity, PrimaryGeneratedColumn, UpdateDateColumn } from "typeorm";
 
-@Entity({ name: "geo_sync_log" })
+@Entity({ name: "log_geo_sync" })
 export class GeoSyncLogEntity {
   @PrimaryGeneratedColumn("uuid")
   id!: string;

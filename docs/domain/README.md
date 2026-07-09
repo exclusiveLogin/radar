@@ -21,7 +21,7 @@
 | **Доменный контракт** | Типы и Zod в `@radar/shared` (`RawMessage`, `PlaceRecord`, …) |
 | **Persistence** | TypeORM `*Entity` — строки таблиц, без бизнес-методов |
 | **Use case** | Handler/service в `packages/worker` / `packages/api` — оркестрация |
-| **Outbox** | Таблица `domain_events`, запись через `IDomainEventRepository.append` |
+| **Outbox** | Таблица `event_outbox`, запись через `IDomainEventRepository.append` |
 | **Composition root** | Сборка зависимостей (`createWorkerCompositionRoot`, Nest `AppModule`) — **не** Unit of Work |
 
 ## Карта документов

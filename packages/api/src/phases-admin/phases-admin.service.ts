@@ -313,7 +313,7 @@ export class PhasesAdminService {
     const geoJobsCleared = await this.placeJobs.clearQueuedWork();
 
     const closedRows = (await this.dataSource.query(
-      `UPDATE phase_runs SET
+      `UPDATE log_parse_phase_run SET
          status = 'canceled',
          control = 'cancel',
          finished_at = now(),

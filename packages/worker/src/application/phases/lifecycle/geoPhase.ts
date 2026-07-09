@@ -11,8 +11,8 @@ import { stopAllActivePhaseRuns } from "../stopAllActivePhaseRuns.js";
 import type { PhaseMutationResult } from "./phaseLifecycle.types.js";
 
 const PLACES_TRUNCATE_TABLES = [
-  "place_enrichment_jobs",
-  "event_evidence",
+  "job_geo_place_enrich",
+  "mat_parse_evidence",
   "place_aliases",
   "places",
 ] as const;
@@ -43,19 +43,19 @@ export async function wipeGeoPlacesPhase(
 
   const { dataSource } = input;
 
-  await runWipeStep(input, "остановка phase_runs (geo)", async () => {
+  await runWipeStep(input, "остановка log_parse_phase_run (geo)", async () => {
     const stopped = await stopAllActivePhaseRuns({
       dataSource,
       repos: input.repos,
       reason: "geo:wipe",
     });
     input.log?.detail(
-      `geo stop: phase_runs=${stopped.phaseRunsClosed}, geo_jobs=${stopped.geoJobsCleared}`,
+      `geo stop: log_parse_phase_run=${stopped.phaseRunsClosed}, geo_jobs=${stopped.geoJobsCleared}`,
     );
     return stopped.phaseRunsClosed + stopped.geoJobsCleared;
   });
 
-  await runWipeStep(input, "unlink FK (regions, event_locations)", async () => {
+  await runWipeStep(input, "unlink FK (regions, mat_parse_location)", async () => {
     await runSqlOptional(
       dataSource,
       `UPDATE regions SET canonical_place_id = NULL WHERE canonical_place_id IS NOT NULL`,
@@ -63,7 +63,7 @@ export async function wipeGeoPlacesPhase(
     );
     await runSqlOptional(
       dataSource,
-      `UPDATE event_locations SET place_id = NULL WHERE place_id IS NOT NULL`,
+      `UPDATE mat_parse_location SET place_id = NULL WHERE place_id IS NOT NULL`,
       input.log,
     );
     return 0;
@@ -103,7 +103,7 @@ export async function resetGeoEnrichmentPhase(input: {
       dryRun: true,
       counts: {},
       notes: [
-        "Обнулит centroid/bbox/trust на places; TRUNCATE event_evidence. Jobs сохраняются.",
+        "Обнулит centroid/bbox/trust на places; TRUNCATE mat_parse_evidence. Jobs сохраняются.",
         "geo_feature_id и каталог regions не трогает.",
       ],
     };
@@ -116,7 +116,7 @@ export async function resetGeoEnrichmentPhase(input: {
     clearGeoJobs: false,
   });
 
-  const evidence = await truncateTableCounted(input.dataSource, "event_evidence");
+  const evidence = await truncateTableCounted(input.dataSource, "mat_parse_evidence");
 
   const placesBefore = await countTableRows(input.dataSource, "places");
   await input.dataSource.query(
@@ -139,7 +139,7 @@ export async function resetGeoEnrichmentPhase(input: {
     dryRun: false,
     counts: {
       places_enrichment_cleared: placesBefore,
-      event_evidence: evidence,
+      mat_parse_evidence: evidence,
     },
   };
 }

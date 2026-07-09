@@ -12,7 +12,7 @@ Feature: [heatmap filter](../../features/tracking-heatmap-filter.md)
 ### In scope
 
 - Domain pure functions: link, Kalman, DISTINCT, gating, threat profiles, node mode
-- Миграции `trajectory_tracks`, `trajectory_nodes`
+- Миграции `mat_track`, `mat_track_node`
 - Worker `tracking:rebuild` (full rebuild v1)
 - API `GET /map/tracks`, `GET /map/tracks/:id`
 - Heatmap filter `eventType` / `eventCategory`
@@ -34,7 +34,7 @@ Feature: [heatmap filter](../../features/tracking-heatmap-filter.md)
 
 ```mermaid
 flowchart LR
-  EL[event_locations + parsed_events]
+  EL[mat_parse_location + mat_parse_event]
   W[TrackingRebuildService]
   D[domain/tracking/*]
   DB[(trajectory_*)]
@@ -51,7 +51,7 @@ flowchart LR
 
 ```text
 1. loadTrackingCandidates(since, until)
-     JOIN event_locations, parsed_events, status_dictionary
+     JOIN mat_parse_location, mat_parse_event, status_dictionary
      ORDER BY occurred_at ASC
 
 2. for each candidate (streaming):
@@ -317,10 +317,10 @@ Rejected kinematic candidate → **new track** (v1), не silent drop.
 
 Файл: `packages/api/src/migrations/XXXX-TrajectoryTrackingL1.ts`
 
-### 5.1 `trajectory_tracks`
+### 5.1 `mat_track`
 
 ```sql
-CREATE TABLE trajectory_tracks (
+CREATE TABLE mat_track (
   id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   status          text NOT NULL CHECK (status IN ('active','closed','stale')),
   threat_profile  text NOT NULL DEFAULT 'unknown',
@@ -336,35 +336,35 @@ CREATE TABLE trajectory_tracks (
   updated_at      timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE INDEX idx_trajectory_tracks_last_at ON trajectory_tracks (last_at DESC);
-CREATE INDEX idx_trajectory_tracks_status ON trajectory_tracks (status);
-CREATE INDEX idx_trajectory_tracks_bbox ON trajectory_tracks (last_lat, last_lon);
+CREATE INDEX idx_mat_track_last_at ON mat_track (last_at DESC);
+CREATE INDEX idx_mat_track_status ON mat_track (status);
+CREATE INDEX idx_mat_track_bbox ON mat_track (last_lat, last_lon);
 ```
 
-### 5.2 `trajectory_nodes`
+### 5.2 `mat_track_node`
 
 ```sql
-CREATE TABLE trajectory_nodes (
+CREATE TABLE mat_track_node (
   id                  uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  track_id            uuid NOT NULL REFERENCES trajectory_tracks(id) ON DELETE CASCADE,
+  track_id            uuid NOT NULL REFERENCES mat_track(id) ON DELETE CASCADE,
   seq                 int NOT NULL,
   occurred_at         timestamptz NOT NULL,
   lat                 double precision NOT NULL,
   lon                 double precision NOT NULL,
   place_id            uuid REFERENCES places(id) ON DELETE SET NULL,
   mode                text NOT NULL CHECK (mode IN ('correct','attach_only')),
-  event_location_id   uuid REFERENCES event_locations(id) ON DELETE SET NULL,
+  event_location_id   uuid REFERENCES mat_parse_location(id) ON DELETE SET NULL,
   kalman_state        jsonb,
   source_refs         jsonb NOT NULL DEFAULT '[]',
   created_at          timestamptz NOT NULL DEFAULT now(),
   UNIQUE (track_id, seq)
 );
 
-CREATE INDEX idx_trajectory_nodes_track_seq ON trajectory_nodes (track_id, seq);
-CREATE INDEX idx_trajectory_nodes_occurred_at ON trajectory_nodes (occurred_at);
-CREATE INDEX idx_trajectory_nodes_place_id ON trajectory_nodes (place_id) WHERE place_id IS NOT NULL;
-CREATE UNIQUE INDEX idx_trajectory_nodes_event_location
-  ON trajectory_nodes (event_location_id) WHERE event_location_id IS NOT NULL;
+CREATE INDEX idx_mat_track_node_track_seq ON mat_track_node (track_id, seq);
+CREATE INDEX idx_mat_track_node_occurred_at ON mat_track_node (occurred_at);
+CREATE INDEX idx_mat_track_node_place_id ON mat_track_node (place_id) WHERE place_id IS NOT NULL;
+CREATE UNIQUE INDEX idx_mat_track_node_event_location
+  ON mat_track_node (event_location_id) WHERE event_location_id IS NOT NULL;
 ```
 
 ### 5.3 `status_dictionary`
@@ -435,8 +435,8 @@ Register in worker command catalog + [phase-commands.md](../../phase-commands.md
 ```sql
 SELECT el.id, el.parsed_event_id, el.occurred_at, el.lat, el.lon, el.place_id, el.precision,
        pe.event_type, pe.extras, sd.affects_kinematics
-FROM event_locations el
-JOIN parsed_events pe ON pe.id = el.parsed_event_id
+FROM mat_parse_location el
+JOIN mat_parse_event pe ON pe.id = el.parsed_event_id
 LEFT JOIN status_dictionary sd ON sd.code = pe.event_type
 WHERE el.lat IS NOT NULL AND el.lon IS NOT NULL
   AND el.occurred_at >= :since AND el.occurred_at < :until
@@ -487,7 +487,7 @@ Extend `MapQueryService.getEventsHeatmapGeoJson` + `eventHeatmapQuerySchema`.
 
 `packages/api/src/map/tracks-query.service.integration.test.ts`:
 
-1. Seed event_locations fixture
+1. Seed mat_parse_location fixture
 2. Run rebuild (or insert trajectory_* directly)
 3. GET /map/tracks assert Zod + counts
 

@@ -10,5 +10,6 @@ import { WorkbookAdminService } from "./workbook-admin.service";
   imports: [TrackingAdminModule, PhasesAdminModule],
   controllers: [WorkbookAdminController],
   providers: [WorkbookAdminService],
+  exports: [WorkbookAdminService],
 })
 export class WorkbookAdminModule {}

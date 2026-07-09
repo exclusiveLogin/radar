@@ -27,10 +27,10 @@ export async function writeTracksL1(
 ): Promise<void> {
   if (options?.pruneByRebuildGen ?? true) {
     await query(
-      `DELETE FROM trajectory_nodes WHERE track_id IN (SELECT id FROM trajectory_tracks WHERE rebuild_gen != $1)`,
+      `DELETE FROM mat_track_node WHERE track_id IN (SELECT id FROM mat_track WHERE rebuild_gen != $1)`,
       [rebuildGen],
     );
-    await query(`DELETE FROM trajectory_tracks WHERE rebuild_gen != $1`, [rebuildGen]);
+    await query(`DELETE FROM mat_track WHERE rebuild_gen != $1`, [rebuildGen]);
   }
 
   if (built.tracks.length > 0) {
@@ -41,7 +41,7 @@ export async function writeTracksL1(
     ).join(",");
 
     await query(
-      `INSERT INTO trajectory_tracks
+      `INSERT INTO mat_track
        (id, status, threat_profile, first_at, last_at, last_lat, last_lon,
         velocity_ms, bearing_deg, node_count, total_distance_m, rebuild_gen)
        VALUES ${trackRows}
@@ -70,7 +70,7 @@ export async function writeTracksL1(
       ).join(",");
 
       await query(
-        `INSERT INTO trajectory_nodes
+        `INSERT INTO mat_track_node
          (id, track_id, seq, occurred_at, lat, lon, place_id, mode, kalman_state, source_refs)
          VALUES ${nodeRows}
          ON CONFLICT (id) DO NOTHING`,

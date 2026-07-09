@@ -9,12 +9,12 @@ function printPlan(): void {
   console.log(`
 parse-engine:clear:ingest — операционный сброс ingest (конфиг сохраняется):
 
-  • ingest_backfill_jobs — cancel активных + DELETE всех
-  • ingest_cursors — DELETE
+  • job_ingest_backfill — cancel активных + DELETE всех
+  • state_ingest_cursor — DELETE
   • ingest_providers.last_error — очистка
-  • domain_events (ingest_provider, ingest_binding, raw_message)
+  • event_outbox (ingest_provider, ingest_binding, raw_message)
 
-Не трогает: channels, ingest_providers/bindings (конфиг), raw_messages.
+Не трогает: channels, ingest_providers/bindings (конфиг), mat_ingest_raw.
 `);
 }
 
@@ -54,7 +54,7 @@ async function main(): Promise<void> {
   console.log(`  backfill jobs удалено: ${result.backfillJobsDeleted}`);
   console.log(`  cursors удалено: ${result.cursorsDeleted}`);
   console.log(`  provider last_error сброшено: ${result.providersErrorsCleared}`);
-  console.log(`  domain_events удалено: ${result.domainEventsDeleted}`);
+  console.log(`  event_outbox удалено: ${result.domainEventsDeleted}`);
 
   await runtime.shutdown?.();
 }

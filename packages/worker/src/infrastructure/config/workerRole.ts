@@ -36,7 +36,7 @@ export function roleRunsOutboxRelay(role: WorkerRole): boolean {
   return role === "all" || role === "phase";
 }
 
-/** Ingest/backfill пишут RawMessageIngested в domain_events вместо in-process phase subscriber. */
+/** Ingest/backfill пишут RawMessageIngested в event_outbox вместо in-process phase subscriber. */
 export function rolePublishesIngestToOutbox(role: WorkerRole): boolean {
   return role === "ingest" || role === "backfill";
 }

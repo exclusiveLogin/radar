@@ -5,8 +5,9 @@ import type {
   PhaseDefinitionRecord,
 } from "@radar/shared";
 import { resolveGeoEnrichmentProvider } from "@radar/shared";
-import { PhaseRunner } from "../phases/phaseRunner.js";
-import { sortPhasesByOrder } from "../phases/phaseOrder.js";
+import { PhaseRunner } from "../../phases/phaseRunner.js";
+import { sortPhasesByOrder } from "../../phases/phaseOrder.js";
+import type { ObsTickReporter } from "./obsTickReporter.js";
 
 const DEFAULT_POLL_MS = 15_000;
 const DEFAULT_STALE_RUN_MS = 2 * 60 * 60 * 1000;
@@ -33,7 +34,7 @@ function resolvePhaseTickMs(phase: PhaseDefinitionRecord): number {
 }
 
 /**
- * Scheduled geoParse: drain place_enrichment_jobs через phase_run (как IngestParseDaemon).
+ * Scheduled geoParse: drain job_geo_place_enrich через phase_run (как IngestParseDaemon).
  * DaData и Nominatim — строго последовательно (один drain за раз, порядок фаз по order).
  */
 export class PlaceEnrichmentDaemonService {
@@ -50,6 +51,7 @@ export class PlaceEnrichmentDaemonService {
     private readonly phaseRuns: IPhaseRunRepository,
     private readonly placeJobs: IPlaceEnrichmentJobRepository,
     private readonly runner: PhaseRunner,
+    private readonly onObsTick?: ObsTickReporter,
   ) {}
 
   start(): void {
@@ -192,12 +194,13 @@ export class PlaceEnrichmentDaemonService {
         );
       }
 
-      await this.runner.runDrain({
+      const stats = await this.runner.runDrain({
         phase,
         runId,
         batchSize: phase.policy.batchSize,
         trigger: "scheduled",
       });
+      void this.onObsTick?.({ phaseId: phase.id, provider, pendingWork, ...stats });
     } catch (error) {
       console.error(`GeoParseDaemon[${phase.id}]`, error);
     }

@@ -7,7 +7,7 @@
  *
  * Действия (только при --apply, иначе dry-run):
  *   1. places.region_id  фантом → канон
- *   2. event_locations.region_id фантом → канон
+ *   2. mat_parse_location.region_id фантом → канон
  *   3. DELETE place_aliases с region_id фантома (пересоздаются через geo:db:apply)
  *   4. DELETE фантом-регионы
  *
@@ -81,8 +81,8 @@ async function main(): Promise<void> {
     Number((await client.query(sql, [phantomIds])).rows[0].c);
   const places = await cnt(`SELECT COUNT(*)::int c FROM places WHERE region_id = ANY($1::uuid[])`);
   const aliases = await cnt(`SELECT COUNT(*)::int c FROM place_aliases WHERE region_id = ANY($1::uuid[])`);
-  const evloc = await cnt(`SELECT COUNT(*)::int c FROM event_locations WHERE region_id = ANY($1::uuid[])`);
-  console.log(`К переносу: places=${places}, event_locations=${evloc}; к удалению: place_aliases=${aliases}, regions=${phantoms.length}`);
+  const evloc = await cnt(`SELECT COUNT(*)::int c FROM mat_parse_location WHERE region_id = ANY($1::uuid[])`);
+  console.log(`К переносу: places=${places}, mat_parse_location=${evloc}; к удалению: place_aliases=${aliases}, regions=${phantoms.length}`);
 
   if (!APPLY) {
     console.log("\n[dry-run] изменения НЕ применены. Повтори с --apply.");
@@ -94,7 +94,7 @@ async function main(): Promise<void> {
   try {
     for (const { phantom, canon: target } of pairs) {
       await client.query(`UPDATE places SET region_id = $1 WHERE region_id = $2`, [target.id, phantom.id]);
-      await client.query(`UPDATE event_locations SET region_id = $1 WHERE region_id = $2`, [target.id, phantom.id]);
+      await client.query(`UPDATE mat_parse_location SET region_id = $1 WHERE region_id = $2`, [target.id, phantom.id]);
     }
     await client.query(`DELETE FROM place_aliases WHERE region_id = ANY($1::uuid[])`, [phantomIds]);
     await client.query(`DELETE FROM regions WHERE id = ANY($1::uuid[])`, [phantomIds]);

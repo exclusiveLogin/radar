@@ -23,7 +23,7 @@
 
 | Метод | TX | Что внутри |
 |-------|-----|------------|
-| `TypeOrmRawMessageRepository.upsert` | Да | insert `raw_messages` + optional `raw_message_telegram` |
+| `TypeOrmRawMessageRepository.upsert` | Да | insert `mat_ingest_raw` + optional `mat_ingest_raw_tg` |
 | `TypeOrmPlaceRepository.mergeContribution` | Да | pessimistic lock + merge + save `places` |
 
 Другие `dataSource.transaction` в репозитории **не найдены** (аудит).

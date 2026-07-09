@@ -141,9 +141,9 @@ export function covarianceToEllipseRing(
 ```sql
 SELECT t.id, t.threat_profile, t.velocity_ms,
        n.occurred_at, n.lat, n.lon, n.kalman_state
-FROM trajectory_tracks t
+FROM mat_track t
 JOIN LATERAL (
-  SELECT * FROM trajectory_nodes
+  SELECT * FROM mat_track_node
   WHERE track_id = t.id AND mode = 'correct'
   ORDER BY seq DESC LIMIT 1
 ) n ON true

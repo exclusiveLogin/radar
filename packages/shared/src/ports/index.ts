@@ -76,3 +76,4 @@ export type {
   RegionRecord,
   StatusDictionaryRecord,
 } from "./repositories";
+export type { IObservabilityRecorder } from "./observability-recorder";

@@ -245,7 +245,7 @@ async function main(): Promise<void> {
 
   try {
     const [stateRow] = await ds.query<{ config: unknown }[]>(
-      `SELECT config FROM tracking_pipeline_state WHERE id = 'default'`,
+      `SELECT config FROM state_track_pipeline WHERE id = 'default'`,
     );
     const config = trackingPipelineConfigSchema.parse(stateRow?.config ?? {});
 

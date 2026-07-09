@@ -14,7 +14,7 @@
 |----------|--------|
 | **wipe** | Контент фазы удалён («пустое состояние») |
 | **reset** | Снято только **обогащение** (coords, trust, jobs); базовые строки остаются |
-| **clear** | Только **очереди** (`phase_coverage`, `place_enrichment_jobs`, cancel `phase_runs`) |
+| **clear** | Только **очереди** (`queue_parse_coverage`, `job_geo_place_enrich`, cancel `log_parse_phase_run`) |
 | **drain** | Догнать очереди **без удаления** данных |
 | **run** | Раскатка / прогон (rebuild, import, backfill) |
 
@@ -44,7 +44,7 @@ Legacy-алиасы: `parse-engine:system:wipe` → `system:wipe`; `vendor-inges
 
 | Шаг | Таблицы / эффект |
 |-----|------------------|
-| ingest | `raw_messages`, `parsed_events`, `event_locations`, `parse_attempts`, `phase_runs`, read-model карты, cursors/backfill, jobs |
+| ingest | `mat_ingest_raw`, `mat_parse_event`, `mat_parse_location`, `log_parse_attempt`, `log_parse_phase_run`, read-model карты, cursors/backfill, jobs |
 | geo (places) | `places`, `place_aliases` |
 | geo-catalog | `regions`, `geo_feature`, `place_geo_link`, `geo_dataset_file`, `region_state_*` |
 
@@ -92,8 +92,8 @@ Legacy-алиасы: `parse-engine:system:wipe` → `system:wipe`; `vendor-inges
 |---------|------------|
 | **`parse run`** | rebuild raw + scheduled ingest drain + geo drain |
 | `pipeline drain` | ingest + geo очереди без полного rebuild |
-| `pipeline ingest:drain` | только `phase_coverage` |
-| `geo drain` | только `place_enrichment_jobs` |
+| `pipeline ingest:drain` | только `queue_parse_coverage` |
+| `geo drain` | только `job_geo_place_enrich` |
 | `ingest drain` | scheduled ingestParse (как тик демона) |
 | `pipeline rebuild` | reparse **без** drain |
 | `pipeline status` | сводка очередей |
@@ -114,7 +114,7 @@ Legacy-алиасы: `parse-engine:system:wipe` → `system:wipe`; `vendor-inges
 
 ### geo (places)
 
-> ⚠️ `phase wipe geo` обнуляет `event_locations.place_id` перед удалением (FK RESTRICT). Строки evloc остаются.
+> ⚠️ `phase wipe geo` обнуляет `mat_parse_location.place_id` перед удалением (FK RESTRICT). Строки evloc остаются.
 
 ### geo-catalog
 

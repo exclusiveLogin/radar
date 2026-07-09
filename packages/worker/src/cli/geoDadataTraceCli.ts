@@ -24,7 +24,7 @@ async function main(): Promise<void> {
 
   const row = (await runtime.dataSource.query(
     `SELECT j.id AS job_id, j.place_id, p.name, p.name_with_type, r.name AS region_name
-     FROM place_enrichment_jobs j
+     FROM job_geo_place_enrich j
      JOIN places p ON p.id = j.place_id
      JOIN regions r ON r.id = p.region_id
      WHERE j.provider = 'dadata' AND j.status = 'pending'

@@ -2,15 +2,15 @@
  * ---
  * layer: api
  * kind: entity
- * table: domain_events
+ * table: event_outbox
  * purpose: Журнал «что произошло» для интеграций: API пишет сюда, OutboxRelay доставляет в bus; не заменяет таблицы состояния (raw/parsed).
  * @see ../../../../../docs/domain/persistence-map.md#DomainEventEntity
- * @see ../../../../../docs/domain/domain-events-and-outbox.md
+ * @see ../../../../../docs/database-table-naming.md`n * @see ../../../../../docs/domain/domain-events-and-outbox.md
  * ---
  */
 import { Column, Entity, PrimaryColumn } from "typeorm";
 
-@Entity({ name: "domain_events" })
+@Entity({ name: "event_outbox" })
 export class DomainEventEntity {
   @PrimaryColumn({ name: "id", type: "uuid" })
   id!: string;

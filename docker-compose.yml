@@ -109,6 +109,24 @@ services:
       ollama:
         condition: service_healthy
 
+  observability:
+    build:
+      context: .
+      dockerfile: packages/observability/Dockerfile
+    restart: unless-stopped
+    profiles: ["obs"]
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql://radar:radar@db:5432/radar}
+      PORT: "3020"
+      OBS_HOST: 0.0.0.0
+    ports:
+      - "${OBS_PORT:-3020}:3020"
+    networks:
+      - radar_net
+    depends_on:
+      db:
+        condition: service_healthy
+
   worker:
     image: node:22-alpine
     restart: unless-stopped
@@ -121,6 +139,8 @@ services:
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql://radar:radar@db:5432/radar}
       RADAR_STORAGE_MODE: db
+      RADAR_OBS_MODE: ${RADAR_OBS_MODE:-embedded}
+      RADAR_OBS_SERVICE_URL: ${RADAR_OBS_SERVICE_URL:-http://observability:3020}
       RADAR_SESSIONS_DIR: /var/radar/sessions
       RADAR_INGEST_POLL_MS: ${RADAR_INGEST_POLL_MS:-2000}
       TELEGRAM_API_ID: ${TELEGRAM_API_ID:-}

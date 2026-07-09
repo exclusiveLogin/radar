@@ -30,7 +30,7 @@ export const ODP_MANIFEST: readonly OdpManifestEntry[] = [
   },
   {
     pipelineKey: "parse",
-    label: "ingestParse scheduled phases (phase_coverage claim-drain)",
+    label: "ingestParse scheduled phases (queue_parse_coverage claim-drain)",
     runnerPlatformEnabled: ParseRunnerRegistry.enabled,
   },
   {

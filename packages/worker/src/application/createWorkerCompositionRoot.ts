@@ -23,8 +23,11 @@ import type {
   IRawMessageRepository,
   IRegionRepository,
   IPlaceScanPort,
+  IObservabilityRecorder,
+  HostSnapshot,
 } from "@radar/shared";
 import { InProcessEventBus } from "@radar/shared";
+import { loadDeploymentManifest } from "@radar/shared/deployment/deploymentManifest.loader.js";
 import {
   ParseAttemptLogger,
   ParseAttemptWriter,
@@ -34,16 +37,14 @@ import { createPhaseIngestHandler } from "./subscribers/phaseIngestSubscriber.js
 import { createRawMessageIngestedHandler } from "./subscribers/rawMessageIngestedSubscriber.js";
 import { CoverageEnqueuer } from "./phases/coverageEnqueuer.js";
 import { PhaseRunner } from "./phases/phaseRunner.js";
-import { IngestParseDaemonService } from "./phases/ingestParseDaemonService.js";
-import { ParseRunnerRegistry } from "./parse/runner/parseRunnerRegistry.js";
+import { IngestParseDaemonService } from "./runtime/legacy/ingestParseDaemonService.js";
 import { PhaseManualRunPoller } from "./phases/phaseManualRunPoller.js";
-import { PlaceEnrichmentDaemonService } from "./geo-parse/placeEnrichmentDaemonService.js";
-import { PlaceEnrichmentRunner } from "./geo-parse/placeEnrichmentRunner.js";
 import {
-  createGeoEnrichRunner,
-  isGeoEnrichRunnerPlatformEnabled,
-  type GeoEnrichRunner,
-} from "./geo-parse/runner/geoEnrichRunner.js";
+  createPipelineLauncher,
+  resolveRuntimePipelines,
+  type PipelineLauncher,
+} from "../composition/runtime/index.js";
+import { PlaceEnrichmentRunner } from "./geo-parse/placeEnrichmentRunner.js";
 import { wireBusTrigger } from "./runtime/workload/wireBusTrigger.js";
 import { odpResolve, type OdpResolution } from "../composition/odp/index.js";
 import { IngestRawMessageHandler } from "./handlers/ingestRawMessageHandler.js";
@@ -77,14 +78,8 @@ import {
   isBackfillDaemonEnabled,
 } from "./ingest/backfillDaemonService.js";
 import {
-  TrackingRebuildDaemon,
   isTrackingDaemonEnabled,
-} from "./tracking/trackingRebuildDaemon.js";
-import {
-  createTrackingRunner,
-  isTrackingRunnerPlatformEnabled,
-  type TrackingRunner,
-} from "./tracking/runner/trackingRunner.js";
+} from "./runtime/legacy/trackingRebuildDaemon.js";
 import {
   WorkerStorageMode,
   resolveWorkerStorageModeFromEnv,
@@ -113,6 +108,13 @@ import {
   roleSubscribesPhaseIngestOnBus,
   type WorkerRole,
 } from "../infrastructure/config/workerRole.js";
+import {
+  buildObsHostId,
+  resolveObsModeFromEnv,
+  resolveObsServiceUrl,
+} from "../infrastructure/config/obsMode.js";
+import { createObservabilityRecorder } from "@radar/observability";
+import { createParseWorkerPoolObs } from "./runtime/observability/parseWorkerPoolObs.js";
 import type { IngestEventPublisher } from "./handlers/ingestEventPublishMode.js";
 
 export type WorkerCompositionOptions = {
@@ -145,6 +147,12 @@ export async function createWorkerCompositionRoot(
 ) {
   const storageMode = options.storageMode ?? resolveWorkerStorageModeFromEnv();
   const workerRole = options.workerRole ?? resolveWorkerRoleFromEnv();
+  const hostStartedAt = new Date().toISOString();
+  const deploymentManifest = loadDeploymentManifest({ repoRoot: MONOREPO_ROOT });
+  const runtimePipelines = resolveRuntimePipelines({
+    manifest: deploymentManifest,
+    workerRole,
+  });
 
   const bus = new InProcessEventBus();
   const parseAttemptLogger = new ParseAttemptLogger();
@@ -158,17 +166,18 @@ export async function createWorkerCompositionRoot(
   let outboxRelay: { start: () => void; stop: () => void } | undefined;
   let ingestOrchestrator: IngestOrchestrator | undefined;
   let backfillDaemon: BackfillDaemonService | undefined;
-  /** Взаимоисключимые раннеры: runner-platform (Wave 3, за флагом) либо legacy setInterval-демон. */
-  let trackingRebuildDaemon: TrackingRebuildDaemon | TrackingRunner | undefined;
-  /** Взаимоисключимые раннеры: runner-platform (Wave 4, за флагом) либо legacy scheduled-демон. */
-  let ingestParseDaemon: IngestParseDaemonService | ParseRunnerRegistry | undefined;
-  /** Взаимоисключимые раннеры: runner-platform (Wave 5, за флагом) либо legacy scheduled-демон. */
-  let placeEnrichmentDaemon: PlaceEnrichmentDaemonService | GeoEnrichRunner | undefined;
+  /** Pipeline launchers (legacy | runner-platform) по deployment manifest. */
+  let trackingRebuildDaemon: PipelineLauncher | undefined;
+  let ingestParseDaemon: PipelineLauncher | undefined;
+  let placeEnrichmentDaemon: PipelineLauncher | undefined;
+  const pipelineLaunchers: PipelineLauncher[] = [];
   let phaseManualRunPoller: PhaseManualRunPoller | undefined;
   let phaseRunner: PhaseRunner | undefined;
   let coverageEnqueuer: CoverageEnqueuer | undefined;
   let parseWorkerPool: ParseWorkerPool | undefined;
   let shutdown: (() => Promise<void>) | undefined;
+  let observabilityRecorder: IObservabilityRecorder | undefined;
+  let obsHostSnapshot: HostSnapshot | undefined;
 
   let rawMessages: IRawMessageRepository = new InMemoryRawMessageRepository();
   let parsedEvents: IParsedEventRepository = new InMemoryParsedEventRepository();
@@ -212,7 +221,7 @@ export async function createWorkerCompositionRoot(
     ingestBindings = repos.ingestBindings;
     channels = repos.channels;
     backfillJobs = repos.backfillJobs;
-    // Технический след парсинга в БД (parse_attempts) для лога/агрегатов админки.
+    // Технический след парсинга в БД (log_parse_attempt) для лога/агрегатов админки.
     const parseAttemptWriter = new ParseAttemptWriter(repos.parseAttempts);
     bus.subscribe("MessageParsed", parseAttemptWriter.handler);
     bus.subscribe("MessageParseFailed", parseAttemptWriter.handler);
@@ -226,7 +235,7 @@ export async function createWorkerCompositionRoot(
       outboxRelay?.stop();
       phaseManualRunPoller?.stop();
       await ingestParseDaemon?.stop();
-      placeEnrichmentDaemon?.stop();
+      await placeEnrichmentDaemon?.stop();
       await backfillDaemon?.stop();
       await trackingRebuildDaemon?.stop();
       await parseWorkerPool?.shutdown();
@@ -235,6 +244,15 @@ export async function createWorkerCompositionRoot(
         await dataSource.destroy();
       }
     };
+  }
+
+  const obsMode = resolveObsModeFromEnv(storageMode);
+  if (obsMode !== "noop") {
+    observabilityRecorder = createObservabilityRecorder({
+      mode: obsMode,
+      serviceUrl: resolveObsServiceUrl(),
+      dataSource: obsMode === "embedded" ? dataSource : undefined,
+    });
   }
 
   const placeCache = options.placeCacheRepository ?? new InMemoryPlaceCacheRepository();
@@ -273,7 +291,13 @@ export async function createWorkerCompositionRoot(
   const validation = new GeoValidationService(regions, places, aliases);
 
   if (storageMode === WorkerStorageMode.Db && isParseWorkerPoolEnabled()) {
-    parseWorkerPool = new ParseWorkerPool(parsePipelineWorkerConfig);
+    const poolObs = observabilityRecorder
+      ? createParseWorkerPoolObs({
+          recorder: observabilityRecorder,
+          hostId: buildObsHostId(workerRole),
+        })
+      : undefined;
+    parseWorkerPool = new ParseWorkerPool(parsePipelineWorkerConfig, undefined, poolObs);
   }
 
   const ingestEventPublisher: IngestEventPublisher =
@@ -347,24 +371,24 @@ export async function createWorkerCompositionRoot(
       roleRunsPhaseDaemons(workerRole) &&
       IngestParseDaemonService.enabled() &&
       options.startIngestParseDaemon !== false;
-    if (startPhaseDaemons) {
-      // Wave 4 (tracking-parse-architecture-refactor): за флагом — runner platform (по workload
-      // на scheduled-фазу), иначе legacy `Map<phaseId, setInterval>` демон. Один и тот же
-      // phase_coverage claim-queue — одновременно не запускаются.
-      ingestParseDaemon = ParseRunnerRegistry.enabled()
-        ? new ParseRunnerRegistry({
-            phases: workerRepos.phaseDefinitions,
-            phaseRuns: workerRepos.phaseRuns,
-            coverage: workerRepos.phaseCoverage,
-            runner: phaseRunner,
-          })
-        : new IngestParseDaemonService(
-            workerRepos.phaseDefinitions,
-            workerRepos.phaseRuns,
-            workerRepos.phaseCoverage,
-            phaseRunner,
-          );
-      ingestParseDaemon.start();
+    if (startPhaseDaemons && dataSource) {
+      const obsBinding = observabilityRecorder
+        ? { recorder: observabilityRecorder, hostId: buildObsHostId(workerRole) }
+        : undefined;
+      const factoryDeps = {
+        dataSource,
+        workerRepos,
+        phaseRunner,
+        obsBinding,
+      };
+
+      const parseSpec = runtimePipelines.find((p) => p.entry.pipelineKey === "parse");
+      if (parseSpec) {
+        ingestParseDaemon = createPipelineLauncher(parseSpec, factoryDeps) ?? undefined;
+        ingestParseDaemon?.start();
+        if (ingestParseDaemon) pipelineLaunchers.push(ingestParseDaemon);
+      }
+
       phaseManualRunPoller = new PhaseManualRunPoller(
         workerRepos.phaseDefinitions,
         workerRepos.phaseRuns,
@@ -372,23 +396,12 @@ export async function createWorkerCompositionRoot(
       );
       phaseManualRunPoller.start();
 
-      // Wave 5 (tracking-parse-architecture-refactor): за флагом — runner platform (один
-      // workload на все geoParse-фазы, та же последовательность dadata→nominatim→llm), иначе
-      // legacy `PlaceEnrichmentDaemonService`. Одна и та же place_enrichment_jobs очередь.
-      placeEnrichmentDaemon = isGeoEnrichRunnerPlatformEnabled()
-        ? createGeoEnrichRunner({
-            phases: workerRepos.phaseDefinitions,
-            phaseRuns: workerRepos.phaseRuns,
-            placeJobs: workerRepos.placeEnrichmentJobs,
-            runner: phaseRunner,
-          })
-        : new PlaceEnrichmentDaemonService(
-            workerRepos.phaseDefinitions,
-            workerRepos.phaseRuns,
-            workerRepos.placeEnrichmentJobs,
-            phaseRunner,
-          );
-      placeEnrichmentDaemon.start();
+      const geoSpec = runtimePipelines.find((p) => p.entry.pipelineKey === "geo-enrich");
+      if (geoSpec) {
+        placeEnrichmentDaemon = createPipelineLauncher(geoSpec, factoryDeps) ?? undefined;
+        placeEnrichmentDaemon?.start();
+        if (placeEnrichmentDaemon) pipelineLaunchers.push(placeEnrichmentDaemon);
+      }
     }
   } else {
     bus.subscribe(
@@ -441,47 +454,89 @@ export async function createWorkerCompositionRoot(
       );
     }
 
-    if (roleRunsTrackingDaemon(workerRole) && dataSource && isTrackingDaemonEnabled()) {
-      // Wave 3 (tracking-parse-architecture-refactor): за флагом — новый runner platform,
-      // иначе legacy setInterval-демон. Одновременно не запускаются (одна и та же БД-очередь).
-      trackingRebuildDaemon = isTrackingRunnerPlatformEnabled()
-        ? createTrackingRunner(dataSource)
-        : new TrackingRebuildDaemon(dataSource);
+    if (roleRunsTrackingDaemon(workerRole) && dataSource && workerRepos && isTrackingDaemonEnabled()) {
+      const obsBinding = observabilityRecorder
+        ? { recorder: observabilityRecorder, hostId: buildObsHostId(workerRole) }
+        : undefined;
+      const trackingSpec = runtimePipelines.find((p) => p.entry.pipelineKey === "tracking");
+      if (trackingSpec) {
+        trackingRebuildDaemon =
+          createPipelineLauncher(trackingSpec, {
+            dataSource,
+            workerRepos,
+            phaseRunner,
+            obsBinding,
+          }) ?? undefined;
+        trackingRebuildDaemon?.start();
+        if (trackingRebuildDaemon) pipelineLaunchers.push(trackingRebuildDaemon);
+      }
     }
   }
 
-  // Wave 6 (tracking-parse-architecture-refactor): ingest chaining raw->parse->tracking->geo-enrich
-  // как хореография по сигналам — bus-событие будит соответствующий workload раньше своего
-  // интервала. Работает только поверх runner-platform реализаций (за флагами Wave 3-5); поверх
-  // legacy-демонов — no-op (они не подписаны, продолжают жить на своих таймерах/подписках как раньше).
-  if (ingestParseDaemon instanceof ParseRunnerRegistry) {
-    const parseRunner = ingestParseDaemon;
-    wireBusTrigger(bus, "RawMessageIngested", {
-      debounceMs: 250,
-      onRoute: () => parseRunner.enqueueAll(),
-    });
-  }
-  if (trackingRebuildDaemon && !(trackingRebuildDaemon instanceof TrackingRebuildDaemon)) {
-    const trackingRunner = trackingRebuildDaemon;
-    wireBusTrigger(bus, "MessageParsed", {
-      debounceMs: 250,
-      onRoute: () => trackingRunner.enqueue(),
-    });
-  }
-  if (placeEnrichmentDaemon && !(placeEnrichmentDaemon instanceof PlaceEnrichmentDaemonService)) {
-    const geoRunner = placeEnrichmentDaemon;
-    wireBusTrigger(bus, "MessageParsed", {
-      debounceMs: 250,
-      onRoute: () => geoRunner.enqueue(),
-    });
+  // Wave 6: bus-trigger chaining — только runner-platform launchers с enqueue.
+  for (const launcher of pipelineLaunchers) {
+    if (launcher.runtime !== "runner-platform" || !launcher.enqueue) continue;
+    if (launcher.pipelineKey === "parse") {
+      wireBusTrigger(bus, "RawMessageIngested", {
+        debounceMs: 250,
+        onRoute: () => launcher.enqueue!(),
+        obs: observabilityRecorder
+          ? {
+              recorder: observabilityRecorder,
+              pipelineKey: "parse",
+              eventType: "RawMessageIngested",
+            }
+          : undefined,
+      });
+    }
+    if (launcher.pipelineKey === "tracking") {
+      wireBusTrigger(bus, "MessageParsed", {
+        debounceMs: 250,
+        onRoute: () => launcher.enqueue!(),
+        obs: observabilityRecorder
+          ? {
+              recorder: observabilityRecorder,
+              pipelineKey: "tracking",
+              eventType: "MessageParsed",
+            }
+          : undefined,
+      });
+    }
+    if (launcher.pipelineKey === "geo-enrich") {
+      wireBusTrigger(bus, "MessageParsed", {
+        debounceMs: 250,
+        onRoute: () => launcher.enqueue!(),
+        obs: observabilityRecorder
+          ? {
+              recorder: observabilityRecorder,
+              pipelineKey: "geo-enrich",
+              eventType: "MessageParsed",
+            }
+          : undefined,
+      });
+    }
   }
 
-  // ODP (Operational Domain Profile): читает уже опубликованные флаги каждого домена — не
-  // управляет конструированием раннеров (это по-прежнему делает сам composition root выше),
-  // только декларирует список pipeline-контекстов и их текущий рантайм для лога/будущего UI.
-  const odp: OdpResolution[] = odpResolve();
+  // ODP badge: deployment manifest → runtime/host/spawn/schedulingImpl.
+  const odp: OdpResolution[] = odpResolve(deploymentManifest);
   for (const entry of odp) {
     console.log(`[odp] ${entry.pipelineKey} → ${entry.runtime} (${entry.label})`);
+  }
+
+  if (observabilityRecorder) {
+    const now = new Date().toISOString();
+    obsHostSnapshot = {
+      hostId: buildObsHostId(workerRole),
+      role: workerRole,
+      startedAt: hostStartedAt,
+      lastSeenAt: now,
+      odpRuntime: odp.map((entry) => ({
+        pipelineKey: entry.pipelineKey,
+        label: entry.label,
+        runtime: entry.runtime,
+      })),
+    };
+    await observabilityRecorder.upsertHost(obsHostSnapshot);
   }
 
   return {
@@ -489,6 +544,8 @@ export async function createWorkerCompositionRoot(
     workerRole,
     bus,
     odp,
+    observabilityRecorder,
+    obsHostSnapshot,
     metricsAggregator,
     placeScan,
     parsePipelineService: pipeline,

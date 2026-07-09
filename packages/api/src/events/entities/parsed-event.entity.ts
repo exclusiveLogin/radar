@@ -2,17 +2,17 @@
  * ---
  * layer: api
  * kind: entity
- * table: parsed_events
+ * table: mat_parse_event
  * purpose: Структурированное оповещение для карты/ленты после parse (тип угрозы, severity) — 1:1 с успешным разбором raw; не дублирует сырой текст.
  * @see ../../../../../docs/domain/persistence-map.md#ParsedEventEntity
- * @see ../../../../../docs/domain/how-it-works.md#parse-flow
+ * @see ../../../../../docs/database-table-naming.md`n * @see ../../../../../docs/domain/how-it-works.md#parse-flow
  * @see ../../../../../docs/domain/aggregates.md
  * ---
  */
 import { Column, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from "typeorm";
 import { RawMessageEntity } from "../../ingest/entities";
 
-@Entity({ name: "parsed_events" })
+@Entity({ name: "mat_parse_event" })
 export class ParsedEventEntity {
   @PrimaryGeneratedColumn("uuid")
   id!: string;

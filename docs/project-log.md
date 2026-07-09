@@ -36,12 +36,37 @@
 
 ## Записи
 
+### 2026-07-09 — Iter 7: observability docs + Epic C–H runbooks
+
+**Сделано:**
+- Iter 7: `docker-dev-stack.md` (DOCKERIZE_OBS/ALL), `runbook/observability.md`, `observability-daemon.md`, runner runbook (pause/badges), `.env.example` sync
+- Quickstart нового разработчика в `getting-started.md`
+- `how-it-works.md`: observability-flow + runner chaining
+- Epic C: `runbook/staging-gates.md` (Gate A–D)
+- Epic D: `runbook/e2e-bus-chaining.md`
+- Epic E: `runbook/prod-cutover.md`
+- Epic F: `runbook/wave7-legacy-removal.md`
+- Epic H: `rfc/adr-019-tracking-ml-engine.md` (design only)
+
+### 2026-07-08 — DB: унификация нейминга таблиц (Epic G)
+
+**Сделано:**
+- Forward-миграция: 22× RENAME (`raw_messages` → `mat_ingest_raw`, …)
+- Код: entities, repos, shared/worker SQL
+- SSOT: [database-table-naming.md](./database-table-naming.md), [ADR-020](./rfc/adr-020-database-table-naming.md)
+
+**Маппинг (кратко):** см. таблицу old→new в database-table-naming.md
+
+**Док:** persistence-map, cheatsheet, cold-start, … синхронизированы
+
+**Gate:** migrate + wipe→ingest→parse→geo→track (ручной smoke)
+
 ### 2026-06-20 — Web: разделение лент «Сообщения» / «Лента изменений»
 
 **Сделано:**
 - Два endpoint + два store (`messagesStore`, `stateChangesFeedStore`); убран derived `messagesFeed$` из потока events.
 - `GET /map/messages/recent`: 1 строка на raw, поля `contentKind`, `parsedEventCount`, `hasLocations`; бейджи шум/meta/raw/тип (fix: `cleared` без loc → green Badge, не «parse»).
-- `GET /map/events/recent`: только loc (`event_locations`), снят фильтр `state_level <> grey`.
+- `GET /map/events/recent`: только loc (`mat_parse_location`), снят фильтр `state_level <> grey`.
 - `classifyContentKind` перенесён в `@radar/shared` (API + worker re-export).
 
 **Архитектура:** контракты лент разведены (raw ingest ≠ loc events); карта по-прежнему fold read-line. Mass-clear без EL — в «Сообщениях» и на карте (синтетика fold), не в loc-ленте.
@@ -82,12 +107,12 @@
 - Зафиксированы архитектурные решения в [plan.md](./plan.md):
   - `ingestMode` (live/backfill/manual): сейчас влияет только на курсор, закладка на будущее
   - Холодный запуск: нет истории, только новые сообщения с момента старта
-  - `rawPayload` (JSONB) — полный оригинал; O2O `raw_message_telegram` — индексная выжимка для dedup
+  - `rawPayload` (JSONB) — полный оригинал; O2O `mat_ingest_raw_tg` — индексная выжимка для dedup
 - Backlog: gap recovery / frontfill (отдельный сервис с retry/backoff/checkpoint), auth admin API, auto-backfill, webhook/rss adapters
 
 ### 2026-05-14 — Raw Ingest Providers (итерация закрыта)
 
-- `ingest_providers` + `ingest_bindings` + `raw_message_telegram` + session runtime store
+- `ingest_providers` + `ingest_bindings` + `mat_ingest_raw_tg` + session runtime store
 - Telegram adapter (user/bot/hybrid), admin `POST /api/admin/ingest/messages`, timeline/backfill API
 - Worker `RADAR_STORAGE_MODE=db`: OutboxRelay → parse по uuid
 - Validation: `typecheck` ✓ (api/worker/shared), `lint` ✓

@@ -27,7 +27,9 @@ import {
   trackingPipelineConfigSchema,
   type TrackingPipelineConfig,
   workbookObservabilityResponseSchema,
+  runnerDiscoveryResponseSchema,
   type WorkbookObservabilityResponse,
+  type RunnerDiscoveryResponse,
 } from "@radar/shared";
 import type { PhaseDefinition, PhaseRun, TrackingStatusResponse, TrackingRebuildRun } from "@radar/shared";
 import { z } from "zod";
@@ -183,7 +185,13 @@ export const adminApi = {
   phasesCancelRun: (runId: string): Promise<{ ok: true }> =>
     postJson(`/api/admin/phases/runs/${encodeURIComponent(runId)}/cancel`, undefined, z.object({ ok: z.literal(true) })),
 
-  /** Как CLI phase:runs:stop-all — cancel runs + DELETE pending/processing в phase_coverage. */
+  phasesPauseRun: (runId: string): Promise<{ ok: true }> =>
+    postJson(`/api/admin/phases/runs/${encodeURIComponent(runId)}/pause`, undefined, z.object({ ok: z.literal(true) })),
+
+  phasesResumeRun: (runId: string): Promise<{ ok: true }> =>
+    postJson(`/api/admin/phases/runs/${encodeURIComponent(runId)}/resume`, undefined, z.object({ ok: z.literal(true) })),
+
+  /** Как CLI phase:runs:stop-all — cancel runs + DELETE pending/processing в queue_parse_coverage. */
   phasesStopAllRuns: (): Promise<{
     ok: true;
     phaseRunsClosed: number;
@@ -248,4 +256,7 @@ export const adminApi = {
 
   workbookObservability: (): Promise<WorkbookObservabilityResponse> =>
     getJson("/api/admin/workbook/observability", workbookObservabilityResponseSchema),
+
+  runnerDiscovery: (): Promise<RunnerDiscoveryResponse> =>
+    getJson("/api/admin/runner/discovery", runnerDiscoveryResponseSchema),
 };

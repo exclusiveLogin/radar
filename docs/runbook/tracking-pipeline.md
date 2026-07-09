@@ -63,7 +63,7 @@ npm run worker:dev
 - `npm run radar -- tracking tick` — один тик daemon (ручной прогон)
 - `npm run radar -- tracking enable -- --on` — включить пайплайн в БД
 - WS `/ws/admin` → `tracking-status`
-- Таблицы: `trajectory_tracks`, `trajectory_nodes`, `tracking_pipeline_state`
+- Таблицы: `mat_track`, `mat_track_node`, `state_track_pipeline`
 
 ## API (read-side)
 

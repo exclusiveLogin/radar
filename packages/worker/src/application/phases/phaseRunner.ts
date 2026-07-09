@@ -44,7 +44,7 @@ export type PhaseRunnerDeps = {
   placeScan: IPlaceScanPort;
   placeCache: IPlaceCacheRepository;
   events: IEventPublisher;
-  /** geoParse drain (place_enrichment_jobs). */
+  /** geoParse drain (job_geo_place_enrich). */
   placeEnrichmentRunner?: PlaceEnrichmentRunner;
 };
 

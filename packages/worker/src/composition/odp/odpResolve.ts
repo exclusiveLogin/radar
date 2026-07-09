@@ -2,11 +2,19 @@
  * ---
  * layer: worker/composition
  * domain: odp
- * purpose: Разрешает ODP-манифест в текущий рантайм-статус каждого pipeline — источник данных
- *          для стартового лога composition root и (в дальнейшем) для Admin/Web UI Workbook Registry.
+ * purpose: Разрешает deployment manifest в текущий рантайм-статус каждого pipeline — источник данных
+ *          для стартового лога composition root и Admin/Web UI Workbook Registry.
  * ---
  */
-import { ODP_MANIFEST, type OdpManifestEntry, type OdpPipelineKey } from "./odpManifest.js";
+import {
+  type DeploymentManifest,
+  type DeploymentHost,
+  type DeploymentSpawn,
+  type SchedulingImpl,
+} from "@radar/shared";
+import { loadDeploymentManifest } from "@radar/shared/deployment/deploymentManifest.loader.js";
+import { MONOREPO_ROOT } from "@repo/root";
+import type { OdpPipelineKey } from "./odpManifest.js";
 
 export type OdpPipelineRuntime = "runner-platform" | "legacy";
 
@@ -14,14 +22,20 @@ export type OdpResolution = {
   pipelineKey: OdpPipelineKey;
   label: string;
   runtime: OdpPipelineRuntime;
+  host: DeploymentHost;
+  spawn: DeploymentSpawn;
+  schedulingImpl: SchedulingImpl;
 };
 
 export function odpResolve(
-  manifest: readonly OdpManifestEntry[] = ODP_MANIFEST,
+  manifest: DeploymentManifest = loadDeploymentManifest({ repoRoot: MONOREPO_ROOT }),
 ): OdpResolution[] {
-  return manifest.map((entry) => ({
+  return manifest.runners.pipelines.map((entry) => ({
     pipelineKey: entry.pipelineKey,
     label: entry.label,
-    runtime: entry.runnerPlatformEnabled() ? "runner-platform" : "legacy",
+    runtime: entry.schedulingImpl === "runner-platform" ? "runner-platform" : "legacy",
+    host: entry.host,
+    spawn: entry.spawn,
+    schedulingImpl: entry.schedulingImpl,
   }));
 }

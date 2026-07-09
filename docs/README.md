@@ -6,13 +6,18 @@
 |----------|----------------|
 | **[parse-inspect.md](./parse-inspect.md)** | **Parse debug:** `parse:inspect` → agent artifacts |
 | **[radar-cli.md](./radar-cli.md)** | **SSOT CLI:** частые команды + таблицы radar ↔ legacy по доменам |
+| **[database-table-naming.md](./database-table-naming.md)** | **SSOT:** схема имён таблиц БД, навигатор, SQL-рецепты |
 | **[cheatsheet.md](./cheatsheet.md)** | Ingest, backfill, SQL, UI, диагностика (без дубля таблиц) |
 | **[cold-start.md](./cold-start.md)** | **Cold start 0→6:** wipe → catalog → backfill → parse (copy-paste) |
 | **[runbook/geo-clean-rebuild.md](./runbook/geo-clean-rebuild.md)** | Частичные сценарии rebuild (catalog only, reparse only) |
 | **[shpargalka-operacii.md](./shpargalka-operacii.md)** | REST API, env, сценарии |
 | **[phase-commands.md](./phase-commands.md)** | Семантика wipe/reset/clear |
 | **[getting-started.md](./getting-started.md)** | Запуск всего продукта локально |
-| **[docker-dev-stack.md](./docker-dev-stack.md)** | Docker overlay: api/web/worker-роли |
+| **[docker-dev-stack.md](./docker-dev-stack.md)** | Docker overlay: api/web/worker-роли, DOCKERIZE_OBS |
+| **[runbook/observability.md](./runbook/observability.md)** | Observability: embedded vs service, Discovery UI |
+| **[runbook/staging-gates.md](./runbook/staging-gates.md)** | Gate A–D checklist (staging) |
+| **[runbook/e2e-bus-chaining.md](./runbook/e2e-bus-chaining.md)** | E2E raw→parse→tracking→geo |
+| **[runbook/prod-cutover.md](./runbook/prod-cutover.md)** | Prod cutover + Discovery monitoring |
 | **[map-tiles-selfhost.md](./map-tiles-selfhost.md)** | Self-host OSM basemap, `cold-up -Tiles` |
 | [architecture-layers-and-wiring.md](./architecture-layers-and-wiring.md) | Полная схема слоёв, DIP/wiring |
 | [plan.md](./plan.md) | Продуктовое видение и roadmap |
@@ -60,6 +65,9 @@ npm run radar -- pipeline status
 | Parse / domain pack | [master-implementation-roadmap.md](./rfc/master-implementation-roadmap.md), [parse-inspect.md](./parse-inspect.md), [adr-014](./adr-014-operational-domain-profile.md) |
 | Geo-артефакты / каталог | [runbook/geo-clean-rebuild.md](./runbook/geo-clean-rebuild.md), [data/geo/README.md](../data/geo/README.md) |
 | Phase-pipeline v2 | [phase-pipeline.md](./phase-pipeline.md), [api/phases-admin.md](./api/phases-admin.md) |
+| Runner platform | [sdd/runner-platform/](./sdd/runner-platform/README.md), [staging-gates](./runbook/staging-gates.md), [wave7](./runbook/wave7-legacy-removal.md) |
+| Observability | [runbook/observability.md](./runbook/observability.md), [ADR-017](./rfc/adr-017-observability-embedded.md) |
+| Tracking ML (design) | [rfc/adr-019-tracking-ml-engine.md](./rfc/adr-019-tracking-ml-engine.md) |
 | Карта | корневой [README § Сейчас в продукте](../README.md#сейчас-в-продукте), [web-map-feeds.md](./web-map-feeds.md) |
 
 Корневой [README.md](../README.md) — обзор продукта.

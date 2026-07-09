@@ -8,6 +8,9 @@
  * ---
  */
 
+import type { TriggerObsContext } from "../observability/workloadObsHooks.js";
+import { reportTrigger } from "../observability/workloadObsHooks.js";
+
 export type TriggerSource = "bus" | "scheduler" | "manual" | "cli";
 
 export type TriggerLayerOptions = {
@@ -17,6 +20,8 @@ export type TriggerLayerOptions = {
   gate?: (source: TriggerSource) => boolean;
   /** route-to-workbook: обычно `workload.enqueue`. */
   onRoute: () => void;
+  /** Iter 2: increment trigger counter при fire. */
+  obs?: TriggerObsContext;
 };
 
 export type TriggerLayer = {
@@ -30,6 +35,7 @@ export function createTriggerLayer(options: TriggerLayerOptions): TriggerLayer {
   return {
     fire(source) {
       if (options.gate && !options.gate(source)) return;
+      if (options.obs) reportTrigger(options.obs, source);
       if (!options.debounceMs) {
         options.onRoute();
         return;

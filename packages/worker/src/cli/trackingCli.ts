@@ -43,13 +43,13 @@ async function cmdStatus(): Promise<void> {
       }[]
     >(
       `SELECT enabled, watermark, active_run_id, total_candidates
-       FROM tracking_pipeline_state WHERE id = 'default'`,
+       FROM state_track_pipeline WHERE id = 'default'`,
     );
     const [{ count: tracks }] = await ds.query<{ count: string }[]>(
-      `SELECT COUNT(*)::text AS count FROM trajectory_tracks`,
+      `SELECT COUNT(*)::text AS count FROM mat_track`,
     );
     const [{ count: nodes }] = await ds.query<{ count: string }[]>(
-      `SELECT COUNT(*)::text AS count FROM trajectory_nodes`,
+      `SELECT COUNT(*)::text AS count FROM mat_track_node`,
     );
     const totalCandidates =
       Number(state?.total_candidates) ||
@@ -87,7 +87,7 @@ async function cmdRebuild(flags: ReturnType<typeof parseLongFlagsMap>): Promise<
   try {
     // Конфиг пайплайна (flow gate, веса, оверрайды профилей) — из состояния БД.
     const [state] = await ds.query<{ config: unknown }[]>(
-      `SELECT config FROM tracking_pipeline_state WHERE id = 'default'`,
+      `SELECT config FROM state_track_pipeline WHERE id = 'default'`,
     );
     const config = trackingPipelineConfigSchema.parse(state?.config ?? {});
     console.log(`[tracking:rebuild] since=${since.toISOString()} until=${until.toISOString()}`);
@@ -113,7 +113,7 @@ async function cmdReset(flags: ReturnType<typeof parseLongFlagsMap>): Promise<vo
   const { ds, shutdown } = await openDb();
   try {
     await ds.query(
-      `UPDATE trajectory_rebuild_runs
+      `UPDATE job_track_rebuild
        SET status = 'cancelled', finished_at = now()
        WHERE status IN ('running', 'paused')`,
     );
@@ -124,10 +124,10 @@ async function cmdReset(flags: ReturnType<typeof parseLongFlagsMap>): Promise<vo
          updated_at = now()`
       : `SET watermark = '{}'::jsonb, active_run_id = NULL, updated_at = now()`;
     await ds.query(
-      `UPDATE tracking_pipeline_state ${watermarkReset} WHERE id = 'default'`,
+      `UPDATE state_track_pipeline ${watermarkReset} WHERE id = 'default'`,
     );
     console.log(
-      `[tracking:reset] trajectory_tracks/nodes очищены, watermark сброшен${resetKinematics ? ", оверрайды кинематики сброшены к дефолтам" : ""}`,
+      `[tracking:reset] mat_track/nodes очищены, watermark сброшен${resetKinematics ? ", оверрайды кинематики сброшены к дефолтам" : ""}`,
     );
   } finally {
     await shutdown?.();
@@ -145,7 +145,7 @@ async function cmdEnable(flags: ReturnType<typeof parseLongFlagsMap>): Promise<v
   const { ds, shutdown } = await openDb();
   try {
     await ds.query(
-      `UPDATE tracking_pipeline_state SET enabled = $1, updated_at = now() WHERE id = 'default'`,
+      `UPDATE state_track_pipeline SET enabled = $1, updated_at = now() WHERE id = 'default'`,
       [on],
     );
     console.log(`[tracking:enable] daemon ${on ? "ВКЛ" : "ВЫКЛ"}`);

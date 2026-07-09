@@ -14,7 +14,7 @@ import { TrackingPipelineWidget } from "./widgets/TrackingPipelineWidget";
 import { TrackingPhaseProgressWidget } from "./widgets/TrackingPhaseProgressWidget";
 import { TrackingKinematicsSettingsWidget } from "./widgets/TrackingKinematicsSettingsWidget";
 import { TrackingRunHistoryWidget } from "./widgets/TrackingRunHistoryWidget";
-import { WorkbookObservabilityWidget } from "./widgets/WorkbookObservabilityWidget";
+import { RunnerDiscoveryWidget } from "./widgets/RunnerDiscoveryWidget";
 
 /** Ширина ячейки в 12-колоночной сетке дашборда. */
 export type AdminWidgetSpan = 3 | 4 | 6 | 8 | 12;
@@ -76,9 +76,9 @@ export const ADMIN_LAYOUT_SECTIONS: AdminLayoutSection[] = [
     ],
   },
   {
-    id: "workbook",
-    title: "Workbook (runner platform)",
-    widgets: [{ id: "workbook-observability", component: WorkbookObservabilityWidget, span: 12 }],
+    id: "runner-platform",
+    title: "Runner Platform",
+    widgets: [{ id: "runner-discovery", component: RunnerDiscoveryWidget, span: 12 }],
   },
   {
     id: "ops",

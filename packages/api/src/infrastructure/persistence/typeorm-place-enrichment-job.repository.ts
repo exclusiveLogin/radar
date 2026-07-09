@@ -29,13 +29,13 @@ const ELIGIBLE_PLACE_WHERE = `
   AND p.centroid_lon IS NULL
   AND (gf.centroid_lat IS NULL OR gf.id IS NULL)
   AND NOT EXISTS (
-    SELECT 1 FROM place_enrichment_jobs j
+    SELECT 1 FROM job_geo_place_enrich j
     WHERE j.place_id = p.id
       AND j.provider = $1
       AND j.status = 'processing'
   )
   AND NOT EXISTS (
-    SELECT 1 FROM place_enrichment_jobs j
+    SELECT 1 FROM job_geo_place_enrich j
     WHERE j.place_id = p.id
       AND j.provider = $1
       AND j.status IN ('done', 'failed')
@@ -45,8 +45,8 @@ const ELIGIBLE_PLACE_WHERE = `
 /** ON CONFLICT: терминальные done/failed не трогаем, остальное → pending. */
 const UPSERT_JOB_STATUS_SQL = `
   CASE
-    WHEN place_enrichment_jobs.status IN ('done', 'failed')
-    THEN place_enrichment_jobs.status
+    WHEN job_geo_place_enrich.status IN ('done', 'failed')
+    THEN job_geo_place_enrich.status
     ELSE 'pending'
   END
 `;
@@ -58,7 +58,7 @@ implements IPlaceEnrichmentJobRepository {
   async enqueue(placeId: string, provider: PlaceEnrichmentProvider): Promise<void> {
     await this.dataSource.query(
       `
-      INSERT INTO place_enrichment_jobs (place_id, provider, status, attempts, updated_at)
+      INSERT INTO job_geo_place_enrich (place_id, provider, status, attempts, updated_at)
       VALUES ($1, $2, 'pending', 0, now())
       ON CONFLICT (place_id, provider) DO UPDATE
       SET status = ${UPSERT_JOB_STATUS_SQL},
@@ -71,7 +71,7 @@ implements IPlaceEnrichmentJobRepository {
   async enqueueCatchUp(provider: PlaceEnrichmentProvider): Promise<{ enqueued: number }> {
     const rows = await this.dataSource.query(
       `
-      INSERT INTO place_enrichment_jobs (place_id, provider, status, attempts, updated_at)
+      INSERT INTO job_geo_place_enrich (place_id, provider, status, attempts, updated_at)
       SELECT p.id, $1, 'pending', 0, now()
       FROM places p
       LEFT JOIN geo_feature gf ON gf.id = p.geo_feature_id
@@ -95,7 +95,7 @@ implements IPlaceEnrichmentJobRepository {
     // Legacy pending по ineligible kind — не claim'ить, пометить done.
     await this.dataSource.query(
       `
-      UPDATE place_enrichment_jobs j
+      UPDATE job_geo_place_enrich j
       SET status = 'done', updated_at = now()
       FROM places p
       WHERE j.place_id = p.id
@@ -109,7 +109,7 @@ implements IPlaceEnrichmentJobRepository {
     // Шаг 1: upsert pending для eligible (отдельный statement).
     await this.dataSource.query(
       `
-      INSERT INTO place_enrichment_jobs (place_id, provider, status, attempts, updated_at)
+      INSERT INTO job_geo_place_enrich (place_id, provider, status, attempts, updated_at)
       SELECT p.id, $1, 'pending', 0, now()
       FROM places p
       LEFT JOIN geo_feature gf ON gf.id = p.geo_feature_id
@@ -127,11 +127,11 @@ implements IPlaceEnrichmentJobRepository {
     const rows = readTypeOrmQueryRows<Row>(
       await this.dataSource.query(
         `
-        UPDATE place_enrichment_jobs j
+        UPDATE job_geo_place_enrich j
         SET status = 'processing', updated_at = now()
         WHERE j.id IN (
           SELECT j2.id
-          FROM place_enrichment_jobs j2
+          FROM job_geo_place_enrich j2
           INNER JOIN places p ON p.id = j2.place_id
           LEFT JOIN geo_feature gf ON gf.id = p.geo_feature_id
           WHERE j2.provider = $1
@@ -156,10 +156,10 @@ implements IPlaceEnrichmentJobRepository {
     const rows = readTypeOrmQueryRows<Row>(
       await this.dataSource.query(
       `
-      UPDATE place_enrichment_jobs SET status='processing', updated_at=now()
+      UPDATE job_geo_place_enrich SET status='processing', updated_at=now()
       WHERE id IN (
         SELECT id
-        FROM place_enrichment_jobs
+        FROM job_geo_place_enrich
         WHERE provider = $1 AND status = 'pending'
         ORDER BY updated_at ASC
         LIMIT $2
@@ -175,14 +175,14 @@ implements IPlaceEnrichmentJobRepository {
 
   async markDone(id: string): Promise<void> {
     await this.dataSource.query(
-      `UPDATE place_enrichment_jobs SET status='done', updated_at=now() WHERE id=$1`,
+      `UPDATE job_geo_place_enrich SET status='done', updated_at=now() WHERE id=$1`,
       [id],
     );
   }
 
   async markFailed(id: string, error: string): Promise<void> {
     await this.dataSource.query(
-      `UPDATE place_enrichment_jobs
+      `UPDATE job_geo_place_enrich
        SET status='failed', attempts=attempts+1, last_error=$2, updated_at=now()
        WHERE id=$1`,
       [id, error.slice(0, 2000)],
@@ -193,7 +193,7 @@ implements IPlaceEnrichmentJobRepository {
     if (ids.length === 0) return 0;
     const rows = readTypeOrmQueryRows<{ id: string }>(
       await this.dataSource.query(
-        `UPDATE place_enrichment_jobs
+        `UPDATE job_geo_place_enrich
          SET status='pending', last_error=NULL, updated_at=now()
          WHERE id = ANY($1::uuid[]) AND status = 'processing'
          RETURNING id`,
@@ -206,7 +206,7 @@ implements IPlaceEnrichmentJobRepository {
   async resetProcessingForProvider(provider: PlaceEnrichmentProvider): Promise<number> {
     const rows = readTypeOrmQueryRows<{ id: string }>(
       await this.dataSource.query(
-        `UPDATE place_enrichment_jobs
+        `UPDATE job_geo_place_enrich
          SET status='pending', last_error=NULL, updated_at=now()
          WHERE provider = $1 AND status = 'processing'
          RETURNING id`,
@@ -219,7 +219,7 @@ implements IPlaceEnrichmentJobRepository {
   async resetFailedForProvider(provider: PlaceEnrichmentProvider): Promise<number> {
     const rows = readTypeOrmQueryRows<{ id: string }>(
       await this.dataSource.query(
-        `UPDATE place_enrichment_jobs
+        `UPDATE job_geo_place_enrich
          SET status='pending', last_error=NULL, updated_at=now()
          WHERE provider = $1 AND status = 'failed'
          RETURNING id`,
@@ -234,7 +234,7 @@ implements IPlaceEnrichmentJobRepository {
   ): Promise<Record<PlaceEnrichmentJobRecord["status"], number>> {
     const rows = (await this.dataSource.query(
       `SELECT status, COUNT(*)::int AS count
-       FROM place_enrichment_jobs
+       FROM job_geo_place_enrich
        WHERE provider = $1
        GROUP BY status`,
       [provider],
@@ -255,10 +255,10 @@ implements IPlaceEnrichmentJobRepository {
     const rows = readTypeOrmQueryRows<{ id: string }>(
       await this.dataSource.query(
       provider
-        ? `DELETE FROM place_enrichment_jobs
+        ? `DELETE FROM job_geo_place_enrich
            WHERE provider = $1 AND status IN ('pending', 'processing')
            RETURNING id`
-        : `DELETE FROM place_enrichment_jobs
+        : `DELETE FROM job_geo_place_enrich
            WHERE status IN ('pending', 'processing')
            RETURNING id`,
       provider ? [provider] : [],

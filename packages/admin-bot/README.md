@@ -12,8 +12,8 @@
 
 ## Подписка на Domain Events
 
-- Источник: outbox таблица `domain_events`.
-- Чекпоинт: `event_subscriptions` (по подписчику бота).
+- Источник: outbox таблица `event_outbox`.
+- Чекпоинт: `state_event_subscription` (по подписчику бота).
 - Режим: polling или `LISTEN/NOTIFY` (после стабилизации relay).
 
 ## Доступ

@@ -25,7 +25,7 @@ npm run worker:dev
 
 ## Откат (rollback)
 
-Просто снять флаг (`=false` или unset) и перезапустить воркер — легаси-демон стартует, как раньше. Курсоры/таблицы состояния общие (`tracking_pipeline_state`, `phase_coverage`/`phase_runs`, `place_enrichment_jobs`) — переключение не теряет прогресс.
+Просто снять флаг (`=false` или unset) и перезапустить воркер — легаси-демон стартует, как раньше. Курсоры/таблицы состояния общие (`state_track_pipeline`, `queue_parse_coverage`/`log_parse_phase_run`, `job_geo_place_enrich`) — переключение не теряет прогресс.
 
 ## Enable / Reset / Rebuild — не поменялись
 
@@ -41,6 +41,46 @@ npm run worker:dev
 | Geo-enrich phase enable/disable | — | Admin → Фазы | legacy + runner-platform (`phaseDefinitions`) |
 
 Cursor reset — каскадный: смена watermark/флага в БД, без переразбора очереди (Wave 3/4 инвариант).
+
+## Pause / Resume / Stop (jobKernel)
+
+Runner platform использует кооперативный control в `jobKernel`:
+
+| Операция | API / механизм | Эффект |
+|----------|----------------|--------|
+| **Pause** | `POST /admin/tracking/pause` (tracking) | `kernel.pause()` — tick не вызывает evaluate |
+| **Resume** | `POST /admin/tracking/resume` | `kernel.resume()` + wake scheduler |
+| **Stop** | Shutdown worker / `kernel.stop()` | Schedule останавливается, cursor сохранён в БД |
+| **Cancel run** | Admin phase cancel | Текущий run помечается cancelled, cursor не advance |
+
+Legacy-демоны используют те же control-таблицы (`readTrackingRunControl`, phase definitions).
+
+```powershell
+# Проверка pause/resume (tracking)
+curl -X POST http://127.0.0.1:3000/api/admin/tracking/pause
+curl -X POST http://127.0.0.1:3000/api/admin/tracking/resume
+```
+
+Obs write-path фиксирует status workload: `running` → `paused` → `running` в `obs_workloads`.
+
+## ODP badges (runtime discovery)
+
+При старте worker логирует и пишет в `obs_hosts.odp_runtime`:
+
+```text
+[odp] tracking → legacy (NextGen track rebuild …)
+[odp] parse → runner-platform (ingestParse scheduled phases …)
+[odp] geo-enrich → legacy (geoParse scheduled phases …)
+```
+
+| Badge | Значение |
+|-------|----------|
+| `legacy` | Старый setInterval-демон |
+| `runner-platform` | jobKernel + workbook/workload |
+
+Источник: `odpResolve(deploymentManifest)` — читает `deployment.manifest.json` + `*_RUNNER_PLATFORM_ENABLED` env.
+
+Admin UI: Workbook observability widget + Worker runners probe. Runtime snapshot: `GET /obs/v1/runtime/snapshot`.
 
 ## Config-stale (известный пробел)
 

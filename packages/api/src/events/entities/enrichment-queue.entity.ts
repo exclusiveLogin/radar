@@ -1,15 +1,14 @@
 /**
- * Per-provider очередь фонового обогащения (ADR-003): строка на пару
- * `(raw_message_id, stage)`. Eager catalog-парсинг ставит задачи по включённым
- * lazy-фазам, ранер `worker:enrich:run --stage` догоняет проход и мержит вклад.
+ * @see ../../../../../docs/database-table-naming.md
+ * @deprecated Алиас PhaseCoverageEntity — та же таблица queue_parse_coverage с PhasePipelineV2.
+ * Per-provider очередь (ADR-003): строка на пару `(raw_message_id, phase_id)`.
  */
 import { Column, Entity, PrimaryGeneratedColumn, Unique } from "typeorm";
 
 type EnrichmentStatus = "pending" | "processing" | "done" | "failed";
-type EnrichStage = "llm" | "dadata" | "nominatim";
 
-@Entity({ name: "enrichment_queue" })
-@Unique("uq_enrichment_queue_raw_stage", ["rawMessageId", "stage"])
+@Entity({ name: "queue_parse_coverage" })
+@Unique("uq_queue_parse_coverage_raw_phase", ["rawMessageId", "phaseId"])
 export class EnrichmentQueueEntity {
   @PrimaryGeneratedColumn("uuid")
   id!: string;
@@ -17,8 +16,8 @@ export class EnrichmentQueueEntity {
   @Column({ name: "raw_message_id", type: "uuid" })
   rawMessageId!: string;
 
-  @Column({ name: "stage", type: "text" })
-  stage!: EnrichStage;
+  @Column({ name: "phase_id", type: "text" })
+  phaseId!: string;
 
   @Column({ name: "parsed_event_id", type: "uuid", nullable: true })
   parsedEventId!: string | null;

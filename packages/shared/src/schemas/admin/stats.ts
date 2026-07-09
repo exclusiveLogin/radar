@@ -17,7 +17,7 @@ const queueCountsSchema = z.object({
 });
 
 const phaseCoverageCountsSchema = queueCountsSchema.extend({
-  /** done и есть parsed_events для этого raw (реальное событие на карте). */
+  /** done и есть mat_parse_event для этого raw (реальное событие на карте). */
   doneForParsed: z.number().int().nonnegative(),
 });
 
@@ -33,20 +33,20 @@ export const statsOverviewSchema = z.object({
   live: z.number().int().nonnegative(),
   backfill: z.number().int().nonnegative(),
   manual: z.number().int().nonnegative(),
-  /** Строк parsed_events с is_active — может быть >1 на один raw. */
+  /** Строк mat_parse_event с is_active — может быть >1 на один raw. */
   parsedEvents: z.number().int().nonnegative(),
   /** DISTINCT raw_message_id с active parsed_event — знаменатель для done★. */
   parsedEventsActiveRaws: z.number().int().nonnegative(),
   /** Активные places в каталоге (не region) — знаменатель для geo enrichment. */
   placesCatalogActive: z.number().int().nonnegative(),
-  /** Счётчики phase_coverage по фазам (catalog, llm, …). */
+  /** Счётчики queue_parse_coverage по фазам (catalog, llm, …). */
   phaseEnrichment: z.array(
     z.object({
       phaseId: z.string(),
       counts: phaseCoverageCountsSchema,
     }),
   ),
-  /** Счётчики place_enrichment_jobs по geoParse-фазам (geo-dadata, …). */
+  /** Счётчики job_geo_place_enrich по geoParse-фазам (geo-dadata, …). */
   geoEnrichment: z.array(
     z.object({
       phaseId: z.string(),

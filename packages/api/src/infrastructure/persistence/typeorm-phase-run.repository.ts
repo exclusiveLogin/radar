@@ -36,7 +36,7 @@ type RunRow = {
   updated_at: Date;
 };
 
-/** Запуски фаз (phase_runs): прогресс, лог, control. */
+/** Запуски фаз (log_parse_phase_run): прогресс, лог, control. */
 export class TypeOrmPhaseRunRepository implements IPhaseRunRepository {
   constructor(private readonly dataSource: DataSource) {}
 
@@ -47,7 +47,7 @@ export class TypeOrmPhaseRunRepository implements IPhaseRunRepository {
   }): Promise<PhaseRun> {
     const rows = readTypeOrmQueryRows<RunRow>(
       await this.dataSource.query(
-        `INSERT INTO phase_runs (phase_id, trigger, status, started_at)
+        `INSERT INTO log_parse_phase_run (phase_id, trigger, status, started_at)
        VALUES ($1, $2, $3, CASE WHEN $3 = 'running' THEN now() ELSE NULL END)
        RETURNING *`,
         [input.phaseId, input.trigger, input.status ?? "pending"],
@@ -57,7 +57,7 @@ export class TypeOrmPhaseRunRepository implements IPhaseRunRepository {
   }
 
   async findById(id: string): Promise<PhaseRun | null> {
-    const rows = (await this.dataSource.query(`SELECT * FROM phase_runs WHERE id = $1`, [
+    const rows = (await this.dataSource.query(`SELECT * FROM log_parse_phase_run WHERE id = $1`, [
       id,
     ])) as RunRow[];
     return rows[0] ? this.toRun(rows[0]) : null;
@@ -66,7 +66,7 @@ export class TypeOrmPhaseRunRepository implements IPhaseRunRepository {
   async findActiveForPhase(phaseId: string): Promise<PhaseRun | null> {
     const rows = readTypeOrmQueryRows<RunRow>(
       await this.dataSource.query(
-        `SELECT * FROM phase_runs
+        `SELECT * FROM log_parse_phase_run
          WHERE phase_id = $1 AND status IN ('running', 'pending')
          ORDER BY created_at DESC
          LIMIT 1`,
@@ -80,7 +80,7 @@ export class TypeOrmPhaseRunRepository implements IPhaseRunRepository {
     const ms = Math.max(staleAfterMs, 60_000);
     const rows = readTypeOrmQueryRows<{ id: string }>(
       await this.dataSource.query(
-        `UPDATE phase_runs SET
+        `UPDATE log_parse_phase_run SET
            status = 'failed',
            error = 'stale: no heartbeat (worker restart or hung run)',
            finished_at = now(),
@@ -102,7 +102,7 @@ export class TypeOrmPhaseRunRepository implements IPhaseRunRepository {
   async list(filter?: PhaseRunFilter): Promise<PhaseRun[]> {
     const limit = Math.min(filter?.limit ?? 50, 200);
     const rows = (await this.dataSource.query(
-      `SELECT * FROM phase_runs
+      `SELECT * FROM log_parse_phase_run
        WHERE ($1::text IS NULL OR phase_id = $1)
          AND ($2::text IS NULL OR status = $2)
          AND ($3::text IS NULL OR trigger = $3)
@@ -115,7 +115,7 @@ export class TypeOrmPhaseRunRepository implements IPhaseRunRepository {
 
   async appendLog(id: string, entry: PhaseRunLogEntry): Promise<void> {
     await this.dataSource.query(
-      `UPDATE phase_runs SET
+      `UPDATE log_parse_phase_run SET
          log = (
            SELECT COALESCE(jsonb_agg(elem), '[]'::jsonb)
            FROM (
@@ -134,28 +134,28 @@ export class TypeOrmPhaseRunRepository implements IPhaseRunRepository {
 
   async updateStats(id: string, stats: PhaseRunStats): Promise<void> {
     await this.dataSource.query(
-      `UPDATE phase_runs SET stats = $2::jsonb, updated_at = now() WHERE id = $1`,
+      `UPDATE log_parse_phase_run SET stats = $2::jsonb, updated_at = now() WHERE id = $1`,
       [id, JSON.stringify(stats)],
     );
   }
 
   async requestControl(id: string, control: PhaseRunControl): Promise<void> {
     await this.dataSource.query(
-      `UPDATE phase_runs SET control = $2, updated_at = now() WHERE id = $1`,
+      `UPDATE log_parse_phase_run SET control = $2, updated_at = now() WHERE id = $1`,
       [id, control],
     );
   }
 
   async clearControl(id: string): Promise<void> {
     await this.dataSource.query(
-      `UPDATE phase_runs SET control = NULL, updated_at = now() WHERE id = $1`,
+      `UPDATE log_parse_phase_run SET control = NULL, updated_at = now() WHERE id = $1`,
       [id],
     );
   }
 
   async getControl(id: string): Promise<PhaseRunControl | null> {
     const rows = (await this.dataSource.query(
-      `SELECT control FROM phase_runs WHERE id = $1`,
+      `SELECT control FROM log_parse_phase_run WHERE id = $1`,
       [id],
     )) as Array<{ control: string | null }>;
     const control = rows[0]?.control;
@@ -168,7 +168,7 @@ export class TypeOrmPhaseRunRepository implements IPhaseRunRepository {
     patch?: { stats?: PhaseRunStats; error?: string | null },
   ): Promise<void> {
     await this.dataSource.query(
-      `UPDATE phase_runs SET
+      `UPDATE log_parse_phase_run SET
          status = $2,
          stats = COALESCE($3::jsonb, stats),
          error = COALESCE($4, error),
@@ -188,9 +188,9 @@ export class TypeOrmPhaseRunRepository implements IPhaseRunRepository {
   async findRawIdsForManualRun(phaseId: string, scope?: ManualRunScope): Promise<string[]> {
     const params: unknown[] = [phaseId];
     let sql = `
-      SELECT rm.id FROM raw_messages rm
+      SELECT rm.id FROM mat_ingest_raw rm
       WHERE NOT EXISTS (
-        SELECT 1 FROM phase_coverage pc
+        SELECT 1 FROM queue_parse_coverage pc
         WHERE pc.raw_message_id = rm.id AND pc.phase_id = $1 AND pc.status = 'done'
       )`;
 

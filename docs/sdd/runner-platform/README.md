@@ -1,7 +1,7 @@
 # Runner Platform — SDD
 
 Статус: **Wave 1–6 в коде, за feature-флагами** (2026-07-02) · Wave 7 (legacy removal) заблокирован до прод-cutover
-База: [ADR-016](../../adr-016-runner-platform.md) · Индекс SDD: [../README.md](../README.md) · Runbook: [runbook.md](./runbook.md) · Release checklist: [release-checklist.md](./release-checklist.md)
+База: [ADR-016](../../adr-016-runner-platform.md) · Индекс SDD: [../README.md](../README.md) · Runbook: [runbook.md](./runbook.md) · Observability: [observability-daemon.md](./observability-daemon.md) · Release checklist: [release-checklist.md](./release-checklist.md)
 
 Cross-context SDD — применяется одинаково к `tracking`, `parse`, `geo-enrich`. Доменные детали миграции каждого — в `docs/sdd/tracking/runner-platform-migration.md` и `docs/sdd/parse/runner-platform-migration.md`.
 
@@ -71,7 +71,7 @@ jobKernel.tick()
 следующий pipeline подписан на событие через wireBusTrigger → свой TriggerLayer
 ```
 
-Никакого центрального оркестратора между доменами — только хореография сигналами (Wave 6). `raw -> parse`, `parsed_events -> tracking`, `parsed_events -> geo-enrich` — каждый переход это `wireBusTrigger(bus, eventType, { onRoute: () => nextWorkload.enqueue() })`.
+Никакого центрального оркестратора между доменами — только хореография сигналами (Wave 6). `raw -> parse`, `mat_parse_event -> tracking`, `mat_parse_event -> geo-enrich` — каждый переход это `wireBusTrigger(bus, eventType, { onRoute: () => nextWorkload.enqueue() })`.
 
 ---
 

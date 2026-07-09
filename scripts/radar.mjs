@@ -7,7 +7,8 @@
  *
  * Старые npm-скрипты остаются как алиасы; SSOT — этот диспетчер.
  */
-import { run } from './utils.mjs';
+import { loadDeploymentManifest, applyDeploymentInfraEnv } from '@radar/shared/deployment/deploymentManifest.loader.js';
+import { run, repoRoot } from './utils.mjs';
 
 const argv = process.argv.slice(2);
 
@@ -157,6 +158,7 @@ const ACTIONS = {
     'db:down': () => npm('db:down'),
     migrate: () => npm('migration:run'),
     'docker-dev': (pass) => {
+      applyDeploymentInfraEnv(loadDeploymentManifest({ repoRoot }));
       console.log('\x1b[36m=== Radar: Docker dev (profile app) ===\x1b[0m');
       console.log('Сервисы: api :3000 | web :5173 | worker-ingest/backfill/phase');
       console.log('Tiles (параллельно): npm run radar -- stack tiles:up → :8081\n');

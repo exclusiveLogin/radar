@@ -71,7 +71,7 @@ export async function snapshotPlaceCatalogAudit(
     `SELECT COUNT(*)::int AS c FROM places WHERE is_active = false`,
   )) as Array<{ c: number }>;
   const jobsRows = (await dataSource.query(
-    `SELECT COUNT(*)::int AS c FROM place_enrichment_jobs WHERE status IN ('pending', 'processing')`,
+    `SELECT COUNT(*)::int AS c FROM job_geo_place_enrich WHERE status IN ('pending', 'processing')`,
   )) as Array<{ c: number }>;
 
   return {

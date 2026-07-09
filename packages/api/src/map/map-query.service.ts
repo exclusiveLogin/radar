@@ -386,7 +386,7 @@ export class MapQueryService {
     }));
   }
 
-  /** Фид предупреждений (аккордеон): последние региональные факты из event_locations. */
+  /** Фид предупреждений (аккордеон): последние региональные факты из mat_parse_location. */
   async getWarnings(
     params: { regionId?: string; since?: string; limit: number },
   ): Promise<Warning[]> {
@@ -397,9 +397,9 @@ export class MapQueryService {
              COALESCE(sd.state_level::text, 'grey') AS state_level,
              COALESCE(el.status_code, pe.event_type) AS status_code,
              COALESCE(el.occurred_at, rm.posted_at, pe.parsed_at) AS event_at
-      FROM event_locations el
-      JOIN parsed_events pe ON pe.id = el.parsed_event_id
-      JOIN raw_messages rm ON rm.id = pe.raw_message_id
+      FROM mat_parse_location el
+      JOIN mat_parse_event pe ON pe.id = el.parsed_event_id
+      JOIN mat_ingest_raw rm ON rm.id = pe.raw_message_id
       JOIN regions r ON r.id = el.region_id
       LEFT JOIN status_dictionary sd
         ON sd.code = COALESCE(el.status_code, pe.event_type) AND sd.is_active = true
@@ -454,10 +454,10 @@ export class MapQueryService {
                 rm.posted_at,
                 c.key AS channel_key,
                 COALESCE(el.occurred_at, rm.posted_at) AS event_at
-         FROM raw_messages rm
+         FROM mat_ingest_raw rm
          INNER JOIN channels c ON c.id = rm.channel_id
-         INNER JOIN parsed_events pe ON pe.raw_message_id = rm.id AND pe.is_active = true
-         INNER JOIN event_locations el ON el.parsed_event_id = pe.id
+         INNER JOIN mat_parse_event pe ON pe.raw_message_id = rm.id AND pe.is_active = true
+         INNER JOIN mat_parse_location el ON el.parsed_event_id = pe.id
          INNER JOIN regions r ON r.id = el.region_id AND r.is_active = true
          WHERE r.iso = $1
            AND COALESCE(el.entity_kind, 'region') <> 'place'
@@ -474,7 +474,7 @@ export class MapQueryService {
                 '{}'
               ) AS region_codes
        FROM hit
-       INNER JOIN event_locations el2 ON el2.parsed_event_id = hit.parsed_id
+       INNER JOIN mat_parse_location el2 ON el2.parsed_event_id = hit.parsed_id
        INNER JOIN regions r2 ON r2.id = el2.region_id AND r2.is_active = true
        GROUP BY hit.raw_text, hit.posted_at, hit.channel_key`,
       [regionCode, statusEventAt],
@@ -501,10 +501,10 @@ export class MapQueryService {
     const rows = (await this.dataSource.query(
       `WITH hit AS (
          SELECT rm.id AS raw_id, pe.id AS parsed_id, rm.raw_text, rm.posted_at, c.key AS channel_key
-         FROM raw_messages rm
+         FROM mat_ingest_raw rm
          INNER JOIN channels c ON c.id = rm.channel_id
-         INNER JOIN parsed_events pe ON pe.raw_message_id = rm.id AND pe.is_active = true
-         INNER JOIN event_locations el ON el.parsed_event_id = pe.id
+         INNER JOIN mat_parse_event pe ON pe.raw_message_id = rm.id AND pe.is_active = true
+         INNER JOIN mat_parse_location el ON el.parsed_event_id = pe.id
          WHERE el.place_id = $1
          ORDER BY rm.posted_at DESC
          LIMIT 1
@@ -517,7 +517,7 @@ export class MapQueryService {
                 '{}'
               ) AS region_codes
        FROM hit
-       INNER JOIN event_locations el2 ON el2.parsed_event_id = hit.parsed_id
+       INNER JOIN mat_parse_location el2 ON el2.parsed_event_id = hit.parsed_id
        INNER JOIN regions r2 ON r2.id = el2.region_id AND r2.is_active = true
        GROUP BY hit.raw_text, hit.posted_at, hit.channel_key`,
       [placeId],
@@ -560,7 +560,7 @@ export class MapQueryService {
   }
 
   /**
-   * Лента изменений: только parsed_event с event_locations (ISO на карте).
+   * Лента изменений: только parsed_event с mat_parse_location (ISO на карте).
    * Одна строка = одно событие из одного raw, без дублей без региона.
    */
   async getRecentStateChangeEvents(
@@ -584,10 +584,10 @@ export class MapQueryService {
                 FILTER (WHERE r.iso IS NOT NULL) AS region_codes,
               array_agg(DISTINCT r.name ORDER BY r.name)
                 FILTER (WHERE r.name IS NOT NULL) AS region_names
-       FROM parsed_events pe
-       INNER JOIN raw_messages rm ON rm.id = pe.raw_message_id
+       FROM mat_parse_event pe
+       INNER JOIN mat_ingest_raw rm ON rm.id = pe.raw_message_id
        INNER JOIN channels c ON c.id = rm.channel_id
-       INNER JOIN event_locations el ON el.parsed_event_id = pe.id
+       INNER JOIN mat_parse_location el ON el.parsed_event_id = pe.id
        INNER JOIN regions r ON r.id = el.region_id AND r.is_active = true
        LEFT JOIN status_dictionary sd
          ON sd.code = pe.event_type AND sd.is_active = true
@@ -635,7 +635,7 @@ export class MapQueryService {
     }));
   }
 
-  /** Последние raw_messages всех каналов — 1 строка на raw, без фильтра по parse/loc. */
+  /** Последние mat_ingest_raw всех каналов — 1 строка на raw, без фильтра по parse/loc. */
   async getRecentMessages(limit: number): Promise<MessageFeedItem[]> {
     const rows = (await this.dataSource.query(
       `SELECT rm.id,
@@ -654,7 +654,7 @@ export class MapQueryService {
               stats.mass,
               stats.state_level,
               COALESCE(stats.region_codes, '{}') AS region_codes
-       FROM raw_messages rm
+       FROM mat_ingest_raw rm
        INNER JOIN channels c ON c.id = rm.channel_id
        LEFT JOIN LATERAL (
          SELECT COUNT(DISTINCT pe.id)::int AS parsed_event_count,
@@ -667,9 +667,9 @@ export class MapQueryService {
                 bool_or(COALESCE((pe.extras->>'mass')::boolean, false)) AS mass,
                 (array_agg(sd.state_level ORDER BY pe.parsed_at DESC))[1] AS state_level,
                 array_agg(DISTINCT r.iso) FILTER (WHERE r.iso IS NOT NULL) AS region_codes
-         FROM parsed_events pe
+         FROM mat_parse_event pe
          LEFT JOIN status_dictionary sd ON sd.code = pe.event_type AND sd.is_active = true
-         LEFT JOIN event_locations el ON el.parsed_event_id = pe.id
+         LEFT JOIN mat_parse_location el ON el.parsed_event_id = pe.id
          LEFT JOIN regions r ON r.id = el.region_id
          WHERE pe.raw_message_id = rm.id AND pe.is_active = true
        ) stats ON true
@@ -750,8 +750,8 @@ export class MapQueryService {
               rm.posted_at,
               ch.key                  AS channel_key,
               ch.title                AS channel_title
-         FROM parsed_events pe
-         JOIN raw_messages rm ON rm.id = pe.raw_message_id
+         FROM mat_parse_event pe
+         JOIN mat_ingest_raw rm ON rm.id = pe.raw_message_id
          JOIN channels ch ON ch.id = rm.channel_id
         WHERE pe.event_type = 'pvo_report'
           ${sinceClause}
@@ -784,10 +784,10 @@ export class MapQueryService {
       `SELECT r.iso        AS region_code,
               r.name,
               COUNT(DISTINCT pe.id) AS event_count
-       FROM parsed_events pe
-       JOIN event_locations el ON el.parsed_event_id = pe.id
+       FROM mat_parse_event pe
+       JOIN mat_parse_location el ON el.parsed_event_id = pe.id
        JOIN regions r           ON r.id = el.region_id AND r.is_active = true
-       JOIN raw_messages rm     ON rm.id = pe.raw_message_id
+       JOIN mat_ingest_raw rm     ON rm.id = pe.raw_message_id
        JOIN status_dictionary sd ON sd.code = pe.event_type AND sd.is_active = true
        WHERE pe.is_active = true
          AND sd.state_level = 'red'
@@ -806,7 +806,7 @@ export class MapQueryService {
   }
 
   /**
-   * История событий для конкретного региона: last N parsed_events, влияющих на карту.
+   * История событий для конкретного региона: last N mat_parse_event, влияющих на карту.
    * Используется в RegionDetailWidget для отображения хронологии.
    */
   async getRegionEvents(regionCode: string, limit = 50): Promise<StateChangeEventItem[]> {
@@ -828,10 +828,10 @@ export class MapQueryService {
                 FILTER (WHERE r.iso IS NOT NULL) AS region_codes,
               array_agg(DISTINCT r.name ORDER BY r.name)
                 FILTER (WHERE r.name IS NOT NULL) AS region_names
-       FROM parsed_events pe
-       INNER JOIN raw_messages rm ON rm.id = pe.raw_message_id
+       FROM mat_parse_event pe
+       INNER JOIN mat_ingest_raw rm ON rm.id = pe.raw_message_id
        INNER JOIN channels c ON c.id = rm.channel_id
-       INNER JOIN event_locations el ON el.parsed_event_id = pe.id
+       INNER JOIN mat_parse_location el ON el.parsed_event_id = pe.id
        INNER JOIN regions r ON r.id = el.region_id AND r.iso = $2
        INNER JOIN status_dictionary sd
          ON sd.code = pe.event_type AND sd.is_active = true
@@ -903,9 +903,9 @@ export class MapQueryService {
               COALESCE(el.lat, p.centroid_lat, gf.centroid_lat, r.centroid_lat)::float AS lat,
               sd.state_level,
               COALESCE(el.occurred_at, rm.posted_at) AS occurred_at
-       FROM event_locations el
-       JOIN parsed_events pe ON pe.id = el.parsed_event_id AND pe.is_active = true
-       JOIN raw_messages rm ON rm.id = pe.raw_message_id
+       FROM mat_parse_location el
+       JOIN mat_parse_event pe ON pe.id = el.parsed_event_id AND pe.is_active = true
+       JOIN mat_ingest_raw rm ON rm.id = pe.raw_message_id
        LEFT JOIN places p ON p.id = el.place_id AND p.is_active = true
        LEFT JOIN LATERAL (
          SELECT l.geo_feature_id

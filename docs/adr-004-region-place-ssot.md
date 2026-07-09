@@ -12,7 +12,7 @@
 - Уникальный индекс: один активный `place(kind=region)` на `region_id` (`uq_places_region_kind_region_active`).
 - `place_aliases` — только `place_id` (constraint `chk_place_alias_place_only`).
 - Ingest: `GeoValidationService.resolveRegionByAlias` → `place(kind=region)` → `regions`.
-- geoParse: `place_enrichment_jobs` — по каталогу `places` без провайдера в `evidence_providers` (не из parse); `kind=region` пропускается.
+- geoParse: `job_geo_place_enrich` — по каталогу `places` без провайдера в `evidence_providers` (не из parse); `kind=region` пропускается.
 - `geo:db:apply` вызывает `syncRegionCanonicalPlaces` после upsert regions.
 
 ## Операции
@@ -36,4 +36,4 @@ npm run parse-engine:drain               # опционально
 ## Вне scope
 
 - Удаление таблицы `regions`.
-- `event_locations.region_id` остаётся `regions.id`.
+- `mat_parse_location.region_id` остаётся `regions.id`.

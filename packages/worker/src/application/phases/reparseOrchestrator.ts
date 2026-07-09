@@ -54,7 +54,7 @@ export async function runFullReparseLikeIngest(input: FullReparseInput): Promise
 
   const postedOrder = resolveRawMessagePostedAtOrder();
   const rows = (await input.dataSource.query(
-    `SELECT id FROM raw_messages ORDER BY posted_at ${postedOrder}`,
+    `SELECT id FROM mat_ingest_raw ORDER BY posted_at ${postedOrder}`,
   )) as Array<{ id: string }>;
 
   let index = 0;

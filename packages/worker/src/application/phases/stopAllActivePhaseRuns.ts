@@ -15,9 +15,9 @@ async function listActiveRuns(repos: WorkerDbRepositories): Promise<PhaseRun[]> 
 
 export type StopAllActivePhaseRunsResult = {
   phaseRunsClosed: number;
-  /** Удалено строк phase_coverage (pending + processing), ingest. */
+  /** Удалено строк queue_parse_coverage (pending + processing), ingest. */
   queueCleared: number;
-  /** Удалено строк place_enrichment_jobs (pending + processing), geo. */
+  /** Удалено строк job_geo_place_enrich (pending + processing), geo. */
   geoJobsCleared: number;
   /** @deprecated оставлено для совместимости API; всегда 0 (очередь удаляется, не pending). */
   processingReleased: number;
@@ -33,7 +33,7 @@ export async function stopAllActivePhaseRuns(input: {
   reason?: string;
   /** Ограничить очистку ingest-очереди; по умолчанию — все ingestParse фазы. */
   ingestPhaseIds?: string[];
-  /** false — не трогать place_enrichment_jobs (узкий сброс только ingest). */
+  /** false — не трогать job_geo_place_enrich (узкий сброс только ingest). */
   clearGeoJobs?: boolean;
 }): Promise<StopAllActivePhaseRunsResult> {
   const reason = input.reason ?? STOP_ALL_PHASE_RUNS_REASON;
@@ -55,7 +55,7 @@ export async function stopAllActivePhaseRuns(input: {
       : await input.repos.placeEnrichmentJobs.clearQueuedWork();
 
   const closedRows = (await input.dataSource.query(
-    `UPDATE phase_runs SET
+    `UPDATE log_parse_phase_run SET
        status = 'canceled',
        control = 'cancel',
        finished_at = now(),

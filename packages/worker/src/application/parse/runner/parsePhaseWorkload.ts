@@ -4,8 +4,8 @@
  * domain: parse/runner
  * purpose: Wave 4 (tracking-parse-architecture-refactor) — ОДНА scheduled ingestParse-фаза как
  *          workload на runner platform. Алгоритм не переписан: `PhaseRunner.runDrain` (claim из
- *          phase_coverage → handler → markDone/markFailed) — та же функция, что использует legacy
- *          `IngestParseDaemonService`. Явно НЕ трогаем в этой волне: сам `phase_coverage` как
+ *          queue_parse_coverage → handler → markDone/markFailed) — та же функция, что использует legacy
+ *          `IngestParseDaemonService`. Явно НЕ трогаем в этой волне: сам `queue_parse_coverage` как
  *          message-copy queue остаётся (см. план, "убрать message-copy queue" — отдельная,
  *          более глубокая задача, требует согласования из-за audit/UI зависимостей).
  *          Здесь меняется только runtime-оболочка: `trigger -> ingest(loadSlice) -> run(evaluate)
@@ -20,6 +20,7 @@ import type {
 } from "@radar/shared";
 import { createWorkbook } from "@radar/shared";
 import type { PhaseRunner } from "../../phases/phaseRunner.js";
+import type { JobKernelObsConfig } from "../../runtime/runner-platform/jobKernel.js";
 import { createWorkload, type Workload } from "../../runtime/workload/createWorkload.js";
 import { createTelemetryBus, type TelemetryBus } from "../../runtime/runner-platform/telemetryBus.js";
 
@@ -43,6 +44,7 @@ export type ParsePhaseWorkloadDeps = {
 export function createParsePhaseWorkload(
   deps: ParsePhaseWorkloadDeps,
   phase: PhaseDefinitionRecord,
+  obs?: JobKernelObsConfig,
 ): Workload & { telemetry: TelemetryBus<ParsePhaseArtifact> } {
   const telemetry = createTelemetryBus<ParsePhaseArtifact>();
 
@@ -96,7 +98,7 @@ export function createParsePhaseWorkload(
 
           return { slice: { phase }, isEmpty: false };
         },
-        // `runDrain` уже сохраняет весь прогресс сам (phase_runs.stats/log/status) — здесь
+        // `runDrain` уже сохраняет весь прогресс сам (log_parse_phase_run.stats/log/status) — здесь
         // materialize не нужен, тик полностью самодостаточен.
         materialize: async () => {},
         emitProgress: (envelope) =>
@@ -105,6 +107,7 @@ export function createParsePhaseWorkload(
       onUnhandledError: (error) => {
         console.error(`[${PARSE_PIPELINE_KEY}.${phase.id}] tick failed:`, error);
       },
+      obs,
     }),
     telemetry,
   };

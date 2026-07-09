@@ -50,7 +50,7 @@ flowchart TB
   WP --> DB
   API --> DB
   TG --> WI
-  WI -->|domain_events outbox| DB
+  WI -->|event_outbox outbox| DB
   WP -->|OutboxRelay| DB
   Browser -->|styles| TS
 ```
@@ -64,8 +64,47 @@ flowchart TB
 | `worker-backfill` | `app` | — | backfill daemon |
 | `worker-phase` | `app` | — | parse/geo + OutboxRelay |
 | `tiles` | `tiles` | 8081 | TileServer GL |
+| `observability` | `obs` | 3020 | Obs sidecar (push ingest + snapshot read) |
 
 Файлы: `docker-compose.yml`, `docker-compose.app.yml`, `docker-compose.tiles.yml`.
+
+---
+
+## Observability sidecar (`DOCKERIZE_OBS`, `DOCKERIZE_ALL`)
+
+Флаги поднимают obs-service (profile `obs`) и переключают worker write-path на `service`.
+
+| Env | Эффект |
+|-----|--------|
+| `DOCKERIZE_OBS=1` | `docker compose --profile obs up -d` + `RADAR_OBS_MODE=service` |
+| `DOCKERIZE_ALL=1` | То же + все infra-профили из deployment manifest |
+| `DEPLOY_OBS_DOCKERIZE=1` | Overlay → `DOCKERIZE_OBS` (если не задан явно) |
+
+```powershell
+# .env
+DOCKERIZE_OBS=1
+RADAR_OBS_SERVICE_URL=http://observability:3020
+RADAR_OBS_READ_MODE=embedded
+
+npm run radar -- stack docker-dev
+# или host dev:
+npm run radar -- stack dev --full
+```
+
+`dev-stack.mjs` / `cold-up.mjs` вызывают `applyDeploymentInfraEnv()` — флаги можно задать в `deployment.manifest.json`:
+
+```json
+"infra": { "obs": { "dockerize": true, "mode": "service" } }
+```
+
+Проверка:
+
+```powershell
+curl http://127.0.0.1:3020/health
+curl http://127.0.0.1:3020/obs/v1/runtime/snapshot
+```
+
+Подробнее: [runbook/observability.md](./runbook/observability.md).
 
 ---
 

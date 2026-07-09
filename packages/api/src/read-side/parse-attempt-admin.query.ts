@@ -22,7 +22,7 @@ function resolveOutcomeLabel(row: ParseAttemptSqlRow): string | null {
   return typeof reason === "string" ? reason : null;
 }
 
-/** Строка parse_attempts + превью raw и тип события для админ-лога. */
+/** Строка log_parse_attempt + превью raw и тип события для админ-лога. */
 export function mapParseAttemptAdminRow(row: ParseAttemptSqlRow): ParseAttemptItem {
   return parseAttemptItemSchema.parse({
     id: row.id,
@@ -50,11 +50,11 @@ const SELECT_PARSE_ATTEMPT_ADMIN = `
     left(rm.raw_text, ${MESSAGE_PREVIEW_LEN}) AS message_preview,
     rm.external_message_id,
     pe.event_type
-  FROM parse_attempts pa
-  LEFT JOIN raw_messages rm ON rm.id = pa.raw_message_id
+  FROM log_parse_attempt pa
+  LEFT JOIN mat_ingest_raw rm ON rm.id = pa.raw_message_id
   LEFT JOIN LATERAL (
     SELECT event_type
-    FROM parsed_events
+    FROM mat_parse_event
     WHERE raw_message_id = pa.raw_message_id
     ORDER BY parsed_at DESC NULLS LAST
     LIMIT 1

@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Холодный старт: Docker (Postgres + Adminer + pgAdmin), npm install, сборка @radar/shared, миграции.
 // npm run cold:up  |  npm run cold:up -- -Geo -Dev -Llm -LlmUi  |  двойной дефис: -- --geo --dev --llm --llm-ui
+import { loadDeploymentManifest, applyDeploymentInfraEnv } from '@radar/shared/deployment/deploymentManifest.loader.js';
 import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
@@ -140,6 +141,13 @@ async function main() {
   if (llmUi) {
     console.log('\n\x1b[32m[llm-ui] docker compose --profile llm-ui up -d\x1b[0m');
     run('docker', ['compose', '--profile', 'llm-ui', 'up', '-d']);
+  }
+
+  applyDeploymentInfraEnv(loadDeploymentManifest({ repoRoot }));
+
+  if (envTruthy('DOCKERIZE_OBS') || envTruthy('DOCKERIZE_ALL')) {
+    console.log('\n\x1b[32m[obs] docker compose --profile obs up -d\x1b[0m');
+    run('docker', ['compose', '--profile', 'obs', 'up', '-d']);
   }
 
   if (geo) {

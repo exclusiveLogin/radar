@@ -1,11 +1,11 @@
 /**
- * Poll domain_events → InProcessEventBus. Атомарный claim в транзакции (FOR UPDATE SKIP LOCKED).
+ * Poll event_outbox → InProcessEventBus. Атомарный claim в транзакции (FOR UPDATE SKIP LOCKED).
  * @see ../../../../../docs/domain/domain-events-and-outbox.md
  */
 import type { DomainEvent, IEventPublisher } from "@radar/shared";
 import type { DataSource, EntityManager } from "typeorm";
 
-/** Строка claim из domain_events (FOR UPDATE SKIP LOCKED). */
+/** Строка claim из event_outbox (FOR UPDATE SKIP LOCKED). */
 type DomainEventRow = {
   id: string;
   type: string;
@@ -19,7 +19,7 @@ type DomainEventRow = {
 
 const CLAIM_UNPUBLISHED_SQL = `
   SELECT id, type, version, aggregate_type, aggregate_id, payload, occurred_at, trace_id
-  FROM domain_events
+  FROM event_outbox
   WHERE published_at IS NULL
   ORDER BY occurred_at ASC
   LIMIT 100
@@ -78,7 +78,7 @@ export class OutboxRelay {
 
         const now = new Date();
         await manager.query(
-          `UPDATE domain_events SET published_at = $1 WHERE id = ANY($2::uuid[])`,
+          `UPDATE event_outbox SET published_at = $1 WHERE id = ANY($2::uuid[])`,
           [now, rows.map((row) => row.id)],
         );
       });

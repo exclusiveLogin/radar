@@ -1,4 +1,5 @@
 /**
+ * @see ../../../../../docs/database-table-naming.md
  * Операционный реестр фаз (ADR-003 v2). Манифест → import; админка — enabled/policy.
  */
 import { Column, Entity, PrimaryColumn } from "typeorm";

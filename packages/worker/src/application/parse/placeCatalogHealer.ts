@@ -104,7 +104,7 @@ export async function deprecateCatalogPlace(
     [placeId],
   );
   await dataSource.query(
-    `DELETE FROM place_enrichment_jobs WHERE place_id = $1`,
+    `DELETE FROM job_geo_place_enrich WHERE place_id = $1`,
     [placeId],
   );
 }

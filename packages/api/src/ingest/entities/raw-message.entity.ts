@@ -3,13 +3,13 @@
  * Повторная доставка не перезаписывает строку: только duplicate-событие; id строки = `aggregateId` потока `raw_message`.
  * Доменный контракт use case: `RawMessage` в @radar/shared (не путать с content hash).
  * @see ../../../../../docs/domain/persistence-map.md#RawMessageEntity
- * @see ../../../../../docs/domain/how-it-works.md#ingest-flow
+ * @see ../../../../../docs/database-table-naming.md`n * @see ../../../../../docs/domain/how-it-works.md#ingest-flow
  * @see ../../../../../docs/domain/aggregates.md
  */
 import { Column, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from "typeorm";
 import { ChannelEntity } from "./channel.entity";
 
-@Entity({ name: "raw_messages" })
+@Entity({ name: "mat_ingest_raw" })
 export class RawMessageEntity {
   @PrimaryGeneratedColumn("uuid")
   id!: string;

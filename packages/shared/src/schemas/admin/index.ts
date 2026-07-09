@@ -45,6 +45,7 @@ export {
   runHistoryEntrySchema,
   workbookObservabilityResponseSchema,
 } from "./workbook";
+export { runnerDiscoveryResponseSchema } from "./runner-discovery";
 
 // --- type-only exports ---
 export type {
@@ -92,3 +93,4 @@ export type {
   RunHistoryEntry,
   WorkbookObservabilityResponse,
 } from "./workbook";
+export type { RunnerDiscoveryResponse } from "./runner-discovery";

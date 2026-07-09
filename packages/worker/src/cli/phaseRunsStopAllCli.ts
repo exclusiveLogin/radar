@@ -5,7 +5,7 @@ import { loadRootEnv } from "../infrastructure/config/loadRootEnv.js";
 import { WorkerStorageMode } from "../infrastructure/persistence/storageMode.js";
 
 /**
- * CLI: cancel runs + очистка ingest (phase_coverage) и geo (place_enrichment_jobs).
+ * CLI: cancel runs + очистка ingest (queue_parse_coverage) и geo (job_geo_place_enrich).
  */
 async function main(): Promise<void> {
   loadRootEnv(MONOREPO_ROOT);

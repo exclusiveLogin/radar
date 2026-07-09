@@ -14,7 +14,7 @@ export class ParseAttemptLogger {
     ) {
       return;
     }
-    // stdout занят cli-progress; подробности — в parse_attempts (БД) или RADAR_VERBOSE_PARSE_LOG=1
+    // stdout занят cli-progress; подробности — в log_parse_attempt (БД) или RADAR_VERBOSE_PARSE_LOG=1
     if (isCliProgressActive() && !isVerboseParseLog()) return;
 
     console.error(

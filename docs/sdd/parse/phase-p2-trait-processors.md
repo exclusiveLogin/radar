@@ -14,7 +14,7 @@ RFC: [parse-processor-workspace.md](../../rfc/parse-processor-workspace.md)
 - `AttachRule` DSL (4–5 scopes)
 - `TraitAttachment` schema
 - Processors: **RepeatProcessor**, **MassProcessor**, **CountProcessor**
-- Finalizer merge traits → `parsed_events.extras`
+- Finalizer merge traits → `mat_parse_event.extras`
 - Conflict resolution: priority by `processorId`
 
 ### Out of scope

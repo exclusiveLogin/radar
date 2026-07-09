@@ -28,9 +28,9 @@
 ## Целевой поток
 
 ```text
-raw → grooming → processors → ParseWorkspace → finalize → parsed_events
+raw → grooming → processors → ParseWorkspace → finalize → mat_parse_event
                       ↑              ↑
-                 ODP parser-rules   message_parse_workspace (P1)
+                 ODP parser-rules   work_parse_message (P1)
 ```
 
 ---

@@ -142,7 +142,7 @@ export class IngestAdminService {
   }
 
   /**
-   * Ручной ingest атаки: канал + manual-admin, upsert raw_messages, событие в outbox.
+   * Ручной ingest атаки: канал + manual-admin, upsert mat_ingest_raw, событие в outbox.
    */
   async manualIngest(body: unknown) {
     const input = manualIngestRequestSchema.parse(body) satisfies ManualIngestRequest;
@@ -269,7 +269,7 @@ export class IngestAdminService {
          COUNT(*) FILTER (WHERE rm.ingest_mode = 'backfill') AS backfill,
          COUNT(*) FILTER (WHERE rm.ingest_mode = 'manual') AS manual,
          MAX(rm.posted_at) AS last_posted_at
-       FROM raw_messages rm
+       FROM mat_ingest_raw rm
        JOIN channels c ON c.id = rm.channel_id
        WHERE c.key = $1`,
       [channelKey],
@@ -282,8 +282,8 @@ export class IngestAdminService {
          COUNT(*) FILTER (WHERE pa.status = 'ok') AS parsed_ok,
          COUNT(*) FILTER (WHERE pa.status = 'failed') AS parse_failed,
          COUNT(*) FILTER (WHERE pa.status = 'skipped') AS parse_skipped
-       FROM parse_attempts pa
-       JOIN raw_messages rm ON rm.id = pa.raw_message_id
+       FROM log_parse_attempt pa
+       JOIN mat_ingest_raw rm ON rm.id = pa.raw_message_id
        JOIN channels c ON c.id = rm.channel_id
        WHERE c.key = $1`,
       [channelKey],

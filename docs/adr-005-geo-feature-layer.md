@@ -147,4 +147,4 @@ matchPlace("Авиастроительный район", region_id=RU-TA)
 
 - `KnownLocalityCatalog` (`places.json`) оставлен как fallback для НТ-городов до верификации OSM Cities/ покрытия.
 - `city_place_id` FK для sub-scoping района внутри города — v2.
-- Поля `event_locations.(region_id, lat, lon, precision)` — запланированы к удалению в следующей миграции после стабилизации read-model.
+- Поля `mat_parse_location.(region_id, lat, lon, precision)` — запланированы к удалению в следующей миграции после стабилизации read-model.

@@ -1,288 +1,289 @@
-# ADR-012: Geo-scan по каталогу БД без place_aliases
+﻿> **Имена таблиц:** актуальные — [database-table-naming.md](./database-table-naming.md). Ниже — исторический контекст.`n`n# ADR-012: Geo-scan РїРѕ РєР°С‚Р°Р»РѕРіСѓ Р‘Р” Р±РµР· place_aliases
 
-Дата: 2026-06-11  
-Статус: **Accepted** · **Implemented (P6, 2026-06-19)**  
-Связано: [ADR-004](./adr-004-region-place-ssot.md), [RFC parse-processor-workspace](./rfc/parse-processor-workspace.md), [geo-clean-rebuild](./runbook/geo-clean-rebuild.md)
+Р”Р°С‚Р°: 2026-06-11  
+РЎС‚Р°С‚СѓСЃ: **Accepted** В· **Implemented (P6, 2026-06-19)**  
+РЎРІСЏР·Р°РЅРѕ: [ADR-004](./adr-004-region-place-ssot.md), [RFC parse-processor-workspace](./rfc/parse-processor-workspace.md), [geo-clean-rebuild](./runbook/geo-clean-rebuild.md)
 
-## Контекст
+## РљРѕРЅС‚РµРєСЃС‚
 
-Текущий parse-geo смешивает три несовместимых пути:
+РўРµРєСѓС‰РёР№ parse-geo СЃРјРµС€РёРІР°РµС‚ С‚СЂРё РЅРµСЃРѕРІРјРµСЃС‚РёРјС‹С… РїСѓС‚Рё:
 
-1. **Построчный fallback** (`extractFallbackCities` + `shouldSkipLine`) — отбрасывает строку целиком при токенах «сбит», «пво», «область» и т.д., хотя топоним в начале валиден.
-2. **Узкие artifacts** (`places.json`, OSM Cities) — не покрывают ~128k НП; SSOT уже в БД из `03_all_cities.xlsx`.
-3. **`place_aliases`** — накопление мусора при parse (`registerPlaceAlias`), ложные матчи, дублирование stem-логики.
+1. **РџРѕСЃС‚СЂРѕС‡РЅС‹Р№ fallback** (`extractFallbackCities` + `shouldSkipLine`) вЂ” РѕС‚Р±СЂР°СЃС‹РІР°РµС‚ СЃС‚СЂРѕРєСѓ С†РµР»РёРєРѕРј РїСЂРё С‚РѕРєРµРЅР°С… В«СЃР±РёС‚В», В«РїРІРѕВ», В«РѕР±Р»Р°СЃС‚СЊВ» Рё С‚.Рґ., С…РѕС‚СЏ С‚РѕРїРѕРЅРёРј РІ РЅР°С‡Р°Р»Рµ РІР°Р»РёРґРµРЅ.
+2. **РЈР·РєРёРµ artifacts** (`places.json`, OSM Cities) вЂ” РЅРµ РїРѕРєСЂС‹РІР°СЋС‚ ~128k РќРџ; SSOT СѓР¶Рµ РІ Р‘Р” РёР· `03_all_cities.xlsx`.
+3. **`place_aliases`** вЂ” РЅР°РєРѕРїР»РµРЅРёРµ РјСѓСЃРѕСЂР° РїСЂРё parse (`registerPlaceAlias`), Р»РѕР¶РЅС‹Рµ РјР°С‚С‡Рё, РґСѓР±Р»РёСЂРѕРІР°РЅРёРµ stem-Р»РѕРіРёРєРё.
 
-Кейс **Таганрог**: город есть в БД (`kind=city`, stem `таганрог`), но catalog-step не находит его в one-liner из-за line-skip; при multiline с «и близлежащие» spawn идёт с сырой подписью канала вместо canonical place.
+РљРµР№СЃ **РўР°РіР°РЅСЂРѕРі**: РіРѕСЂРѕРґ РµСЃС‚СЊ РІ Р‘Р” (`kind=city`, stem `С‚Р°РіР°РЅСЂРѕРі`), РЅРѕ catalog-step РЅРµ РЅР°С…РѕРґРёС‚ РµРіРѕ РІ one-liner РёР·-Р·Р° line-skip; РїСЂРё multiline СЃ В«Рё Р±Р»РёР·Р»РµР¶Р°С‰РёРµВ» spawn РёРґС‘С‚ СЃ СЃС‹СЂРѕР№ РїРѕРґРїРёСЃСЊСЋ РєР°РЅР°Р»Р° РІРјРµСЃС‚Рѕ canonical place.
 
-## Решение
+## Р РµС€РµРЅРёРµ
 
-### 1. SSOT каталога для scan
+### 1. SSOT РєР°С‚Р°Р»РѕРіР° РґР»СЏ scan
 
-| Источник | Роль в parse |
+| РСЃС‚РѕС‡РЅРёРє | Р РѕР»СЊ РІ parse |
 |----------|----------------|
-| **DB `places`** из `03_all_cities.xlsx` (tabular import) | **Primary** — full-text geo scan, stem resolve |
-| **DB `places(kind=region)`** + `regions` | Субъекты РФ |
-| **`places.json`** (frontline, шаг 2/4 import) | **Не** primary для обнаружения; hot-set / override координат и приоритетов на фронте, не полнота справочника |
-| **OSM / artifacts** | Геометрия (`geo_feature`), не источник имён для spawn |
+| **DB `places`** РёР· `03_all_cities.xlsx` (tabular import) | **Primary** вЂ” full-text geo scan, stem resolve |
+| **DB `places(kind=region)`** + `regions` | РЎСѓР±СЉРµРєС‚С‹ Р Р¤ |
+| **`places.json`** (frontline, С€Р°Рі 2/4 import) | **РќРµ** primary РґР»СЏ РѕР±РЅР°СЂСѓР¶РµРЅРёСЏ; hot-set / override РєРѕРѕСЂРґРёРЅР°С‚ Рё РїСЂРёРѕСЂРёС‚РµС‚РѕРІ РЅР° С„СЂРѕРЅС‚Рµ, РЅРµ РїРѕР»РЅРѕС‚Р° СЃРїСЂР°РІРѕС‡РЅРёРєР° |
+| **OSM / artifacts** | Р“РµРѕРјРµС‚СЂРёСЏ (`geo_feature`), РЅРµ РёСЃС‚РѕС‡РЅРёРє РёРјС‘РЅ РґР»СЏ spawn |
 
-Parse **не обязан** иметь НП в `places.json`, чтобы распознать его в тексте.
+Parse **РЅРµ РѕР±СЏР·Р°РЅ** РёРјРµС‚СЊ РќРџ РІ `places.json`, С‡С‚РѕР±С‹ СЂР°СЃРїРѕР·РЅР°С‚СЊ РµРіРѕ РІ С‚РµРєСЃС‚Рµ.
 
-### 2. GeoProcessor (spawning) — full-text capture + DB resolve
+### 2. GeoProcessor (spawning) вЂ” full-text capture + DB resolve
 
-**Вход:** `groomedText` (после grooming; promo/footer уже вырезаны).
+**Р’С…РѕРґ:** `groomedText` (РїРѕСЃР»Рµ grooming; promo/footer СѓР¶Рµ РІС‹СЂРµР·Р°РЅС‹).
 
-**Алгоритм (контракт v1):**
+**РђР»РіРѕСЂРёС‚Рј (РєРѕРЅС‚СЂР°РєС‚ v1):**
 
-1. Токенизация `groomedText` с границами слов (как `toTokenHaystack` / longest-match).
-2. Поиск **вхождений имён/stem из DB `places`** в тексте — **целиком**, не по части слова.
-3. Для каждого hit: `resolvePlace(stem, regionScope, kindFloor)` → canonical `placeId`, `name`, `regionCode`.
-4. Spawn `EventCandidate` с **canonical** anchor, не сырой подписью канала.
+1. РўРѕРєРµРЅРёР·Р°С†РёСЏ `groomedText` СЃ РіСЂР°РЅРёС†Р°РјРё СЃР»РѕРІ (РєР°Рє `toTokenHaystack` / longest-match).
+2. РџРѕРёСЃРє **РІС…РѕР¶РґРµРЅРёР№ РёРјС‘РЅ/stem РёР· DB `places`** РІ С‚РµРєСЃС‚Рµ вЂ” **С†РµР»РёРєРѕРј**, РЅРµ РїРѕ С‡Р°СЃС‚Рё СЃР»РѕРІР°.
+3. Р”Р»СЏ РєР°Р¶РґРѕРіРѕ hit: `resolvePlace(stem, regionScope, kindFloor)` в†’ canonical `placeId`, `name`, `regionCode`.
+4. Spawn `EventCandidate` СЃ **canonical** anchor, РЅРµ СЃС‹СЂРѕР№ РїРѕРґРїРёСЃСЊСЋ РєР°РЅР°Р»Р°.
 
-**Разрешение омонимов (много одинаковых stem в `03_all_cities`):**
+**Р Р°Р·СЂРµС€РµРЅРёРµ РѕРјРѕРЅРёРјРѕРІ (РјРЅРѕРіРѕ РѕРґРёРЅР°РєРѕРІС‹С… stem РІ `03_all_cities`):**
 
-| Условие | Правило |
+| РЈСЃР»РѕРІРёРµ | РџСЂР°РІРёР»Рѕ |
 |---------|---------|
-| В workspace уже есть **region-candidate из текста** | `regionScope` = его `regionCode`; stem ищем **только в этом субъекте** |
-| Region в тексте **нет** | `regionScope = null`; матч **только `kind=city`** (не ниже города: без `locality`, `settlement`, мелких НП) |
-| Несколько hits после фильтра | **берём первый** по стабильной сортировке: `regionCode` ↑, `placeId` ↑ (см. §2.1); **новый place не создаём**, если в БД уже есть match |
-| Match слабый (без scope, N>1 city) | spawn place + флаг **`geoImprecise: true`** (см. §2.2) — для LLM-enrich и подсказок на карте, **не** блокер spawn |
-| **0 hits** (токен не в каталоге / опечатка) | place-anchor **не** spawn; region из текста — если есть; place может появиться на **enrich-фазе** (dadata/LLM) → re-finalize |
+| Р’ workspace СѓР¶Рµ РµСЃС‚СЊ **region-candidate РёР· С‚РµРєСЃС‚Р°** | `regionScope` = РµРіРѕ `regionCode`; stem РёС‰РµРј **С‚РѕР»СЊРєРѕ РІ СЌС‚РѕРј СЃСѓР±СЉРµРєС‚Рµ** |
+| Region РІ С‚РµРєСЃС‚Рµ **РЅРµС‚** | `regionScope = null`; РјР°С‚С‡ **С‚РѕР»СЊРєРѕ `kind=city`** (РЅРµ РЅРёР¶Рµ РіРѕСЂРѕРґР°: Р±РµР· `locality`, `settlement`, РјРµР»РєРёС… РќРџ) |
+| РќРµСЃРєРѕР»СЊРєРѕ hits РїРѕСЃР»Рµ С„РёР»СЊС‚СЂР° | **Р±РµСЂС‘Рј РїРµСЂРІС‹Р№** РїРѕ СЃС‚Р°Р±РёР»СЊРЅРѕР№ СЃРѕСЂС‚РёСЂРѕРІРєРµ: `regionCode` в†‘, `placeId` в†‘ (СЃРј. В§2.1); **РЅРѕРІС‹Р№ place РЅРµ СЃРѕР·РґР°С‘Рј**, РµСЃР»Рё РІ Р‘Р” СѓР¶Рµ РµСЃС‚СЊ match |
+| Match СЃР»Р°Р±С‹Р№ (Р±РµР· scope, N>1 city) | spawn place + С„Р»Р°Рі **`geoImprecise: true`** (СЃРј. В§2.2) вЂ” РґР»СЏ LLM-enrich Рё РїРѕРґСЃРєР°Р·РѕРє РЅР° РєР°СЂС‚Рµ, **РЅРµ** Р±Р»РѕРєРµСЂ spawn |
+| **0 hits** (С‚РѕРєРµРЅ РЅРµ РІ РєР°С‚Р°Р»РѕРіРµ / РѕРїРµС‡Р°С‚РєР°) | place-anchor **РЅРµ** spawn; region РёР· С‚РµРєСЃС‚Р° вЂ” РµСЃР»Рё РµСЃС‚СЊ; place РјРѕР¶РµС‚ РїРѕСЏРІРёС‚СЊСЃСЏ РЅР° **enrich-С„Р°Р·Рµ** (dadata/LLM) в†’ re-finalize |
 
-`regionScope` — не отдельная сущность: это region-candidate, распознанный в **том же** `groomedText`.  
-Без scope сужаем не субъектом, а **уровнем НП** — городов с повторяющимися именами на порядки меньше, чем сёл.
+`regionScope` вЂ” РЅРµ РѕС‚РґРµР»СЊРЅР°СЏ СЃСѓС‰РЅРѕСЃС‚СЊ: СЌС‚Рѕ region-candidate, СЂР°СЃРїРѕР·РЅР°РЅРЅС‹Р№ РІ **С‚РѕРј Р¶Рµ** `groomedText`.  
+Р‘РµР· scope СЃСѓР¶Р°РµРј РЅРµ СЃСѓР±СЉРµРєС‚РѕРј, Р° **СѓСЂРѕРІРЅРµРј РќРџ** вЂ” РіРѕСЂРѕРґРѕРІ СЃ РїРѕРІС‚РѕСЂСЏСЋС‰РёРјРёСЃСЏ РёРјРµРЅР°РјРё РЅР° РїРѕСЂСЏРґРєРё РјРµРЅСЊС€Рµ, С‡РµРј СЃС‘Р».
 
-**Ingest place при parse:** если stem resolve нашёл существующий `placeId` в каталоге — **только привязка**, create запрещён (как сейчас при `catalogHeal`, но по умолчанию для всех resolve-hit).
+**Ingest place РїСЂРё parse:** РµСЃР»Рё stem resolve РЅР°С€С‘Р» СЃСѓС‰РµСЃС‚РІСѓСЋС‰РёР№ `placeId` РІ РєР°С‚Р°Р»РѕРіРµ вЂ” **С‚РѕР»СЊРєРѕ РїСЂРёРІСЏР·РєР°**, create Р·Р°РїСЂРµС‰С‘РЅ (РєР°Рє СЃРµР№С‡Р°СЃ РїСЂРё `catalogHeal`, РЅРѕ РїРѕ СѓРјРѕР»С‡Р°РЅРёСЋ РґР»СЏ РІСЃРµС… resolve-hit).
 
-**`geoImprecise`** (не `geoAmbiguous`): маркер низкой уверенности disambiguation, не отказ от place.
+**`geoImprecise`** (РЅРµ `geoAmbiguous`): РјР°СЂРєРµСЂ РЅРёР·РєРѕР№ СѓРІРµСЂРµРЅРЅРѕСЃС‚Рё disambiguation, РЅРµ РѕС‚РєР°Р· РѕС‚ place.
 
-**Где хранится (SSOT):**
+**Р“РґРµ С…СЂР°РЅРёС‚СЃСЏ (SSOT):**
 
-| Этап | Поле |
+| Р­С‚Р°Рї | РџРѕР»Рµ |
 |------|------|
 | Workspace / candidate | `EventCandidate.extras.geoImprecise: true` |
-| Facts после finalize | `parsed_events.extras.geoImprecise` (копия из candidate) |
-| API / карта | читает `parsed_events.extras` → badge «точка неточная» |
-| LLM lazy queue | приоритет сообщений с `geoImprecise` в workspace |
+| Facts РїРѕСЃР»Рµ finalize | `mat_parse_event.extras.geoImprecise` (РєРѕРїРёСЏ РёР· candidate) |
+| API / РєР°СЂС‚Р° | С‡РёС‚Р°РµС‚ `mat_parse_event.extras` в†’ badge В«С‚РѕС‡РєР° РЅРµС‚РѕС‡РЅР°СЏВ» |
+| LLM lazy queue | РїСЂРёРѕСЂРёС‚РµС‚ СЃРѕРѕР±С‰РµРЅРёР№ СЃ `geoImprecise` РІ workspace |
 
-| Потребитель | Назначение |
+| РџРѕС‚СЂРµР±РёС‚РµР»СЊ | РќР°Р·РЅР°С‡РµРЅРёРµ |
 |-------------|------------|
-| LLM lazy phase | приоритет дообогащения / уточнение place |
-| Карта / UI | badge «уточните точку» на маркере |
-| Audit | доля imprecise по каналу |
+| LLM lazy phase | РїСЂРёРѕСЂРёС‚РµС‚ РґРѕРѕР±РѕРіР°С‰РµРЅРёСЏ / СѓС‚РѕС‡РЅРµРЅРёРµ place |
+| РљР°СЂС‚Р° / UI | badge В«СѓС‚РѕС‡РЅРёС‚Рµ С‚РѕС‡РєСѓВ» РЅР° РјР°СЂРєРµСЂРµ |
+| Audit | РґРѕР»СЏ imprecise РїРѕ РєР°РЅР°Р»Сѓ |
 
-#### 2.1 Порядок «первого» hit при омонимах
+#### 2.1 РџРѕСЂСЏРґРѕРє В«РїРµСЂРІРѕРіРѕВ» hit РїСЂРё РѕРјРѕРЅРёРјР°С…
 
-Один токен в тексте («Киров»), в БД несколько `kind=city` с тем же stem, `regionScope` нет:
+РћРґРёРЅ С‚РѕРєРµРЅ РІ С‚РµРєСЃС‚Рµ (В«РљРёСЂРѕРІВ»), РІ Р‘Р” РЅРµСЃРєРѕР»СЊРєРѕ `kind=city` СЃ С‚РµРј Р¶Рµ stem, `regionScope` РЅРµС‚:
 
-1. Собрать все city-hits после фильтра.
-2. Отсортировать **стабильно**: `regionCode` по возрастанию, затем `placeId`.
-3. Взять **первый** элемент списка → spawn + `geoImprecise: true`.
+1. РЎРѕР±СЂР°С‚СЊ РІСЃРµ city-hits РїРѕСЃР»Рµ С„РёР»СЊС‚СЂР°.
+2. РћС‚СЃРѕСЂС‚РёСЂРѕРІР°С‚СЊ **СЃС‚Р°Р±РёР»СЊРЅРѕ**: `regionCode` РїРѕ РІРѕР·СЂР°СЃС‚Р°РЅРёСЋ, Р·Р°С‚РµРј `placeId`.
+3. Р’Р·СЏС‚СЊ **РїРµСЂРІС‹Р№** СЌР»РµРјРµРЅС‚ СЃРїРёСЃРєР° в†’ spawn + `geoImprecise: true`.
 
-Порядок **не** зависит от случайного порядка import в xlsx — только от канонических кодов/id.  
-Если в тексте **несколько разных** топонимов — у каждого свой `span` и свой resolve (омонимия внутри одного токена).
+РџРѕСЂСЏРґРѕРє **РЅРµ** Р·Р°РІРёСЃРёС‚ РѕС‚ СЃР»СѓС‡Р°Р№РЅРѕРіРѕ РїРѕСЂСЏРґРєР° import РІ xlsx вЂ” С‚РѕР»СЊРєРѕ РѕС‚ РєР°РЅРѕРЅРёС‡РµСЃРєРёС… РєРѕРґРѕРІ/id.  
+Р•СЃР»Рё РІ С‚РµРєСЃС‚Рµ **РЅРµСЃРєРѕР»СЊРєРѕ СЂР°Р·РЅС‹С…** С‚РѕРїРѕРЅРёРјРѕРІ вЂ” Сѓ РєР°Р¶РґРѕРіРѕ СЃРІРѕР№ `span` Рё СЃРІРѕР№ resolve (РѕРјРѕРЅРёРјРёСЏ РІРЅСѓС‚СЂРё РѕРґРЅРѕРіРѕ С‚РѕРєРµРЅР°).
 
-#### 2.2 Явный район (`district`) — вне `kindFloor=city`
+#### 2.2 РЇРІРЅС‹Р№ СЂР°Р№РѕРЅ (`district`) вЂ” РІРЅРµ `kindFloor=city`
 
-Паттерн `… район` в тексте (напр. «Неклиновский район») — **отдельный** scan, не ограничен `kindFloor=city`:
+РџР°С‚С‚РµСЂРЅ `вЂ¦ СЂР°Р№РѕРЅ` РІ С‚РµРєСЃС‚Рµ (РЅР°РїСЂ. В«РќРµРєР»РёРЅРѕРІСЃРєРёР№ СЂР°Р№РѕРЅВ») вЂ” **РѕС‚РґРµР»СЊРЅС‹Р№** scan, РЅРµ РѕРіСЂР°РЅРёС‡РµРЅ `kindFloor=city`:
 
-- spawn `anchor.kind` = district (или `city_district` по контракту kind);
-- `regionScope` из текста, если область указана;
-- без scope — district-hits по тому же правилу стабильной сортировки + `geoImprecise`, если N>1.
+- spawn `anchor.kind` = district (РёР»Рё `city_district` РїРѕ РєРѕРЅС‚СЂР°РєС‚Сѓ kind);
+- `regionScope` РёР· С‚РµРєСЃС‚Р°, РµСЃР»Рё РѕР±Р»Р°СЃС‚СЊ СѓРєР°Р·Р°РЅР°;
+- Р±РµР· scope вЂ” district-hits РїРѕ С‚РѕРјСѓ Р¶Рµ РїСЂР°РІРёР»Сѓ СЃС‚Р°Р±РёР»СЊРЅРѕР№ СЃРѕСЂС‚РёСЂРѕРІРєРё + `geoImprecise`, РµСЃР»Рё N>1.
 
-Сёла/посёлки (`locality`, `settlement`) без явного упоминания в тексте по-прежнему **не** матчатся при отсутствии `regionScope`.
+РЎС‘Р»Р°/РїРѕСЃС‘Р»РєРё (`locality`, `settlement`) Р±РµР· СЏРІРЅРѕРіРѕ СѓРїРѕРјРёРЅР°РЅРёСЏ РІ С‚РµРєСЃС‚Рµ РїРѕ-РїСЂРµР¶РЅРµРјСѓ **РЅРµ** РјР°С‚С‡Р°С‚СЃСЏ РїСЂРё РѕС‚СЃСѓС‚СЃС‚РІРёРё `regionScope`.
 
-**Пример:** «Киров» + «Кировская область» → scope `RU-KIR` → один city, `geoImprecise: false`.  
-**Пример:** только «Киров», несколько city в БД → **первый** по §2.1, `geoImprecise: true`.  
-**Пример:** «Таганрог» без области → один city → spawn, `geoImprecise: false`.  
-**Пример:** «Таганрг» → 0 hits → place нет; enrich может добавить позже.
+**РџСЂРёРјРµСЂ:** В«РљРёСЂРѕРІВ» + В«РљРёСЂРѕРІСЃРєР°СЏ РѕР±Р»Р°СЃС‚СЊВ» в†’ scope `RU-KIR` в†’ РѕРґРёРЅ city, `geoImprecise: false`.  
+**РџСЂРёРјРµСЂ:** С‚РѕР»СЊРєРѕ В«РљРёСЂРѕРІВ», РЅРµСЃРєРѕР»СЊРєРѕ city РІ Р‘Р” в†’ **РїРµСЂРІС‹Р№** РїРѕ В§2.1, `geoImprecise: true`.  
+**РџСЂРёРјРµСЂ:** В«РўР°РіР°РЅСЂРѕРіВ» Р±РµР· РѕР±Р»Р°СЃС‚Рё в†’ РѕРґРёРЅ city в†’ spawn, `geoImprecise: false`.  
+**РџСЂРёРјРµСЂ:** В«РўР°РіР°РЅСЂРіВ» в†’ 0 hits в†’ place РЅРµС‚; enrich РјРѕР¶РµС‚ РґРѕР±Р°РІРёС‚СЊ РїРѕР·Р¶Рµ.
 
-**Запрещено** как источник place-candidates:
+**Р—Р°РїСЂРµС‰РµРЅРѕ** РєР°Рє РёСЃС‚РѕС‡РЅРёРє place-candidates:
 
-- `shouldSkipLine` / line-noise filter на operational-тексте;
-- запись ingest-alias при parse;
-- матч только по `place_aliases`.
+- `shouldSkipLine` / line-noise filter РЅР° operational-С‚РµРєСЃС‚Рµ;
+- Р·Р°РїРёСЃСЊ ingest-alias РїСЂРё parse;
+- РјР°С‚С‡ С‚РѕР»СЊРєРѕ РїРѕ `place_aliases`.
 
-**Обязательные поля anchor:**
+**РћР±СЏР·Р°С‚РµР»СЊРЅС‹Рµ РїРѕР»СЏ anchor:**
 
 ```typescript
 anchor: {
   kind: "place" | "region";
-  name: string;              // canonical из DB после resolve
+  name: string;              // canonical РёР· DB РїРѕСЃР»Рµ resolve
   placeId?: string;
   regionCode?: string;
   span: {
-    start: number;           // char offset в groomedText
+    start: number;           // char offset РІ groomedText
     end: number;
-    matchedText: string;     // как в тексте («Таганрог»)
+    matchedText: string;     // РєР°Рє РІ С‚РµРєСЃС‚Рµ (В«РўР°РіР°РЅСЂРѕРіВ»)
   };
 }
 ```
 
-`matchedText` ≠ `name` допустимо (канальная обёртка); в facts идёт **canonical `name`**.
+`matchedText` в‰  `name` РґРѕРїСѓСЃС‚РёРјРѕ (РєР°РЅР°Р»СЊРЅР°СЏ РѕР±С‘СЂС‚РєР°); РІ facts РёРґС‘С‚ **canonical `name`**.
 
-### 3. VicinityProcessor (enriching) — «и близлежащие»
+### 3. VicinityProcessor (enriching) вЂ” В«Рё Р±Р»РёР·Р»РµР¶Р°С‰РёРµВ»
 
-Маркеры `близлежащие`, `пригород`, `ближайшее` **не** участвуют в match place.
+РњР°СЂРєРµСЂС‹ `Р±Р»РёР·Р»РµР¶Р°С‰РёРµ`, `РїСЂРёРіРѕСЂРѕРґ`, `Р±Р»РёР¶Р°Р№С€РµРµ` **РЅРµ** СѓС‡Р°СЃС‚РІСѓСЋС‚ РІ match place.
 
-- Читает `groomedText` + `candidates` + `span`.
-- Ищет маркер рядом с place-candidate (по `span`, соседним токенам или block-context).
-- Вешает trait `vicinity: true` / `scopeRadius` на **уже resolved** place (centroid из DB).
-- Не создаёт отдельный place «Таганрог и близлежащие».
+- Р§РёС‚Р°РµС‚ `groomedText` + `candidates` + `span`.
+- РС‰РµС‚ РјР°СЂРєРµСЂ СЂСЏРґРѕРј СЃ place-candidate (РїРѕ `span`, СЃРѕСЃРµРґРЅРёРј С‚РѕРєРµРЅР°Рј РёР»Рё block-context).
+- Р’РµС€Р°РµС‚ trait `vicinity: true` / `scopeRadius` РЅР° **СѓР¶Рµ resolved** place (centroid РёР· DB).
+- РќРµ СЃРѕР·РґР°С‘С‚ РѕС‚РґРµР»СЊРЅС‹Р№ place В«РўР°РіР°РЅСЂРѕРі Рё Р±Р»РёР·Р»РµР¶Р°С‰РёРµВ».
 
-### 4. Deprecate `place_aliases` для parse-match
+### 4. Deprecate `place_aliases` РґР»СЏ parse-match
 
-| Было | Стало |
+| Р‘С‹Р»Рѕ | РЎС‚Р°Р»Рѕ |
 |------|-------|
-| `aliases.findByAlias` → place | `findByStemInRegion(stem, regionId)` + `findByFias` |
-| `registerPlaceAlias` на каждый parse | **убрать**; алиасы не пишутся из ingest/parse |
-| Region через alias-строку | `regions` + явное упоминание в тексте + locality-якоря (как `filterRegionsByTextContext`) |
+| `aliases.findByAlias` в†’ place | `findByStemInRegion(stem, regionId)` + `findByFias` |
+| `registerPlaceAlias` РЅР° РєР°Р¶РґС‹Р№ parse | **СѓР±СЂР°С‚СЊ**; Р°Р»РёР°СЃС‹ РЅРµ РїРёС€СѓС‚СЃСЏ РёР· ingest/parse |
+| Region С‡РµСЂРµР· alias-СЃС‚СЂРѕРєСѓ | `regions` + СЏРІРЅРѕРµ СѓРїРѕРјРёРЅР°РЅРёРµ РІ С‚РµРєСЃС‚Рµ + locality-СЏРєРѕСЂСЏ (РєР°Рє `filterRegionsByTextContext`) |
 
-Таблица `place_aliases` — **legacy**, удаление в отдельной миграции после:
+РўР°Р±Р»РёС†Р° `place_aliases` вЂ” **legacy**, СѓРґР°Р»РµРЅРёРµ РІ РѕС‚РґРµР»СЊРЅРѕР№ РјРёРіСЂР°С†РёРё РїРѕСЃР»Рµ:
 
-1. `parse-engine:catalog:purge-garbage` / heal мусорных places;
-2. `DELETE FROM place_aliases` (или wipe в geo rebuild);
-3. вырезание кода `registerPlaceAlias` / `findByAlias` из `GeoValidationService`.
+1. `parse-engine:catalog:purge-garbage` / heal РјСѓСЃРѕСЂРЅС‹С… places;
+2. `DELETE FROM place_aliases` (РёР»Рё wipe РІ geo rebuild);
+3. РІС‹СЂРµР·Р°РЅРёРµ РєРѕРґР° `registerPlaceAlias` / `findByAlias` РёР· `GeoValidationService`.
 
-ADR-004 остаётся в силе для **модели region-as-place**; меняется только **стратегия матчинга** (stem вместо aliases).
+ADR-004 РѕСЃС‚Р°С‘С‚СЃСЏ РІ СЃРёР»Рµ РґР»СЏ **РјРѕРґРµР»Рё region-as-place**; РјРµРЅСЏРµС‚СЃСЏ С‚РѕР»СЊРєРѕ **СЃС‚СЂР°С‚РµРіРёСЏ РјР°С‚С‡РёРЅРіР°** (stem РІРјРµСЃС‚Рѕ aliases).
 
-### 5. Relations между candidates — позиция в тексте
+### 5. Relations РјРµР¶РґСѓ candidates вЂ” РїРѕР·РёС†РёСЏ РІ С‚РµРєСЃС‚Рµ
 
-Processors строят связи через `anchor.span` и список `candidates`:
+Processors СЃС‚СЂРѕСЏС‚ СЃРІСЏР·Рё С‡РµСЂРµР· `anchor.span` Рё СЃРїРёСЃРѕРє `candidates`:
 
-- EventTypeProcessor — signal рядом с geo по offset / block;
-- VicinityProcessor — маркер в окне N символов от `span` place;
-- Finalizer — stable key `(rawMessageId, span.start, anchor.kind, eventType)` для upsert.
+- EventTypeProcessor вЂ” signal СЂСЏРґРѕРј СЃ geo РїРѕ offset / block;
+- VicinityProcessor вЂ” РјР°СЂРєРµСЂ РІ РѕРєРЅРµ N СЃРёРјРІРѕР»РѕРІ РѕС‚ `span` place;
+- Finalizer вЂ” stable key `(rawMessageId, span.start, anchor.kind, eventType)` РґР»СЏ upsert.
 
-Повторный scan `groomedText` — допустимый fallback, но **SSOT связи** — offsets в workspace.
+РџРѕРІС‚РѕСЂРЅС‹Р№ scan `groomedText` вЂ” РґРѕРїСѓСЃС‚РёРјС‹Р№ fallback, РЅРѕ **SSOT СЃРІСЏР·Рё** вЂ” offsets РІ workspace.
 
-### 6. Что находится в тексте (ожидания)
+### 6. Р§С‚Рѕ РЅР°С…РѕРґРёС‚СЃСЏ РІ С‚РµРєСЃС‚Рµ (РѕР¶РёРґР°РЅРёСЏ)
 
-**Находятся:**
+**РќР°С…РѕРґСЏС‚СЃСЏ:**
 
-- все топонимы из DB-каталога, которые **реально присутствуют** в `groomedText` как целые токены/фразы (longest-match для составных имён);
-- омонимы без `regionScope`: **первый** city по §2.1 + `geoImprecise: true` (place **создаётся**, не откладывается);
-- явные `… район` — district-scan по §2.2.
+- РІСЃРµ С‚РѕРїРѕРЅРёРјС‹ РёР· DB-РєР°С‚Р°Р»РѕРіР°, РєРѕС‚РѕСЂС‹Рµ **СЂРµР°Р»СЊРЅРѕ РїСЂРёСЃСѓС‚СЃС‚РІСѓСЋС‚** РІ `groomedText` РєР°Рє С†РµР»С‹Рµ С‚РѕРєРµРЅС‹/С„СЂР°Р·С‹ (longest-match РґР»СЏ СЃРѕСЃС‚Р°РІРЅС‹С… РёРјС‘РЅ);
+- РѕРјРѕРЅРёРјС‹ Р±РµР· `regionScope`: **РїРµСЂРІС‹Р№** city РїРѕ В§2.1 + `geoImprecise: true` (place **СЃРѕР·РґР°С‘С‚СЃСЏ**, РЅРµ РѕС‚РєР»Р°РґС‹РІР°РµС‚СЃСЏ);
+- СЏРІРЅС‹Рµ `вЂ¦ СЂР°Р№РѕРЅ` вЂ” district-scan РїРѕ В§2.2.
 
-**Не находятся / без place-anchor на eager-фазе:**
+**РќРµ РЅР°С…РѕРґСЏС‚СЃСЏ / Р±РµР· place-anchor РЅР° eager-С„Р°Р·Рµ:**
 
-- НП, которых нет в DB после tabular import;
-- обрезанные/опечатанные формы (**0 hits**) — до fuzzy/enrich;
-- `locality` / `settlement` без `regionScope` и без явного имени в тексте;
-- фрагменты, вырезанные grooming (promo/footer).
+- РќРџ, РєРѕС‚РѕСЂС‹С… РЅРµС‚ РІ DB РїРѕСЃР»Рµ tabular import;
+- РѕР±СЂРµР·Р°РЅРЅС‹Рµ/РѕРїРµС‡Р°С‚Р°РЅРЅС‹Рµ С„РѕСЂРјС‹ (**0 hits**) вЂ” РґРѕ fuzzy/enrich;
+- `locality` / `settlement` Р±РµР· `regionScope` Рё Р±РµР· СЏРІРЅРѕРіРѕ РёРјРµРЅРё РІ С‚РµРєСЃС‚Рµ;
+- С„СЂР°РіРјРµРЅС‚С‹, РІС‹СЂРµР·Р°РЅРЅС‹Рµ grooming (promo/footer).
 
-Grooming **не** вырезает operational-слова («сбитие», «перехват», «опасность») — geo-scan идёт по словарю имён, не по построчному skip.
+Grooming **РЅРµ** РІС‹СЂРµР·Р°РµС‚ operational-СЃР»РѕРІР° (В«СЃР±РёС‚РёРµВ», В«РїРµСЂРµС…РІР°С‚В», В«РѕРїР°СЃРЅРѕСЃС‚СЊВ») вЂ” geo-scan РёРґС‘С‚ РїРѕ СЃР»РѕРІР°СЂСЋ РёРјС‘РЅ, РЅРµ РїРѕ РїРѕСЃС‚СЂРѕС‡РЅРѕРјСѓ skip.
 
-### 7. Масштаб (~128k НП)
+### 7. РњР°СЃС€С‚Р°Р± (~128k РќРџ)
 
-Scan по полному каталогу — через индекс имён (Aho-Corasick / trie по stems, кэш на `parser_revision`), не N×regex на каждое сообщение.
+Scan РїРѕ РїРѕР»РЅРѕРјСѓ РєР°С‚Р°Р»РѕРіСѓ вЂ” С‡РµСЂРµР· РёРЅРґРµРєСЃ РёРјС‘РЅ (Aho-Corasick / trie РїРѕ stems, РєСЌС€ РЅР° `parser_revision`), РЅРµ NГ—regex РЅР° РєР°Р¶РґРѕРµ СЃРѕРѕР±С‰РµРЅРёРµ.
 
-Hot-set из `places.json` — опциональное ускорение для frontline, не замена DB.
+Hot-set РёР· `places.json` вЂ” РѕРїС†РёРѕРЅР°Р»СЊРЅРѕРµ СѓСЃРєРѕСЂРµРЅРёРµ РґР»СЏ frontline, РЅРµ Р·Р°РјРµРЅР° DB.
 
-### 8. Geo-topography: collapse дублей place + region (не отказ от region)
+### 8. Geo-topography: collapse РґСѓР±Р»РµР№ place + region (РЅРµ РѕС‚РєР°Р· РѕС‚ region)
 
-После scan часто в одном сообщении одновременно:
+РџРѕСЃР»Рµ scan С‡Р°СЃС‚Рѕ РІ РѕРґРЅРѕРј СЃРѕРѕР±С‰РµРЅРёРё РѕРґРЅРѕРІСЂРµРјРµРЅРЅРѕ:
 
-- **place** — `Таганрог` (`kind=city`, `regionCode=RU-ROS` из DB);
-- **region** — `Ростовская область` (`kind=region` / `regions`, тот же `RU-ROS` из текста).
+- **place** вЂ” `РўР°РіР°РЅСЂРѕРі` (`kind=city`, `regionCode=RU-ROS` РёР· DB);
+- **region** вЂ” `Р РѕСЃС‚РѕРІСЃРєР°СЏ РѕР±Р»Р°СЃС‚СЊ` (`kind=region` / `regions`, С‚РѕС‚ Р¶Рµ `RU-ROS` РёР· С‚РµРєСЃС‚Р°).
 
-Если субъект НП **совпадает** с явно распознанным субъектом в тексте:
+Р•СЃР»Рё СЃСѓР±СЉРµРєС‚ РќРџ **СЃРѕРІРїР°РґР°РµС‚** СЃ СЏРІРЅРѕ СЂР°СЃРїРѕР·РЅР°РЅРЅС‹Рј СЃСѓР±СЉРµРєС‚РѕРј РІ С‚РµРєСЃС‚Рµ:
 
 ```
 place.regionCode === regionFromText.code
 ```
 
-→ **схлопнуть только дубль** на этапе geo-topography (подшаг GeoProcessor / `GeoCollapseStep` после spawn):
+в†’ **СЃС…Р»РѕРїРЅСѓС‚СЊ С‚РѕР»СЊРєРѕ РґСѓР±Р»СЊ** РЅР° СЌС‚Р°РїРµ geo-topography (РїРѕРґС€Р°Рі GeoProcessor / `GeoCollapseStep` РїРѕСЃР»Рµ spawn):
 
-| Действие | Смысл |
+| Р”РµР№СЃС‚РІРёРµ | РЎРјС‹СЃР» |
 |----------|--------|
-| **Оставить** place-candidate | SSOT точки: `placeId`, centroid |
-| **Убрать** redundant region-candidate **из текста** | В тексте уже сказали и НП, и область — второй anchor на тот же субъект не нужен |
-| **Provenance** | `regionConfirmedByText: true` на place |
+| **РћСЃС‚Р°РІРёС‚СЊ** place-candidate | SSOT С‚РѕС‡РєРё: `placeId`, centroid |
+| **РЈР±СЂР°С‚СЊ** redundant region-candidate **РёР· С‚РµРєСЃС‚Р°** | Р’ С‚РµРєСЃС‚Рµ СѓР¶Рµ СЃРєР°Р·Р°Р»Рё Рё РќРџ, Рё РѕР±Р»Р°СЃС‚СЊ вЂ” РІС‚РѕСЂРѕР№ anchor РЅР° С‚РѕС‚ Р¶Рµ СЃСѓР±СЉРµРєС‚ РЅРµ РЅСѓР¶РµРЅ |
+| **Provenance** | `regionConfirmedByText: true` РЅР° place |
 
-**Collapse ≠ «не создавать region».**  
-Finalizer **всегда** материализует субъект для operational-события. Источник region:
+**Collapse в‰  В«РЅРµ СЃРѕР·РґР°РІР°С‚СЊ regionВ».**  
+Finalizer **РІСЃРµРіРґР°** РјР°С‚РµСЂРёР°Р»РёР·СѓРµС‚ СЃСѓР±СЉРµРєС‚ РґР»СЏ operational-СЃРѕР±С‹С‚РёСЏ. РСЃС‚РѕС‡РЅРёРє region:
 
-| В тексте | Откуда region в facts |
+| Р’ С‚РµРєСЃС‚Рµ | РћС‚РєСѓРґР° region РІ facts |
 |----------|------------------------|
-| Place + явная область (совпали) | `place.region_id` — collapse убрал дубль anchor, **region location/event всё равно есть** |
-| **Только place** («Таганрог») | `place.region_id` — region **получается из place**, отдельного region-anchor в workspace не было |
-| **Только region** в тексте | region-candidate из текста |
+| Place + СЏРІРЅР°СЏ РѕР±Р»Р°СЃС‚СЊ (СЃРѕРІРїР°Р»Рё) | `place.region_id` вЂ” collapse СѓР±СЂР°Р» РґСѓР±Р»СЊ anchor, **region location/event РІСЃС‘ СЂР°РІРЅРѕ РµСЃС‚СЊ** |
+| **РўРѕР»СЊРєРѕ place** (В«РўР°РіР°РЅСЂРѕРіВ») | `place.region_id` вЂ” region **РїРѕР»СѓС‡Р°РµС‚СЃСЏ РёР· place**, РѕС‚РґРµР»СЊРЅРѕРіРѕ region-anchor РІ workspace РЅРµ Р±С‹Р»Рѕ |
+| **РўРѕР»СЊРєРѕ region** РІ С‚РµРєСЃС‚Рµ | region-candidate РёР· С‚РµРєСЃС‚Р° |
 
-То есть при чистом «Таганрог» эвент/локация на область **создаётся** — не из второго anchor, а **из `place.region`** при materialize.
+РўРѕ РµСЃС‚СЊ РїСЂРё С‡РёСЃС‚РѕРј В«РўР°РіР°РЅСЂРѕРіВ» СЌРІРµРЅС‚/Р»РѕРєР°С†РёСЏ РЅР° РѕР±Р»Р°СЃС‚СЊ **СЃРѕР·РґР°С‘С‚СЃСЏ** вЂ” РЅРµ РёР· РІС‚РѕСЂРѕРіРѕ anchor, Р° **РёР· `place.region`** РїСЂРё materialize.
 
-**Зачем collapse:**
+**Р—Р°С‡РµРј collapse:**
 
-1. Убрать дубли anchors / `event_locations`, когда текст явно дублирует субъект.
-2. Стабильный SSOT: place несёт `regionCode`; следующий raw без области ведёт себя так же, как после collapse.
-3. Traits клеятся к place; region в facts — производная от place или единственный region-anchor.
+1. РЈР±СЂР°С‚СЊ РґСѓР±Р»Рё anchors / `mat_parse_location`, РєРѕРіРґР° С‚РµРєСЃС‚ СЏРІРЅРѕ РґСѓР±Р»РёСЂСѓРµС‚ СЃСѓР±СЉРµРєС‚.
+2. РЎС‚Р°Р±РёР»СЊРЅС‹Р№ SSOT: place РЅРµСЃС‘С‚ `regionCode`; СЃР»РµРґСѓСЋС‰РёР№ raw Р±РµР· РѕР±Р»Р°СЃС‚Рё РІРµРґС‘С‚ СЃРµР±СЏ С‚Р°Рє Р¶Рµ, РєР°Рє РїРѕСЃР»Рµ collapse.
+3. Traits РєР»РµСЏС‚СЃСЏ Рє place; region РІ facts вЂ” РїСЂРѕРёР·РІРѕРґРЅР°СЏ РѕС‚ place РёР»Рё РµРґРёРЅСЃС‚РІРµРЅРЅС‹Р№ region-anchor.
 
-**Не схлопывать:**
+**РќРµ СЃС…Р»РѕРїС‹РІР°С‚СЊ:**
 
-| Ситуация | Поведение |
+| РЎРёС‚СѓР°С†РёСЏ | РџРѕРІРµРґРµРЅРёРµ |
 |----------|-----------|
-| Только region в тексте, place не найден | region-candidate остаётся |
-| Place и region **разные** коды | оба candidate остаются; **collapse не делаем**; `geoConflict: true` в workspace (см. §8.1) |
-| Несколько place одного субъекта + один region в тексте | region-candidate схлопывается (один дубль на субъект) |
-| Macro / multi-subject | region-candidates не схлопываются с чужим place |
+| РўРѕР»СЊРєРѕ region РІ С‚РµРєСЃС‚Рµ, place РЅРµ РЅР°Р№РґРµРЅ | region-candidate РѕСЃС‚Р°С‘С‚СЃСЏ |
+| Place Рё region **СЂР°Р·РЅС‹Рµ** РєРѕРґС‹ | РѕР±Р° candidate РѕСЃС‚Р°СЋС‚СЃСЏ; **collapse РЅРµ РґРµР»Р°РµРј**; `geoConflict: true` РІ workspace (СЃРј. В§8.1) |
+| РќРµСЃРєРѕР»СЊРєРѕ place РѕРґРЅРѕРіРѕ СЃСѓР±СЉРµРєС‚Р° + РѕРґРёРЅ region РІ С‚РµРєСЃС‚Рµ | region-candidate СЃС…Р»РѕРїС‹РІР°РµС‚СЃСЏ (РѕРґРёРЅ РґСѓР±Р»СЊ РЅР° СЃСѓР±СЉРµРєС‚) |
+| Macro / multi-subject | region-candidates РЅРµ СЃС…Р»РѕРїС‹РІР°СЋС‚СЃСЏ СЃ С‡СѓР¶РёРј place |
 
-**Примеры:**
-
-```
-Таганрог
-Ростовская область
-Опасность
-```
-
-Workspace после collapse: **1** place-anchor.  
-Facts после finalize: **place** (Таганрог) + **region** (RU-ROS из `place.region`) — без дублирующего region-anchor из текста.
+**РџСЂРёРјРµСЂС‹:**
 
 ```
-Таганрог
-Опасность
+РўР°РіР°РЅСЂРѕРі
+Р РѕСЃС‚РѕРІСЃРєР°СЏ РѕР±Р»Р°СЃС‚СЊ
+РћРїР°СЃРЅРѕСЃС‚СЊ
+```
+
+Workspace РїРѕСЃР»Рµ collapse: **1** place-anchor.  
+Facts РїРѕСЃР»Рµ finalize: **place** (РўР°РіР°РЅСЂРѕРі) + **region** (RU-ROS РёР· `place.region`) вЂ” Р±РµР· РґСѓР±Р»РёСЂСѓСЋС‰РµРіРѕ region-anchor РёР· С‚РµРєСЃС‚Р°.
+
+```
+РўР°РіР°РЅСЂРѕРі
+РћРїР°СЃРЅРѕСЃС‚СЊ
 ```
 
 Workspace: **1** place-anchor.  
-Facts: **place** + **region из place.region** — то же поведение, что после collapse.
+Facts: **place** + **region РёР· place.region** вЂ” С‚Рѕ Р¶Рµ РїРѕРІРµРґРµРЅРёРµ, С‡С‚Рѕ РїРѕСЃР»Рµ collapse.
 
 #### 8.1 Finalizer: `deriveRegionFromPlace`
 
-При любом **place-candidate** с resolved `placeId` finalizer **обязан** добавить region в facts из `places.region_id`, даже если region-anchor в workspace не было:
+РџСЂРё Р»СЋР±РѕРј **place-candidate** СЃ resolved `placeId` finalizer **РѕР±СЏР·Р°РЅ** РґРѕР±Р°РІРёС‚СЊ region РІ facts РёР· `places.region_id`, РґР°Р¶Рµ РµСЃР»Рё region-anchor РІ workspace РЅРµ Р±С‹Р»Рѕ:
 
 ```
-deriveRegionFromPlace(placeCandidate) → region event_location / region facet
+deriveRegionFromPlace(placeCandidate) в†’ region event_location / region facet
 ```
 
-| Workspace | Facts после finalize |
+| Workspace | Facts РїРѕСЃР»Рµ finalize |
 |-------------|----------------------|
-| 1 place, 0 region-anchor | place + **region из place.region** |
-| 1 place + collapse (region был в тексте) | place + **region из place.region** (тот же субъект) |
-| 0 place, 1 region-anchor | только region |
-| `geoConflict` | place + region **из текста** (явный субъект); region из place.region **не подменяет** текстовый при конфликте |
+| 1 place, 0 region-anchor | place + **region РёР· place.region** |
+| 1 place + collapse (region Р±С‹Р» РІ С‚РµРєСЃС‚Рµ) | place + **region РёР· place.region** (С‚РѕС‚ Р¶Рµ СЃСѓР±СЉРµРєС‚) |
+| 0 place, 1 region-anchor | С‚РѕР»СЊРєРѕ region |
+| `geoConflict` | place + region **РёР· С‚РµРєСЃС‚Р°** (СЏРІРЅС‹Р№ СЃСѓР±СЉРµРєС‚); region РёР· place.region **РЅРµ РїРѕРґРјРµРЅСЏРµС‚** С‚РµРєСЃС‚РѕРІС‹Р№ РїСЂРё РєРѕРЅС„Р»РёРєС‚Рµ |
 
-Без этого «Таганрог» без области потеряет region в `event_locations`.
+Р‘РµР· СЌС‚РѕРіРѕ В«РўР°РіР°РЅСЂРѕРіВ» Р±РµР· РѕР±Р»Р°СЃС‚Рё РїРѕС‚РµСЂСЏРµС‚ region РІ `mat_parse_location`.
 
 #### 8.2 `geoConflict`
 
-Условие: `place.regionCode !== regionFromText.code` (оба anchor из одного сообщения).
+РЈСЃР»РѕРІРёРµ: `place.regionCode !== regionFromText.code` (РѕР±Р° anchor РёР· РѕРґРЅРѕРіРѕ СЃРѕРѕР±С‰РµРЅРёСЏ).
 
-| Действие | Смысл |
+| Р”РµР№СЃС‚РІРёРµ | РЎРјС‹СЃР» |
 |----------|--------|
-| Оба anchor **остаются** | Не схлопываем, не перезаписываем place регионом из текста |
-| `workspace.geoConflict: true` | Флаг для audit / LLM / UI |
-| Finalize | place-location + region-location по **текстовому** region-candidate; `geoImprecise: true` на place |
+| РћР±Р° anchor **РѕСЃС‚Р°СЋС‚СЃСЏ** | РќРµ СЃС…Р»РѕРїС‹РІР°РµРј, РЅРµ РїРµСЂРµР·Р°РїРёСЃС‹РІР°РµРј place СЂРµРіРёРѕРЅРѕРј РёР· С‚РµРєСЃС‚Р° |
+| `workspace.geoConflict: true` | Р¤Р»Р°Рі РґР»СЏ audit / LLM / UI |
+| Finalize | place-location + region-location РїРѕ **С‚РµРєСЃС‚РѕРІРѕРјСѓ** region-candidate; `geoImprecise: true` РЅР° place |
 
-Пример: «Таганрог» + «Саратовская область» → place RU-ROS, region RU-SAM, `geoConflict: true`.
+РџСЂРёРјРµСЂ: В«РўР°РіР°РЅСЂРѕРіВ» + В«РЎР°СЂР°С‚РѕРІСЃРєР°СЏ РѕР±Р»Р°СЃС‚СЊВ» в†’ place RU-ROS, region RU-SAM, `geoConflict: true`.
 
-## Последствия
+## РџРѕСЃР»РµРґСЃС‚РІРёСЏ
 
-- Полный **reparse raw** после смены GeoProcessor + purge aliases/heal — восстанавливает привязки к canonical places.
-- RFC [parse-processor-workspace](./rfc/parse-processor-workspace.md) — носитель контракта processors/finalizer; этот ADR — SSOT geo-match.
-- Тесты-приёмки: фикстуры Таганрог (multiline, «и близлежащие», one-liner с «сбитие»/«перехват»).
-- Collapse: `Таганрог + Ростовская область` → один place-anchor в workspace; в facts — place + region из `place.region`.
-- `Таганрог` без области → тот же итог в facts: region из `place.region`.
+- РџРѕР»РЅС‹Р№ **reparse raw** РїРѕСЃР»Рµ СЃРјРµРЅС‹ GeoProcessor + purge aliases/heal вЂ” РІРѕСЃСЃС‚Р°РЅР°РІР»РёРІР°РµС‚ РїСЂРёРІСЏР·РєРё Рє canonical places.
+- RFC [parse-processor-workspace](./rfc/parse-processor-workspace.md) вЂ” РЅРѕСЃРёС‚РµР»СЊ РєРѕРЅС‚СЂР°РєС‚Р° processors/finalizer; СЌС‚РѕС‚ ADR вЂ” SSOT geo-match.
+- РўРµСЃС‚С‹-РїСЂРёС‘РјРєРё: С„РёРєСЃС‚СѓСЂС‹ РўР°РіР°РЅСЂРѕРі (multiline, В«Рё Р±Р»РёР·Р»РµР¶Р°С‰РёРµВ», one-liner СЃ В«СЃР±РёС‚РёРµВ»/В«РїРµСЂРµС…РІР°С‚В»).
+- Collapse: `РўР°РіР°РЅСЂРѕРі + Р РѕСЃС‚РѕРІСЃРєР°СЏ РѕР±Р»Р°СЃС‚СЊ` в†’ РѕРґРёРЅ place-anchor РІ workspace; РІ facts вЂ” place + region РёР· `place.region`.
+- `РўР°РіР°РЅСЂРѕРі` Р±РµР· РѕР±Р»Р°СЃС‚Рё в†’ С‚РѕС‚ Р¶Рµ РёС‚РѕРі РІ facts: region РёР· `place.region`.
 
-## Вне scope
+## Р’РЅРµ scope
 
-- Удаление таблицы `place_aliases` в этой итерации (только deprecate в parse).
-- Fuzzy/LLM-геокод как замена stem-scan (остаётся enrich-фаза); `geoImprecise` и **0 hits** — триггеры приоритета для enrich-очереди.
-- Детальный радиус `scopeRadius` VicinityProcessor (метры/км) — в RFC processors.
+- РЈРґР°Р»РµРЅРёРµ С‚Р°Р±Р»РёС†С‹ `place_aliases` РІ СЌС‚РѕР№ РёС‚РµСЂР°С†РёРё (С‚РѕР»СЊРєРѕ deprecate РІ parse).
+- Fuzzy/LLM-РіРµРѕРєРѕРґ РєР°Рє Р·Р°РјРµРЅР° stem-scan (РѕСЃС‚Р°С‘С‚СЃСЏ enrich-С„Р°Р·Р°); `geoImprecise` Рё **0 hits** вЂ” С‚СЂРёРіРіРµСЂС‹ РїСЂРёРѕСЂРёС‚РµС‚Р° РґР»СЏ enrich-РѕС‡РµСЂРµРґРё.
+- Р”РµС‚Р°Р»СЊРЅС‹Р№ СЂР°РґРёСѓСЃ `scopeRadius` VicinityProcessor (РјРµС‚СЂС‹/РєРј) вЂ” РІ RFC processors.
+

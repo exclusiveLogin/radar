@@ -191,6 +191,20 @@ export {
   runOutcomeSchema,
   runHistoryEntrySchema,
   workbookObservabilityResponseSchema,
+  runnerDiscoveryResponseSchema,
+  obsIngestBatchSchema,
+  runtimeObservabilitySnapshotSchema,
+  deploymentHostSchema,
+  deploymentSpawnSchema,
+  schedulingImplSchema,
+  deploymentPipelineEntrySchema,
+  deploymentRunnersSchema,
+  deploymentInfraObsSchema,
+  deploymentInfraSchema,
+  deploymentTransportSchema,
+  deploymentManifestSchema,
+  DEFAULT_DEPLOYMENT_MANIFEST,
+  applyDeploymentEnvOverlay,
 } from "./schemas";
 export {
   buildTrackEdges,
@@ -477,6 +491,30 @@ export type {
   PlaceEnrichmentJobRecord,
   PlaceEnrichmentProvider,
 } from "./ports/repositories";
+export type { IObservabilityRecorder } from "./ports/observability-recorder";
+export type {
+  HostSnapshot,
+  ExecutorSnapshot,
+  WorkloadSnapshot,
+  TriggerCounterKey,
+  ObsIngestBatch,
+  RuntimeObservabilitySnapshot,
+  ObsPipelineRuntime,
+  ExecutorStatus,
+  ExecutorKind,
+  ObsWorkloadStatus,
+} from "./schemas/observability";
+export type {
+  DeploymentHost,
+  DeploymentSpawn,
+  SchedulingImpl,
+  DeploymentPipelineEntry,
+  DeploymentRunners,
+  DeploymentInfraObs,
+  DeploymentInfra,
+  DeploymentTransport,
+  DeploymentManifest,
+} from "./deployment/deploymentManifest";
 
 // --- type-only exports ---
 export type {
@@ -670,6 +708,7 @@ export type {
   WorkbookRunOutcome,
   RunHistoryEntry,
   WorkbookObservabilityResponse,
+  RunnerDiscoveryResponse,
 } from "./schemas";
 export type {
   ProfileKinematics,

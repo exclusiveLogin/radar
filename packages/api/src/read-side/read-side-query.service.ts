@@ -96,20 +96,20 @@ export class ReadSideQueryService {
            COUNT(*) FILTER (WHERE ingest_mode = 'backfill') AS backfill,
            COUNT(*) FILTER (WHERE ingest_mode = 'manual') AS manual,
            MAX(posted_at) AS last_posted_at
-         FROM raw_messages`,
+         FROM mat_ingest_raw`,
       ),
       this.dataSource.query<Array<{ total: string; active_raws: string }>>(
         `SELECT
            COUNT(*) FILTER (WHERE is_active) AS total,
            COUNT(DISTINCT raw_message_id) FILTER (WHERE is_active) AS active_raws
-         FROM parsed_events`,
+         FROM mat_parse_event`,
       ),
       this.dataSource.query<Array<{ ok: string; failed: string; skipped: string }>>(
         `SELECT
            COUNT(*) FILTER (WHERE status = 'ok') AS ok,
            COUNT(*) FILTER (WHERE status = 'failed') AS failed,
            COUNT(*) FILTER (WHERE status = 'skipped') AS skipped
-         FROM parse_attempts`,
+         FROM log_parse_attempt`,
       ),
       this.dataSource.query<Array<{ total: string; listening: string }>>(
         `SELECT
@@ -142,7 +142,7 @@ export class ReadSideQueryService {
            COUNT(*) FILTER (WHERE status = 'completed') AS completed,
            COUNT(*) FILTER (WHERE status = 'failed') AS failed,
            COUNT(*) FILTER (WHERE status = 'canceled') AS canceled
-         FROM ingest_backfill_jobs`,
+         FROM job_ingest_backfill`,
       ),
       loadPhaseCoverageStats(this.dataSource),
       this.dataSource.query<Array<{ total: string }>>(
@@ -158,12 +158,12 @@ export class ReadSideQueryService {
       ),
       this.dataSource.query<Array<{ provider: string; status: string; count: string }>>(
         `SELECT provider, status, COUNT(*)::int AS count
-         FROM place_enrichment_jobs
+         FROM job_geo_place_enrich
          GROUP BY provider, status`,
       ),
       this.dataSource.query<Array<{ provider: string; count: string }>>(
         `SELECT j.provider, COUNT(DISTINCT j.place_id)::int AS count
-         FROM place_enrichment_jobs j
+         FROM job_geo_place_enrich j
          JOIN places p ON p.id = j.place_id
          WHERE j.status = 'done'
            AND p.is_active = true
@@ -183,7 +183,7 @@ export class ReadSideQueryService {
            AND p.centroid_lon IS NULL
            AND (gf.centroid_lat IS NULL OR gf.id IS NULL)
            AND NOT EXISTS (
-             SELECT 1 FROM place_enrichment_jobs j
+             SELECT 1 FROM job_geo_place_enrich j
              WHERE j.place_id = p.id
                AND j.provider = prov.provider
                AND j.status = 'processing'
@@ -324,9 +324,9 @@ export class ReadSideQueryService {
                  PARTITION BY el.place_id
                  ORDER BY COALESCE(el.occurred_at, rm.posted_at, pe.parsed_at) DESC, el.id DESC
                ) AS rn
-        FROM event_locations el
-        JOIN parsed_events pe ON pe.id = el.parsed_event_id
-        JOIN raw_messages rm ON rm.id = pe.raw_message_id
+        FROM mat_parse_location el
+        JOIN mat_parse_event pe ON pe.id = el.parsed_event_id
+        JOIN mat_ingest_raw rm ON rm.id = pe.raw_message_id
         JOIN channels c ON c.id = rm.channel_id
         LEFT JOIN status_dictionary sd
           ON sd.code = COALESCE(el.status_code, pe.event_type) AND sd.is_active = true
@@ -383,8 +383,8 @@ export class ReadSideQueryService {
              COALESCE(el.status_code, pe.event_type) AS status_code,
              COALESCE(el.action, CASE WHEN pe.event_type='cleared' THEN 'clear' ELSE 'raise' END) AS action,
              el.author_channel_key, COALESCE(el.occurred_at, pe.parsed_at) AS occurred_at
-      FROM event_locations el
-      JOIN parsed_events pe ON pe.id = el.parsed_event_id
+      FROM mat_parse_location el
+      JOIN mat_parse_event pe ON pe.id = el.parsed_event_id
       WHERE el.place_id IS NOT NULL
         AND ($1::uuid IS NULL OR el.place_id = $1::uuid)
         AND ($2::text IS NULL OR COALESCE(el.status_code, pe.event_type) = $2::text)

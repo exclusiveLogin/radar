@@ -7,7 +7,7 @@ import { stopAllActivePhaseRuns } from "./stopAllActivePhaseRuns.js";
 
 export const PIPELINE_RESET_REASON = "pipeline:operational-reset";
 
-/** TRUNCATE message_parse_workspace + parsed_events (+ CASCADE). Контур rebuild/reparse. @see ../parse/parseWorkspaceRunModes.ts */
+/** TRUNCATE work_parse_message + mat_parse_event (+ CASCADE). Контур rebuild/reparse. @see ../parse/parseWorkspaceRunModes.ts */
 export async function clearParseLayerArtifacts(
   dataSource: DataSource,
   options: { forceLocks?: boolean } = {},
@@ -19,10 +19,10 @@ export async function clearParseLayerArtifacts(
   const truncateOpts = { forceLocks };
   const workspacesDeleted = await truncateTableCounted(
     dataSource,
-    "message_parse_workspace",
+    "work_parse_message",
     truncateOpts,
   );
-  const parsedEventsDeleted = await truncateTableCounted(dataSource, "parsed_events", {
+  const parsedEventsDeleted = await truncateTableCounted(dataSource, "mat_parse_event", {
     cascade: true,
     ...truncateOpts,
   });
@@ -57,7 +57,7 @@ export type PipelineOperationalResetResult = {
 
 /**
  * Сброс операционного слоя: карта, parsed, очереди фаз, зависшие runs.
- * Не трогает: raw_messages, ingest_*, channels, places/regions (справочник), phase_definitions.
+ * Не трогает: mat_ingest_raw, ingest_*, channels, places/regions (справочник), phase_definitions.
  */
 export async function runPipelineOperationalReset(
   input: PipelineOperationalResetInput,
@@ -73,7 +73,7 @@ export async function runPipelineOperationalReset(
   const { parsedEventsDeleted } = await clearParseLayerArtifacts(dataSource, truncateOpts);
   const parseAttemptsDeleted = await truncateTableCounted(
     dataSource,
-    "parse_attempts",
+    "log_parse_attempt",
     truncateOpts,
   );
 

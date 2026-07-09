@@ -42,7 +42,7 @@ export async function wipeGeoCatalog(
   await runWipeStep(options, "unlink FK (regions, places)", async () => {
     log?.detail("regions.canonical_place_id, geometry_artifact_key → NULL");
     log?.detail("places.geo_feature_id, geometry_artifact_key → NULL");
-    log?.detail("event_locations.place_id → NULL");
+    log?.detail("mat_parse_location.place_id → NULL");
     await runSqlOptional(
       dataSource,
       `UPDATE regions SET canonical_place_id = NULL WHERE canonical_place_id IS NOT NULL`,
@@ -65,7 +65,7 @@ export async function wipeGeoCatalog(
     );
     await runSqlOptional(
       dataSource,
-      `UPDATE event_locations SET place_id = NULL WHERE place_id IS NOT NULL`,
+      `UPDATE mat_parse_location SET place_id = NULL WHERE place_id IS NOT NULL`,
       log,
     );
     return 0;

@@ -58,7 +58,7 @@ type RawRow = {
   is_active: boolean | null;
 };
 
-/** Строка event_locations из SQL (snake_case). */
+/** Строка mat_parse_location из SQL (snake_case). */
 type DbLocationRow = {
   raw_message_id: string;
   region_iso: string | null;
@@ -384,11 +384,11 @@ async function runChannelAudit(options: AuditRunOptions): Promise<void> {
            pe.id AS parsed_event_id,
            pe.event_type,
            pe.is_active
-    FROM raw_messages rm
+    FROM mat_ingest_raw rm
     JOIN channels ch ON ch.id = rm.channel_id AND ch.key = $1
     LEFT JOIN LATERAL (
       SELECT id, event_type, is_active
-      FROM parsed_events
+      FROM mat_parse_event
       WHERE raw_message_id = rm.id
       ORDER BY parsed_at DESC NULLS LAST
       LIMIT 1
@@ -402,7 +402,7 @@ async function runChannelAudit(options: AuditRunOptions): Promise<void> {
   )) as RawRow[];
 
   if (rawRows.length === 0) {
-    console.warn(`Канал '${channelKey}': raw_messages не найдены — skip`);
+    console.warn(`Канал '${channelKey}': mat_ingest_raw не найдены — skip`);
     await dataSource.destroy();
     return;
   }
@@ -419,13 +419,13 @@ async function runChannelAudit(options: AuditRunOptions): Promise<void> {
            p.trust_state,
            (
              SELECT j.status
-             FROM place_enrichment_jobs j
+             FROM job_geo_place_enrich j
              WHERE j.place_id = el.place_id
              ORDER BY j.updated_at DESC NULLS LAST
              LIMIT 1
            ) AS geo_job_status
-    FROM event_locations el
-    JOIN parsed_events pe ON pe.id = el.parsed_event_id
+    FROM mat_parse_location el
+    JOIN mat_parse_event pe ON pe.id = el.parsed_event_id
     LEFT JOIN regions r ON r.id = el.region_id
     LEFT JOIN places p ON p.id = el.place_id
     WHERE pe.raw_message_id = ANY($1::uuid[])

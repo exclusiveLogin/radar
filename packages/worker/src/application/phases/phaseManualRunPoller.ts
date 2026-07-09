@@ -16,7 +16,7 @@ function resolvePollMs(): number {
 }
 
 /**
- * Подхватывает phase_runs (trigger=manual, status=pending) из админки Run
+ * Подхватывает log_parse_phase_run (trigger=manual, status=pending) из админки Run
  * и исполняет drain до опустошения claimable-очереди (батчами policy.batchSize).
  */
 export class PhaseManualRunPoller {

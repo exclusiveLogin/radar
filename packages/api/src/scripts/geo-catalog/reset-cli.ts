@@ -30,11 +30,11 @@ function printHelp(): void {
 
   Удаляет гео-справочник в БД:
     regions, places, place_aliases, geo_feature, place_geo_link,
-    region_adjacency, geo_sync_log, geo_dataset_file
+    region_adjacency, log_geo_sync, geo_dataset_file
 
-  Обнуляет event_locations.place_id (FK RESTRICT).
+  Обнуляет mat_parse_location.place_id (FK RESTRICT).
 
-  НЕ трогает: raw_messages, parsed_events, ingest cursors.
+  НЕ трогает: mat_ingest_raw, mat_parse_event, ingest cursors.
 
   После сброса:
     npm run geo:catalog:import -w @radar/api

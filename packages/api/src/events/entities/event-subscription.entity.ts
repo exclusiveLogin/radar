@@ -1,15 +1,16 @@
 /**
+ * @see ../../../../../docs/database-table-naming.md
  * ---
  * layer: api
  * kind: entity
- * table: event_subscriptions
+ * table: state_event_subscription
  * purpose: Состояние внешнего потребителя событий (бот, webhook): до какого offset дочитал, чтобы не слать повторно при сбое.
  * @see ../../../../../docs/domain/persistence-map.md#EventSubscriptionEntity
  * ---
  */
 import { Column, CreateDateColumn, Entity, PrimaryGeneratedColumn, UpdateDateColumn } from "typeorm";
 
-@Entity({ name: "event_subscriptions" })
+@Entity({ name: "state_event_subscription" })
 export class EventSubscriptionEntity {
   @PrimaryGeneratedColumn("uuid")
   id!: string;

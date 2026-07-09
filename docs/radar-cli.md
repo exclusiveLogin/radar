@@ -59,7 +59,7 @@ npm run radar -- help [stack|pipeline|ingest|parse|geo|phase|map|tracking|data|d
 |----------|--------|
 | **wipe** | Контент фазы удалён («пустое состояние») |
 | **reset** | Снято обогащение (coords, trust, jobs); базовые строки остаются |
-| **clear** | Только очереди (`phase_coverage`, `place_enrichment_jobs`) + cancel runs |
+| **clear** | Только очереди (`queue_parse_coverage`, `job_geo_place_enrich`) + cancel runs |
 
 Мутирующие команды: **`-- --dry-run`**. Подробнее по фазам, импакту и сценариям — [phase-commands.md](./phase-commands.md).
 
@@ -118,9 +118,9 @@ npm run radar -- help [stack|pipeline|ingest|parse|geo|phase|map|tracking|data|d
 | `pipeline clear` | `parse-engine:clear`, `parse-engine:archive:clear` | raw + parsed + cursors; закрывает dev/API/worker (`--no-force-locks` опционально) |
 | `pipeline clear:raw` | `parse-engine:clear:raw` | Только raw |
 | `pipeline clear:ingest` | `parse-engine:clear:ingest` | Ingest cursors / backfill |
-| `pipeline queue:ingest` | `parse-engine:queue:ingest` | Очередь phase_coverage |
-| `pipeline queue:geo` | `parse-engine:queue:geo` | Очередь place_enrichment_jobs |
-| `pipeline runs` | `parse-engine:runs:status` | Активные phase_runs |
+| `pipeline queue:ingest` | `parse-engine:queue:ingest` | Очередь queue_parse_coverage |
+| `pipeline queue:geo` | `parse-engine:queue:geo` | Очередь job_geo_place_enrich |
+| `pipeline runs` | `parse-engine:runs:status` | Активные log_parse_phase_run |
 | `pipeline ingest:drain` | `parse-engine:ingest:drain` | Drain ingest [`--phase=id`] |
 | `pipeline phase:run -- --phase=llm` | `parse-engine:phase:run` | Ручной прогон фазы |
 | `pipeline phase:stop` | `parse-engine:phase:stop` | Стоп runs + coverage |
@@ -178,8 +178,8 @@ Legacy по шагам (не SSOT): `geo:regions:seed`, `geo:features:import`, `
 | **`system wipe -- --confirm`** | **`system:wipe`**, `parse-engine:system:wipe` | **Полный wipe контента БД** |
 | `phase wipe system -- --confirm` | = `system wipe` | то же (через redirect) |
 | `phase wipe vendor-ingest-parse-geo -- --confirm` | `vendor-ingest-parse-geo:wipe` | **устарело** → `system wipe` |
-| `phase clear ingest` | `phase:ingest:clear` | phase_coverage + cancel runs |
-| `phase clear geo` | `phase:geo:clear` | place_enrichment_jobs + cancel runs |
+| `phase clear ingest` | `phase:ingest:clear` | queue_parse_coverage + cancel runs |
+| `phase clear geo` | `phase:geo:clear` | job_geo_place_enrich + cancel runs |
 | `phase clear all` | `phase:all:clear` | Обе очереди |
 | `phase manifest:import` / `export` | `phase:manifest:*`, `parse-engine:manifest:*` | Манифест фаз |
 

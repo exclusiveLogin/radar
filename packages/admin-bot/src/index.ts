@@ -11,8 +11,8 @@ type HldSkeleton = {
   commands: BotCommand[];
   outboxSubscription: {
     mode: "poll" | "listen_notify";
-    table: "domain_events";
-    checkpointTable: "event_subscriptions";
+    table: "event_outbox";
+    checkpointTable: "state_event_subscription";
   };
   accessPolicy: {
     envVar: "RADAR_ADMIN_BOT_ALLOWED_USER_IDS";
@@ -27,8 +27,8 @@ const skeleton: HldSkeleton = {
   commands: supportedCommands,
   outboxSubscription: {
     mode: "poll",
-    table: "domain_events",
-    checkpointTable: "event_subscriptions",
+    table: "event_outbox",
+    checkpointTable: "state_event_subscription",
   },
   accessPolicy: {
     envVar: "RADAR_ADMIN_BOT_ALLOWED_USER_IDS",

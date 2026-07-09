@@ -1,5 +1,5 @@
 /**
- * Запуски фаз (phase_runs): прогресс, лог, кооперативное управление.
+ * Запуски фаз (log_parse_phase_run): прогресс, лог, кооперативное управление.
  */
 import { z } from "zod";
 import { phaseTriggerSchema } from "./phase.js";

@@ -9,7 +9,7 @@
 
 Платформа «Радар» накапливает разрозненные OSINT-точки (радар, визуально, перехват, взрывы) без жёстких ID объектов. Цель домена **tracking** — автоматически связать их в направленные траектории, оценить кинематику (скорость, курс) через фильтр Калмана и дать аналитику прогноза: где цель с вероятностью 95% находится прямо сейчас, пока радары молчат, и насколько эффективен перехват (сбития vs прорывы).
 
-Домен **не расширяет** operational fold ([ADR-006](./adr-006-map-read-line-fold.md)); он строится поверх write-line facts (`event_locations`, `parsed_events`) и read-line Time Machine (`asOf`).
+Домен **не расширяет** operational fold ([ADR-006](./adr-006-map-read-line-fold.md)); он строится поверх write-line facts (`mat_parse_location`, `mat_parse_event`) и read-line Time Machine (`asOf`).
 
 ---
 
@@ -19,7 +19,7 @@
 |-----------|--------|
 | Map read-line + Time Machine | **Готово** — [ADR-006](./adr-006-map-read-line-fold.md), `MapTimelineBar`, `GET /map/snapshot?asOf=` |
 | Теплокарта событий | **Частично** — `GET /map/events/heatmap`, [event-heatmap.ts](../packages/shared/src/schemas/map/event-heatmap.ts); **нет** фильтра по `event_type` |
-| Типы событий / категории | **Есть** — `parsed_events.event_type`, `extras.eventCategory` |
+| Типы событий / категории | **Есть** — `mat_parse_event.event_type`, `extras.eventCategory` |
 | Macro-отчёты | **Отдельная лента** — `GET /map/pvo-reports`, не связаны с траекториями |
 | Kalman / треки / Deck.gl | **Отсутствуют** |
 
@@ -85,9 +85,9 @@ flowchart TB
 ```mermaid
 flowchart LR
   subgraph writeLine [Write-line facts]
-    RM[raw_messages]
-    PE[parsed_events]
-    EL[event_locations]
+    RM[mat_ingest_raw]
+    PE[mat_parse_event]
+    EL[mat_parse_location]
   end
   subgraph trackingWorker [Tracking worker]
     Collapse[ADR-009 Pre-collapse]
@@ -119,7 +119,7 @@ flowchart LR
   Timeline --> Predict
 ```
 
-- **Вход worker:** `event_locations` с `lat`, `lon`, `occurred_at`, связь с `parsed_events`.
+- **Вход worker:** `mat_parse_location` с `lat`, `lon`, `occurred_at`, связь с `mat_parse_event`.
 - **Time Machine:** `asOf` из [ADR-006](./adr-006-map-read-line-fold.md) — единый курсор для snapshot, треков и эллипсов прогноза.
 - **Trust/precision:** иерархия точности при схлопывании — из накопителя [ADR-003](./adr-003-phase-enrichment-accumulator.md).
 

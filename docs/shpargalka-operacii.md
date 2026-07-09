@@ -55,21 +55,21 @@ npm run radar -- stack dev           # только shared + api + web
 [Telegram / backfill]
         │
         ▼
-  raw_messages          ← ingest (каналы)
+  mat_ingest_raw          ← ingest (каналы)
         │
         ▼
-  phase_coverage        ← очередь ingest-parse
+  queue_parse_coverage        ← очередь ingest-parse
         │
         ▼
-  parsed_events         ← parse (catalog eager + llm + dadata)
-  event_locations
+  mat_parse_event         ← parse (catalog eager + llm + dadata)
+  mat_parse_location
         │
         ▼
-  place_enrichment_jobs ← geo (обогащение координат)
+  job_geo_place_enrich ← geo (обогащение координат)
         │
         ▼
   places.centroid_*     ← geo-обогащённые места
-  fold snapshot         ← read-line (event_locations → foldMapState)
+  fold snapshot         ← read-line (mat_parse_location → foldMapState)
 ```
 
 **Geo-каталог (staging, не runtime parse):**
@@ -147,7 +147,7 @@ npm run radar -- stack dev --full
 | GET | `/map/districts-active-geojson` | — | GeoJSON активных районов (только `action=raise`); лёгкий, вызывать при каждом place-state |
 | GET | `/map/districts-geojson` | `?regionId=UUID` (опц.) | GeoJSON всех районов; тяжёлый — для ленивой подгрузки по региону |
 | GET | `/map/messages/recent` | `?limit=80` | Все raw (1 строка/raw): `contentKind`, parse/loc summary |
-| GET | `/map/events/recent` | `?limit=80` | События с `event_locations` (1 parsed_event = 1 карточка), без фильтра по типу |
+| GET | `/map/events/recent` | `?limit=80` | События с `mat_parse_location` (1 parsed_event = 1 карточка), без фильтра по типу |
 | GET | `/map/regions/by-code/:code/source-message` | `code` = ISO 3166-2:RU (напр. `RU-MOW`) | Исходное сообщение статуса региона |
 | GET | `/map/places/:placeId/source-message` | `placeId` = UUID | Исходное сообщение статуса НП |
 | POST | `/map/push-snapshot` | — | Разослать снапшот всем WS-клиентам; `{ ok, pushed }` |

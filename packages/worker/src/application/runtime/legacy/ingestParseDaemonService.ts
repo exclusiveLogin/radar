@@ -4,8 +4,9 @@ import type {
   IPhaseRunRepository,
   PhaseDefinitionRecord,
 } from "@radar/shared";
-import { PhaseRunner } from "./phaseRunner.js";
-import { sortPhasesByOrder } from "./phaseOrder.js";
+import { PhaseRunner } from "../../phases/phaseRunner.js";
+import { sortPhasesByOrder } from "../../phases/phaseOrder.js";
+import type { ObsTickReporter } from "./obsTickReporter.js";
 
 const DEFAULT_POLL_MS = 15_000;
 const DEFAULT_STALE_RUN_MS = 2 * 60 * 60 * 1000;
@@ -33,8 +34,8 @@ function resolveStaleRunMs(): number {
 }
 
 /**
- * Scheduled ingestParse-фазы: drain phase_coverage → PhaseRunner.
- * Параллельно с GeoParseDaemon (place_enrichment_jobs).
+ * Scheduled ingestParse-фазы: drain queue_parse_coverage → PhaseRunner.
+ * Параллельно с GeoParseDaemon (job_geo_place_enrich).
  */
 export class IngestParseDaemonService {
   private timers = new Map<string, ReturnType<typeof setInterval>>();
@@ -47,6 +48,7 @@ export class IngestParseDaemonService {
     private readonly phaseRuns: IPhaseRunRepository,
     private readonly coverage: IPhaseCoverageRepository,
     private readonly runner: PhaseRunner,
+    private readonly onObsTick?: ObsTickReporter,
   ) {}
 
   static enabled(): boolean {
@@ -117,12 +119,13 @@ export class IngestParseDaemonService {
         status: "pending",
       });
 
-      await this.runner.runDrain({
+      const stats = await this.runner.runDrain({
         phase,
         runId: run.id,
         batchSize: phase.policy.batchSize,
         trigger: "scheduled",
       });
+      void this.onObsTick?.({ phaseId: phase.id, ...stats });
     } catch (err) {
       console.error(`IngestParseDaemon[${phase.id}]:`, err);
     } finally {

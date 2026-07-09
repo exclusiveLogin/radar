@@ -22,6 +22,11 @@ import type {
 import { createWorkbook, resolveGeoEnrichmentProvider } from "@radar/shared";
 import { sortPhasesByOrder } from "../../phases/phaseOrder.js";
 import type { PhaseRunner } from "../../phases/phaseRunner.js";
+import type { JobKernelObsConfig } from "../../runtime/runner-platform/jobKernel.js";
+import {
+  createWorkloadObsConfig,
+  type WorkloadObsContext,
+} from "../../runtime/observability/workloadObsHooks.js";
 import { createWorkload, type Workload } from "../../runtime/workload/createWorkload.js";
 import { createTelemetryBus, type TelemetryBus } from "../../runtime/runner-platform/telemetryBus.js";
 
@@ -53,9 +58,15 @@ export type GeoEnrichRunnerDeps = {
 
 export type GeoEnrichRunner = Workload & { telemetry: TelemetryBus<GeoEnrichArtifact> };
 
-export function createGeoEnrichRunner(deps: GeoEnrichRunnerDeps): GeoEnrichRunner {
+export function createGeoEnrichRunner(
+  deps: GeoEnrichRunnerDeps,
+  obsCtx?: WorkloadObsContext,
+): GeoEnrichRunner {
   const telemetry = createTelemetryBus<GeoEnrichArtifact>();
   const lastDrainAt = new Map<string, number>();
+  const obs: JobKernelObsConfig | undefined = obsCtx
+    ? createWorkloadObsConfig(obsCtx)
+    : undefined;
 
   async function isDadataQueueBusy(): Promise<boolean> {
     const counts = await deps.placeJobs.countByStatus("dadata");
@@ -137,7 +148,7 @@ export function createGeoEnrichRunner(deps: GeoEnrichRunnerDeps): GeoEnrichRunne
           if (scheduled.length === 0) return { slice: { phases: [] }, isEmpty: true };
           return { slice: { phases: scheduled }, isEmpty: false };
         },
-        // `runDrain` уже персистит весь прогресс сам (phase_runs.stats/log/status).
+        // `runDrain` уже персистит весь прогресс сам (log_parse_phase_run.stats/log/status).
         materialize: async () => {},
         emitProgress: (envelope) => {
           // Тик может задренировать больше одной фазы (dadata → nominatim) — phaseKey ставим
@@ -152,6 +163,7 @@ export function createGeoEnrichRunner(deps: GeoEnrichRunnerDeps): GeoEnrichRunne
       onUnhandledError: (error) => {
         console.error(`[${GEO_ENRICH_PIPELINE_KEY}] tick failed:`, error);
       },
+      obs,
     }),
     telemetry,
   };

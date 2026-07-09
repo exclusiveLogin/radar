@@ -18,6 +18,7 @@ import { WorkerStatusService } from "../worker/worker-status.service";
 import { PhasesAdminService } from "../phases-admin/phases-admin.service";
 import { ParsePipelineAdminService } from "../parse-admin/parse-pipeline-admin.service";
 import { TrackingAdminService } from "../tracking-admin/tracking-admin.service";
+import { ObservabilityAdminService } from "../observability-admin/observability-admin.service";
 import { listParseAttemptsSince } from "../read-side/parse-attempt-admin.query";
 import {
   listActiveBackfillJobs,
@@ -32,6 +33,7 @@ const ALL_CHANNELS: AdminWsChannel[] = [
   "phases-update",
   "tracking-status",
   "parse-pipeline-status",
+  "runtime-discovery",
 ];
 
 const WORKER_STATUS_POLL_MS = 5000;
@@ -40,6 +42,7 @@ const BACKFILL_POLL_MS = 2000;
 const PHASES_POLL_MS = 3000;
 const TRACKING_POLL_MS = 3000;
 const PARSE_PIPELINE_POLL_MS = 2000;
+const RUNTIME_DISCOVERY_POLL_MS = 5000;
 
 /** Канал, к которому относится серверное сообщение админ-WS. */
 function channelOf(message: AdminWsServerMessage): AdminWsChannel {
@@ -48,7 +51,7 @@ function channelOf(message: AdminWsServerMessage): AdminWsChannel {
 
 /**
  * WebSocket-шлюз админки (path `/ws/admin`): транслирует подписанным клиентам
- * телеметрию worker, новые строки parse_attempts и прогресс backfill-задач.
+ * телеметрию worker, новые строки log_parse_attempt и прогресс backfill-задач.
  * Источники — серверные поллеры (как RegionStatePoller), без доступа к воркеру напрямую.
  */
 @WebSocketGateway({ path: "/ws/admin" })
@@ -72,6 +75,7 @@ export class AdminGateway
     private readonly phasesAdmin: PhasesAdminService,
     private readonly parsePipelineAdmin: ParsePipelineAdminService,
     private readonly trackingAdmin: TrackingAdminService,
+    private readonly observabilityAdmin: ObservabilityAdminService,
   ) {}
 
   onModuleInit(): void {
@@ -83,6 +87,7 @@ export class AdminGateway
       setInterval(() => void this.pollPhasesUpdate(), PHASES_POLL_MS),
       setInterval(() => void this.pollTrackingStatus(), TRACKING_POLL_MS),
       setInterval(() => void this.pollParsePipelineStatus(), PARSE_PIPELINE_POLL_MS),
+      setInterval(() => void this.pollRuntimeDiscovery(), RUNTIME_DISCOVERY_POLL_MS),
     );
   }
 
@@ -214,6 +219,17 @@ export class AdminGateway
       this.broadcast({ type: "parse-pipeline-status", payload });
     } catch {
       // Пропускаем тик.
+    }
+  }
+
+  private async pollRuntimeDiscovery(): Promise<void> {
+    try {
+      const payload = await this.observabilityAdmin.getDiscovery();
+      this.broadcast({ type: "runtime-discovery", payload });
+    } catch (err) {
+      this.logger.warn(
+        `pollRuntimeDiscovery failed: ${err instanceof Error ? err.message : String(err)}`,
+      );
     }
   }
 

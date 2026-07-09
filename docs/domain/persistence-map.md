@@ -19,12 +19,12 @@
 | Entity | Таблица | Shared / домен | Port |
 |--------|---------|----------------|------|
 | `ChannelEntity` {#ChannelEntity} | `channels` | channel key в `RawMessage` | `IChannelRepository` |
-| `RawMessageEntity` {#RawMessageEntity} | `raw_messages` | `RawMessage` | `IRawMessageRepository` |
-| `RawMessageTelegramEntity` {#RawMessageTelegramEntity} | `raw_message_telegram` | `RawMessageTelegramExtension` | `IRawMessageTelegramExtensionRepository` |
+| `RawMessageEntity` {#RawMessageEntity} | `mat_ingest_raw` | `RawMessage` | `IRawMessageRepository` |
+| `RawMessageTelegramEntity` {#RawMessageTelegramEntity} | `mat_ingest_raw_tg` | `RawMessageTelegramExtension` | `IRawMessageTelegramExtensionRepository` |
 | `IngestProviderEntity` {#IngestProviderEntity} | `ingest_providers` | `IngestProviderRecord` | `IIngestProviderRepository` |
 | `IngestBindingEntity` {#IngestBindingEntity} | `ingest_bindings` | `IngestBindingRecord` | `IIngestBindingRepository` |
-| `IngestCursorEntity` {#IngestCursorEntity} | `ingest_cursors` | — | `IIngestCursorRepository` |
-| `IngestBackfillJobEntity` {#IngestBackfillJobEntity} | `ingest_backfill_jobs` | `BackfillJobRecord` | `IIngestBackfillJobRepository` |
+| `IngestCursorEntity` {#IngestCursorEntity} | `state_ingest_cursor` | — | `IIngestCursorRepository` |
+| `IngestBackfillJobEntity` {#IngestBackfillJobEntity} | `job_ingest_backfill` | `BackfillJobRecord` | `IIngestBackfillJobRepository` |
 
 Контекст: [contexts/ingest.md](./contexts/ingest.md).
 
@@ -34,15 +34,15 @@
 
 | Entity | Таблица | Shared | Port |
 |--------|---------|--------|------|
-| `ParsedEventEntity` {#ParsedEventEntity} | `parsed_events` | `ParsedEvent` | `IParsedEventRepository` |
-| `EventLocationEntity` {#EventLocationEntity} | `event_locations` | `EventLocation` | `IEventLocationRepository` |
-| `ParseAttemptEntity` {#ParseAttemptEntity} | `parse_attempts` | — | (логирование) |
-| `DomainEventEntity` {#DomainEventEntity} | `domain_events` | `DomainEvent` | `IDomainEventRepository` |
+| `ParsedEventEntity` {#ParsedEventEntity} | `mat_parse_event` | `ParsedEvent` | `IParsedEventRepository` |
+| `EventLocationEntity` {#EventLocationEntity} | `mat_parse_location` | `EventLocation` | `IEventLocationRepository` |
+| `ParseAttemptEntity` {#ParseAttemptEntity} | `log_parse_attempt` | — | (логирование) |
+| `DomainEventEntity` {#DomainEventEntity} | `event_outbox` | `DomainEvent` | `IDomainEventRepository` |
 | `PlaceCacheEntity` {#PlaceCacheEntity} | `place_cache` | cache hit types | `IPlaceCacheRepository` |
 | `StatusDictionaryEntity` {#StatusDictionaryEntity} | `status_dictionary` | `StatusDictionaryRecord` | `IStatusDictionaryRepository` |
 | `PlaceStatusActiveEntity` {#PlaceStatusActiveEntity} | `place_status_active` | `PlaceStatusActiveRecord` | `IPlaceStatusRepository` |
 | `PlaceStatusHistoryEntity` {#PlaceStatusHistoryEntity} | `place_status_history` | history record | `IPlaceStatusHistoryRepository` |
-| `EventSubscriptionEntity` {#EventSubscriptionEntity} | `event_subscriptions` | — | (read/notifications) |
+| `EventSubscriptionEntity` {#EventSubscriptionEntity} | `state_event_subscription` | — | (read/notifications) |
 
 ---
 
@@ -54,7 +54,7 @@
 | `PlaceEntity` {#PlaceEntity} | `places` | `PlaceRecord` | `IPlaceRepository` |
 | `PlaceAliasEntity` {#PlaceAliasEntity} | `place_aliases` | `PlaceAliasRecord` | `IPlaceAliasRepository` |
 | `PlaceEvidenceEntity` {#PlaceEvidenceEntity} | `place_evidence` | `PlaceEvidenceRecord` | `IPlaceEvidenceRepository` |
-| `GeoSyncLogEntity` {#GeoSyncLogEntity} | `geo_sync_log` | audit payload | `ISyncAuditRepository` |
+| `GeoSyncLogEntity` {#GeoSyncLogEntity} | `log_geo_sync` | audit payload | `ISyncAuditRepository` |
 
 Контекст: [contexts/geo-place.md](./contexts/geo-place.md), [docs/geo-dataset-schemas.md](../geo-dataset-schemas.md).
 

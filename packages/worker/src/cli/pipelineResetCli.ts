@@ -13,15 +13,15 @@ import { warnDeprecatedNpmScript } from "./deprecatedNpmScript.js";
 
 function printPlan(): void {
   console.log(`
-Операционный сброс (архив raw_messages сохраняется):
+Операционный сброс (архив mat_ingest_raw сохраняется):
 
-  • parsed_events + event_locations (CASCADE)
-  • parse_attempts
-  • phase_coverage — invalidate + processing→pending
-  • phase_runs — cancel running/paused/pending
+  • mat_parse_event + mat_parse_location (CASCADE)
+  • log_parse_attempt
+  • queue_parse_coverage — invalidate + processing→pending
+  • log_parse_phase_run — cancel running/paused/pending
   • catch-up pending для enabled eager+scheduled (если не --no-catch-up)
 
-Не трогает: raw_messages, ingest_*, channels, places/regions (справочник), phase_definitions.
+Не трогает: mat_ingest_raw, ingest_*, channels, places/regions (справочник), phase_definitions.
 
 После сброса: npm run radar -- stack dev --full  (catch-up без reparse)
               или  npm run radar -- parse run     (полный reparse, reset не нужен)
@@ -29,7 +29,7 @@ function printPlan(): void {
 }
 
 /**
- * CLI: сброс карты, parse-результатов и очередей фаз без удаления raw_messages.
+ * CLI: сброс карты, parse-результатов и очередей фаз без удаления mat_ingest_raw.
  */
 async function main(): Promise<void> {
   warnDeprecatedNpmScript("parse-engine:pipeline:reset");
@@ -73,11 +73,11 @@ async function main(): Promise<void> {
 
   console.log(`\nСброс (${PIPELINE_RESET_REASON}):`);
   console.log(`  карта: places=${result.mapPlacesCleared}, regions→grey=${result.mapRegionsGrey}`);
-  console.log(`  parsed_events удалено: ${result.parsedEventsDeleted}`);
-  console.log(`  parse_attempts удалено: ${result.parseAttemptsDeleted}`);
-  console.log(`  phase_coverage invalidate: ${result.coverageInvalidated}`);
-  console.log(`  phase_coverage processing→pending: ${result.coverageProcessingToPending}`);
-  console.log(`  phase_runs закрыто: ${result.phaseRunsClosed}`);
+  console.log(`  mat_parse_event удалено: ${result.parsedEventsDeleted}`);
+  console.log(`  log_parse_attempt удалено: ${result.parseAttemptsDeleted}`);
+  console.log(`  queue_parse_coverage invalidate: ${result.coverageInvalidated}`);
+  console.log(`  queue_parse_coverage processing→pending: ${result.coverageProcessingToPending}`);
+  console.log(`  log_parse_phase_run закрыто: ${result.phaseRunsClosed}`);
   if (!noCatchUp) {
     console.log(`  catch-up: ${JSON.stringify(result.catchUpByPhase)}`);
     console.log("\nДальше: npm run worker:dev (scheduled) или npm run parse-engine:rebuild.");

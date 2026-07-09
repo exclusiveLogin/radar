@@ -2,8 +2,8 @@
  * ---
  * layer: worker/infrastructure
  * domain: tracking
- * purpose: SQL-порты жизненного цикла инкрементального прогона (tracking_pipeline_state,
- *          trajectory_rebuild_runs) — используются НОВЫМ runner platform-раннером трекинга
+ * purpose: SQL-порты жизненного цикла инкрементального прогона (state_track_pipeline,
+ *          job_track_rebuild) — используются НОВЫМ runner platform-раннером трекинга
  *          (`application/tracking/runner/*`, за флагом `TRACKING_RUNNER_PLATFORM_ENABLED`).
  *          Те же таблицы, что и у legacy `TrackingRebuildDaemon`, но раннеры взаимоисключающие
  *          (см. createWorkerCompositionRoot.ts) — гонки между ними нет.
@@ -39,7 +39,7 @@ export async function readTrackingPipelineState(ds: DataSource): Promise<Trackin
     }[]
   >(
     `SELECT enabled, watermark, config, active_run_id
-     FROM tracking_pipeline_state WHERE id = 'default'`,
+     FROM state_track_pipeline WHERE id = 'default'`,
   );
   return {
     enabled: row?.enabled ?? false,
@@ -58,7 +58,7 @@ export async function ensureActiveTrackingRun(
   if (state.activeRunId) {
     const [run] = await ds.query<
       { id: string; rebuild_gen: string; status: string; started_at: string | Date }[]
-    >(`SELECT id, rebuild_gen, status, started_at FROM trajectory_rebuild_runs WHERE id = $1`, [
+    >(`SELECT id, rebuild_gen, status, started_at FROM job_track_rebuild WHERE id = $1`, [
       state.activeRunId,
     ]);
     if (run?.status === "running") {
@@ -70,7 +70,7 @@ export async function ensureActiveTrackingRun(
     }
     if (run) {
       await ds.query(
-        `UPDATE tracking_pipeline_state SET active_run_id = NULL, updated_at = now() WHERE id = 'default'`,
+        `UPDATE state_track_pipeline SET active_run_id = NULL, updated_at = now() WHERE id = 'default'`,
       );
     }
   }
@@ -82,13 +82,13 @@ export async function ensureActiveTrackingRun(
   const since = isWatermark(state.watermark) ? state.watermark.lastOccurredAt : new Date(0).toISOString();
   const startedAt = new Date().toISOString();
   await ds.query(
-    `INSERT INTO trajectory_rebuild_runs
+    `INSERT INTO job_track_rebuild
      (id, status, mode, since, until, rebuild_gen, stats, started_at)
      VALUES ($1, 'running', 'incremental', $2, now(), $3, $4::jsonb, $5)`,
     [id, since, rebuildGen, JSON.stringify({ stage: "loading", elapsedMs: 0 }), startedAt],
   );
   await ds.query(
-    `UPDATE tracking_pipeline_state SET active_run_id = $1, updated_at = now() WHERE id = 'default'`,
+    `UPDATE state_track_pipeline SET active_run_id = $1, updated_at = now() WHERE id = 'default'`,
     [id],
   );
   return { id, rebuildGen, startedAt };
@@ -99,7 +99,7 @@ export async function readTrackingRunControl(
   runId: string,
 ): Promise<TrackingRunControl | null> {
   const [row] = await ds.query<{ control: TrackingRunControl | null }[]>(
-    `SELECT control FROM trajectory_rebuild_runs WHERE id = $1`,
+    `SELECT control FROM job_track_rebuild WHERE id = $1`,
     [runId],
   );
   return row?.control ?? null;
@@ -110,7 +110,7 @@ export async function updateTrackingRunStats(
   runId: string,
   stats: Partial<TrackingRebuildStats>,
 ): Promise<void> {
-  await ds.query(`UPDATE trajectory_rebuild_runs SET stats = stats || $1::jsonb WHERE id = $2`, [
+  await ds.query(`UPDATE job_track_rebuild SET stats = stats || $1::jsonb WHERE id = $2`, [
     JSON.stringify(stats),
     runId,
   ]);
@@ -123,12 +123,12 @@ export async function advanceTrackingWatermark(
   totalCandidates: number,
 ): Promise<void> {
   await ds.query(
-    `UPDATE tracking_pipeline_state
+    `UPDATE state_track_pipeline
      SET watermark = $1::jsonb, total_candidates = $2, updated_at = now()
      WHERE id = 'default'`,
     [JSON.stringify(watermark), totalCandidates],
   );
-  await ds.query(`UPDATE trajectory_rebuild_runs SET checkpoint = $1::jsonb WHERE id = $2`, [
+  await ds.query(`UPDATE job_track_rebuild SET checkpoint = $1::jsonb WHERE id = $2`, [
     JSON.stringify(watermark),
     runId,
   ]);
@@ -141,13 +141,13 @@ export async function finishTrackingRun(
   remainingPending: number,
 ): Promise<void> {
   await ds.query(
-    `UPDATE trajectory_rebuild_runs
+    `UPDATE job_track_rebuild
      SET status = 'done', finished_at = now(), stats = stats || $1::jsonb
      WHERE id = $2`,
     [JSON.stringify({ ...stats, stage: "done", pendingCandidates: remainingPending }), runId],
   );
   await ds.query(
-    `UPDATE tracking_pipeline_state SET active_run_id = NULL, updated_at = now() WHERE id = 'default'`,
+    `UPDATE state_track_pipeline SET active_run_id = NULL, updated_at = now() WHERE id = 'default'`,
   );
 }
 
@@ -158,21 +158,21 @@ export async function failTrackingRun(
   elapsedMs: number,
 ): Promise<void> {
   await ds.query(
-    `UPDATE trajectory_rebuild_runs
+    `UPDATE job_track_rebuild
      SET status = 'failed', finished_at = now(), error = $1,
          stats = stats || $2::jsonb
      WHERE id = $3`,
     [error, JSON.stringify({ stage: "loading", elapsedMs }), runId],
   );
   await ds.query(
-    `UPDATE tracking_pipeline_state SET active_run_id = NULL, updated_at = now() WHERE id = 'default'`,
+    `UPDATE state_track_pipeline SET active_run_id = NULL, updated_at = now() WHERE id = 'default'`,
   );
 }
 
 /** Каскадный сброс: watermark к началу, без re-enqueue и без перетасовки очереди. */
 export async function resetTrackingWatermark(ds: DataSource): Promise<void> {
   await ds.query(
-    `UPDATE tracking_pipeline_state SET watermark = '{}'::jsonb, updated_at = now() WHERE id = 'default'`,
+    `UPDATE state_track_pipeline SET watermark = '{}'::jsonb, updated_at = now() WHERE id = 'default'`,
   );
 }
 

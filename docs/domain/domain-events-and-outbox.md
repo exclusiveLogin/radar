@@ -20,7 +20,7 @@
 | `traceId` | опционально |
 
 Файл: `packages/shared/src/schemas/events/domain-event.ts`  
-Таблица: `domain_events` → `DomainEventEntity`.
+Таблица: `event_outbox` → `DomainEventEntity`.
 
 ## Как публикуется (два пути)
 
@@ -38,7 +38,7 @@ Handler → IEventPublisher.publish → InProcessEventBus
 
 ```
 Service → IDomainEventRepository.append / IDomainEventOutbox.append
-  → INSERT domain_events (published_at = NULL)
+  → INSERT event_outbox (published_at = NULL)
 ```
 
 Позже:
@@ -82,7 +82,7 @@ OutboxRelay.tick (interval ~1s)
 ## FAQ
 
 **Это Event Sourcing?**  
-Нет полного rehydrate из журнала — события для интеграции и подписчиков, состояние в таблицах (`raw_messages`, `parsed_events`, …).
+Нет полного rehydrate из журнала — события для интеграции и подписчиков, состояние в таблицах (`mat_ingest_raw`, `mat_parse_event`, …).
 
 **Зачем outbox, если есть bus?**  
 Для API и будущей доставки между процессами; worker сегодня обходит outbox для своих событий.

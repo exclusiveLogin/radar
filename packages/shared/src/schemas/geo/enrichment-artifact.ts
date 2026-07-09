@@ -129,7 +129,7 @@ export const geoEnrichmentArtifactSchema = z.object({
   finalizer: geoEnrichmentFinalizerSchema.optional(),
 });
 
-/** Snapshot geo-состояния между фазами (persist в parsed_events.extras.geoArtifact). */
+/** Snapshot geo-состояния между фазами (persist в mat_parse_event.extras.geoArtifact). */
 export const geoEnrichmentStateSchema = geoEnrichmentArtifactSchema.extend({
   validatedLocations: z.array(eventLocationSchema).optional(),
   phaseId: z.string().optional(),

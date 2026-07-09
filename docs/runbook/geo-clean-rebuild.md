@@ -32,23 +32,23 @@ PowerShell, корень репозитория. Нужны `DATABASE_URL`, `RAD
 
         ▼
 
-  raw_messages              ← ingest
+  mat_ingest_raw              ← ingest
 
         │
 
         ▼
 
-  message_parse_workspace   ← parse workspace (lineage)
+  work_parse_message   ← parse workspace (lineage)
 
-  parsed_events             ← finalize (матч к places в БД)
+  mat_parse_event             ← finalize (матч к places в БД)
 
-  event_locations
+  mat_parse_location
 
         │
 
         ▼
 
-  place_enrichment_jobs     ← geo (dadata/nominatim)
+  job_geo_place_enrich     ← geo (dadata/nominatim)
 
         │
 
@@ -82,7 +82,7 @@ data/geo/catalog/  →  radar geo catalog:import
 
 
 
-После `geo catalog:import` places получают **новые UUID**. Старые `event_locations.place_id` без reparse **не привяжутся** к новому справочнику.
+После `geo catalog:import` places получают **новые UUID**. Старые `mat_parse_location.place_id` без reparse **не привяжутся** к новому справочнику.
 
 
 
@@ -123,7 +123,7 @@ data/geo/catalog/  →  radar geo catalog:import
 
 |------|------------------|
 
-| ingest:wipe | `raw_messages`, `parsed_events`, `event_locations`, `parse_attempts`, `phase_runs`, `domain_events`, read-model карты, ingest cursors/backfill, jobs, evidence |
+| ingest:wipe | `mat_ingest_raw`, `mat_parse_event`, `mat_parse_location`, `log_parse_attempt`, `log_parse_phase_run`, `event_outbox`, read-model карты, ingest cursors/backfill, jobs, evidence |
 
 | geo:wipe | `places`, `place_aliases` |
 
@@ -153,7 +153,7 @@ data/geo/catalog/  →  radar geo catalog:import
 
 | `radar pipeline reset` | Сброс parse-результатов, карта, catch-up. **Parse не запускает.** | `parse-engine:reset` |
 
-| `radar pipeline rebuild` | Сброс + прогон по всем `raw_messages` | `parse-engine:rebuild` |
+| `radar pipeline rebuild` | Сброс + прогон по всем `mat_ingest_raw` | `parse-engine:rebuild` |
 
 | `radar parse run` | rebuild + scheduled ingest + geo drain | `parse-engine:rebuild:drain`, `parse:run` |
 

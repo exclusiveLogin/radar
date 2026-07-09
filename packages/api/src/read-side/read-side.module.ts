@@ -30,5 +30,6 @@ import { ReadSideQueryService } from "./read-side-query.service";
   ],
   providers: [ReadSideQueryService],
   controllers: [ReadSideController],
+  exports: [ReadSideQueryService],
 })
 export class ReadSideModule {}

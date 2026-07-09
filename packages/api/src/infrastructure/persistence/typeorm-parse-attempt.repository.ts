@@ -4,7 +4,7 @@ import type { DataSource } from "typeorm";
 import { ParseAttemptEntity } from "../../events/entities";
 
 /**
- * Технический след парсинга: INSERT в parse_attempts для каждого результата
+ * Технический след парсинга: INSERT в log_parse_attempt для каждого результата
  * (ok / skipped / failed). Источник для лога парсинга и агрегатов по каналу.
  */
 export class TypeOrmParseAttemptRepository implements IParseAttemptRepository {

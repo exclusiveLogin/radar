@@ -21,7 +21,7 @@ implements IEventEvidenceRepository {
       : toBucket15m(record.observedAt);
     await this.dataSource.query(
       `
-      INSERT INTO event_evidence(
+      INSERT INTO mat_parse_evidence(
         id, event_id, event_type, place_id, observed_at, time_bucket_15m,
         provider_kind, source_provider_id, source_channel_key, source_message_id,
         trace_id, payload, trust_score, created_at

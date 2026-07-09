@@ -9,7 +9,7 @@
 
 ## Убрано: message-copy queue
 
-Legacy `CoverageEnqueuer` копировал каждое raw-сообщение в `phase_coverage` — отдельную запись на каждую scheduled-фазу. При N фазах — N копий на одно сообщение, плюс отдельная логика "перетасовки" очереди при cascade-reset.
+Legacy `CoverageEnqueuer` копировал каждое raw-сообщение в `queue_parse_coverage` — отдельную запись на каждую scheduled-фазу. При N фазах — N копий на одно сообщение, плюс отдельная логика "перетасовки" очереди при cascade-reset.
 
 Runner platform читает **raw как SSOT** + курсор на фазу (`IPhaseCoverageRepository`/`IPhaseRunRepository` уже дают "сколько обработано" без промежуточной очереди-копии). Cascade reset фазы — сдвиг курсора одним UPDATE, без переразбора очереди.
 
@@ -21,7 +21,7 @@ Runner platform читает **raw как SSOT** + курсор на фазу (`
 | Реакция на вкл/выкл фазы в админке | ручной `refreshSchedules()` | `refresh()` каждые 15s пересобирает набор workload (`ParseRunnerRegistry.refresh`) |
 | Пробуждение по событию | нет | `enqueueAll()` — Wave 6, `wireBusTrigger(bus, "RawMessageIngested", ...)` |
 
-`ParseRunnerRegistry` и legacy `IngestParseDaemonService` взаимоисключающие в `createWorkerCompositionRoot.ts` — одна и та же `phase_coverage`/`phase_runs` очередь, гонки нет.
+`ParseRunnerRegistry` и legacy `IngestParseDaemonService` взаимоисключающие в `createWorkerCompositionRoot.ts` — одна и та же `queue_parse_coverage`/`log_parse_phase_run` очередь, гонки нет.
 
 ## Файлы
 

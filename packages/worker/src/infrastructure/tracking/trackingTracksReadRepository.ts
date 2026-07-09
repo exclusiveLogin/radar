@@ -48,7 +48,7 @@ export async function loadOpenTrackSeeds(
     }[]
   >(
     `SELECT id, threat_profile, total_distance_m, last_lat, last_lon
-     FROM trajectory_tracks
+     FROM mat_track
      WHERE status = 'active'
         OR (status IN ('closed', 'stale') AND last_at >= $1)`,
     [continuableSince.toISOString()],
@@ -71,7 +71,7 @@ export async function loadOpenTrackSeeds(
     }[]
   >(
     `SELECT id, track_id, seq, occurred_at, lat, lon, place_id, mode, kalman_state, source_refs
-     FROM trajectory_nodes WHERE track_id IN (${ids}) ORDER BY track_id, seq`,
+     FROM mat_track_node WHERE track_id IN (${ids}) ORDER BY track_id, seq`,
   );
 
   const nodesByTrack = new Map<string, TrajectoryNode[]>();

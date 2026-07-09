@@ -9,7 +9,7 @@ import {
   type EventLocationFact,
 } from "@radar/shared";
 
-/** Порт загрузки фактов event_locations для read-line fold. */
+/** Порт загрузки фактов mat_parse_location для read-line fold. */
 @Injectable()
 export class MapFactsRepository {
   constructor(@InjectDataSource() private readonly dataSource: DataSource) {}

@@ -88,10 +88,10 @@ export class TypeOrmIngestBackfillJobRepository implements IIngestBackfillJobRep
         updated_at: Date;
       }>(
       await this.dataSource.query(
-      `UPDATE ingest_backfill_jobs
+      `UPDATE job_ingest_backfill
        SET status = 'running', updated_at = NOW()
        WHERE id IN (
-         SELECT id FROM ingest_backfill_jobs
+         SELECT id FROM job_ingest_backfill
          WHERE status = 'pending'
          ORDER BY created_at ASC
          LIMIT $1

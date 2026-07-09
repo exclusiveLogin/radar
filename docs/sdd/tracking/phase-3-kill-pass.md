@@ -4,7 +4,7 @@
 Work packages: T3.1–T3.3  
 ADR: [010](../../adr-010-pvo-kill-pass-layers.md)
 
-**Критерий входа:** фаза 1; facts `pvo_report` / air_defense в `parsed_events`.
+**Критерий входа:** фаза 1; facts `pvo_report` / air_defense в `mat_parse_event`.
 
 ---
 
@@ -29,10 +29,10 @@ ADR: [010](../../adr-010-pvo-kill-pass-layers.md)
 ## 2. Архитектура
 
 ```text
-Facts: pvo_report event_locations
+Facts: pvo_report mat_parse_location
   → pvoZoneBuffer(points, radiusM) → zone polygons (cached)
 
-Tracks: trajectory_nodes
+Tracks: mat_track_node
   → classifyTrackSegments(track, zones) → kill | pass | body
 
 API layers endpoint → GeoJSON per layer
@@ -152,7 +152,7 @@ export function classifyTrackSegments(
 ```sql
 CREATE TABLE trajectory_track_segments (
   id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  track_id     uuid NOT NULL REFERENCES trajectory_tracks(id) ON DELETE CASCADE,
+  track_id     uuid NOT NULL REFERENCES mat_track(id) ON DELETE CASCADE,
   layer        text NOT NULL CHECK (layer IN ('body','kill','pass')),
   from_seq     int NOT NULL,
   to_seq       int NOT NULL,

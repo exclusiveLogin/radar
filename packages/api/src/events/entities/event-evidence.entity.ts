@@ -1,6 +1,6 @@
 import { Column, Entity, PrimaryGeneratedColumn } from "typeorm";
 
-@Entity({ name: "event_evidence" })
+@Entity({ name: "mat_parse_evidence" })
 export class EventEvidenceEntity {
   @PrimaryGeneratedColumn("uuid")
   id!: string;

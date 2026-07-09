@@ -20,8 +20,8 @@ const RUN_HISTORY_LIMIT = 20;
  * Read-side агрегатор Workbook Registry / Active Workloads / Run History по всем
  * pipelineKey ("tracking"/"parse"/"geo-enrich"). Не дублирует SQL — читает только через уже
  * существующие admin-сервисы (TrackingAdminService/PhasesAdminService), которые сами читают
- * signaling/materialization-таблицы (tracking_pipeline_state, trajectory_rebuild_runs,
- * phase_definitions, phase_runs). Runner-platform internals (jobKernel/workbook) отсюда не видны.
+ * signaling/materialization-таблицы (state_track_pipeline, job_track_rebuild,
+ * phase_definitions, log_parse_phase_run). Runner-platform internals (jobKernel/workbook) отсюда не видны.
  */
 @Injectable()
 export class WorkbookAdminService {

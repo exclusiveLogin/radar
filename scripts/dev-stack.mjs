@@ -7,10 +7,31 @@
  * concurrently не имеет depends — порядок через wait-on в командах.
  * npm run dev:app | npm run dev (--full)
  */
+import { loadDeploymentManifest, applyDeploymentInfraEnv } from '@radar/shared/deployment/deploymentManifest.loader.js';
 import { spawn } from 'node:child_process';
 import { platform } from 'node:os';
 import { freeDevPorts } from './free-dev-ports.mjs';
 import { repoRoot, run } from './utils.mjs';
+
+function envTruthy(name) {
+  const raw = process.env[name];
+  if (!raw) return false;
+  return ['1', 'true', 'yes', 'on'].includes(raw.trim().toLowerCase());
+}
+
+/** Поднять obs-service sidecar — DOCKERIZE_OBS/ALL из env или deployment.manifest.json. */
+function ensureObsDockerStack() {
+  applyDeploymentInfraEnv(loadDeploymentManifest({ repoRoot }));
+  if (!envTruthy('DOCKERIZE_OBS') && !envTruthy('DOCKERIZE_ALL')) return;
+  console.log('\x1b[36m[obs] docker compose --profile obs up -d\x1b[0m');
+  run('docker', ['compose', '--profile', 'obs', 'up', '-d']);
+  if (!process.env.RADAR_OBS_MODE) {
+    process.env.RADAR_OBS_MODE = 'service';
+  }
+  if (!process.env.RADAR_OBS_SERVICE_URL) {
+    process.env.RADAR_OBS_SERVICE_URL = 'http://127.0.0.1:3020';
+  }
+}
 
 const full = process.argv.includes('--full');
 const sharedDist = 'file:packages/shared/dist/index.js';
@@ -60,6 +81,8 @@ async function main() {
   console.log(`Профиль: ${full ? 'full (+ worker)' : 'app (shared + api + web)'}`);
 
   freeDevPorts();
+
+  ensureObsDockerStack();
 
   console.log('\n\x1b[36m(dist уже собран predev — см. package.json)\x1b[0m');
   console.log('\n\x1b[32mЗапуск процессов (web и worker после /api/ready)\x1b[0m');

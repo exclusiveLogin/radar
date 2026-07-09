@@ -117,7 +117,7 @@ test("materializeCandidateExtras: legacy extras.repeat игнорируется 
   assert.equal(materializeCandidateExtras(candidate, ws).repeat, undefined);
 });
 
-test("trait processors + finalize: repeat в parsed_events", () => {
+test("trait processors + finalize: repeat в mat_parse_event", () => {
   const ws = createEmptyParseWorkspace(
     randomUUID(),
     "повторная опасность\nКлинцы\nБрянская область",

@@ -7,14 +7,14 @@
 | Метод | Путь | Описание |
 |-------|------|----------|
 | GET | `/` | Список `phase_definitions` |
-| PATCH | `/{id}` | `{ enabled?, policy?, enrichers? }` — при `enabled=true`: ingest → `phase_coverage` catch-up; geo → `place_enrichment_jobs` catch-up |
+| PATCH | `/{id}` | `{ enabled?, policy?, enrichers? }` — при `enabled=true`: ingest → `queue_parse_coverage` catch-up; geo → `job_geo_place_enrich` catch-up |
 
 ## Runs и прогресс
 
 | Метод | Путь | Описание |
 |-------|------|----------|
 | GET | `/runs/overview` | `ingest.byPhase[].coverage` + `geo.byPhase[].jobs` (раздельно) |
-| GET | `/runs?phaseId&status&limit` | История `phase_runs` |
+| GET | `/runs?phaseId&status&limit` | История `log_parse_phase_run` |
 | GET | `/runs/{id}` | Карточка + `logTail` |
 | POST | `/{id}/run` | Manual: enqueue scope → `phase_run` pending (исполнение — worker/CLI) |
 | POST | `/runs/{id}/cancel` | `control=cancel` |

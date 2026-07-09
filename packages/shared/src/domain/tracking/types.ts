@@ -50,7 +50,7 @@ export type SourceRef = {
 };
 
 /**
- * Кандидат на добавление в трек — нормализованный из event_locations + parsed_events.
+ * Кандидат на добавление в трек — нормализованный из mat_parse_location + mat_parse_event.
  * Это input для ST-DBSCAN dedup и затем для Kalman pipeline.
  */
 export type TrackingCandidate = {

@@ -23,7 +23,7 @@ import {
   phaseEnrichersToRun,
 } from "./parseWorkspaceRunModes.js";
 
-/** Активная строка message_parse_workspace для phase_enrich / heal. */
+/** Активная строка work_parse_message для phase_enrich / heal. */
 export type StoredParseWorkspace = {
   workspace: ParseWorkspace;
   spawnedEventIds: string[];

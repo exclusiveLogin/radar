@@ -1,0 +1,38 @@
+{
+  "version": 1,
+  "runners": {
+    "pipelines": [
+      {
+        "pipelineKey": "tracking",
+        "label": "NextGen track rebuild (cluster+field_train+join)",
+        "host": "tracking",
+        "spawn": "in-process",
+        "schedulingImpl": "legacy",
+        "enabled": true
+      },
+      {
+        "pipelineKey": "parse",
+        "label": "ingestParse scheduled phases (queue_parse_coverage claim-drain)",
+        "host": "phase",
+        "spawn": "in-process",
+        "schedulingImpl": "legacy",
+        "enabled": true
+      },
+      {
+        "pipelineKey": "geo-enrich",
+        "label": "geoParse scheduled phases (dadata → nominatim → llm)",
+        "host": "phase",
+        "spawn": "in-process",
+        "schedulingImpl": "legacy",
+        "enabled": true
+      }
+    ]
+  },
+  "infra": {
+    "obs": {
+      "dockerize": false,
+      "dockerizeAll": false
+    }
+  },
+  "transport": {}
+}

@@ -23,10 +23,10 @@ export async function clearIngestOperationalState(
 
   const backfillJobsDeleted = await truncateTableCounted(
     dataSource,
-    "ingest_backfill_jobs",
+    "job_ingest_backfill",
     { log },
   );
-  const cursorsDeleted = await truncateTableCounted(dataSource, "ingest_cursors", { log });
+  const cursorsDeleted = await truncateTableCounted(dataSource, "state_ingest_cursor", { log });
 
   const providersWithErrors = (await dataSource.query(
     `SELECT COUNT(*)::int AS count FROM ingest_providers WHERE last_error IS NOT NULL`,
@@ -41,7 +41,7 @@ export async function clearIngestOperationalState(
 
   let domainEventsDeleted = 0;
   if (options.includeDomainEvents !== false) {
-    domainEventsDeleted = await truncateTableCounted(dataSource, "domain_events", { log });
+    domainEventsDeleted = await truncateTableCounted(dataSource, "event_outbox", { log });
   }
 
   return {

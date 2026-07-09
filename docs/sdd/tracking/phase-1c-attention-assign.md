@@ -38,7 +38,7 @@
 
 ## Auto-tune (удалено)
 
-Offline auto-tune subsystem (`trackingTuneCli`, `TrackingTuneWidget`, API `/admin/tracking/tune/*`) удалён вместе с GNN hard-cut — был тесно связан с GNN attention/greedy-flow алгоритмами. Таблица `tracking_tune_runs` осталась в БД как история миграций, но не используется.
+Offline auto-tune subsystem (`trackingTuneCli`, `TrackingTuneWidget`, API `/admin/tracking/tune/*`) удалён вместе с GNN hard-cut — был тесно связан с GNN attention/greedy-flow алгоритмами. Таблица `job_track_tune` осталась в БД как история миграций, но не используется.
 
 ## Supersedes
 

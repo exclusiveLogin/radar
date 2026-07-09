@@ -300,7 +300,7 @@ export class MapController {
     });
   }
 
-  /** Лента изменений: parsed_event + регионы из event_locations (1 событие = 1 карточка). */
+  /** Лента изменений: parsed_event + регионы из mat_parse_location (1 событие = 1 карточка). */
   @Get("map/events/recent")
   @ApiOperation({ summary: "Лента последних событий изменения статуса", description: "1 запись = 1 parsed_event с привязанными регионами/НП. Default limit=80." })
   @ApiQuery({ name: "limit", required: false, description: "Макс. кол-во записей (default 80)" })
@@ -348,7 +348,7 @@ export class MapController {
   @Get("map/regions/by-code/:code/events")
   @ApiOperation({
     summary: "История событий региона",
-    description: "Хронология parsed_events для заданного ISO-кода субъекта.",
+    description: "Хронология mat_parse_event для заданного ISO-кода субъекта.",
   })
   @ApiParam({ name: "code", example: "RU-BRY" })
   @ApiQuery({ name: "limit", required: false, example: "50" })
@@ -438,7 +438,7 @@ export class MapController {
 
   /** GET /map/tracks/gravity — heatmap гравитации мест (узлы треков по зонам). */
   @Get("map/tracks/gravity")
-  @ApiOperation({ summary: "Gravity heatmap — плотность trajectory_nodes по place/geohash" })
+  @ApiOperation({ summary: "Gravity heatmap — плотность mat_track_node по place/geohash" })
   @ApiQuery({ name: "asOf", required: false })
   @ApiQuery({ name: "since", required: false })
   @ApiQuery({ name: "threatProfile", required: false, enum: ["uav", "rocket", "balloon", "unknown"] })

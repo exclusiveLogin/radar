@@ -1,4 +1,5 @@
 /**
+ * @see ../../../../../docs/database-table-naming.md
  * Структурная геометрия OSM: контуры субъектов, районов, городов, ФО.
  * Создаётся при geo:features:import — не в runtime parse.
  * @see docs/rfc/adr-005-geo-feature.md

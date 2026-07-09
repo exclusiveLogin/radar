@@ -65,7 +65,7 @@ export { isPgDeadlockError, isPgLockNotAvailableError };
 
 /**
  * Полная очистка L1 (OLAP materialization). FK только внутри L1 (nodes→tracks).
- * consumed без FK на event_locations — не блокируем OLTP при INSERT/TRUNCATE.
+ * consumed без FK на mat_parse_location — не блокируем OLTP при INSERT/TRUNCATE.
  */
 export const TRACKING_RESET_TRUNCATE_SQL =
-  `TRUNCATE TABLE tracking_pipeline_consumed, trajectory_nodes, trajectory_tracks RESTART IDENTITY CASCADE`;
+  `TRUNCATE TABLE state_track_consumed, mat_track_node, mat_track RESTART IDENTITY CASCADE`;

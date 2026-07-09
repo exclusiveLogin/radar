@@ -69,6 +69,68 @@ npm run radar -- stack cold-up
 
 **Альтернатива host dev:** `npm run radar -- stack docker-dev` — api/web/worker-роли в Docker ([docker-dev-stack.md](./docker-dev-stack.md)).
 
+---
+
+## Quickstart для нового разработчика (~30 мин)
+
+Минимальный путь «клонировал репо → вижу UI → понимаю пайплайн».
+
+### Шаг 1 — Bootstrap (10 мин)
+
+```powershell
+cd C:\path\to\radar
+Copy-Item .env.example .env
+npm run radar -- stack cold-up
+```
+
+### Шаг 2 — Dev-стек без Telegram (5 мин)
+
+```powershell
+npm run radar -- stack dev
+```
+
+Проверка: http://127.0.0.1:5173 · http://127.0.0.1:3000/api/ready · http://127.0.0.1:8080 (Adminer).
+
+### Шаг 3 — Observability smoke (5 мин)
+
+```powershell
+# embedded mode (default) — нужен worker db mode
+$env:RADAR_STORAGE_MODE="db"
+npm run worker:dev
+
+# SQL: SELECT host_id, role FROM obs_hosts;
+# или sidecar:
+$env:DOCKERIZE_OBS="1"
+npm run radar -- stack dev --full
+curl http://127.0.0.1:3020/health
+```
+
+Admin UI → Workbook observability + Worker runners.
+
+### Шаг 4 — Понять потоки (5 мин)
+
+| Документ | Зачем |
+|----------|-------|
+| [domain/how-it-works.md](./domain/how-it-works.md) | ingest → parse → events → obs |
+| [cheatsheet.md](./cheatsheet.md) | SQL, CLI |
+| [runbook/observability.md](./runbook/observability.md) | embedded vs service |
+
+### Шаг 5 — Полный контур (опционально, +1–2ч)
+
+[cold-start.md](./cold-start.md) шаги 0→6: session → manifest → backfill → parse.
+
+Runner platform (dev only):
+
+```powershell
+$env:PARSE_RUNNER_PLATFORM_ENABLED="true"
+npm run worker:dev
+# лог: [odp] parse → runner-platform
+```
+
+E2E chaining: [runbook/e2e-bus-chaining.md](./runbook/e2e-bus-chaining.md).
+
+---
+
 ### 2. Каждый рабочий день
 
 ```powershell
@@ -173,7 +235,7 @@ Provider в БД должен быть **`active`**, binding **`enabled`**, дл
 POST /api/admin/ingest/messages
 ```
 
-или дождаться сообщения в привязанном канале → `raw_messages` → `parsed_events`.
+или дождаться сообщения в привязанном канале → `mat_ingest_raw` → `mat_parse_event`.
 
 Подробный CLI-справочник: [ingest-providers.md § CLI](./ingest-providers.md#cli--справочник-команд).
 
@@ -195,12 +257,12 @@ npm run radar -- ingest backfill -- --all-bindings --batch-size=100
 
 ```text
 Telegram → IngestOrchestrator (live)
-         → IngestRawMessageHandler → raw_messages
+         → IngestRawMessageHandler → mat_ingest_raw
          → InProcessEventBus (RawMessageIngested)
          → ParseRawMessageHandler (+ worker_threads pool)
-         → parsed_events
+         → mat_parse_event
 
-API (admin) → domain_events (outbox) → OutboxRelay → та же шина в worker
+API (admin) → event_outbox (outbox) → OutboxRelay → та же шина в worker
 
 BackfillDaemon (отдельно от Orchestrator) → streamHistory → тот же ingest/parse
 ```

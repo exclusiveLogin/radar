@@ -86,7 +86,7 @@ export class TypeOrmChannelRepository implements IChannelRepository {
        ) agg ON true
        LEFT JOIN LATERAL (
          SELECT MAX(rm.posted_at) AS last_raw_posted_at
-         FROM raw_messages rm
+         FROM mat_ingest_raw rm
          WHERE rm.channel_id = c.id
        ) lr ON true
        ORDER BY c.key ASC`,

@@ -68,7 +68,7 @@ export class TrackingAdminService {
   async getStatus(): Promise<TrackingStatusResponse> {
     const [state] = await this.ds.query<PipelineRow[]>(
       `SELECT enabled, watermark, config, active_run_id, total_candidates
-       FROM tracking_pipeline_state WHERE id = 'default'`,
+       FROM state_track_pipeline WHERE id = 'default'`,
     );
     const pipeline = state ?? {
       enabled: false,
@@ -81,7 +81,7 @@ export class TrackingAdminService {
     const runId = pipeline.active_run_id ?? null;
     const activeRun = await this.resolveControllableRun(runId);
     const [lastRunRow] = await this.ds.query<RunRow[]>(
-      `SELECT * FROM trajectory_rebuild_runs ORDER BY started_at DESC LIMIT 1`,
+      `SELECT * FROM job_track_rebuild ORDER BY started_at DESC LIMIT 1`,
     );
     const lastRun = lastRunRow ? mapRunRow(lastRunRow) : null;
 
@@ -158,9 +158,9 @@ export class TrackingAdminService {
       const [{ count }] = await this.ds.query<{ count: string }[]>(
         `
       SELECT COUNT(*)::text AS count
-      FROM event_locations el
-      JOIN parsed_events pe ON pe.id = el.parsed_event_id
-      LEFT JOIN raw_messages rm ON rm.id = pe.raw_message_id
+      FROM mat_parse_location el
+      JOIN mat_parse_event pe ON pe.id = el.parsed_event_id
+      LEFT JOIN mat_ingest_raw rm ON rm.id = pe.raw_message_id
       WHERE
         ${EVENT_AT_SQL} <= $1
         AND el.lat IS NOT NULL
@@ -177,7 +177,7 @@ export class TrackingAdminService {
 
   async listRuns(limit = 20): Promise<TrackingRebuildRun[]> {
     const rows = await this.ds.query<RunRow[]>(
-      `SELECT * FROM trajectory_rebuild_runs ORDER BY started_at DESC LIMIT $1`,
+      `SELECT * FROM job_track_rebuild ORDER BY started_at DESC LIMIT $1`,
       [limit],
     );
     return rows.map(mapRunRow);
@@ -185,7 +185,7 @@ export class TrackingAdminService {
 
   async getConfig(): Promise<TrackingPipelineConfig> {
     const [state] = await this.ds.query<PipelineRow[]>(
-      `SELECT config FROM tracking_pipeline_state WHERE id = 'default'`,
+      `SELECT config FROM state_track_pipeline WHERE id = 'default'`,
     );
     return mergeConfig(state?.config);
   }
@@ -201,7 +201,7 @@ export class TrackingAdminService {
         : current.profiles,
     });
     await this.ds.query(
-      `UPDATE tracking_pipeline_state SET config = $1::jsonb, updated_at = now() WHERE id = 'default'`,
+      `UPDATE state_track_pipeline SET config = $1::jsonb, updated_at = now() WHERE id = 'default'`,
       [JSON.stringify(next)],
     );
     return next;
@@ -209,7 +209,7 @@ export class TrackingAdminService {
 
   async patchEnabled(enabled: boolean): Promise<{ ok: true; enabled: boolean }> {
     await this.ds.query(
-      `UPDATE tracking_pipeline_state SET enabled = $1, updated_at = now() WHERE id = 'default'`,
+      `UPDATE state_track_pipeline SET enabled = $1, updated_at = now() WHERE id = 'default'`,
       [enabled],
     );
     if (enabled) {
@@ -231,7 +231,7 @@ export class TrackingAdminService {
     try {
       const runId = await this.createRun("full_rebuild");
       await this.ds.query(
-        `UPDATE tracking_pipeline_state SET active_run_id = $1, enabled = true, updated_at = now() WHERE id = 'default'`,
+        `UPDATE state_track_pipeline SET active_run_id = $1, enabled = true, updated_at = now() WHERE id = 'default'`,
         [runId],
       );
       return { ok: true, runId };
@@ -243,14 +243,14 @@ export class TrackingAdminService {
 
   /**
    * Soft rebuild: truncate L1 + consumed, watermark с нуля, config не трогаем.
-   * Worker заново: Phase W (magnet/gravity/corridor из event_locations) → Phase A (GNN assign).
+   * Worker заново: Phase W (magnet/gravity/corridor из mat_parse_location) → Phase A (GNN assign).
    */
   async softRebuild(): Promise<{ ok: true; runId: string }> {
     await this.softResetInternal();
     try {
       const runId = await this.createRun("soft_rebuild");
       await this.ds.query(
-        `UPDATE tracking_pipeline_state SET active_run_id = $1, enabled = true, updated_at = now() WHERE id = 'default'`,
+        `UPDATE state_track_pipeline SET active_run_id = $1, enabled = true, updated_at = now() WHERE id = 'default'`,
         [runId],
       );
       return { ok: true, runId };
@@ -269,7 +269,7 @@ export class TrackingAdminService {
     let runId = await this.resolveControllableRunId();
     if (!runId) {
       const [{ enabled }] = await this.ds.query<{ enabled: boolean }[]>(
-        `SELECT enabled FROM tracking_pipeline_state WHERE id = 'default'`,
+        `SELECT enabled FROM state_track_pipeline WHERE id = 'default'`,
       );
       if (!enabled) throw new BadRequestException("pipeline disabled");
       runId = await this.createRun("incremental");
@@ -277,7 +277,7 @@ export class TrackingAdminService {
     }
     await this.setRunControl(runId, { pause: true });
     await this.ds.query(
-      `UPDATE trajectory_rebuild_runs SET status = 'paused' WHERE id = $1`,
+      `UPDATE job_track_rebuild SET status = 'paused' WHERE id = $1`,
       [runId],
     );
     return { ok: true };
@@ -292,7 +292,7 @@ export class TrackingAdminService {
     }
     await this.setRunControl(runId, { pause: false });
     await this.ds.query(
-      `UPDATE trajectory_rebuild_runs SET status = 'running' WHERE id = $1`,
+      `UPDATE job_track_rebuild SET status = 'running' WHERE id = $1`,
       [runId],
     );
     return { ok: true };
@@ -303,11 +303,11 @@ export class TrackingAdminService {
     if (!runId) throw new BadRequestException("no active run");
     await this.setRunControl(runId, { cancel: true });
     await this.ds.query(
-      `UPDATE trajectory_rebuild_runs SET status = 'cancelled', finished_at = now() WHERE id = $1`,
+      `UPDATE job_track_rebuild SET status = 'cancelled', finished_at = now() WHERE id = $1`,
       [runId],
     );
     await this.ds.query(
-      `UPDATE tracking_pipeline_state SET active_run_id = NULL, updated_at = now() WHERE id = 'default'`,
+      `UPDATE state_track_pipeline SET active_run_id = NULL, updated_at = now() WHERE id = 'default'`,
     );
     return { ok: true };
   }
@@ -316,7 +316,7 @@ export class TrackingAdminService {
 
   private async ensurePipelineEnabled(): Promise<void> {
     await this.ds.query(
-      `UPDATE tracking_pipeline_state SET enabled = true, updated_at = now() WHERE id = 'default'`,
+      `UPDATE state_track_pipeline SET enabled = true, updated_at = now() WHERE id = 'default'`,
     );
   }
 
@@ -324,7 +324,7 @@ export class TrackingAdminService {
     await this.runL1Reset(async () => {
       await this.cancelActiveRuns();
       await this.ds.query(
-        `UPDATE tracking_pipeline_state
+        `UPDATE state_track_pipeline
          SET enabled = false, active_run_id = NULL, updated_at = now()
          WHERE id = 'default'`,
       );
@@ -341,7 +341,7 @@ export class TrackingAdminService {
     await this.runL1Reset(async () => {
       await this.cancelActiveRuns();
       await this.ds.query(
-        `UPDATE tracking_pipeline_state
+        `UPDATE state_track_pipeline
          SET enabled = false, active_run_id = NULL, updated_at = now()
          WHERE id = 'default'`,
       );
@@ -372,7 +372,7 @@ export class TrackingAdminService {
         SELECT COUNT(*)::text AS count
         FROM pg_locks l
         JOIN pg_class c ON c.oid = l.relation
-        WHERE c.relname IN ('trajectory_tracks', 'trajectory_nodes', 'tracking_pipeline_consumed')
+        WHERE c.relname IN ('mat_track', 'mat_track_node', 'state_track_consumed')
           AND l.granted
           AND l.mode IN ('RowExclusiveLock', 'ShareLock', 'ShareRowExclusiveLock',
                          'ExclusiveLock', 'AccessExclusiveLock')
@@ -393,7 +393,7 @@ export class TrackingAdminService {
         SELECT COUNT(*)::text AS count
         FROM pg_locks l
         JOIN pg_class c ON c.oid = l.relation
-        WHERE c.relname IN ('trajectory_tracks', 'trajectory_nodes', 'tracking_pipeline_consumed')
+        WHERE c.relname IN ('mat_track', 'mat_track_node', 'state_track_consumed')
           AND l.granted
           AND l.mode = 'AccessShareLock'
           AND l.pid <> pg_backend_pid()
@@ -418,7 +418,7 @@ export class TrackingAdminService {
         JOIN pg_class c ON c.oid = l.relation
         WHERE l.pid <> pg_backend_pid()
           AND l.granted
-          AND c.relname IN ('trajectory_tracks', 'trajectory_nodes', 'tracking_pipeline_consumed')
+          AND c.relname IN ('mat_track', 'mat_track_node', 'state_track_consumed')
           AND l.mode = 'AccessShareLock'
       ) s
       `,
@@ -439,7 +439,7 @@ export class TrackingAdminService {
           AND (
             (l.locktype = 'advisory' AND l.objid = $1)
             OR (
-              c.relname IN ('trajectory_tracks', 'trajectory_nodes', 'tracking_pipeline_consumed')
+              c.relname IN ('mat_track', 'mat_track_node', 'state_track_consumed')
               AND l.mode IN ('RowExclusiveLock', 'ShareLock', 'ShareRowExclusiveLock',
                              'ExclusiveLock', 'AccessExclusiveLock')
             )
@@ -461,7 +461,7 @@ export class TrackingAdminService {
           async query => {
             await query(TRACKING_RESET_TRUNCATE_SQL);
             await query(
-              `UPDATE tracking_pipeline_state
+              `UPDATE state_track_pipeline
                SET watermark = '{}'::jsonb, updated_at = now()
                WHERE id = 'default'`,
             );
@@ -486,7 +486,7 @@ export class TrackingAdminService {
 
   private async cancelActiveRuns(): Promise<void> {
     await this.ds.query(
-      `UPDATE trajectory_rebuild_runs
+      `UPDATE job_track_rebuild
        SET status = 'cancelled', finished_at = now(),
            control = COALESCE(control, '{}'::jsonb) || '{"cancel":true}'::jsonb
        WHERE status IN ('running', 'paused')`,
@@ -501,7 +501,7 @@ export class TrackingAdminService {
     const since = new Date(0).toISOString();
     const until = new Date().toISOString();
     await this.ds.query(
-      `INSERT INTO trajectory_rebuild_runs
+      `INSERT INTO job_track_rebuild
        (id, status, mode, since, until, rebuild_gen, stats)
        VALUES ($1, 'running', $2, $3, $4, $5, $6::jsonb)`,
       [id, mode, since, until, rebuildGen, JSON.stringify({ stage: "loading", elapsedMs: 0 })],
@@ -511,7 +511,7 @@ export class TrackingAdminService {
 
   private async bindActiveRun(runId: string): Promise<void> {
     await this.ds.query(
-      `UPDATE tracking_pipeline_state SET active_run_id = $1, updated_at = now() WHERE id = 'default'`,
+      `UPDATE state_track_pipeline SET active_run_id = $1, updated_at = now() WHERE id = 'default'`,
       [runId],
     );
   }
@@ -519,7 +519,7 @@ export class TrackingAdminService {
   /** running/paused run: active_run_id или последний controllable run в БД. */
   private async resolveControllableRunId(): Promise<string | null> {
     const [state] = await this.ds.query<{ active_run_id: string | null }[]>(
-      `SELECT active_run_id FROM tracking_pipeline_state WHERE id = 'default'`,
+      `SELECT active_run_id FROM state_track_pipeline WHERE id = 'default'`,
     );
     const run = await this.resolveControllableRun(state?.active_run_id ?? null);
     return run?.id ?? null;
@@ -535,7 +535,7 @@ export class TrackingAdminService {
       }
     }
     const [row] = await this.ds.query<RunRow[]>(
-      `SELECT * FROM trajectory_rebuild_runs
+      `SELECT * FROM job_track_rebuild
        WHERE status IN ('running', 'paused')
        ORDER BY started_at DESC
        LIMIT 1`,
@@ -545,7 +545,7 @@ export class TrackingAdminService {
 
   private async loadRun(id: string): Promise<TrackingRebuildRun | null> {
     const [row] = await this.ds.query<RunRow[]>(
-      `SELECT * FROM trajectory_rebuild_runs WHERE id = $1`,
+      `SELECT * FROM job_track_rebuild WHERE id = $1`,
       [id],
     );
     return row ? mapRunRow(row) : null;
@@ -553,7 +553,7 @@ export class TrackingAdminService {
 
   private async readRunControl(runId: string) {
     const [row] = await this.ds.query<{ control: RunRow["control"] }[]>(
-      `SELECT control FROM trajectory_rebuild_runs WHERE id = $1`,
+      `SELECT control FROM job_track_rebuild WHERE id = $1`,
       [runId],
     );
     return row?.control ?? null;
@@ -565,7 +565,7 @@ export class TrackingAdminService {
   ): Promise<void> {
     const current = (await this.readRunControl(runId)) ?? {};
     await this.ds.query(
-      `UPDATE trajectory_rebuild_runs SET control = $1::jsonb WHERE id = $2`,
+      `UPDATE job_track_rebuild SET control = $1::jsonb WHERE id = $2`,
       [JSON.stringify({ ...current, ...patch }), runId],
     );
   }
@@ -574,7 +574,7 @@ export class TrackingAdminService {
   private async countTracksSafe(): Promise<number> {
     return withTrackingL1ReadRetry(async () => {
       const [{ count }] = await this.ds.query<{ count: string }[]>(
-        `SELECT COUNT(*)::text AS count FROM trajectory_tracks`,
+        `SELECT COUNT(*)::text AS count FROM mat_track`,
       );
       return Number(count);
     }, { maxAttempts: 3, baseDelayMs: 120 });
@@ -646,9 +646,9 @@ export class TrackingAdminService {
     const [{ count: geoCount }] = await this.ds.query<{ count: string }[]>(
       `
       SELECT COUNT(*)::text AS count
-      FROM event_locations el
-      JOIN parsed_events pe ON pe.id = el.parsed_event_id
-      LEFT JOIN raw_messages rm ON rm.id = pe.raw_message_id
+      FROM mat_parse_location el
+      JOIN mat_parse_event pe ON pe.id = el.parsed_event_id
+      LEFT JOIN mat_ingest_raw rm ON rm.id = pe.raw_message_id
       WHERE ${EVENT_AT_SQL} <= $1
         AND el.lat IS NOT NULL AND el.lon IS NOT NULL
         AND pe.is_active IS DISTINCT FROM false
@@ -660,9 +660,9 @@ export class TrackingAdminService {
     const [{ count: targetCount }] = await this.ds.query<{ count: string }[]>(
       `
       SELECT COUNT(*)::text AS count
-      FROM event_locations el
-      JOIN parsed_events pe ON pe.id = el.parsed_event_id
-      LEFT JOIN raw_messages rm ON rm.id = pe.raw_message_id
+      FROM mat_parse_location el
+      JOIN mat_parse_event pe ON pe.id = el.parsed_event_id
+      LEFT JOIN mat_ingest_raw rm ON rm.id = pe.raw_message_id
       WHERE ${EVENT_AT_SQL} <= $1
         AND el.lat IS NOT NULL AND el.lon IS NOT NULL
         AND pe.is_active IS DISTINCT FROM false
@@ -672,11 +672,11 @@ export class TrackingAdminService {
     );
 
     const [{ nodes }] = await this.ds.query<{ nodes: string }[]>(
-      `SELECT COUNT(*)::text AS nodes FROM trajectory_nodes`,
+      `SELECT COUNT(*)::text AS nodes FROM mat_track_node`,
     );
 
     const trackRows = await this.ds.query<{ status: string; count: string }[]>(
-      `SELECT status, COUNT(*)::text AS count FROM trajectory_tracks GROUP BY status`,
+      `SELECT status, COUNT(*)::text AS count FROM mat_track GROUP BY status`,
     );
     const byStatus = Object.fromEntries(trackRows.map(r => [r.status, Number(r.count)]));
     const tracksActive = byStatus.active ?? 0;
@@ -744,9 +744,9 @@ export class TrackingAdminService {
     const [minRow] = await this.ds.query<{ min_at: Date | string | null }[]>(
       `
       SELECT MIN(${EVENT_AT_SQL}) AS min_at
-      FROM event_locations el
-      JOIN parsed_events pe ON pe.id = el.parsed_event_id
-      LEFT JOIN raw_messages rm ON rm.id = pe.raw_message_id
+      FROM mat_parse_location el
+      JOIN mat_parse_event pe ON pe.id = el.parsed_event_id
+      LEFT JOIN mat_ingest_raw rm ON rm.id = pe.raw_message_id
       WHERE
         ${EVENT_AT_SQL} <= $1
         AND el.lat IS NOT NULL
@@ -764,9 +764,9 @@ export class TrackingAdminService {
     const [{ count: anchorCount }] = await this.ds.query<{ count: string }[]>(
       `
       SELECT COUNT(*)::text AS count
-      FROM event_locations el
-      JOIN parsed_events pe ON pe.id = el.parsed_event_id
-      LEFT JOIN raw_messages rm ON rm.id = pe.raw_message_id
+      FROM mat_parse_location el
+      JOIN mat_parse_event pe ON pe.id = el.parsed_event_id
+      LEFT JOIN mat_ingest_raw rm ON rm.id = pe.raw_message_id
       WHERE
         ${EVENT_AT_SQL} <= $1
         AND ${EVENT_AT_SQL} >= $2
@@ -775,7 +775,7 @@ export class TrackingAdminService {
         AND pe.is_active IS DISTINCT FROM false
         AND pe.event_type IN (${targetIn})
         AND EXISTS (
-          SELECT 1 FROM tracking_pipeline_consumed tpc
+          SELECT 1 FROM state_track_consumed tpc
           WHERE tpc.event_location_id = el.id
         )
       `,

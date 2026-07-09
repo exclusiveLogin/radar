@@ -2,10 +2,10 @@
  * ---
  * layer: api
  * kind: entity
- * table: event_locations
+ * table: mat_parse_location
  * purpose: Где на карте показать событие: ссылка на region/place + координаты/точность; один parsed_event может иметь несколько кандидатов локации.
  * @see ../../../../../docs/domain/persistence-map.md#EventLocationEntity
- * @see ../../../../../docs/domain/how-it-works.md#parse-flow
+ * @see ../../../../../docs/database-table-naming.md`n * @see ../../../../../docs/domain/how-it-works.md#parse-flow
  * ---
  */
 import { Column, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from "typeorm";
@@ -13,7 +13,7 @@ import { PlaceEntity } from "../../geo/entities";
 import { RegionEntity } from "../../geo/entities";
 import { ParsedEventEntity } from "./parsed-event.entity";
 
-@Entity({ name: "event_locations" })
+@Entity({ name: "mat_parse_location" })
 export class EventLocationEntity {
   @PrimaryGeneratedColumn("uuid")
   id!: string;

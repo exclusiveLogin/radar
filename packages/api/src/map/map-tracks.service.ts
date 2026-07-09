@@ -98,17 +98,17 @@ export class MapTracksService {
       `SELECT t.id, t.status, t.threat_profile, t.first_at, t.last_at, t.last_lat, t.last_lon,
               t.velocity_ms, t.bearing_deg, t.node_count, t.total_distance_m,
               fn.lat AS ref_lat, fn.lon AS ref_lon, ln.kalman_state AS head_kalman_state
-       FROM trajectory_tracks t
+       FROM mat_track t
        LEFT JOIN LATERAL (
          SELECT lat, lon
-         FROM trajectory_nodes
+         FROM mat_track_node
          WHERE track_id = t.id
          ORDER BY seq ASC
          LIMIT 1
        ) fn ON true
        LEFT JOIN LATERAL (
          SELECT kalman_state
-         FROM trajectory_nodes
+         FROM mat_track_node
          WHERE track_id = t.id AND occurred_at <= $1
          ORDER BY seq DESC
          LIMIT 1
@@ -140,7 +140,7 @@ export class MapTracksService {
       const trackIds = tracks.map(t => `'${t.id}'`).join(",");
       const nodeRows = await this.ds.query<NodeRow[]>(
         `SELECT id, track_id, seq, occurred_at, lat, lon, place_id, mode, kalman_state, source_refs
-         FROM trajectory_nodes
+         FROM mat_track_node
          WHERE track_id IN (${trackIds}) AND occurred_at <= $1
          ORDER BY track_id, seq`,
         [asOf.toISOString()],
@@ -203,8 +203,8 @@ export class MapTracksService {
     const nodeRows = await this.ds.query<(NodeRow & { threat_profile: string })[]>(
       `SELECT n.id, n.track_id, n.seq, n.occurred_at, n.lat, n.lon, n.place_id, n.mode,
               n.kalman_state, n.source_refs, t.threat_profile
-       FROM trajectory_nodes n
-       JOIN trajectory_tracks t ON t.id = n.track_id
+       FROM mat_track_node n
+       JOIN mat_track t ON t.id = n.track_id
        ${where}
        ORDER BY n.track_id, n.seq
        LIMIT $${idx}`,
@@ -302,8 +302,8 @@ export class MapTracksService {
       { lat: number; lon: number; place_id: string | null }[]
     >(
       `SELECT n.lat, n.lon, n.place_id
-       FROM trajectory_nodes n
-       JOIN trajectory_tracks t ON t.id = n.track_id
+       FROM mat_track_node n
+       JOIN mat_track t ON t.id = n.track_id
        ${where}`,
       params,
     );

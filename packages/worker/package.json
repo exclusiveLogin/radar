@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "predev": "npm run build -w @radar/shared && npm run build -w @radar/api && npm run build -w @repo/root && npm run build -w @radar/worker",
+    "predev": "npm run build -w @radar/shared && npm run build -w @radar/observability && npm run build -w @radar/api && npm run build -w @repo/root && npm run build -w @radar/worker",
     "prestart": "npm run predev",
     "dev": "tsx watch src/index.ts",
     "start": "tsx src/index.ts",
@@ -74,6 +74,7 @@
   "dependencies": {
     "@repo/root": "*",
     "@radar/shared": "*",
+    "@radar/observability": "*",
     "cli-progress": "^3.12.0",
     "dotenv": "^16.4.7",
     "pg": "^8.13.1",

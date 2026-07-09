@@ -4,7 +4,7 @@ import { mapApi } from "../api/mapApi";
 import { startIntervalPoll } from "../rx/startIntervalPoll";
 import { reportAppError } from "./appLogStore";
 
-/** Все raw_messages (GET /api/map/messages/recent). */
+/** Все mat_ingest_raw (GET /api/map/messages/recent). */
 export const messagesFeed$ = new BehaviorSubject<MessageFeedItem[]>([]);
 
 const POLL_MS = 20_000;

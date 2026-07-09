@@ -204,7 +204,38 @@ export {
   runOutcomeSchema,
   runHistoryEntrySchema,
   workbookObservabilityResponseSchema,
+  runnerDiscoveryResponseSchema,
 } from "./admin";
+export {
+  obsPipelineRuntimeSchema,
+  executorKindSchema,
+  executorStatusSchema,
+  odpRuntimeEntrySchema,
+  hostSnapshotSchema,
+  executorSnapshotSchema,
+  workloadSnapshotSchema,
+  triggerCounterKeySchema,
+  obsIngestBatchSchema,
+  obsIngestMaterializeEntrySchema,
+  obsIngestTriggerEntrySchema,
+  runtimeObservabilitySnapshotSchema,
+  obsTriggerCounterSchema,
+  obsMaterializeCounterSchema,
+} from "./observability";
+
+export {
+  deploymentHostSchema,
+  deploymentSpawnSchema,
+  schedulingImplSchema,
+  deploymentPipelineEntrySchema,
+  deploymentRunnersSchema,
+  deploymentInfraObsSchema,
+  deploymentInfraSchema,
+  deploymentTransportSchema,
+  deploymentManifestSchema,
+  DEFAULT_DEPLOYMENT_MANIFEST,
+  applyDeploymentEnvOverlay,
+} from "../deployment/deploymentManifest.schema.js";
 
 // --- type-only exports ---
 export type { HealthResponse, ReadyResponse } from "./health";
@@ -395,7 +426,36 @@ export type {
   WorkbookRunOutcome,
   RunHistoryEntry,
   WorkbookObservabilityResponse,
+  RunnerDiscoveryResponse,
 } from "./admin";
+export type {
+  ObsPipelineRuntime,
+  ExecutorKind,
+  ExecutorStatus,
+  OdpRuntimeEntry,
+  HostSnapshot,
+  ExecutorSnapshot,
+  WorkloadSnapshot,
+  TriggerCounterKey,
+  ObsIngestBatch,
+  ObsIngestMaterializeEntry,
+  ObsIngestTriggerEntry,
+  RuntimeObservabilitySnapshot,
+  ObsTriggerCounter,
+  ObsMaterializeCounter,
+  ObsWorkloadStatus,
+} from "./observability";
+export type {
+  DeploymentHost,
+  DeploymentSpawn,
+  SchedulingImpl,
+  DeploymentPipelineEntry,
+  DeploymentRunners,
+  DeploymentInfraObs,
+  DeploymentInfra,
+  DeploymentTransport,
+  DeploymentManifest,
+} from "../deployment/deploymentManifest.schema.js";
 
 export {
   EVENT_HEATMAP_FILTER_TYPES,

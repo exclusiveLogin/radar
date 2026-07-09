@@ -7,7 +7,7 @@ function parseBoolean(raw: string | undefined, fallback: boolean): boolean {
 }
 
 /**
- * Включает place-centric контур: append-only event_evidence при parse (geo-очередь — отдельно, geoParse).
+ * Включает place-centric контур: append-only mat_parse_evidence при parse (geo-очередь — отдельно, geoParse).
  * По умолчанию включено.
  */
 export function isPlaceCentricGeoEnabled(): boolean {

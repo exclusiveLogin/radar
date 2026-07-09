@@ -50,8 +50,8 @@
 ```text
 Write-line facts          Tracking worker (L1)           Read projections (L2/L2b)
 ─────────────────         ─────────────────────          ──────────────────────────
-event_locations      →    trajectory_tracks/nodes    →    /map/tracks
-parsed_events             Kalman state                      /map/tracks/prediction
+mat_parse_location      →    mat_track/nodes    →    /map/tracks
+mat_parse_event             Kalman state                      /map/tracks/prediction
 places.place_id           threat_profile                    /map/tracks/flow
                                                             /map/tracks/:id/path-fan
 ```
@@ -59,7 +59,7 @@ places.place_id           threat_profile                    /map/tracks/flow
 ### 1.2 L1 pipeline (attention assign + Kalman)
 
 ```text
-load event_locations (pipeline types, geo required, consumed guard)
+load mat_parse_location (pipeline types, geo required, consumed guard)
   → stdbscanDedup (per profile)
   → buildAttentionMatrix()          // linkCost = D_M² / timeDecay
   → assignCandidates (Phase B/C)      // in-locus / soft / seed / intercept
@@ -74,7 +74,7 @@ load event_locations (pipeline types, geo required, consumed guard)
 ### 1.3 L2 pipeline (read projection)
 
 ```text
-trajectory_nodes (with place_id)
+mat_track_node (with place_id)
   → buildTrackEdges()               // P2P segments
   → rollupSegmentCounts()           // flow corridors
   → indexPlaceOccurrences()         // v2: path fan index
@@ -169,8 +169,8 @@ flowchart TB
 
 | Таблица | Ключевые поля |
 |---------|---------------|
-| `trajectory_tracks` | status, first_at, last_at, velocity_ms, bearing_deg, threat_profile |
-| `trajectory_nodes` | track_id, seq, place_id, mode, kalman_state jsonb, source_refs |
+| `mat_track` | status, first_at, last_at, velocity_ms, bearing_deg, threat_profile |
+| `mat_track_node` | track_id, seq, place_id, mode, kalman_state jsonb, source_refs |
 
 Индексы: `(track_id, seq)`, `(occurred_at)`, `(place_id)`, `(event_location_id)`.
 
@@ -180,7 +180,7 @@ flowchart TB
 
 | Job | Описание |
 |-----|----------|
-| `tracking:rebuild` | full rebuild из event_locations, идемпотентный |
+| `tracking:rebuild` | full rebuild из mat_parse_location, идемпотентный |
 | checkpoint | watermark по `occurred_at` (v1: full only) |
 
 CLI: `tracking:rebuild --since --until --dry-run`.
@@ -215,7 +215,7 @@ Zod: `TrajectoryTrack`, `TrajectoryNode`.
 - [ ] Worker rebuild идемпотентен
 - [ ] DISTINCT режет cross-channel same-place дубли
 - [ ] Статичная точка (`attach_only`) посередине трека не обнуляет velocity
-- [ ] `place_id` пишется на node где есть в event_locations
+- [ ] `place_id` пишется на node где есть в mat_parse_location
 - [ ] typecheck + lint green
 - [ ] **Без** Deck.gl, flow, fan, Kill/Pass UI
 

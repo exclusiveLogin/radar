@@ -53,8 +53,8 @@ export async function clearOperationalContent(
 
   let phaseRunsStopped = 0;
   let queueCleared = 0;
-  await runWipeStep(input, "остановка phase_runs + очередей", async () => {
-    input.log?.detail("cancel active phase_runs, clear phase_coverage + geo jobs");
+  await runWipeStep(input, "остановка log_parse_phase_run + очередей", async () => {
+    input.log?.detail("cancel active log_parse_phase_run, clear queue_parse_coverage + geo jobs");
     const stopped = await stopAllActivePhaseRuns({
       dataSource,
       repos,
@@ -63,43 +63,43 @@ export async function clearOperationalContent(
     phaseRunsStopped = stopped.phaseRunsClosed;
     queueCleared = stopped.queueCleared + stopped.geoJobsCleared;
     input.log?.detail(
-      `остановлено: phase_runs=${stopped.phaseRunsClosed}, ingest_queue=${stopped.queueCleared}, geo_jobs=${stopped.geoJobsCleared}`,
+      `остановлено: log_parse_phase_run=${stopped.phaseRunsClosed}, ingest_queue=${stopped.queueCleared}, geo_jobs=${stopped.geoJobsCleared}`,
     );
     return phaseRunsStopped + queueCleared;
   });
 
   let map = { placesCleared: 0, regionsCleared: 0 };
-  await runWipeStep(input, "map-state (no-op, facts via parsed_events wipe)", async () => {
+  await runWipeStep(input, "map-state (no-op, facts via mat_parse_event wipe)", async () => {
     map = await clearOperationalMapState(dataSource, reason, truncateOpts(input));
     return -1;
   });
 
   const parsedEventsDeleted = await runWipeStep(
     input,
-    "parsed_events + evloc (TRUNCATE CASCADE)",
+    "mat_parse_event + evloc (TRUNCATE CASCADE)",
     () =>
-      truncateTableCounted(dataSource, "parsed_events", {
+      truncateTableCounted(dataSource, "mat_parse_event", {
         cascade: true,
         ...truncateOpts(input),
       }),
   );
 
-  const parseAttemptsDeleted = await runWipeStep(input, "parse_attempts", () =>
-    truncateTableCounted(dataSource, "parse_attempts", truncateOpts(input)),
+  const parseAttemptsDeleted = await runWipeStep(input, "log_parse_attempt", () =>
+    truncateTableCounted(dataSource, "log_parse_attempt", truncateOpts(input)),
   );
 
-  const eventEvidenceDeleted = await runWipeStep(input, "event_evidence", () =>
-    truncateTableCounted(dataSource, "event_evidence", truncateOpts(input)),
+  const eventEvidenceDeleted = await runWipeStep(input, "mat_parse_evidence", () =>
+    truncateTableCounted(dataSource, "mat_parse_evidence", truncateOpts(input)),
   );
 
   const placeEnrichmentJobsDeleted = await runWipeStep(
     input,
-    "place_enrichment_jobs",
-    () => truncateTableCounted(dataSource, "place_enrichment_jobs", truncateOpts(input)),
+    "job_geo_place_enrich",
+    () => truncateTableCounted(dataSource, "job_geo_place_enrich", truncateOpts(input)),
   );
 
-  const phaseRunsDeleted = await runWipeStep(input, "phase_runs", () =>
-    truncateTableCounted(dataSource, "phase_runs", truncateOpts(input)),
+  const phaseRunsDeleted = await runWipeStep(input, "log_parse_phase_run", () =>
+    truncateTableCounted(dataSource, "log_parse_phase_run", truncateOpts(input)),
   );
 
   let ingest = {
@@ -111,7 +111,7 @@ export async function clearOperationalContent(
   };
   let domainEventsDeleted = 0;
   await runWipeStep(input, "ingest cursors/backfill", async () => {
-    input.log?.detail("TRUNCATE ingest_backfill_jobs, ingest_cursors; clear provider errors");
+    input.log?.detail("TRUNCATE job_ingest_backfill, state_ingest_cursor; clear provider errors");
     ingest = await clearIngestOperationalState(dataSource, {
       includeDomainEvents: false,
       log: input.log,
@@ -122,13 +122,13 @@ export async function clearOperationalContent(
     return ingest.cursorsDeleted + ingest.backfillJobsDeleted;
   });
 
-  domainEventsDeleted = await runWipeStep(input, "domain_events", () =>
-    truncateTableCounted(dataSource, "domain_events", truncateOpts(input)),
+  domainEventsDeleted = await runWipeStep(input, "event_outbox", () =>
+    truncateTableCounted(dataSource, "event_outbox", truncateOpts(input)),
   );
   ingest.domainEventsDeleted = domainEventsDeleted;
 
-  const rawMessagesDeleted = await runWipeStep(input, "raw_messages", async () => {
-    input.log?.detail("TRUNCATE raw_messages CASCADE (force, parsed уже пуст)");
+  const rawMessagesDeleted = await runWipeStep(input, "mat_ingest_raw", async () => {
+    input.log?.detail("TRUNCATE mat_ingest_raw CASCADE (force, parsed уже пуст)");
     const raw = await clearRawArchive(dataSource, { force: true, log: input.log });
     return raw.rawMessagesDeleted;
   });

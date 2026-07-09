@@ -21,7 +21,7 @@ function printHelp(): void {
        или: npm run system:wipe -- --confirm
 
   Полный wipe контента БД (без конфига ingest/фаз):
-    • raw_messages, parsed_events, parse_attempts, phase_runs, domain_events
+    • mat_ingest_raw, mat_parse_event, log_parse_attempt, log_parse_phase_run, event_outbox
     • ingest cursors/backfill
     • places, place_aliases, geo_feature, place_geo_link, geo_dataset_file, regions
 

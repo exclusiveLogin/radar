@@ -2,7 +2,7 @@
  * Анализ направления ПОСТРОЕННЫХ треков: фронт→тыл (гипотеза) vs обратный ток.
  *
  * Для каждой ноды берём front_distance_km её региона
- * (source_refs[].eventLocationId → event_locations → regions.front_distance_km).
+ * (source_refs[].eventLocationId → mat_parse_location → regions.front_distance_km).
  * Δ вдоль seq: >0 — вглубь страны (тыл), <0 — к фронту (обратка).
  *
  * Примеры:
@@ -53,15 +53,15 @@ async function main(): Promise<void> {
           tt.threat_profile,
           tn.seq,
           r.front_distance_km
-        FROM trajectory_nodes tn
-        JOIN trajectory_tracks tt ON tt.id = tn.track_id
+        FROM mat_track_node tn
+        JOIN mat_track tt ON tt.id = tn.track_id
         LEFT JOIN LATERAL (
           SELECT (ref->>'eventLocationId')::uuid AS elid
           FROM jsonb_array_elements(tn.source_refs) ref
           WHERE ref->>'eventLocationId' ~ '^[0-9a-f-]{36}$'
           LIMIT 1
         ) sr ON true
-        LEFT JOIN event_locations el ON el.id = sr.elid
+        LEFT JOIN mat_parse_location el ON el.id = sr.elid
         LEFT JOIN regions r ON r.id = el.region_id
         ${profile ? "WHERE tt.threat_profile = $1" : ""}
       ),

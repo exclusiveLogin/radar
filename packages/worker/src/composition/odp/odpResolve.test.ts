@@ -1,24 +1,57 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { DEFAULT_DEPLOYMENT_MANIFEST } from "@radar/shared";
 import { odpResolve } from "./odpResolve.js";
-import type { OdpManifestEntry } from "./odpManifest.js";
 
-test("odpResolve maps enabled/disabled flags to runner-platform/legacy runtime", () => {
-  const manifest: OdpManifestEntry[] = [
-    { pipelineKey: "tracking", label: "t", runnerPlatformEnabled: () => true },
-    { pipelineKey: "parse", label: "p", runnerPlatformEnabled: () => false },
-  ];
+test("odpResolve maps schedulingImpl to runner-platform/legacy runtime", () => {
+  const manifest = {
+    ...DEFAULT_DEPLOYMENT_MANIFEST,
+    runners: {
+      pipelines: [
+        {
+          pipelineKey: "tracking" as const,
+          label: "t",
+          host: "tracking" as const,
+          spawn: "in-process" as const,
+          schedulingImpl: "runner-platform" as const,
+          enabled: true,
+        },
+        {
+          pipelineKey: "parse" as const,
+          label: "p",
+          host: "phase" as const,
+          spawn: "in-process" as const,
+          schedulingImpl: "legacy" as const,
+          enabled: true,
+        },
+      ],
+    },
+  };
 
   const resolved = odpResolve(manifest);
 
   assert.deepEqual(resolved, [
-    { pipelineKey: "tracking", label: "t", runtime: "runner-platform" },
-    { pipelineKey: "parse", label: "p", runtime: "legacy" },
+    {
+      pipelineKey: "tracking",
+      label: "t",
+      runtime: "runner-platform",
+      host: "tracking",
+      spawn: "in-process",
+      schedulingImpl: "runner-platform",
+    },
+    {
+      pipelineKey: "parse",
+      label: "p",
+      runtime: "legacy",
+      host: "phase",
+      spawn: "in-process",
+      schedulingImpl: "legacy",
+    },
   ]);
 });
 
-test("odpResolve defaults to the real ODP_MANIFEST (tracking/parse/geo-enrich, all legacy by default)", () => {
-  const resolved = odpResolve();
+test("odpResolve defaults to deployment manifest (all legacy by default)", () => {
+  const resolved = odpResolve(DEFAULT_DEPLOYMENT_MANIFEST);
   const keys = resolved.map((r) => r.pipelineKey).sort();
   assert.deepEqual(keys, ["geo-enrich", "parse", "tracking"]);
   for (const entry of resolved) {

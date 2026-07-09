@@ -1,4 +1,5 @@
 /**
+ * @see ../../../../../docs/database-table-naming.md
  * Запуск фазы: прогресс, ring-log, кооперативное управление (cancel/pause).
  */
 import {
@@ -9,7 +10,7 @@ import {
   UpdateDateColumn,
 } from "typeorm";
 
-@Entity({ name: "phase_runs" })
+@Entity({ name: "log_parse_phase_run" })
 export class PhaseRunEntity {
   @PrimaryGeneratedColumn("uuid")
   id!: string;

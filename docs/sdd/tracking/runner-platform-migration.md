@@ -17,7 +17,7 @@
 | Прогресс → WS | прямой вызов | `SignalEnvelope` через `trackingTelemetryBridge` |
 | Пробуждение по событию | нет (только interval) | `wireBusTrigger(bus, "MessageParsed", ...)` (Wave 6) |
 
-Таблицы (`tracking_pipeline_state`, `trajectory_rebuild_runs`) и SQL-порты общие — оба раннера читают одно и то же состояние, поэтому переключение флагом не теряет прогресс (см. `packages/worker/src/infrastructure/tracking/trackingPipelineStateRepository.ts`).
+Таблицы (`state_track_pipeline`, `job_track_rebuild`) и SQL-порты общие — оба раннера читают одно и то же состояние, поэтому переключение флагом не теряет прогресс (см. `packages/worker/src/infrastructure/tracking/trackingPipelineStateRepository.ts`).
 
 ## Файлы
 
@@ -31,7 +31,7 @@
 
 ## Cursor / control semantics
 
-`loadSlice` каждый тик перечитывает `tracking_pipeline_state` из БД (не кэширует enabled/config) — конфигурация и `pause/cancel` могут поменяться из админки в любой момент, следующий тик должен их увидеть. `cursorStore.write` — формальность (no-op): реальный watermark персистится внутри `materialize` (`advanceTrackingWatermark`), `read()` всегда берёт актуальное состояние.
+`loadSlice` каждый тик перечитывает `state_track_pipeline` из БД (не кэширует enabled/config) — конфигурация и `pause/cancel` могут поменяться из админки в любой момент, следующий тик должен их увидеть. `cursorStore.write` — формальность (no-op): реальный watermark персистится внутри `materialize` (`advanceTrackingWatermark`), `read()` всегда берёт актуальное состояние.
 
 ## phaseKey
 

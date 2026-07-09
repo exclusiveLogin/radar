@@ -5,7 +5,7 @@ import type { WipeStepOptions } from "../../archive/wipeStepReporter.js";
 import type { PhaseMutationResult } from "./phaseLifecycle.types.js";
 
 /**
- * ingest:wipe — raw и всё производное (parsed, evloc, parse_attempts, карта, ingest cursors).
+ * ingest:wipe — raw и всё производное (parsed, evloc, log_parse_attempt, карта, ingest cursors).
  * places / geo-каталог не трогаем.
  */
 export async function wipeIngestPhase(
@@ -21,7 +21,7 @@ export async function wipeIngestPhase(
       action: "wipe",
       dryRun: true,
       counts: {},
-      notes: ["Удалит raw_messages, parsed_events, event_locations, parse_attempts, phase_runs, domain_events, ingest cursors/backfill."],
+      notes: ["Удалит mat_ingest_raw, mat_parse_event, mat_parse_location, log_parse_attempt, log_parse_phase_run, event_outbox, ingest cursors/backfill."],
     };
   }
 
@@ -37,15 +37,15 @@ export async function wipeIngestPhase(
     action: "wipe",
     dryRun: false,
     counts: {
-      raw_messages: r.rawMessagesDeleted,
-      parsed_events: r.parsedEventsDeleted,
-      parse_attempts: r.parseAttemptsDeleted,
-      phase_runs: r.phaseRunsDeleted,
-      domain_events: r.domainEventsDeleted,
-      ingest_cursors: r.ingest.cursorsDeleted,
-      ingest_backfill_jobs: r.ingest.backfillJobsDeleted,
-      event_evidence: r.eventEvidenceDeleted,
-      place_enrichment_jobs: r.placeEnrichmentJobsDeleted,
+      mat_ingest_raw: r.rawMessagesDeleted,
+      mat_parse_event: r.parsedEventsDeleted,
+      log_parse_attempt: r.parseAttemptsDeleted,
+      log_parse_phase_run: r.phaseRunsDeleted,
+      event_outbox: r.domainEventsDeleted,
+      state_ingest_cursor: r.ingest.cursorsDeleted,
+      job_ingest_backfill: r.ingest.backfillJobsDeleted,
+      mat_parse_evidence: r.eventEvidenceDeleted,
+      job_geo_place_enrich: r.placeEnrichmentJobsDeleted,
     },
   };
 }

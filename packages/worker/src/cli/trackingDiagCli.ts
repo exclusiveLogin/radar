@@ -23,21 +23,21 @@ async function main(): Promise<void> {
   try {
     const [state] = await ds.query(
       `SELECT enabled, watermark, active_run_id, total_candidates, updated_at
-       FROM tracking_pipeline_state WHERE id = 'default'`,
+       FROM state_track_pipeline WHERE id = 'default'`,
     );
 
     const [run] = state?.active_run_id
       ? await ds.query(
           `SELECT id, status, mode, started_at, finished_at, stats, error
-           FROM trajectory_rebuild_runs WHERE id = $1`,
+           FROM job_track_rebuild WHERE id = $1`,
           [state.active_run_id],
         )
       : [null];
 
     const trackByStatus = await ds.query(
-      `SELECT status, COUNT(*)::int AS count FROM trajectory_tracks GROUP BY status`,
+      `SELECT status, COUNT(*)::int AS count FROM mat_track GROUP BY status`,
     );
-    const [{ nodes }] = await ds.query(`SELECT COUNT(*)::int AS nodes FROM trajectory_nodes`);
+    const [{ nodes }] = await ds.query(`SELECT COUNT(*)::int AS nodes FROM mat_track_node`);
 
     const sdCols = await ds.query(`
       SELECT column_name FROM information_schema.columns
@@ -46,18 +46,18 @@ async function main(): Promise<void> {
 
     const [{ all_geo }] = await ds.query(`
       SELECT COUNT(*)::int AS all_geo
-      FROM event_locations el
-      JOIN parsed_events pe ON pe.id = el.parsed_event_id
-      LEFT JOIN raw_messages rm ON rm.id = pe.raw_message_id
+      FROM mat_parse_location el
+      JOIN mat_parse_event pe ON pe.id = el.parsed_event_id
+      LEFT JOIN mat_ingest_raw rm ON rm.id = pe.raw_message_id
       WHERE el.lat IS NOT NULL AND el.lon IS NOT NULL
         AND pe.is_active IS DISTINCT FROM false
     `);
 
     const [{ target_kinematic }] = await ds.query(`
       SELECT COUNT(*)::int AS target_kinematic
-      FROM event_locations el
-      JOIN parsed_events pe ON pe.id = el.parsed_event_id
-      LEFT JOIN raw_messages rm ON rm.id = pe.raw_message_id
+      FROM mat_parse_location el
+      JOIN mat_parse_event pe ON pe.id = el.parsed_event_id
+      LEFT JOIN mat_ingest_raw rm ON rm.id = pe.raw_message_id
       WHERE el.lat IS NOT NULL AND el.lon IS NOT NULL
         AND pe.is_active IS DISTINCT FROM false
         AND pe.event_type IN (

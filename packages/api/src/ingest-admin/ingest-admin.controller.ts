@@ -108,7 +108,7 @@ export class IngestAdminController {
   }
 
   @Get("messages")
-  @ApiOperation({ summary: "Timeline raw_messages с anchor-пагинацией" })
+  @ApiOperation({ summary: "Timeline mat_ingest_raw с anchor-пагинацией" })
   @ApiOkResponse({ type: TimelineResponseDto })
   listMessages(@Query() query: Record<string, unknown>): Promise<TimelineResponseDto> {
     return this.ingestAdmin.listMessages(query);
