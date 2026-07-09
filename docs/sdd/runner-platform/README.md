@@ -95,7 +95,7 @@ jobKernel.tick()
 | 3 | Заводить новый DSL/manifest-формат для workbook | Решение уже зафиксировано — код-first (`functional-composition`) |
 | 4 | Копировать сообщения в per-phase очередь вместо курсора по SSOT | Wave 4 явно убрал этот паттерн (`CoverageEnqueuer`) |
 | 5 | Оркестратор, который дергает несколько workload по цепочке напрямую | Используй `wireBusTrigger` — хореография, не оркестрация |
-| 6 | Включать `*_RUNNER_PLATFORM_ENABLED=true` в проде без прогона Gate A–C | Не валидировано против прод-нагрузки (см. ADR-016) |
+| 6 | Включать `schedulingImpl=runner-platform` в проде без прогона Gate A–C | Не валидировано против прод-нагрузки (см. ADR-016, конфиг — [ADR-021](../../rfc/adr-021-manifest-env-ssot.md)) |
 
 ---
 
@@ -114,12 +114,13 @@ jobKernel.tick()
 
 Regression parity legacy/runner-platform на golden fixtures и integration-прогон `raw -> parse -> tracking -> geo-enrich` — не выполнены (Wave 8, `test-gates`), см. пробелы в `tracking/runner-platform-migration.md`.
 
-## Feature flags
+## Конфигурация runner-platform (ADR-021)
 
-| Env | Домен | Default |
+| Manifest path | Pipeline | Default |
 |---|---|---|
-| `TRACKING_RUNNER_PLATFORM_ENABLED` | tracking | `false` |
-| `PARSE_RUNNER_PLATFORM_ENABLED` | parse | `false` |
-| `GEO_ENRICH_RUNNER_PLATFORM_ENABLED` | geo-enrich | `false` |
+| `runners.pipelines[].schedulingImpl` | tracking | `legacy` |
+| `runners.pipelines[].schedulingImpl` | parse | `legacy` |
+| `runners.pipelines[].schedulingImpl` | geo-enrich | `legacy` |
 
-Операции (enable/reset/rollback) — [runbook.md](./runbook.md).
+Env override: `DEPLOY__runners__pipelines__{pipelineKey}__schedulingImpl=runner-platform`.
+Операции (enable/reset/rollback) — [runbook.md](./runbook.md), канон — [ADR-021](../../rfc/adr-021-manifest-env-ssot.md).

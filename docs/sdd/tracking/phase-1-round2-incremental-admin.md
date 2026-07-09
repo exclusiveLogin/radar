@@ -23,13 +23,13 @@
 3. per-profile ST-DBSCAN → Kalman → UPSERT
 4. advance watermark
 
-## Env
+## Env (worker.runtime.manifest)
 
-| Переменная | Default |
-|------------|---------|
-| `TRACKING_DAEMON_INTERVAL_MS` | 10000 |
-| `TRACKING_BATCH_SIZE` | 1000 (через config) |
-| `TRACKING_DAEMON_ENABLED` | true |
+| Поле / override | Default |
+|-----------------|--------|
+| `tracking.intervalMs` / `WORKER__tracking__intervalMs` | 10000 |
+| `tracking.enabled` / `WORKER__tracking__enabled` | true |
+| `TRACKING_BATCH_SIZE` (pipeline config в БД) | 1000 |
 | `RADAR_WORKER_ROLE` | `all` или `tracking` |
 
 ## Admin UI
