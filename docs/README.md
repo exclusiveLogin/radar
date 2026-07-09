@@ -4,6 +4,7 @@
 
 | Документ | Когда читать |
 |----------|----------------|
+| **[setup-and-configuration.md](./setup-and-configuration.md)** | **Единая инструкция:** запуск + настройка (manifest SSOT) |
 | **[parse-inspect.md](./parse-inspect.md)** | **Parse debug:** `parse:inspect` → agent artifacts |
 | **[radar-cli.md](./radar-cli.md)** | **SSOT CLI:** частые команды + таблицы radar ↔ legacy по доменам |
 | **[database-table-naming.md](./database-table-naming.md)** | **SSOT:** схема имён таблиц БД, навигатор, SQL-рецепты |

@@ -1,9 +1,10 @@
 # Запуск продукта Radar (локально)
 
-Единая инструкция: **что поднять**, **в каком порядке**, **как проверить**.  
+> **Единая инструкция (запуск + настройка):** [setup-and-configuration.md](./setup-and-configuration.md)  
+> Этот файл — quickstart и URL-чеклист. Конфигурация — manifest SSOT ([ADR-021](./rfc/adr-021-manifest-env-ssot.md)).
+
 **CLI:** [`radar-cli.md`](./radar-cli.md) — `npm run radar -- <domain> <action>`.  
-**Чистая система с нуля (wipe → catalog → backfill → parse):** [`cold-start.md`](./cold-start.md) — нумерованный сценарий **0→6**.  
-Детали ingest/backfill — в отдельных гайдах (ссылки в конце).
+**Чистая система с нуля:** [`cold-start.md`](./cold-start.md) — сценарий **0→6**.
 
 ---
 

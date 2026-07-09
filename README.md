@@ -6,7 +6,7 @@
 
 Тип события **не зашит в платформу** — домен задаётся парсером и словарём (`event_type`, `stateLevel`). Сейчас в проде хорошо отработаны каналы воздушных угроз (Telegram), но та же архитектура принимает любые источники с текстом и координатами/топонимами: RSS, admin-ingest, backfill, будущие адаптеры.
 
-**Запуск локально:** [docs/getting-started.md](docs/getting-started.md) · **Шпаргалка:** [docs/cheatsheet.md](docs/cheatsheet.md) · **Доки:** [docs/README.md](docs/README.md) · **План:** [docs/plan.md](docs/plan.md) · **Домен:** [docs/domain/README.md](docs/domain/README.md) · **Trust мест:** [docs/place-trust-explained.md](docs/place-trust-explained.md)
+**Запуск и настройка:** [docs/setup-and-configuration.md](docs/setup-and-configuration.md) · **Quickstart:** [docs/getting-started.md](docs/getting-started.md) · **Шпаргалка:** [docs/cheatsheet.md](docs/cheatsheet.md) · **Доки:** [docs/README.md](docs/README.md) · **План:** [docs/plan.md](docs/plan.md) · **Домен:** [docs/domain/README.md](docs/domain/README.md) · **Trust мест:** [docs/place-trust-explained.md](docs/place-trust-explained.md)
 
 ![Radar — OSINT-дашборд: теплокарта, слои карты, таймлайн, KPI и схема](docs/assets/dashboard-heatmap-timeline.png)
 
@@ -321,7 +321,7 @@ node scripts/query-ingest-status.mjs
 
 ## Запуск (Windows / PowerShell)
 
-Полный сценарий (ingest, backfill, troubleshooting): **[docs/getting-started.md](docs/getting-started.md)**.
+Полный сценарий (ingest, backfill, troubleshooting): **[docs/setup-and-configuration.md](docs/setup-and-configuration.md)**.
 
 ### Режимы одной строкой
 
