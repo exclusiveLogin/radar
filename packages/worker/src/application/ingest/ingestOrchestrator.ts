@@ -13,6 +13,7 @@ import { createRawIngestAdapter } from "../../infrastructure/ingest-adapters/ada
 import type { SessionResolver } from "../sessions/sessionResolver.js";
 import { buildIngestAdapterConnectContext } from "./buildIngestAdapterConnectContext.js";
 import { ingestNormalizedToRaw } from "./ingestMessageMapper.js";
+import { ingestConnectionStatus } from "./ingestConnectionStatus.js";
 import { workerRuntimeStatus } from "../workerRuntimeStatus.js";
 
 /**
@@ -44,6 +45,13 @@ export class IngestOrchestrator {
 
     for (const provider of activeProviders) {
       try {
+        ingestConnectionStatus.set({
+          providerId: provider.id,
+          providerKey: provider.key,
+          phase: "connecting",
+          detail: "Старт MTProto…",
+        });
+
         const providerBindings = (await this.bindings.listByProvider(provider.id)).filter(
           (b) => b.enabled,
         );
@@ -89,10 +97,22 @@ export class IngestOrchestrator {
           await adapter.startDuty(providerBindings, sink);
           await this.providers.updateStatus(provider.id, "active", null);
           workerRuntimeStatus.clearError();
+          ingestConnectionStatus.set({
+            providerId: provider.id,
+            providerKey: provider.key,
+            phase: "live",
+            detail: `Слушает ${providerBindings.length} binding(s)`,
+          });
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err);
           await this.providers.updateStatus(provider.id, "error", message);
           workerRuntimeStatus.setError(message);
+          ingestConnectionStatus.set({
+            providerId: provider.id,
+            providerKey: provider.key,
+            phase: "error",
+            detail: message,
+          });
           await this.events.publish([
             buildDomainEvent({
               type: "IngestSourceUnavailable",
@@ -114,6 +134,12 @@ export class IngestOrchestrator {
         const message = err instanceof Error ? err.message : String(err);
         await this.providers.updateStatus(provider.id, "error", message);
         workerRuntimeStatus.setError(message);
+        ingestConnectionStatus.set({
+          providerId: provider.id,
+          providerKey: provider.key,
+          phase: "error",
+          detail: message,
+        });
         console.error(`Provider ${provider.key} connect failed:`, err);
       }
     }
@@ -151,6 +177,7 @@ export class IngestOrchestrator {
       providerCount: 0,
       bindingCount: 0,
     });
+    ingestConnectionStatus.clearAll();
     for (const entry of this.adapters) {
       await entry.stop();
     }

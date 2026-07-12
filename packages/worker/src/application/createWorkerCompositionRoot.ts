@@ -145,6 +145,7 @@ export async function createWorkerCompositionRoot(
   const hostStartedAt = new Date().toISOString();
   const deploymentManifest = loadDeploymentManifest({ repoRoot: MONOREPO_ROOT });
   const workerRuntime = loadWorkerRuntimeManifest({ repoRoot: MONOREPO_ROOT });
+  const odp: OdpResolution[] = odpResolve(deploymentManifest);
   const runtimePipelines = resolveRuntimePipelines({
     manifest: deploymentManifest,
     workerRole,
@@ -249,6 +250,25 @@ export async function createWorkerCompositionRoot(
       serviceUrl: obsConfig.serviceUrl,
       dataSource: obsConfig.mode === "embedded" ? dataSource : undefined,
     });
+  }
+
+  /** obs_hosts до workloads/executors — иначе FK на старте daemons/pool. */
+  if (observabilityRecorder) {
+    for (const entry of odp) {
+      console.log(`[odp] ${entry.pipelineKey} → ${entry.runtime} (${entry.label})`);
+    }
+    obsHostSnapshot = {
+      hostId: buildObsHostId(workerRole),
+      role: workerRole,
+      startedAt: hostStartedAt,
+      lastSeenAt: new Date().toISOString(),
+      odpRuntime: odp.map((entry) => ({
+        pipelineKey: entry.pipelineKey,
+        label: entry.label,
+        runtime: entry.runtime,
+      })),
+    };
+    await observabilityRecorder.upsertHost(obsHostSnapshot);
   }
 
   const placeCache = options.placeCacheRepository ?? new InMemoryPlaceCacheRepository();
@@ -516,28 +536,6 @@ export async function createWorkerCompositionRoot(
           : undefined,
       });
     }
-  }
-
-  // ODP badge: deployment manifest → runtime/host/spawn/schedulingImpl.
-  const odp: OdpResolution[] = odpResolve(deploymentManifest);
-  for (const entry of odp) {
-    console.log(`[odp] ${entry.pipelineKey} → ${entry.runtime} (${entry.label})`);
-  }
-
-  if (observabilityRecorder) {
-    const now = new Date().toISOString();
-    obsHostSnapshot = {
-      hostId: buildObsHostId(workerRole),
-      role: workerRole,
-      startedAt: hostStartedAt,
-      lastSeenAt: now,
-      odpRuntime: odp.map((entry) => ({
-        pipelineKey: entry.pipelineKey,
-        label: entry.label,
-        runtime: entry.runtime,
-      })),
-    };
-    await observabilityRecorder.upsertHost(obsHostSnapshot);
   }
 
   return {

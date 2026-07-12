@@ -43,10 +43,11 @@ stack — инфраструктура и dev
   up              docker + dev:app
   dev [--full]    UI+API [+worker] (host, HMR)
   cold-up         первый холодный старт (-Geo -Tiles -Verbose)
-  docker-dev      полный стек в Docker (profile app)
+  docker-dev      dev hot-reload (profile app)
+  docker-prod     prod images (profile prod, baked dist)
+  docker-prod:assets-check  проверка runtime-файлов в prod-контейнерах
   tiles:prepare   download+merge+build+verify (без TileServer)
-  tiles:init      prepare + TileServer (первый раз целиком)
-  tiles:update    пересборка артефактов + restart TileServer
+  tiles:sync      build pipeline + restart TileServer (--no-restart)
   tiles:up        только TileServer :8081 (параллельно с dev)
   tiles:down      остановить TileServer
   tiles:verify    проверка mbtiles + build.manifest
@@ -157,6 +158,48 @@ const ACTIONS = {
     "db:up": () => npm('db:up'),
     'db:down': () => npm('db:down'),
     migrate: () => npm('migration:run'),
+    'docker-prod': (pass) => {
+      console.log('\x1b[36m=== Radar: Docker prod (profile prod) ===\x1b[0m');
+      console.log('UI: http://127.0.0.1:' + (process.env.WEB_PORT ?? 8088));
+      run('docker', [
+        'compose',
+        '-f',
+        'docker-compose.yml',
+        '-f',
+        'docker-compose.prod.yml',
+        '--profile',
+        'prod',
+        'up',
+        '-d',
+        '--build',
+        ...pass,
+      ]);
+    },
+    'docker-prod:build': () => {
+      run('docker', [
+        'compose',
+        '-f',
+        'docker-compose.yml',
+        '-f',
+        'docker-compose.prod.yml',
+        '--profile',
+        'prod',
+        'build',
+      ]);
+    },
+    'docker-prod:down': () => {
+      run('docker', [
+        'compose',
+        '-f',
+        'docker-compose.yml',
+        '-f',
+        'docker-compose.prod.yml',
+        '--profile',
+        'prod',
+        'down',
+      ]);
+    },
+    'docker-prod:assets-check': () => nodeScript('scripts/docker-runtime-assets-check.mjs', ['--profile', 'prod']),
     'docker-dev': (pass) => {
       const manifest = loadDeploymentManifest({ repoRoot });
       const obs = manifest.infra.obs;
@@ -166,8 +209,9 @@ const ACTIONS = {
         process.env.OBS_HOST = obs.host;
       }
       console.log('\x1b[36m=== Radar: Docker dev (profile app) ===\x1b[0m');
-      console.log('Сервисы: api :3000 | web :5173 | worker-ingest/backfill/phase');
-      console.log('Tiles (параллельно): npm run radar -- stack tiles:up → :8081\n');
+      console.log('Сервисы: api :3000 | web :5173 | tiles :8081 | ollama :11434 | worker-*');
+      console.log('Tiles: data/tiles/output (stub до stack tiles:sync)\n');
+      nodeScript('scripts/dev-stack-prepare.mjs', pass.filter((a) => a === '--no-clean'));
       run('docker', [
         'compose',
         '-f',
@@ -182,16 +226,19 @@ const ACTIONS = {
       ]);
     },
     'tiles:prepare': (pass) => nodeScript('scripts/tiles-prepare.mjs', pass),
-    'tiles:init': (pass) => nodeScript('scripts/tiles-init.mjs', pass),
-    'tiles:update': (pass) => nodeScript('scripts/tiles-update.mjs', pass),
+    'tiles:sync': (pass) => nodeScript('scripts/tiles-sync.mjs', pass),
+    /** @deprecated алиас tiles:sync */
+    'tiles:init': (pass) => nodeScript('scripts/tiles-sync.mjs', pass),
+    /** @deprecated алиас tiles:sync */
+    'tiles:update': (pass) => nodeScript('scripts/tiles-sync.mjs', pass),
     'tiles:up': (pass) => nodeScript('scripts/tiles-up.mjs', pass),
     'tiles:down': (pass) => nodeScript('scripts/tiles-down.mjs', pass),
     'tiles:verify': (pass) => nodeScript('scripts/tiles/verify-tiles.mjs', pass),
     'tiles:download': (pass) => nodeScript('scripts/tiles/download-osm.mjs', pass),
     'tiles:merge': (pass) => nodeScript('scripts/tiles/merge-osm.mjs', pass),
     'tiles:build': (pass) => nodeScript('scripts/tiles/build-tiles.mjs', pass),
-    /** @deprecated используй stack tiles:init */
-    'tiles-build': (pass) => nodeScript('scripts/tiles-init.mjs', pass),
+    /** @deprecated используй stack tiles:sync */
+    'tiles-build': (pass) => nodeScript('scripts/tiles-sync.mjs', pass),
   },
   pipeline: {
     status: (p) => npmW('@radar/worker', 'parse-engine:status', p),

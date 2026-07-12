@@ -62,6 +62,8 @@ export {
   sessionArtifactSchema,
   sessionDeployRequestSchema,
   sessionProbeResultSchema,
+  ingestConnectionPhaseSchema,
+  ingestProviderConnectionSnapshotSchema,
 } from "./ingest";
 export {
   getActiveEventsQuerySchema,
@@ -290,6 +292,8 @@ export type {
   SessionProbeResult,
   SessionMaterial,
   SessionWriteInput,
+  IngestConnectionPhase,
+  IngestProviderConnectionSnapshot,
 } from "./ingest";
 export type {
   GetActiveEventsQuery,

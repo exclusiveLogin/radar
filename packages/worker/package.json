@@ -8,6 +8,7 @@
     "prestart": "npm run predev",
     "dev": "tsx watch src/index.ts",
     "start": "tsx src/index.ts",
+    "start:prod": "node dist/index.js",
     "parse:snap": "tsx src/cli/parseSnap.ts",
     "parse:snap:ollama": "tsx src/cli/parseSnapOllama.ts",
     "parse:inspect": "tsx src/cli/parseInspect.ts",

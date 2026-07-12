@@ -1,15 +1,10 @@
 #!/usr/bin/env node
 /**
- * Dev-стек с упорядоченным bootstrap:
- * Сборка dist — npm predev / predev:app / preworker:dev (корень package.json).
- * Параллельно: shared:watch, api dev, web (после /api/ready), [worker после dist].
- *
- * concurrently не имеет depends — порядок через wait-on в командах.
- * npm run dev:app | npm run dev (--full)
+ * Host dev-стек: dev:prepare (clean+build) → concurrently (shared/api/web[/worker]).
+ * Порядок процессов — wait-on /api/ready; dist не сносится в watch.
  */
 import { loadDeploymentManifest } from '@radar/shared/deployment/deploymentManifest.loader.js';
 import { spawn } from 'node:child_process';
-import { platform } from 'node:os';
 import { freeDevPorts } from './free-dev-ports.mjs';
 import { repoRoot, run } from './utils.mjs';
 
@@ -31,7 +26,9 @@ function ensureObsDockerStack() {
   process.env.OBS_HOST = obs.host;
 }
 
-const full = process.argv.includes('--full');
+const argv = process.argv.slice(2);
+const full = argv.includes('--full');
+const prepareArgs = argv.includes('--no-clean') ? ['--no-clean'] : [];
 const sharedDist = 'file:packages/shared/dist/index.js';
 const apiDistMain = 'file:packages/api/dist/main.js';
 const workerParseDist =
@@ -82,10 +79,11 @@ async function main() {
 
   ensureObsDockerStack();
 
-  console.log('\n\x1b[36m(dist уже собран predev — см. package.json)\x1b[0m');
+  run('node', ['scripts/dev-stack-prepare.mjs', ...prepareArgs]);
+
   console.log('\n\x1b[32mЗапуск процессов (web и worker после /api/ready)\x1b[0m');
   console.log(
-    '\x1b[33mПервый старт 40–90с: predev (shared+api+worker), потом api → web → worker. Не закрывай терминал.\x1b[0m',
+    '\x1b[33mПервый старт: dev:prepare уже собрал dist; api → web → worker. Не закрывай терминал.\x1b[0m',
   );
   console.log('\x1b[90mТолько UI без worker: npm run dev:app\x1b[0m\n');
   spawnConcurrently();

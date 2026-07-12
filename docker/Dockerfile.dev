@@ -13,7 +13,7 @@ COPY packages/web/package.json packages/web/
 COPY packages/worker/package.json packages/worker/
 COPY packages/observability/package.json packages/observability/
 COPY packages/admin-bot/package.json packages/admin-bot/
-COPY packages/repo-root/package.json packages/repo-root/
+COPY packages/monorepo-root/package.json packages/monorepo-root/
 
 RUN npm ci
 

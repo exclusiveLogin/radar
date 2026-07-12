@@ -1,14 +1,17 @@
 import { useMemo } from "react";
 import { Panel, StatusDot } from "../../shared/ds";
 import { useObservable } from "../../shared/hooks/useObservable";
-import { channels$ } from "../../shared/state/adminStore";
+import { channels$, telemetry$ } from "../../shared/state/adminStore";
 import { selectedChannelKey$ } from "../../shared/state/channelSelectionStore";
+import { resolveIngestConnectionDisplay } from "../../shared/state/derivations";
 import { formatDateTime } from "../format";
 
 /** Статус выбранного канала: provider, binding, listening, последнее raw. */
 export function ChannelStatusWidget() {
   const channels = useObservable(channels$, []);
+  const telemetry = useObservable(telemetry$, null);
   const selected = useObservable(selectedChannelKey$, null);
+  const connections = telemetry?.worker.worker?.ingest.providers ?? [];
 
   const channel = useMemo(
     () => channels.find((c) => c.key === selected) ?? null,
@@ -22,6 +25,9 @@ export function ChannelStatusWidget() {
       </Panel>
     );
   }
+
+  const connection = connections.find((c) => c.providerId === channel.providerId) ?? null;
+  const connectionDisplay = resolveIngestConnectionDisplay(connection);
 
   return (
     <Panel title="Статус канала">
@@ -43,6 +49,36 @@ export function ChannelStatusWidget() {
         <span className="ds-metric-row__label">Provider</span>
         <span className="ds-metric-row__value">{channel.providerStatus ?? "—"}</span>
       </div>
+      {connectionDisplay && (
+        <div className="ds-metric-row">
+          <span className="ds-metric-row__label">Соединение</span>
+          <StatusDot
+            kind={connectionDisplay.kind}
+            label={connectionDisplay.label}
+            tip={connectionDisplay.tip}
+            pulse={connectionDisplay.pulse}
+          />
+        </div>
+      )}
+      {connection?.detail &&
+        (connection.phase === "error" ||
+          connection.phase === "disconnected" ||
+          connection.phase === "reconnecting") && (
+        <div className="ds-metric-row">
+          <span className="ds-metric-row__label">Деталь</span>
+          <span
+            className="ds-metric-row__value"
+            style={{
+              color:
+                connection.phase === "reconnecting"
+                  ? "var(--status-warn)"
+                  : "var(--status-error)",
+            }}
+          >
+            {connection.detail}
+          </span>
+        </div>
+      )}
       <div className="ds-metric-row">
         <span className="ds-metric-row__label">Binding enabled</span>
         <span className="ds-metric-row__value">

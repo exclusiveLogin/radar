@@ -55,7 +55,7 @@ npm run radar -- ingest backfill -- --all-bindings --batch-size=100
 ```powershell
 npm run radar -- stack tiles:prepare -- --verbose   # артефакты, без сервера
 npm run radar -- stack tiles:up                  # только TileServer
-npm run radar -- stack tiles:update              # пересборка
+npm run radar -- stack tiles:sync              # build + restart
 npm run radar -- stack tiles:down
 ```
 

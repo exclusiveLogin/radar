@@ -3,6 +3,10 @@
 Overlay поверх базового `docker-compose.yml` (Postgres, Adminer, pgAdmin).  
 Hot-reload через bind-mount исходников + named volume для `node_modules`.
 
+**Dist (host + docker):** `dev:prepare` (clean + build) **до** старта процессов/compose.  
+`npm run dev` / `docker:dev` / `stack dev` / `stack docker-dev` вызывают его автоматически.  
+Watch/entrypoint dist **не сносят**.
+
 ---
 
 ## Быстрый старт
@@ -17,12 +21,10 @@ npm run radar -- stack docker-dev
 
 Первый старт **40–90 с** (entrypoint: `npm ci`, build `@radar/shared` + `@radar/api`).
 
-Опционально tiles (долго, ~30 GB диск):
+Опционально tiles (долго, ~30 GB диск) — **TileServer уже в docker:dev** (stub до артефактов):
 
 ```powershell
-npm run radar -- stack cold-up -- -Tiles
-# или отдельно
-npm run tiles:init
+npm run radar -- stack tiles:sync
 ```
 
 ---
@@ -39,6 +41,7 @@ flowchart TB
     WB[worker-backfill\nrole=backfill]
     WP[worker-phase\nrole=phase]
     TS[tiles :8081→8080]
+    OL[ollama :11434]
   end
   Browser[Браузер на хосте]
   TG[Telegram]
@@ -48,6 +51,7 @@ flowchart TB
   WI --> DB
   WB --> DB
   WP --> DB
+  WP -->|llm phase| OL
   API --> DB
   TG --> WI
   WI -->|event_outbox outbox| DB
@@ -63,10 +67,46 @@ flowchart TB
 | `worker-ingest` | `app` | 3010 (probe) | live ingest → outbox |
 | `worker-backfill` | `app` | — | backfill daemon |
 | `worker-phase` | `app` | — | parse/geo + OutboxRelay |
-| `tiles` | `tiles` | 8081 | TileServer GL |
+| `tiles` | `app` | **8081** | TileServer GL (`data/tiles/output`, stub до `tiles:sync`) |
+| `ollama` | `app` | **11434** | LLM для parse/geo phase (`worker-phase` → `http://ollama:11434/v1`) |
 | `observability` | `obs` | 3020 | Obs sidecar (push ingest + snapshot read) |
 
-Файлы: `docker-compose.yml`, `docker-compose.app.yml`, `docker-compose.tiles.yml`.
+Файлы: `docker-compose.yml`, `docker-compose.app.yml`.
+
+---
+
+## Ollama (входит в `docker:dev`)
+
+Сервис `ollama` в profile `app`. Модели и конфиг — **named volume** `radar_ollama_data` → `/root/.ollama`.
+
+При старте контейнера `docker/ollama-entrypoint.sh`:
+1. поднимает `ollama serve`;
+2. проверяет `RADAR_LLM_MODEL` (из `.env`, дефолт `qwen2.5:3b`);
+3. делает `ollama pull`, если модели нет в volume.
+
+`worker-phase` ждёт **healthy** (модель уже в volume). Первый pull большой модели — до ~30 мин (`start_period` healthcheck).
+
+Проверка с хоста:
+
+```powershell
+curl http://127.0.0.1:11434/api/tags
+docker compose -f docker-compose.yml -f docker-compose.app.yml logs -f ollama
+```
+
+Смена модели: поменять `RADAR_LLM_MODEL` в `.env` и пересоздать ollama:
+
+```powershell
+docker compose -f docker-compose.yml -f docker-compose.app.yml up -d --force-recreate ollama
+```
+
+| Где | `RADAR_LLM_BASE_URL` |
+|-----|----------------------|
+| **Хост** (`stack dev`) | `http://127.0.0.1:11434/v1` |
+| **worker-phase** (compose) | `http://ollama:11434/v1` |
+
+GPU (опционально): `docker-compose.override.yml` с `deploy.resources.reservations.devices` для `ollama`.
+
+Open WebUI: `docker compose --profile llm-ui up -d`.
 
 ---
 

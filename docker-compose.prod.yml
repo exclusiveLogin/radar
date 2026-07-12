@@ -1,111 +1,103 @@
-# Overlay: api + web + worker-роли (dev hot-reload). База — docker-compose.yml
+# Overlay: production images (baked dist, без bind-mount исходников).
+# База — docker-compose.yml (db, ollama, observability).
 name: radar
 
-x-app-build: &app-build
-  build:
-    context: .
-    dockerfile: docker/Dockerfile.dev
-  working_dir: /app
+x-prod-env: &prod-env
   env_file:
     - .env
-  volumes:
-    - .:/app
-    - radar_node_modules:/app/node_modules
   networks:
     - radar_net
+  restart: unless-stopped
+
+x-worker-prod: &worker-prod
+  <<: *prod-env
+  build:
+    context: .
+    dockerfile: docker/Dockerfile.worker
+  depends_on:
+    db:
+      condition: service_healthy
+    api:
+      condition: service_healthy
 
 services:
   api:
-    <<: *app-build
-    profiles: ["app"]
+    <<: *prod-env
+    profiles: ["prod"]
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.api
     depends_on:
       db:
         condition: service_healthy
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-radar}:${POSTGRES_PASSWORD:-radar}@db:5432/${POSTGRES_DB:-radar}
+      NODE_ENV: production
       PORT: "3000"
       WORKER_PROBE_TARGETS: http://worker-ingest:3010/status
     ports:
       - "${API_PORT:-3000}:3000"
-    command: ["npm", "run", "dev", "-w", "@radar/api"]
-    restart: unless-stopped
     healthcheck:
       test:
         [
           "CMD-SHELL",
           'node -e "fetch(''http://127.0.0.1:3000/api/ready'').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"',
         ]
-      interval: 10s
+      interval: 15s
       timeout: 5s
-      retries: 30
-      start_period: 120s
+      retries: 10
+      start_period: 60s
 
   web:
-    <<: *app-build
-    profiles: ["app"]
+    <<: *prod-env
+    profiles: ["prod"]
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.web
+      args:
+        VITE_MAP_BASEMAP_STYLE: ${VITE_MAP_BASEMAP_STYLE:-openfreemap}
+        VITE_MAP_TILES_URL: ${VITE_MAP_TILES_URL:-/tiles}
     depends_on:
       api:
         condition: service_healthy
-    environment:
-      VITE_DEV_PROXY_API: http://api:3000
-      VITE_DEV_PROXY_TILES: http://tiles:8080
-      VITE_MAP_TILES_URL: /tiles
-      VITE_MAP_BASEMAP_STYLE: local
-      CHOKIDAR_USEPOLLING: ${CHOKIDAR_USEPOLLING:-1}
+      tiles:
+        condition: service_started
     ports:
-      - "${WEB_PORT:-5173}:5173"
-    command: ["npm", "run", "dev", "-w", "@radar/web", "--", "--host", "0.0.0.0"]
-    restart: unless-stopped
+      - "${WEB_PORT:-8088}:80"
 
   worker-ingest:
-    <<: *app-build
-    profiles: ["app"]
-    depends_on:
-      db:
-        condition: service_healthy
-      api:
-        condition: service_healthy
+    <<: *worker-prod
+    profiles: ["prod"]
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-radar}:${POSTGRES_PASSWORD:-radar}@db:5432/${POSTGRES_DB:-radar}
+      NODE_ENV: production
       RADAR_STORAGE_MODE: db
       RADAR_WORKER_ROLE: ingest
       WORKER_PROBE_HOST: 0.0.0.0
       WORKER_PROBE_PORT: ${WORKER_PROBE_PORT:-3010}
       RADAR_SESSIONS_DIR: /var/radar/sessions
     volumes:
-      - .:/app
-      - radar_node_modules:/app/node_modules
-      # Тот же путь, что session:deploy на хосте (RADAR_SESSIONS_DIR=.radar/sessions)
-      - ./.radar/sessions:/var/radar/sessions
+      # Слоты с хоста (.env RADAR_SESSIONS_DIR=.radar/sessions) — не отдельный пустой volume
+      - ./.radar/sessions:/var/radar/sessions:ro
     ports:
       - "${WORKER_PROBE_PORT:-3010}:3010"
-    command: ["npm", "run", "dev", "-w", "@radar/worker", "--ignore-scripts"]
-    restart: unless-stopped
 
   worker-backfill:
-    <<: *app-build
-    profiles: ["app"]
-    depends_on:
-      db:
-        condition: service_healthy
-      api:
-        condition: service_healthy
+    <<: *worker-prod
+    profiles: ["prod"]
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-radar}:${POSTGRES_PASSWORD:-radar}@db:5432/${POSTGRES_DB:-radar}
+      NODE_ENV: production
       RADAR_STORAGE_MODE: db
       RADAR_WORKER_ROLE: backfill
       WORKER_PROBE_ENABLED: "0"
       RADAR_SESSIONS_DIR: /var/radar/sessions
     volumes:
-      - .:/app
-      - radar_node_modules:/app/node_modules
-      - ./.radar/sessions:/var/radar/sessions
-    command: ["npm", "run", "dev", "-w", "@radar/worker", "--ignore-scripts"]
-    restart: unless-stopped
+      - ./.radar/sessions:/var/radar/sessions:ro
 
   worker-phase:
-    <<: *app-build
-    profiles: ["app"]
+    <<: *worker-prod
+    profiles: ["prod"]
     depends_on:
       db:
         condition: service_healthy
@@ -115,35 +107,25 @@ services:
         condition: service_healthy
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-radar}:${POSTGRES_PASSWORD:-radar}@db:5432/${POSTGRES_DB:-radar}
+      NODE_ENV: production
       RADAR_STORAGE_MODE: db
       RADAR_WORKER_ROLE: phase
       WORKER_PROBE_ENABLED: "0"
-      # В контейнере — сервис compose, не 127.0.0.1 с хоста (.env)
       RADAR_LLM_BASE_URL: http://ollama:11434/v1
-    command: ["npm", "run", "dev", "-w", "@radar/worker", "--ignore-scripts"]
-    restart: unless-stopped
 
   worker-tracking:
-    <<: *app-build
-    profiles: ["app"]
-    depends_on:
-      db:
-        condition: service_healthy
-      api:
-        condition: service_healthy
+    <<: *worker-prod
+    profiles: ["prod"]
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-radar}:${POSTGRES_PASSWORD:-radar}@db:5432/${POSTGRES_DB:-radar}
+      NODE_ENV: production
       RADAR_STORAGE_MODE: db
       RADAR_WORKER_ROLE: tracking
       WORKER_PROBE_ENABLED: "0"
-    command: ["npm", "run", "dev", "-w", "@radar/worker", "--ignore-scripts"]
-    restart: unless-stopped
 
-  # TileServer GL: тот же bind-mount что tiles:sync/build (data/tiles/output).
-  # До init — stub config; после init — restart подхватывает config.json + mbtiles.
   tiles:
     image: maptiler/tileserver-gl:latest
-    profiles: ["app"]
+    profiles: ["prod"]
     restart: unless-stopped
     ports:
       - "${TILES_PORT:-8081}:8080"
@@ -159,9 +141,6 @@ services:
         exec node /usr/src/app/src/main.js --config "$$CONFIG"
     networks:
       - radar_net
-
-volumes:
-  radar_node_modules:
 
 networks:
   radar_net:

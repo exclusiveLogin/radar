@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ingestProviderConnectionSnapshotSchema } from "./ingest/connection";
 
 /** Метрики процесса Node.js (heap/cpu/uptime) для дашбордов телеметрии. */
 export const processMetricsSchema = z.object({
@@ -33,6 +34,8 @@ export const workerProbeStatusSchema = z.object({
     lastLiveAt: z.string().datetime().nullable(),
     lastLiveChannelKey: z.string().nullable(),
     lastError: z.string().nullable(),
+    /** Live MTProto/Telegram per provider (worker runtime, не БД). */
+    providers: z.array(ingestProviderConnectionSnapshotSchema).default([]),
   }),
 });
 

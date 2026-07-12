@@ -35,7 +35,7 @@ flowchart LR
 | **Web** | `web:dev` / `dev` | UI |
 | **Worker** | `worker:dev` / `dev` | Ingest + parse + outbox relay (в db mode) |
 
-Опционально: **Ollama** (`docker compose --profile llm`), **Adminer** (:8080), **pgAdmin** (:5050).
+Опционально: **Adminer** (:8080), **pgAdmin** (:5050). **Ollama** (:11434) — в `docker:dev` по умолчанию.
 
 ---
 
@@ -156,7 +156,7 @@ npm run radar -- stack dev --full
 | http://127.0.0.1:5173 | OSINT-дашборд (geo, KPI, ленты; правый рейл свёрнут по умолчанию) |
 | http://127.0.0.1:8080 | Adminer (PostgreSQL, сервер `db`, учётка из `POSTGRES_*`) |
 | http://127.0.0.1:5050 | pgAdmin (логин из `.env`) |
-| http://127.0.0.1:8081 | TileServer GL (после `cold-up -Tiles` или `tiles:init`) |
+| http://127.0.0.1:8081 | TileServer GL (после `cold-up -Tiles` или `tiles:sync`) |
 | `GET /api/map/snapshot` | Снапшот карты (регионы + places) |
 | `WS /ws` | Realtime: snapshot + `region-state` / `place-state` |
 

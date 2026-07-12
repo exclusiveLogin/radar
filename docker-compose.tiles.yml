@@ -1,19 +1,6 @@
-# Overlay: self-host OSM raster tiles (TileServer GL). Сборка — npm run tiles:init
+# DEPRECATED: сервис tiles перенесён в docker-compose.app.yml (profile app, вместе с docker:dev).
+# Оставлен для обратной совместимости compose -f цепочек; SSOT — docker-compose.app.yml.
+
 name: radar
 
-services:
-  tiles:
-    image: maptiler/tileserver-gl:latest
-    profiles: ["tiles"]
-    restart: unless-stopped
-    ports:
-      - "${TILES_PORT:-8081}:8080"
-    volumes:
-      - ./data/tiles/output:/data:ro
-    networks:
-      - radar_net
-    command: ["--config", "/data/config.json"]
-
-networks:
-  radar_net:
-    driver: bridge
+# Пустой overlay — не дублировать сервис.

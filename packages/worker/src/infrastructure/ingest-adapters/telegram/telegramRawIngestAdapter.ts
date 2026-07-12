@@ -13,7 +13,10 @@ import { TelegramClient, utils } from "telegram";
 import type { Api } from "telegram";
 import { StringSession } from "telegram/sessions/StringSession.js";
 import { NewMessage } from "telegram/events/NewMessage.js";
+import { Raw } from "telegram/events/Raw.js";
+import { UpdateConnectionState } from "telegram/network/index.js";
 import type { SessionResolver } from "../../../application/sessions/sessionResolver.js";
+import { ingestConnectionStatus } from "../../../application/ingest/ingestConnectionStatus.js";
 import { mapTelegramBotUpdate, mapTelegramMessage } from "./toRawMessage.js";
 import { getFloodWaitSeconds, sleep } from "./telegramFloodWait.js";
 
@@ -58,10 +61,19 @@ function isTypeNotFoundError(err: unknown): boolean {
 }
 
 /** GramJS/Teleproto: TIMEOUT — тихий reconnect; TypeNotFound — устаревший TL layer. */
-function wireMtprotoClientErrorHandler(client: TelegramClient): void {
+function wireMtprotoClientErrorHandler(
+  client: TelegramClient,
+  provider: { id: string; key: string },
+): void {
   client.onError = async (err) => {
     const message = err instanceof Error ? err.message : String(err);
     if (message === "TIMEOUT") {
+      ingestConnectionStatus.set({
+        providerId: provider.id,
+        providerKey: provider.key,
+        phase: "reconnecting",
+        detail: "Ping timeout, reconnect…",
+      });
       console.warn("[mtproto] ping timeout, reconnecting");
       return;
     }
@@ -74,6 +86,43 @@ function wireMtprotoClientErrorHandler(client: TelegramClient): void {
     }
     console.error("[mtproto]", err);
   };
+}
+
+/** События TCP/MTProto для админки: connecting/reconnecting/disconnected. */
+function wireMtprotoConnectionState(
+  client: TelegramClient,
+  provider: { id: string; key: string },
+): void {
+  client.addEventHandler((update) => {
+    if (!(update instanceof UpdateConnectionState)) return;
+
+    if (update.state === UpdateConnectionState.connected) {
+      ingestConnectionStatus.set({
+        providerId: provider.id,
+        providerKey: provider.key,
+        phase: "connected",
+        detail: "MTProto connected",
+      });
+      return;
+    }
+    if (update.state === UpdateConnectionState.broken) {
+      ingestConnectionStatus.set({
+        providerId: provider.id,
+        providerKey: provider.key,
+        phase: "reconnecting",
+        detail: "Соединение прервано, reconnect…",
+      });
+      return;
+    }
+    if (update.state === UpdateConnectionState.disconnected) {
+      ingestConnectionStatus.set({
+        providerId: provider.id,
+        providerKey: provider.key,
+        phase: "disconnected",
+        detail: "MTProto disconnected",
+      });
+    }
+  }, new Raw({ types: [UpdateConnectionState] }));
 }
 
 /**
@@ -124,6 +173,12 @@ export class TelegramRawIngestAdapter implements IRawIngestAdapter {
         "mtproto_user",
       );
       const proxy = ctx.resolveMtproxy?.() ?? null;
+      ingestConnectionStatus.set({
+        providerId: ctx.provider.id,
+        providerKey: ctx.provider.key,
+        phase: "connecting",
+        detail: proxy ? `MTProto via MTProxy ${proxy.ip}:${proxy.port}` : "MTProto direct",
+      });
       const client = new TelegramClient(
         new StringSession(material.secret),
         apiId,
@@ -142,8 +197,26 @@ export class TelegramRawIngestAdapter implements IRawIngestAdapter {
             : {}),
         },
       );
-      wireMtprotoClientErrorHandler(client);
-      await client.connect();
+      wireMtprotoClientErrorHandler(client, ctx.provider);
+      wireMtprotoConnectionState(client, ctx.provider);
+      try {
+        await client.connect();
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        ingestConnectionStatus.set({
+          providerId: ctx.provider.id,
+          providerKey: ctx.provider.key,
+          phase: "error",
+          detail: message,
+        });
+        throw err;
+      }
+      ingestConnectionStatus.set({
+        providerId: ctx.provider.id,
+        providerKey: ctx.provider.key,
+        phase: "connected",
+        detail: "MTProto session ready",
+      });
       this.mtproto = { client, apiId, apiHash };
     }
   }
@@ -379,8 +452,17 @@ export class TelegramRawIngestAdapter implements IRawIngestAdapter {
 
     if (this.mtproto) {
       // destroy() останавливает _updateLoop; disconnect() оставляет zombie ping-loop (backfill × N bindings).
+      const provider = this.ctx?.provider;
       await this.mtproto.client.destroy();
       this.mtproto = null;
+      if (provider) {
+        ingestConnectionStatus.set({
+          providerId: provider.id,
+          providerKey: provider.key,
+          phase: "idle",
+          detail: null,
+        });
+      }
     }
   }
 

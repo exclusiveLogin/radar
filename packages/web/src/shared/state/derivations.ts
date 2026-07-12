@@ -1,4 +1,10 @@
-import type { MapPlaceSnapshot, MapRegionSnapshot, StateLevel, Warning } from "@radar/shared";
+import type {
+  IngestProviderConnectionSnapshot,
+  MapPlaceSnapshot,
+  MapRegionSnapshot,
+  StateLevel,
+  Warning,
+} from "@radar/shared";
 import { LEVEL_COLORS, LEVEL_LABELS } from "../config/mapConfig.service";
 import type { DonutSegment } from "../ds/Donut";
 
@@ -278,12 +284,118 @@ export type IngestProviderDisplayStatus = {
   tip: string;
 };
 
+/** Live MTProto-фаза → бейдж для админки/карты. */
+export function resolveIngestConnectionDisplay(
+  connection: IngestProviderConnectionSnapshot | null | undefined,
+): IngestProviderDisplayStatus | null {
+  if (!connection || connection.phase === "idle") return null;
+
+  const detail = connection.detail?.trim() || null;
+
+  switch (connection.phase) {
+    case "connecting":
+      return {
+        kind: "warn",
+        label: "Подключение…",
+        pulse: true,
+        tip: detail ?? "Установка MTProto-соединения с Telegram",
+      };
+    case "reconnecting":
+      return {
+        kind: "warn",
+        label: "Переподключение…",
+        pulse: true,
+        tip: detail ?? "Повторное подключение к Telegram",
+      };
+    case "connected":
+      return {
+        kind: "warn",
+        label: "Подключён",
+        pulse: true,
+        tip: detail ?? "Сессия готова, старт live duty…",
+      };
+    case "live":
+      return {
+        kind: "ok",
+        label: "Live",
+        pulse: true,
+        tip: detail ?? "Слушает каналы",
+      };
+    case "disconnected":
+      return {
+        kind: "error",
+        label: "Отключён",
+        pulse: false,
+        tip: detail ?? "Нет соединения с Telegram (VPN/сеть?)",
+      };
+    case "error":
+      return {
+        kind: "error",
+        label: "Ошибка",
+        pulse: false,
+        tip: detail ?? "Ошибка соединения ingest",
+      };
+    default:
+      return null;
+  }
+}
+
+/** Бейдж канала: live connection worker > listening из БД. */
+export function resolveChannelIngestDisplay(input: {
+  listening: boolean;
+  providerStatus: string | null | undefined;
+  connection: IngestProviderConnectionSnapshot | null | undefined;
+}): IngestProviderDisplayStatus {
+  const live = resolveIngestConnectionDisplay(input.connection);
+  if (live) return live;
+
+  if (input.listening) {
+    return {
+      kind: "ok",
+      label: "слушается",
+      pulse: true,
+      tip: "Provider active + binding enabled",
+    };
+  }
+  if (input.providerStatus === "error") {
+    return {
+      kind: "error",
+      label: "ошибка",
+      pulse: false,
+      tip: "Provider error — см. lastError в статусе канала",
+    };
+  }
+  if (input.providerStatus === "draft") {
+    return {
+      kind: "neutral",
+      label: "черновик",
+      pulse: false,
+      tip: "Запустите провайдер: POST /providers/:id/start",
+    };
+  }
+  if (input.providerStatus === "paused") {
+    return {
+      kind: "warn",
+      label: "пауза",
+      pulse: false,
+      tip: "Провайдер остановлен",
+    };
+  }
+  return {
+    kind: "neutral",
+    label: "пауза",
+    pulse: false,
+    tip: "Канал не слушается",
+  };
+}
+
 /**
  * Live-статус канала для UI: DB status + worker probe + свежесть heartbeat.
  * `active` в PostgreSQL ≠ worker сейчас слушает Telegram.
  */
 export function resolveIngestProviderDisplayStatus(
   provider: {
+    id: string;
     status: "draft" | "active" | "paused" | "error";
     lastHeartbeatAt: string | null;
     lastError: string | null;
@@ -295,6 +407,7 @@ export function resolveIngestProviderDisplayStatus(
     dbReady: boolean;
     workerReachable: boolean;
     orchestratorRunning: boolean;
+    connection?: IngestProviderConnectionSnapshot | null;
   },
 ): IngestProviderDisplayStatus {
   const hbAge = provider.lastHeartbeatAt
@@ -327,6 +440,20 @@ export function resolveIngestProviderDisplayStatus(
       tip: `В БД: ${provider.status}. Probe worker недоступен — канал не слушается.`,
     };
   }
+
+  const liveConnection = resolveIngestConnectionDisplay(ctx.connection);
+  if (
+    liveConnection &&
+    ctx.connection &&
+    ["connecting", "reconnecting", "connected", "disconnected", "error", "live"].includes(
+      ctx.connection.phase,
+    )
+  ) {
+    if (ctx.connection.phase !== "live" || provider.status === "active") {
+      return liveConnection;
+    }
+  }
+
   if (!ctx.orchestratorRunning) {
     return {
       kind: "warn",

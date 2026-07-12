@@ -120,21 +120,8 @@ async function main() {
     envTruthy('RADAR_LLM_GEOCODER_ENABLED') ||
     envTruthy('COLD_UP_WITH_LLM');
   if (llm) {
-    const model = (process.env.RADAR_LLM_MODEL || 'qwen2.5:3b').trim();
-    console.log('\n\x1b[32m[llm] docker compose --profile llm up -d\x1b[0m');
+    console.log('\n\x1b[32m[llm] docker compose --profile llm up -d (модель — entrypoint ollama)\x1b[0m');
     run('docker', ['compose', '--profile', 'llm', 'up', '-d']);
-    console.log(`\n\x1b[32m[llm] ollama pull ${model}\x1b[0m`);
-    run('docker', [
-      'compose',
-      '--profile',
-      'llm',
-      'exec',
-      '-T',
-      'ollama',
-      'ollama',
-      'pull',
-      model,
-    ]);
   }
 
   const llmUi = llmUiFlag || envTruthy('COLD_UP_WITH_LLM_UI');
@@ -169,9 +156,9 @@ async function main() {
   const tilesFlag = tiles || envTruthy('COLD_UP_WITH_TILES');
   if (tilesFlag) {
     step += 1;
-    console.log(`\n\x1b[33m[${step}/${totalSteps}] tiles:init (долго)\x1b[0m`);
+    console.log(`\n\x1b[33m[${step}/${totalSteps}] tiles:sync (долго)\x1b[0m`);
     const tilesArgs = verbose ? ['--verbose'] : [];
-    run('node', ['scripts/tiles-init.mjs', ...tilesArgs]);
+    run('node', ['scripts/tiles-sync.mjs', ...tilesArgs]);
     progress.tick();
   }
 

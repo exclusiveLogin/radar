@@ -52,6 +52,31 @@ export function WorkerRunnersWidget() {
           </span>
         </div>
       )}
+      {(worker?.ingest.providers ?? []).map((conn) => {
+        const label =
+          conn.phase === "connecting"
+            ? "Подключение"
+            : conn.phase === "reconnecting"
+              ? "Переподключение"
+              : conn.phase === "connected"
+                ? "Подключён"
+                : conn.phase === "live"
+                  ? "Live"
+                  : conn.phase === "disconnected"
+                    ? "Отключён"
+                    : conn.phase === "error"
+                      ? "Ошибка"
+                      : conn.phase;
+        return (
+          <div className="ds-metric-row" key={conn.providerId}>
+            <span className="ds-metric-row__label">{conn.providerKey}</span>
+            <span className="ds-metric-row__value" title={conn.detail ?? undefined}>
+              {label}
+              {conn.detail ? ` · ${conn.detail}` : ""}
+            </span>
+          </div>
+        );
+      })}
       {stats && (
         <div className="ds-metric-row">
           <span className="ds-metric-row__label">Backfill (run/pend/done/fail/cancel)</span>

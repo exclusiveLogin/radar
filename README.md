@@ -331,7 +331,8 @@ node scripts/query-ingest-status.mjs
 | **`stack up`** | `up` | shared + API + web | UI без Telegram |
 | **`stack dev --full`** | `dev` | + worker | полный стек |
 | **`stack dev`** | `dev:app` | без worker | отладка карты/API |
-| **`stack docker-dev`** | `docker:dev` | api/web/worker в Docker | изолированный dev-стек |
+| **`stack docker-dev`** | `docker:dev` | api/web/worker в Docker | dev hot-reload |
+| **`stack docker-prod`** | `docker:prod` | baked dist + nginx | [docker-prod-stack.md](docs/docker-prod-stack.md) |
 
 Подробнее: [docs/docker-dev-stack.md](docs/docker-dev-stack.md).
 
@@ -352,10 +353,10 @@ npm run radar -- stack dev
 | Флаг | Эффект |
 |------|--------|
 | **`-Geo`** | `geo:vendor` → `geo:sync` → `geo:seed` → `geo:db:apply` (долго, нужен интернет) |
-| **`-Tiles`** | self-host OSM basemap (`tiles:init`, 30–90 мин, ≥30 GB) — [map-tiles-selfhost.md](docs/map-tiles-selfhost.md) |
+| **`-Tiles`** | self-host OSM basemap (`tiles:sync`, 30–90 мин, ≥30 GB) — [map-tiles-selfhost.md](docs/map-tiles-selfhost.md) |
 | **`-Verbose`** | подробный вывод CLI (`RADAR_CLI_VERBOSE`) |
 | **`-Dev`** | сразу запустить dev-стек после cold |
-| **`-Llm`** | Docker profile `llm` + `ollama pull` |
+| **`-Llm`** | Docker profile `llm` (ollama + auto-pull `RADAR_LLM_MODEL` в volume) |
 | **`-LlmUi`** | + Open WebUI |
 
 Пример: `npm run radar -- stack cold-up -- -Geo -Dev`

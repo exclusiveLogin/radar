@@ -1,5 +1,6 @@
 import type { WorkerProbeStatus } from "@radar/shared";
 import { workerProbeStatusSchema } from "@radar/shared";
+import { ingestConnectionStatus } from "./ingest/ingestConnectionStatus.js";
 
 type RuntimeState = {
   status: WorkerProbeStatus["status"];
@@ -125,6 +126,7 @@ export const workerRuntimeStatus = {
         lastLiveAt: state.lastLiveAt,
         lastLiveChannelKey: state.lastLiveChannelKey,
         lastError: state.lastError,
+        providers: ingestConnectionStatus.list(),
       },
     });
   },

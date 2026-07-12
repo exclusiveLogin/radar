@@ -47,7 +47,9 @@ export function ProvidersWidget({
         </p>
       ) : (
         providers.map((p) => {
-          const display = resolveIngestProviderDisplayStatus(p, liveCtx);
+          const connection =
+            workerStatus?.worker?.ingest.providers.find((c) => c.providerId === p.id) ?? null;
+          const display = resolveIngestProviderDisplayStatus(p, { ...liveCtx, connection });
           return (
             <div
               key={p.id}

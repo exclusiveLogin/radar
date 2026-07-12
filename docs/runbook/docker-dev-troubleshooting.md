@@ -39,7 +39,7 @@ curl.exe -s http://127.0.0.1:8081/health
 Test-Path data/tiles/output/config.json
 ```
 
-**Fix:** `npm run tiles:init` или `npm run tiles:up`. Временно — CDN basemap в `.env`.
+**Fix:** `npm run tiles:sync` или `npm run tiles:up`. Временно — CDN basemap в `.env`.
 
 ---
 
@@ -51,7 +51,23 @@ Test-Path data/tiles/output/config.json
 
 ---
 
-## Bind-mount slow (Windows)
+## Worker: «Модуль API не найден … persistence/index.js»
+
+**Симптом:** `worker-ingest` падает до старта, `packages/api/dist/infrastructure/persistence/index.js` отсутствует.
+
+**Причина:** гонка — worker стартовал раньше полной сборки API на общем volume.
+
+**Политика:** clean+build — **`npm run dev:prepare`** до `stack dev` / `docker:dev`; runtime dist не трогают.
+
+**Fix:** пересобрать образы и поднять заново (entrypoint ждёт `persistence/index.js` + `/api/ready`):
+
+```powershell
+docker compose -f docker-compose.yml -f docker-compose.app.yml --profile app up -d --build
+```
+
+Workers ждут `api: service_healthy`.
+
+---
 
 **Симптом:** Vite/worker перезапускаются с задержкой, CPU idle.
 
@@ -83,7 +99,7 @@ Test-Path data/tiles/output/config.json
 
 **Симптом:** после обновления источников карта старая.
 
-**Fix:** удалить `data/tiles/sources/`, `merged/`, `output/` и перезапустить `tiles:init`.
+**Fix:** удалить `data/tiles/sources/`, `merged/`, `output/` и перезапустить `tiles:sync`.
 
 ---
 

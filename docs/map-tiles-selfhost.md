@@ -10,7 +10,7 @@ SSOT манифеста: **`data/geo/tiles.manifest.json`** (Zod: `geoBasemapMan
 | Сценарий | Решение |
 |----------|---------|
 | Быстрый dev без офлайн-карты | CDN: `openfreemap` / `carto` (дефолт) |
-| Офлайн / стабильная подложка | `cold:up -Tiles` или `npm run tiles:init` |
+| Офлайн / стабильная подложка | `cold:up -Tiles` или `npm run tiles:sync` |
 | Docker dev с картой | `tiles` profile + `VITE_MAP_BASEMAP_STYLE=local` |
 
 ---
@@ -31,7 +31,7 @@ tiles.manifest.json
 | Download RF+UA | `tiles:download` | 5–20 мин |
 | Merge | `tiles:merge` | 1–5 мин |
 | Tilemaker | `tiles:build` | **30–90 мин**, RAM 8–16 GB |
-| Verify + compose | `tiles:init` | 1 мин |
+| Verify + compose | `tiles:sync` | 1 мин |
 
 **Диск:** ≥ 30 GB под `data/tiles/` (pbf + 2× mbtiles).
 
@@ -46,9 +46,9 @@ npm run tiles:download
 npm run tiles:merge
 npm run tiles:build
 npm run tiles:verify
-npm run radar -- stack tiles:init          # build + TileServer
+npm run radar -- stack tiles:sync          # build + restart TileServer
 npm run radar -- stack tiles:up            # только сервер (артефакты готовы)
-npm run radar -- stack tiles:update        # пересборка + restart
+npm run radar -- stack tiles:sync -- --no-restart  # только артефакты
 npm run radar -- stack tiles:down
 
 npm run radar -- stack cold-up -- -Tiles -Verbose
@@ -70,14 +70,14 @@ curl.exe -s http://127.0.0.1:8081/health
 | Команда | Progress | Флаги |
 |---------|----------|-------|
 | `cold-up` | stage `cold-up` | `-Verbose`, `-Tiles`, `-Geo` |
-| `tiles:init` | stage `tiles:init` | `--verbose` / `RADAR_CLI_VERBOSE=1` |
+| `tiles:sync` | stage `tiles:sync` | `--verbose` / `RADAR_CLI_VERBOSE=1`, `--no-restart` |
 | `tiles:download` | per-source | `--verbose` |
 
 Пример:
 
 ```text
-[cold-up 3/7] tiles:init ...
-[tiles:init] download
+[cold-up 3/7] tiles:sync ...
+[tiles:sync] download
 [tiles:download] skip rf (russia-latest.osm.pbf, 3500.2 MB)
 ```
 

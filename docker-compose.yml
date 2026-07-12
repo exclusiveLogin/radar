@@ -74,24 +74,30 @@ services:
   ollama:
     image: ollama/ollama:0.30.0-rc12
     restart: unless-stopped
-    profiles: ["llm", "llm-ui"]
-    gpus: all
+    # app — вместе с docker:dev; llm/llm-ui — cold-up и ручной profile
+    profiles: ["app", "llm", "llm-ui", "prod"]
+    env_file:
+      - .env
+    environment:
+      OLLAMA_HOST: 0.0.0.0:11434
+      RADAR_LLM_MODEL: ${RADAR_LLM_MODEL:-qwen2.5:3b}
     ports:
       - "${OLLAMA_PORT:-11434}:11434"
-    environment:
-      NVIDIA_VISIBLE_DEVICES: all
-      NVIDIA_DRIVER_CAPABILITIES: compute,utility
     volumes:
       - radar_ollama_data:/root/.ollama
+      - ./docker/ollama-entrypoint.sh:/docker/ollama-entrypoint.sh:ro
+      - ./docker/ollama-healthcheck.sh:/docker/ollama-healthcheck.sh:ro
+    entrypoint: ["/bin/sh", "/docker/ollama-entrypoint.sh"]
     networks:
       - radar_net
     healthcheck:
-      test: ["CMD", "ollama", "list"]
-      interval: 15s
-      timeout: 10s
-      retries: 5
-      start_period: 25s
+      test: ["CMD", "/bin/sh", "/docker/ollama-healthcheck.sh"]
+      interval: 30s
+      timeout: 20s
+      retries: 12
+      start_period: 1800s
     stop_grace_period: 30s
+    # GPU: docker-compose.override.yml → deploy.resources.reservations.devices (см. docker-dev-stack.md)
 
   open-webui:
     image: ghcr.io/open-webui/open-webui:main
@@ -135,7 +141,7 @@ services:
     command: ["sh", "-c", "npm run start -w @radar/worker"]
     volumes:
       - .:/app
-      - radar_sessions_data:/var/radar/sessions
+      - ./.radar/sessions:/var/radar/sessions
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql://radar:radar@db:5432/radar}
       RADAR_STORAGE_MODE: db
@@ -161,4 +167,3 @@ volumes:
   radar_pgadmin_data:
   radar_ollama_data:
   radar_open_webui_data:
-  radar_sessions_data:

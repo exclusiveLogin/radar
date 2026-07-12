@@ -39,7 +39,18 @@ export class WorkerStatusService {
         .split(",")
         .map((t) => t.trim())
         .filter(Boolean)
-        .map((t) => (t.includes("://") ? `${t.replace(/\/$/, "")}/status` : `http://${t}/status`));
+        .map((t) => {
+          const trimmed = t.trim();
+          if (!trimmed) return "";
+          if (trimmed.includes("://")) {
+            const base = trimmed.replace(/\/$/, "");
+            return base.endsWith("/status") || base.endsWith("/health")
+              ? base
+              : `${base}/status`;
+          }
+          return `http://${trimmed}/status`;
+        })
+        .filter(Boolean);
     }
 
     const host = process.env.WORKER_PROBE_HOST?.trim() || "127.0.0.1";

@@ -62,6 +62,10 @@ export {
   sessionDeployRequestSchema,
   sessionProbeResultSchema,
 } from "./session-artifact";
+export {
+  ingestConnectionPhaseSchema,
+  ingestProviderConnectionSnapshotSchema,
+} from "./connection";
 
 // --- type-only exports ---
 export type { ChannelManifest, ChannelManifestEntry } from "./channel-manifest";
@@ -117,3 +121,4 @@ export type {
   SessionMaterial,
   SessionWriteInput,
 } from "./session-artifact";
+export type { IngestConnectionPhase, IngestProviderConnectionSnapshot } from "./connection";
