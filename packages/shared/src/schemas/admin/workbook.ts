@@ -17,6 +17,9 @@ export const workbookPhaseDescriptorSchema = z.object({
   id: z.string(),
   enabled: z.boolean(),
   label: z.string().optional(),
+  triggerMode: z.enum(["event", "timeout", "both", "manual"]).optional(),
+  subscribeTopic: z.string().optional(),
+  publishTopic: z.string().optional(),
 });
 export type WorkbookPhaseDescriptorDto = z.infer<typeof workbookPhaseDescriptorSchema>;
 

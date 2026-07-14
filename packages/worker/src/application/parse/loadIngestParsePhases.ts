@@ -8,6 +8,7 @@ function defaultCatalogPhase(): PhaseDefinitionRecord[] {
   return [
     {
       id: "catalog",
+      triggerMode: "event",
       trigger: "eager",
       scope: "ingestParse",
       enrichers: ["catalog"],

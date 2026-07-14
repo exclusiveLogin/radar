@@ -7,6 +7,11 @@ export type { ILocationEnricher, LocationCandidate, LocationEnrichInput } from "
 export type { IEventClassifier, ClassifiedPost } from "./classifiers";
 export type { EventHandler, IEventPublisher, IEventSubscriber, Unsubscribe } from "./events";
 export type {
+  IEventTransport,
+  TransportEventHandler,
+  TransportSignalHandler,
+} from "./eventTransport";
+export type {
   ISourceUniquenessContributor,
 } from "./source-uniqueness";
 export { SourceUniquenessRegistry } from "./source-uniqueness";

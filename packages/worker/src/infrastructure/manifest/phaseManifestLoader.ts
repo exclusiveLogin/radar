@@ -63,6 +63,7 @@ export async function exportPhaseManifest(
     version: 1,
     phases: records.map((record) => ({
       id: record.id,
+      triggerMode: record.triggerMode,
       trigger: record.trigger,
       scope: record.scope ?? "ingestParse",
       enrichers: record.enrichers,

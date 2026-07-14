@@ -409,6 +409,11 @@ export interface IPlaceEnrichmentJobRepository {
     provider: PlaceEnrichmentProvider,
     limit: number,
   ): Promise<PlaceEnrichmentJobRecord[]>;
+  /** Targeted drain: claim jobs только для указанных place_id. */
+  claimForPlaceIds(
+    provider: PlaceEnrichmentProvider,
+    placeIds: string[],
+  ): Promise<PlaceEnrichmentJobRecord[]>;
   markDone(id: string): Promise<void>;
   markFailed(id: string, error: string): Promise<void>;
   /** Вернуть processing → pending (инфра-сбой, не ошибка place). */
@@ -486,6 +491,12 @@ export interface IPhaseCoverageRepository {
   claimBatch(
     phaseId: string,
     limit: number,
+    prerequisitePhaseIds?: string[],
+  ): Promise<PhaseCoverageTask[]>;
+  /** Targeted drain: claim только указанные raw_message_id. */
+  claimForRawMessages(
+    phaseId: string,
+    rawMessageIds: string[],
     prerequisitePhaseIds?: string[],
   ): Promise<PhaseCoverageTask[]>;
   markDone(id: string): Promise<void>;

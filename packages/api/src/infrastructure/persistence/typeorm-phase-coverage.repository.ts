@@ -101,6 +101,45 @@ export class TypeOrmPhaseCoverageRepository implements IPhaseCoverageRepository 
     return rows.map((row) => this.toTask(row));
   }
 
+  /** Targeted drain: pending/processing только для указанных raw_message_id. */
+  async claimForRawMessages(
+    phaseId: string,
+    rawMessageIds: string[],
+    prerequisitePhaseIds?: string[],
+  ): Promise<PhaseCoverageTask[]> {
+    if (rawMessageIds.length === 0) return [];
+    const prereq =
+      prerequisitePhaseIds && prerequisitePhaseIds.length > 0
+        ? `AND NOT EXISTS (
+             SELECT 1 FROM queue_parse_coverage prereq
+             WHERE prereq.raw_message_id = pc.raw_message_id
+               AND prereq.phase_id = ANY($3::text[])
+               AND prereq.status <> 'done'
+           )`
+        : "";
+    const params =
+      prerequisitePhaseIds && prerequisitePhaseIds.length > 0
+        ? [phaseId, rawMessageIds, prerequisitePhaseIds]
+        : [phaseId, rawMessageIds];
+
+    const rows = readTypeOrmQueryRows<CoverageRow>(
+      await this.dataSource.query(
+        `UPDATE queue_parse_coverage SET status = 'processing', updated_at = now()
+       WHERE id IN (
+         SELECT pc.id FROM queue_parse_coverage pc
+         WHERE pc.status = 'pending' AND pc.phase_id = $1
+           AND pc.raw_message_id = ANY($2::uuid[])
+         ${prereq}
+         FOR UPDATE SKIP LOCKED
+       )
+       RETURNING id, raw_message_id, phase_id, parsed_event_id, status, attempts,
+                 last_error, processed_at, created_at, updated_at`,
+        params,
+      ),
+    );
+    return rows.map((row) => this.toTask(row));
+  }
+
   async markDone(id: string): Promise<void> {
     await this.dataSource.query(
       `UPDATE queue_parse_coverage SET status = 'done', processed_at = now(), updated_at = now()

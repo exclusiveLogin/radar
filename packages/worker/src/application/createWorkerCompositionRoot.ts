@@ -1,6 +1,6 @@
-/**
+﻿/**
  * Composition root worker: DataSource, repos, InProcessEventBus, OutboxRelay (db mode).
- * Это wiring зависимостей, не Unit of Work — см. docs.
+ * Р­С‚Рѕ wiring Р·Р°РІРёСЃРёРјРѕСЃС‚РµР№, РЅРµ Unit of Work вЂ” СЃРј. docs.
  * @see ../../../../docs/domain/how-it-works.md#composition-root-flow
  * @see ../../../../docs/domain/unit-of-work-and-transactions.md
  * @see ../../../../docs/domain/domain-events-and-outbox.md
@@ -26,8 +26,13 @@ import type {
   IObservabilityRecorder,
   HostSnapshot,
 } from "@radar/shared";
-import { InProcessEventBus } from "@radar/shared";
+import { InProcessEventBus, RADAR_TOPICS } from "@radar/shared";
 import { loadDeploymentManifest } from "@radar/shared/deployment/deploymentManifest.loader.js";
+import { createEventTransport } from "../infrastructure/transport/createEventTransport.js";
+import { TransportEventPublisher } from "../infrastructure/transport/transportEventPublisher.js";
+import { bridgeTransportTopicToBus } from "../infrastructure/transport/bridgeTransportToBus.js";
+import { wireTransportTrigger } from "./runtime/workload/wireTransportTrigger.js";
+import { wireTransportRuntimeSignals } from "../infrastructure/transport/wireTransportRuntimeSignals.js";
 import { loadWorkerRuntimeManifest } from "@radar/shared/manifest/domains/workerRuntime.loader.js";
 import {
   ParseAttemptLogger,
@@ -45,7 +50,6 @@ import {
   type PipelineLauncher,
 } from "../composition/runtime/index.js";
 import { PlaceEnrichmentRunner } from "./geo-parse/placeEnrichmentRunner.js";
-import { wireBusTrigger } from "./runtime/workload/wireBusTrigger.js";
 import { odpResolve, type OdpResolution } from "../composition/odp/index.js";
 import { IngestRawMessageHandler } from "./handlers/ingestRawMessageHandler.js";
 import { ParseRawMessageHandler } from "./handlers/parseRawMessageHandler.js";
@@ -82,11 +86,7 @@ import {
 } from "../infrastructure/persistence/storageMode.js";
 import { createWorkerDataSource } from "../infrastructure/persistence/createWorkerDataSource.js";
 import { createWorkerDbRepositories } from "../infrastructure/persistence/workerDbRepos.js";
-import { importApiDistModule } from "../infrastructure/persistence/resolveApiDistModule.js";
-import type {
-  ApiOutboxModule,
-  WorkerDbRepositories,
-} from "../infrastructure/persistence/workerDbRepos.types.js";
+import type { WorkerDbRepositories } from "../infrastructure/persistence/workerDbRepos.types.js";
 import { IngestOrchestrator } from "./ingest/ingestOrchestrator.js";
 import { SessionResolver } from "./sessions/sessionResolver.js";
 import {
@@ -95,11 +95,11 @@ import {
 } from "../infrastructure/telegram/telegramAppCredentials.js";
 import {
   resolveWorkerRoleFromEnv,
-  rolePublishesIngestToOutbox,
   roleRunsBackfill,
   roleRunsLiveIngest,
-  roleRunsOutboxRelay,
   roleRunsPhaseDaemons,
+  roleRunsParseDaemons,
+  roleRunsGeoDaemons,
   roleRunsTrackingDaemon,
   roleSubscribesPhaseIngestOnBus,
   type WorkerRole,
@@ -114,25 +114,25 @@ import type { IngestEventPublisher } from "./handlers/ingestEventPublishMode.js"
 
 export type WorkerCompositionOptions = {
   storageMode?: WorkerStorageMode;
-  /** Роль процесса; default — env RADAR_WORKER_ROLE или `all`. */
+  /** Р РѕР»СЊ РїСЂРѕС†РµСЃСЃР°; default вЂ” env RADAR_WORKER_ROLE РёР»Рё `all`. */
   workerRole?: WorkerRole;
   placeCacheRepository?: IPlaceCacheRepository;
   /** Override DB-backed geo scan (tests / offline CLI). */
   placeScan?: IPlaceScanPort;
   /**
-   * Override ingestParse-фаз для offline CLI (snap/report).
-   * Default / `{ kind: "manifest" }` — enabled фазы из phase.manifest (prod parity).
+   * Override ingestParse-С„Р°Р· РґР»СЏ offline CLI (snap/report).
+   * Default / `{ kind: "manifest" }` вЂ” enabled С„Р°Р·С‹ РёР· phase.manifest (prod parity).
    */
   ingestParsePhaseSelection?: IngestParsePhaseSelection;
-  /** @deprecated Используй ingestParsePhaseSelection / CLI --phases. */
+  /** @deprecated РСЃРїРѕР»СЊР·СѓР№ ingestParsePhaseSelection / CLI --phases. */
   explicitEnricherFlags?: false;
-  /** @deprecated Используй ingestParsePhaseSelection / CLI --phases. */
+  /** @deprecated РСЃРїРѕР»СЊР·СѓР№ ingestParsePhaseSelection / CLI --phases. */
   pipelineOrder?: never;
-  /** @deprecated Используй ingestParsePhaseSelection / CLI --phases. */
+  /** @deprecated РСЃРїРѕР»СЊР·СѓР№ ingestParsePhaseSelection / CLI --phases. */
   llmRuntimeOverride?: never;
   /**
-   * IngestParseDaemon (scheduled ingestParse). Для one-shot CLI — false;
-   * догон — в `worker:dev` / `parse-engine:ingest:drain`.
+   * IngestParseDaemon (scheduled ingestParse). Р”Р»СЏ one-shot CLI вЂ” false;
+   * РґРѕРіРѕРЅ вЂ” РІ `worker:dev` / `parse-engine:ingest:drain`.
    */
   startIngestParseDaemon?: boolean;
 };
@@ -152,6 +152,15 @@ export async function createWorkerCompositionRoot(
   });
 
   const bus = new InProcessEventBus();
+  const eventTransport = createEventTransport({
+    transport: deploymentManifest.transport,
+    workerRole,
+  });
+  await eventTransport.start();
+  if (deploymentManifest.transport.kind === "rmq") {
+    bridgeTransportTopicToBus(eventTransport, bus, RADAR_TOPICS.RAW_INGESTED);
+    bridgeTransportTopicToBus(eventTransport, bus, RADAR_TOPICS.MESSAGE_PARSED);
+  }
   const parseAttemptLogger = new ParseAttemptLogger(workerRuntime.logging.verboseParse);
   const metricsAggregator = new MetricsAggregator();
 
@@ -160,10 +169,9 @@ export async function createWorkerCompositionRoot(
   bus.subscribe("*", metricsAggregator.handler);
 
   let dataSource: DataSource | undefined;
-  let outboxRelay: { start: () => void; stop: () => void } | undefined;
   let ingestOrchestrator: IngestOrchestrator | undefined;
   let backfillDaemon: BackfillDaemonService | undefined;
-  /** Pipeline launchers (legacy | runner-platform) по deployment manifest. */
+  /** Pipeline launchers (legacy | runner-platform) РїРѕ deployment manifest. */
   let trackingRebuildDaemon: PipelineLauncher | undefined;
   let ingestParseDaemon: PipelineLauncher | undefined;
   let placeEnrichmentDaemon: PipelineLauncher | undefined;
@@ -198,11 +206,6 @@ export async function createWorkerCompositionRoot(
     dataSource = await createWorkerDataSource();
     const repos = await createWorkerDbRepositories(dataSource);
     workerRepos = repos;
-    const { OutboxRelay } = (await importApiDistModule(
-      "infrastructure",
-      "events",
-      "outboxRelay.js",
-    )) as ApiOutboxModule;
 
     rawMessages = repos.rawMessages;
     parsedEvents = repos.parsedEvents;
@@ -218,18 +221,13 @@ export async function createWorkerCompositionRoot(
     ingestBindings = repos.ingestBindings;
     channels = repos.channels;
     backfillJobs = repos.backfillJobs;
-    // Технический след парсинга в БД (log_parse_attempt) для лога/агрегатов админки.
+    // РўРµС…РЅРёС‡РµСЃРєРёР№ СЃР»РµРґ РїР°СЂСЃРёРЅРіР° РІ Р‘Р” (log_parse_attempt) РґР»СЏ Р»РѕРіР°/Р°РіСЂРµРіР°С‚РѕРІ Р°РґРјРёРЅРєРё.
     const parseAttemptWriter = new ParseAttemptWriter(repos.parseAttempts);
     bus.subscribe("MessageParsed", parseAttemptWriter.handler);
     bus.subscribe("MessageParseFailed", parseAttemptWriter.handler);
 
-    outboxRelay = new OutboxRelay(dataSource, bus);
-    if (roleRunsOutboxRelay(workerRole)) {
-      outboxRelay.start();
-    }
-
     shutdown = async () => {
-      outboxRelay?.stop();
+      await eventTransport.stop();
       phaseManualRunPoller?.stop();
       await ingestParseDaemon?.stop();
       await placeEnrichmentDaemon?.stop();
@@ -252,10 +250,10 @@ export async function createWorkerCompositionRoot(
     });
   }
 
-  /** obs_hosts до workloads/executors — иначе FK на старте daemons/pool. */
+  /** obs_hosts РґРѕ workloads/executors вЂ” РёРЅР°С‡Рµ FK РЅР° СЃС‚Р°СЂС‚Рµ daemons/pool. */
   if (observabilityRecorder) {
     for (const entry of odp) {
-      console.log(`[odp] ${entry.pipelineKey} → ${entry.runtime} (${entry.label})`);
+      console.log(`[odp] ${entry.pipelineKey} в†’ ${entry.runtime} (${entry.label})`);
     }
     obsHostSnapshot = {
       hostId: buildObsHostId(workerRole),
@@ -273,7 +271,7 @@ export async function createWorkerCompositionRoot(
 
   const placeCache = options.placeCacheRepository ?? new InMemoryPlaceCacheRepository();
   const placeScan = options.placeScan ?? await createPlaceScanService({ places, regions });
-  // CLI/test override — не тянем places.listScanEntries (DB repo из api/dist может быть устаревшим).
+  // CLI/test override вЂ” РЅРµ С‚СЏРЅРµРј places.listScanEntries (DB repo РёР· api/dist РјРѕР¶РµС‚ Р±С‹С‚СЊ СѓСЃС‚Р°СЂРµРІС€РёРј).
   const placeScanEntries =
     options.placeScan != null ? [] : await places.listScanEntries();
   const placeScanRevision = placeScan.revision();
@@ -317,9 +315,7 @@ export async function createWorkerCompositionRoot(
   }
 
   const ingestEventPublisher: IngestEventPublisher =
-    workerRepos && rolePublishesIngestToOutbox(workerRole)
-      ? { mode: "outbox", outbox: workerRepos.domainEvents }
-      : { mode: "bus", bus };
+    { transport: eventTransport };
 
   const ingestRawMessageHandler = new IngestRawMessageHandler(
     rawMessages,
@@ -340,7 +336,7 @@ export async function createWorkerCompositionRoot(
     parsedEvents,
     eventLocations,
     eventEvidence,
-    bus,
+    new TransportEventPublisher(eventTransport),
   );
 
   if (workerRepos) {
@@ -365,16 +361,15 @@ export async function createWorkerCompositionRoot(
       validation,
       placeScan,
       placeCache,
-      events: bus,
+      events: new TransportEventPublisher(eventTransport),
       placeEnrichmentRunner,
     });
+    wireTransportRuntimeSignals({ transport: eventTransport, workerRepos, phaseRunner });
     coverageEnqueuer = new CoverageEnqueuer(
       workerRepos.phaseCoverage,
       workerRepos.phaseDefinitions,
     );
-    if (roleSubscribesPhaseIngestOnBus(workerRole)) {
-      bus.subscribe(
-        "RawMessageIngested",
+    if (roleSubscribesPhaseIngestOnBus(workerRole)) { eventTransport.subscribe(RADAR_TOPICS.RAW_INGESTED,
         createPhaseIngestHandler({
           rawMessages: workerRepos.rawMessages,
           phases: workerRepos.phaseDefinitions,
@@ -383,11 +378,11 @@ export async function createWorkerCompositionRoot(
         }),
       );
     }
-    const startPhaseDaemons =
-      roleRunsPhaseDaemons(workerRole) &&
+    const startParseDaemons =
+      roleRunsParseDaemons(workerRole) &&
       workerRuntime.parse.daemon.enabled &&
       options.startIngestParseDaemon !== false;
-    if (startPhaseDaemons && dataSource) {
+    if (dataSource) {
       const obsBinding = observabilityRecorder
         ? { recorder: observabilityRecorder, hostId: buildObsHostId(workerRole) }
         : undefined;
@@ -399,31 +394,35 @@ export async function createWorkerCompositionRoot(
         workerRuntime,
       };
 
-      const parseSpec = runtimePipelines.find((p) => p.entry.pipelineKey === "parse");
-      if (parseSpec) {
-        ingestParseDaemon = createPipelineLauncher(parseSpec, factoryDeps) ?? undefined;
-        ingestParseDaemon?.start();
-        if (ingestParseDaemon) pipelineLaunchers.push(ingestParseDaemon);
+      if (startParseDaemons) {
+        const parseSpec = runtimePipelines.find((p) => p.entry.pipelineKey === "parse");
+        if (parseSpec) {
+          ingestParseDaemon = createPipelineLauncher(parseSpec, factoryDeps) ?? undefined;
+          ingestParseDaemon?.start();
+          if (ingestParseDaemon) pipelineLaunchers.push(ingestParseDaemon);
+        }
+
+        phaseManualRunPoller = new PhaseManualRunPoller(
+          workerRepos.phaseDefinitions,
+          workerRepos.phaseRuns,
+          phaseRunner,
+          workerRuntime.phase.manualPollMs,
+        );
+        phaseManualRunPoller.start();
       }
 
-      phaseManualRunPoller = new PhaseManualRunPoller(
-        workerRepos.phaseDefinitions,
-        workerRepos.phaseRuns,
-        phaseRunner,
-        workerRuntime.phase.manualPollMs,
-      );
-      phaseManualRunPoller.start();
-
-      const geoSpec = runtimePipelines.find((p) => p.entry.pipelineKey === "geo-enrich");
-      if (geoSpec) {
-        placeEnrichmentDaemon = createPipelineLauncher(geoSpec, factoryDeps) ?? undefined;
-        placeEnrichmentDaemon?.start();
-        if (placeEnrichmentDaemon) pipelineLaunchers.push(placeEnrichmentDaemon);
+      if (roleRunsGeoDaemons(workerRole)) {
+        const geoSpec = runtimePipelines.find((p) => p.entry.pipelineKey === "geo-enrich");
+        if (geoSpec) {
+          placeEnrichmentDaemon = createPipelineLauncher(geoSpec, factoryDeps) ?? undefined;
+          placeEnrichmentDaemon?.start();
+          if (placeEnrichmentDaemon) pipelineLaunchers.push(placeEnrichmentDaemon);
+        }
       }
     }
   } else {
-    bus.subscribe(
-      "RawMessageIngested",
+    eventTransport.subscribe(
+      RADAR_TOPICS.RAW_INGESTED,
       createRawMessageIngestedHandler({
         rawMessages,
         parseHandler: parseRawMessageHandler,
@@ -494,11 +493,11 @@ export async function createWorkerCompositionRoot(
     }
   }
 
-  // Wave 6: bus-trigger chaining — только runner-platform launchers с enqueue.
+  // Wave 6: bus-trigger chaining вЂ” С‚РѕР»СЊРєРѕ runner-platform launchers СЃ enqueue.
   for (const launcher of pipelineLaunchers) {
     if (launcher.runtime !== "runner-platform" || !launcher.enqueue) continue;
     if (launcher.pipelineKey === "parse") {
-      wireBusTrigger(bus, "RawMessageIngested", {
+      wireTransportTrigger(eventTransport, RADAR_TOPICS.RAW_INGESTED, {
         debounceMs: 250,
         onRoute: () => launcher.enqueue!(),
         obs: observabilityRecorder
@@ -511,7 +510,7 @@ export async function createWorkerCompositionRoot(
       });
     }
     if (launcher.pipelineKey === "tracking") {
-      wireBusTrigger(bus, "MessageParsed", {
+      wireTransportTrigger(eventTransport, RADAR_TOPICS.MESSAGE_PARSED, {
         debounceMs: 250,
         onRoute: () => launcher.enqueue!(),
         obs: observabilityRecorder
@@ -524,7 +523,7 @@ export async function createWorkerCompositionRoot(
       });
     }
     if (launcher.pipelineKey === "geo-enrich") {
-      wireBusTrigger(bus, "MessageParsed", {
+      wireTransportTrigger(eventTransport, RADAR_TOPICS.MESSAGE_PARSED, {
         debounceMs: 250,
         onRoute: () => launcher.enqueue!(),
         obs: observabilityRecorder
@@ -562,8 +561,9 @@ export async function createWorkerCompositionRoot(
     phaseRunner,
     coverageEnqueuer,
     workerRepos,
-    outboxRelay,
     dataSource,
     shutdown,
   };
 }
+
+

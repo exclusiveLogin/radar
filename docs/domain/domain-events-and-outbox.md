@@ -22,19 +22,35 @@
 Файл: `packages/shared/src/schemas/events/domain-event.ts`  
 Таблица: `event_outbox` → `DomainEventEntity`.
 
-## Как публикуется (два пути)
+## Как публикуется (RMQ-only scheduling, ADR-022)
 
-### 1. In-process bus (worker по умолчанию)
+### IEventTransport (SSOT)
 
 ```
-Handler → IEventPublisher.publish → InProcessEventBus
-  → синхронный вызов подписчиков по event.type (и "*")
+Producer → IEventTransport.publish(topic, events)
+Admin/CLI → IEventTransport.publishSignal(topic, payload)
+Consumer → transport.subscribe / subscribeSignal
 ```
 
-- Подписчик parse: `RawMessageIngested` → `rawMessageIngestedSubscriber`.
-- **Не пишет** в PostgreSQL.
+- Topic SSOT: `packages/shared/src/transport/topicCatalog.ts`
+- Адаптеры: `InProcessTransport` (dev `--full` cascade) | `RmqTransport` (docker/split)
+- In-process bus остаётся для **внутрипроцессных** подписчиков (parse attempt log, metrics); cross-process — только RMQ.
 
-### 2. Outbox (API и часть сценариев)
+### Outbox (audit, не transport)
+
+```
+Service → IDomainEventRepository.append (опционально audit)
+```
+
+`OutboxRelay` **не** в hot path при `transport.kind=rmq`.
+
+### Legacy (deprecated)
+
+```
+Handler → bus|outbox|both modes — удалены из application path
+```
+
+### 2. Outbox (API audit)
 
 ```
 Service → IDomainEventRepository.append / IDomainEventOutbox.append

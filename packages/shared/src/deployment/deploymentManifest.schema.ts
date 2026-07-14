@@ -10,7 +10,16 @@ import { z } from "zod";
 import { pipelineKeySchema } from "../schemas/admin/workbook.js";
 
 /** Worker-role, на котором исполняется pipeline (см. RADAR_WORKER_ROLE). */
-export const deploymentHostSchema = z.enum(["all", "ingest", "backfill", "phase", "tracking"]);
+export const deploymentHostSchema = z.enum([
+  "all",
+  "ingest",
+  "backfill",
+  "parse",
+  "geo",
+  "tracking",
+  /** @deprecated — use parse/geo */
+  "phase",
+]);
 export type DeploymentHost = z.infer<typeof deploymentHostSchema>;
 
 /** Способ поднятия workload: in-process или отдельный docker-сервис. */
@@ -37,7 +46,9 @@ export const deploymentRunnersSchema = z.object({
 export type DeploymentRunners = z.infer<typeof deploymentRunnersSchema>;
 
 export const deploymentProcessSchema = z.object({
-  role: z.enum(["all", "ingest", "backfill", "phase", "tracking"]).default("all"),
+  role: z
+    .enum(["all", "ingest", "backfill", "parse", "geo", "tracking", "phase"])
+    .default("all"),
   storageMode: z.enum(["memory", "db", "fs"]).default("db"),
 });
 export type DeploymentProcess = z.infer<typeof deploymentProcessSchema>;
@@ -67,8 +78,21 @@ export const deploymentInfraSchema = z.object({
 });
 export type DeploymentInfra = z.infer<typeof deploymentInfraSchema>;
 
-/** Зарезервировано под transport-sidecar (mtproxy и т.п.) — defaults пустые. */
-export const deploymentTransportSchema = z.object({}).default({});
+export const deploymentTransportKindSchema = z.enum(["in-process", "rmq"]);
+export type DeploymentTransportKind = z.infer<typeof deploymentTransportKindSchema>;
+
+export const deploymentTransportRmqSchema = z.object({
+  url: z.string().default("amqp://radar:radar@127.0.0.1:5672/radar"),
+  exchange: z.string().default("radar.events"),
+  prefetch: z.number().int().positive().default(10),
+  dedupTable: z.boolean().default(true),
+});
+export type DeploymentTransportRmq = z.infer<typeof deploymentTransportRmqSchema>;
+
+export const deploymentTransportSchema = z.object({
+  kind: deploymentTransportKindSchema.default("in-process"),
+  rmq: deploymentTransportRmqSchema.default({}),
+});
 export type DeploymentTransport = z.infer<typeof deploymentTransportSchema>;
 
 export const deploymentManifestSchema = z.object({
@@ -96,8 +120,8 @@ export const DEFAULT_DEPLOYMENT_MANIFEST: DeploymentManifest = deploymentManifes
       },
       {
         pipelineKey: "parse",
-        label: "ingestParse scheduled phases (queue_parse_coverage claim-drain)",
-        host: "phase",
+        label: "ingestParse scheduled phases (RMQ drain)",
+        host: "parse",
         spawn: "in-process",
         schedulingImpl: "legacy",
         enabled: true,
@@ -105,7 +129,7 @@ export const DEFAULT_DEPLOYMENT_MANIFEST: DeploymentManifest = deploymentManifes
       {
         pipelineKey: "geo-enrich",
         label: "geoParse scheduled phases (dadata → nominatim → llm)",
-        host: "phase",
+        host: "geo",
         spawn: "in-process",
         schedulingImpl: "legacy",
         enabled: true,
@@ -126,5 +150,13 @@ export const DEFAULT_DEPLOYMENT_MANIFEST: DeploymentManifest = deploymentManifes
     },
     compose: { apiPort: 3000, webPort: 5173 },
   },
-  transport: {},
+  transport: {
+    kind: "in-process",
+    rmq: {
+      url: "amqp://radar:radar@127.0.0.1:5672/radar",
+      exchange: "radar.events",
+      prefetch: 10,
+      dedupTable: true,
+    },
+  },
 });

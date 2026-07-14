@@ -1,19 +1,22 @@
-import type { DomainEvent, IDomainEventRepository, IEventPublisher } from "@radar/shared";
+﻿import type { DomainEvent, IEventTransport } from "@radar/shared";
+import { defaultTopicForEvent } from "@radar/shared";
 
-export type IngestEventPublisher =
-  | { mode: "bus"; bus: IEventPublisher }
-  | { mode: "outbox"; outbox: IDomainEventRepository }
-  | { mode: "both"; bus: IEventPublisher; outbox: IDomainEventRepository };
+/** Публикует domain event через transport (RMQ / in-process). */
+export async function publishDomainEventViaTransport(
+  transport: IEventTransport,
+  event: DomainEvent,
+): Promise<void> {
+  const topic = defaultTopicForEvent(event.type);
+  if (!topic) return;
+  await transport.publish(topic, [event]);
+}
 
-/** Публикует доменное событие ingest согласно роли worker. */
+/** @deprecated — заменено transport.publish */
+export type IngestEventPublisher = { transport: IEventTransport };
+
 export async function publishIngestDomainEvent(
   publisher: IngestEventPublisher,
   event: DomainEvent,
 ): Promise<void> {
-  if (publisher.mode === "bus" || publisher.mode === "both") {
-    await publisher.bus.publish([event]);
-  }
-  if (publisher.mode === "outbox" || publisher.mode === "both") {
-    await publisher.outbox.append([event]);
-  }
+  await publishDomainEventViaTransport(publisher.transport, event);
 }

@@ -10,6 +10,7 @@ export {
 export {
   enricherIdSchema,
   phaseTriggerSchema,
+  phaseTriggerModeSchema,
   phaseScopeSchema,
   phaseKindSchema,
   enrichStageSchema,
@@ -20,6 +21,7 @@ export {
   phaseDefinitionSchema,
   manualRunScopeSchema,
   LEGACY_PHASE_ID_MAP,
+  legacyTriggerToMode,
   normalizePhaseManifestEntry,
 } from "./phase";
 export {
@@ -42,6 +44,7 @@ export type {
 export type {
   EnricherId,
   PhaseTrigger,
+  PhaseTriggerMode,
   PhaseScope,
   PhaseKind,
   EnrichStage,

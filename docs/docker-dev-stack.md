@@ -29,19 +29,33 @@ npm run radar -- stack tiles:sync
 
 ---
 
+## RabbitMQ + мониторинг (ADR-022)
+
+| Сервис | Порт (dev) | Назначение |
+|--------|------------|------------|
+| `rabbitmq` | `5672` AMQP, `15672` Management UI | Планирование ingest→parse→geo |
+| `prometheus` | `${PROMETHEUS_PORT:-9090}` | Scrape `rabbitmq:15692` |
+| `grafana` | `${GRAFANA_PORT:-3001}` | RabbitMQ dashboard |
+
+Переменные: `RMQ_*`, см. `.env.example`. Cascade **только через RMQ** в docker; `worker-parse` / `worker-geo` вместо `worker-phase`.
+
+---
+
 ## Архитектура
 
 ```mermaid
 flowchart TB
   subgraph docker [Docker network radar_net]
     DB[(Postgres :5432)]
+    RMQ[rabbitmq :5672 / mgmt :15672]
     API[api :3000]
     WEB[web :5173]
-    WI[worker-ingest\nrole=ingest :3010]
-    WB[worker-backfill\nrole=backfill]
-    WP[worker-phase\nrole=phase]
+    WI[worker-ingest role=ingest]
+    WB[worker-backfill role=backfill]
+    WParse[worker-parse role=parse]
+    WGeo[worker-geo role=geo + ollama]
+    WTrack[worker-tracking role=tracking]
     TS[tiles :8081→8080]
-    OL[ollama :11434]
   end
   Browser[Браузер на хосте]
   TG[Telegram]

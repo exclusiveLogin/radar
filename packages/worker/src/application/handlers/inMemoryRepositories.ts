@@ -227,6 +227,24 @@ implements IPlaceEnrichmentJobRepository {
     return rows;
   }
 
+  async claimForPlaceIds(
+    provider: PlaceEnrichmentProvider,
+    placeIds: string[],
+  ): Promise<PlaceEnrichmentJobRecord[]> {
+    const allowed = new Set(placeIds);
+    const rows = [...this.rows.values()]
+      .filter((row) => row.provider === provider && row.status === "pending" && allowed.has(row.placeId))
+      .map((row) => ({
+        ...row,
+        status: "processing" as const,
+        updatedAt: new Date().toISOString(),
+      }));
+    for (const row of rows) {
+      this.rows.set(`${row.placeId}:${row.provider}`, row);
+    }
+    return rows;
+  }
+
   async markDone(id: string): Promise<void> {
     for (const [key, row] of this.rows) {
       if (row.id !== id) continue;

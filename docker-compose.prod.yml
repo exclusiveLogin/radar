@@ -9,6 +9,10 @@ x-prod-env: &prod-env
     - radar_net
   restart: unless-stopped
 
+x-rmq-transport: &rmq-transport
+  DEPLOY__transport__kind: rmq
+  DEPLOY__transport__rmq__url: amqp://${RMQ_USER:-radar}:${RMQ_PASSWORD:-radar}@rabbitmq:5672/${RMQ_VHOST:-radar}
+
 x-worker-prod: &worker-prod
   <<: *prod-env
   build:
@@ -16,6 +20,8 @@ x-worker-prod: &worker-prod
     dockerfile: docker/Dockerfile.worker
   depends_on:
     db:
+      condition: service_healthy
+    rabbitmq:
       condition: service_healthy
     api:
       condition: service_healthy
@@ -30,8 +36,11 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-radar}:${POSTGRES_PASSWORD:-radar}@db:5432/${POSTGRES_DB:-radar}
+      <<: *rmq-transport
       NODE_ENV: production
       PORT: "3000"
       WORKER_PROBE_TARGETS: http://worker-ingest:3010/status
@@ -70,6 +79,7 @@ services:
     profiles: ["prod"]
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-radar}:${POSTGRES_PASSWORD:-radar}@db:5432/${POSTGRES_DB:-radar}
+      <<: *rmq-transport
       NODE_ENV: production
       RADAR_STORAGE_MODE: db
       RADAR_WORKER_ROLE: ingest
@@ -87,6 +97,7 @@ services:
     profiles: ["prod"]
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-radar}:${POSTGRES_PASSWORD:-radar}@db:5432/${POSTGRES_DB:-radar}
+      <<: *rmq-transport
       NODE_ENV: production
       RADAR_STORAGE_MODE: db
       RADAR_WORKER_ROLE: backfill
@@ -95,11 +106,24 @@ services:
     volumes:
       - ./.radar/sessions:/var/radar/sessions:ro
 
-  worker-phase:
+  worker-parse:
+    <<: *worker-prod
+    profiles: ["prod"]
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-radar}:${POSTGRES_PASSWORD:-radar}@db:5432/${POSTGRES_DB:-radar}
+      <<: *rmq-transport
+      NODE_ENV: production
+      RADAR_STORAGE_MODE: db
+      RADAR_WORKER_ROLE: parse
+      WORKER_PROBE_ENABLED: "0"
+
+  worker-geo:
     <<: *worker-prod
     profiles: ["prod"]
     depends_on:
       db:
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
       api:
         condition: service_healthy
@@ -107,9 +131,10 @@ services:
         condition: service_healthy
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-radar}:${POSTGRES_PASSWORD:-radar}@db:5432/${POSTGRES_DB:-radar}
+      <<: *rmq-transport
       NODE_ENV: production
       RADAR_STORAGE_MODE: db
-      RADAR_WORKER_ROLE: phase
+      RADAR_WORKER_ROLE: geo
       WORKER_PROBE_ENABLED: "0"
       RADAR_LLM_BASE_URL: http://ollama:11434/v1
 
@@ -118,6 +143,7 @@ services:
     profiles: ["prod"]
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-radar}:${POSTGRES_PASSWORD:-radar}@db:5432/${POSTGRES_DB:-radar}
+      <<: *rmq-transport
       NODE_ENV: production
       RADAR_STORAGE_MODE: db
       RADAR_WORKER_ROLE: tracking

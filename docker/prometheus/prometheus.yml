@@ -1,0 +1,9 @@
+﻿# Prometheus: scrape RabbitMQ metrics (plugin rabbitmq_prometheus, port 15692).
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: rabbitmq
+    static_configs:
+      - targets: ["rabbitmq:15692"]

@@ -156,6 +156,8 @@ export class PhaseRunner {
     runId: string;
     batchSize: number;
     trigger: PhaseTrigger;
+    materializationIds?: string[];
+    placeIds?: string[];
   }): Promise<PhaseRunStats> {
     if (input.phase.scope === "geoParse") {
       return this.runGeoDrain(input);
@@ -176,6 +178,14 @@ export class PhaseRunner {
       "ingestParse",
     );
     const prereqIds = prerequisitePhaseIds(input.phase, enabledPhases);
+    if (input.materializationIds?.length) {
+      for (const rawMessageId of input.materializationIds) {
+        await this.deps.coverage.enqueuePending({
+          rawMessageId,
+          phaseId: input.phase.id,
+        });
+      }
+    }
     let totals: PhaseRunStats = {
       claimed: 0,
       processed: 0,
@@ -195,11 +205,17 @@ export class PhaseRunner {
           return totals;
         }
 
-        const tasks = await this.deps.coverage.claimBatch(
-          input.phase.id,
-          input.batchSize,
-          prereqIds,
-        );
+        const tasks = input.materializationIds?.length
+          ? await this.deps.coverage.claimForRawMessages(
+              input.phase.id,
+              input.materializationIds,
+              prereqIds,
+            )
+          : await this.deps.coverage.claimBatch(
+              input.phase.id,
+              input.batchSize,
+              prereqIds,
+            );
         await this.deps.phaseRuns.appendLog(run.id, {
           at: new Date().toISOString(),
           level: "info",
@@ -237,6 +253,11 @@ export class PhaseRunner {
         });
         totals = mergePhaseRunStats(totals, batchStats);
 
+        if (input.materializationIds?.length) {
+          await this.finalizeRun(run.id, "completed", totals);
+          return totals;
+        }
+
         const afterBatch = await this.resolveRunContinuation(run.id);
         if (afterBatch === "cancel") {
           await this.finalizeRun(run.id, "canceled", totals);
@@ -265,6 +286,7 @@ export class PhaseRunner {
     runId: string;
     batchSize: number;
     trigger: PhaseTrigger;
+    placeIds?: string[];
   }): Promise<PhaseRunStats> {
     const runner = this.deps.placeEnrichmentRunner;
     if (!runner) {
@@ -273,6 +295,11 @@ export class PhaseRunner {
     const provider = resolveGeoEnrichmentProvider(input.phase);
     if (!provider) {
       throw new Error(`geo phase ${input.phase.id} has no provider enricher`);
+    }
+    if (input.placeIds?.length) {
+      for (const placeId of input.placeIds) {
+        await this.deps.placeEnrichmentJobs.enqueue(placeId, provider);
+      }
     }
 
     const run = await this.resolveRunForTick({
@@ -299,11 +326,18 @@ export class PhaseRunner {
           return totals;
         }
 
-        const batch = await runner.runBatch(provider, input.batchSize);
+        const batch = input.placeIds?.length
+          ? await runner.runBatch(provider, input.batchSize, { phaseId: input.phase.id }, input.placeIds)
+          : await runner.runBatch(provider, input.batchSize, { phaseId: input.phase.id });
         totals.claimed = (totals.claimed ?? 0) + batch.claimed;
         totals.processed = (totals.processed ?? 0) + batch.processed;
         totals.ok = (totals.ok ?? 0) + batch.processed;
         totals.failed = (totals.failed ?? 0) + batch.failed;
+
+        if (input.placeIds?.length) {
+          await this.finalizeRun(run.id, "completed", totals);
+          return totals;
+        }
 
         const jobCounts = await this.deps.placeEnrichmentJobs.countByStatus(provider);
         totals.pendingRemaining = jobCounts.pending + jobCounts.processing;

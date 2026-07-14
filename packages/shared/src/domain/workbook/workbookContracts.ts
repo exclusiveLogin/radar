@@ -15,6 +15,9 @@ export type WorkbookPhaseDescriptor = {
   readonly id: string;
   readonly enabled: boolean;
   readonly label?: string;
+  readonly triggerMode?: "event" | "timeout" | "both" | "manual";
+  readonly subscribeTopic?: string;
+  readonly publishTopic?: string;
 };
 
 /** Сериализуемое представление workbook — то, что видит admin/web UI (Workbook Registry). */

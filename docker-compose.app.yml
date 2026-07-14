@@ -14,6 +14,10 @@ x-app-build: &app-build
   networks:
     - radar_net
 
+x-rmq-transport: &rmq-transport
+  DEPLOY__transport__kind: rmq
+  DEPLOY__transport__rmq__url: amqp://${RMQ_USER:-radar}:${RMQ_PASSWORD:-radar}@rabbitmq:5672/${RMQ_VHOST:-radar}
+
 services:
   api:
     <<: *app-build
@@ -21,8 +25,11 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-radar}:${POSTGRES_PASSWORD:-radar}@db:5432/${POSTGRES_DB:-radar}
+      <<: *rmq-transport
       PORT: "3000"
       WORKER_PROBE_TARGETS: http://worker-ingest:3010/status
     ports:
@@ -63,10 +70,13 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
       api:
         condition: service_healthy
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-radar}:${POSTGRES_PASSWORD:-radar}@db:5432/${POSTGRES_DB:-radar}
+      <<: *rmq-transport
       RADAR_STORAGE_MODE: db
       RADAR_WORKER_ROLE: ingest
       WORKER_PROBE_HOST: 0.0.0.0
@@ -88,10 +98,13 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
       api:
         condition: service_healthy
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-radar}:${POSTGRES_PASSWORD:-radar}@db:5432/${POSTGRES_DB:-radar}
+      <<: *rmq-transport
       RADAR_STORAGE_MODE: db
       RADAR_WORKER_ROLE: backfill
       WORKER_PROBE_ENABLED: "0"
@@ -103,11 +116,32 @@ services:
     command: ["npm", "run", "dev", "-w", "@radar/worker", "--ignore-scripts"]
     restart: unless-stopped
 
-  worker-phase:
+  worker-parse:
     <<: *app-build
     profiles: ["app"]
     depends_on:
       db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-radar}:${POSTGRES_PASSWORD:-radar}@db:5432/${POSTGRES_DB:-radar}
+      <<: *rmq-transport
+      RADAR_STORAGE_MODE: db
+      RADAR_WORKER_ROLE: parse
+      WORKER_PROBE_ENABLED: "0"
+    command: ["npm", "run", "dev", "-w", "@radar/worker", "--ignore-scripts"]
+    restart: unless-stopped
+
+  worker-geo:
+    <<: *app-build
+    profiles: ["app"]
+    depends_on:
+      db:
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
       api:
         condition: service_healthy
@@ -115,8 +149,9 @@ services:
         condition: service_healthy
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-radar}:${POSTGRES_PASSWORD:-radar}@db:5432/${POSTGRES_DB:-radar}
+      <<: *rmq-transport
       RADAR_STORAGE_MODE: db
-      RADAR_WORKER_ROLE: phase
+      RADAR_WORKER_ROLE: geo
       WORKER_PROBE_ENABLED: "0"
       # В контейнере — сервис compose, не 127.0.0.1 с хоста (.env)
       RADAR_LLM_BASE_URL: http://ollama:11434/v1
@@ -129,10 +164,13 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
       api:
         condition: service_healthy
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-radar}:${POSTGRES_PASSWORD:-radar}@db:5432/${POSTGRES_DB:-radar}
+      <<: *rmq-transport
       RADAR_STORAGE_MODE: db
       RADAR_WORKER_ROLE: tracking
       WORKER_PROBE_ENABLED: "0"

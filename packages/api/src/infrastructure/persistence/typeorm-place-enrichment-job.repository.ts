@@ -173,6 +173,31 @@ implements IPlaceEnrichmentJobRepository {
     return rows.map((row) => this.toRecord(row));
   }
 
+  /** Targeted drain: claim pending jobs для указанных place_id. */
+  async claimForPlaceIds(
+    provider: PlaceEnrichmentProvider,
+    placeIds: string[],
+  ): Promise<PlaceEnrichmentJobRecord[]> {
+    if (placeIds.length === 0) return [];
+    const rows = readTypeOrmQueryRows<Row>(
+      await this.dataSource.query(
+        `
+        UPDATE job_geo_place_enrich SET status='processing', updated_at=now()
+        WHERE id IN (
+          SELECT id
+          FROM job_geo_place_enrich
+          WHERE provider = $1 AND status = 'pending'
+            AND place_id = ANY($2::uuid[])
+          FOR UPDATE SKIP LOCKED
+        )
+        RETURNING id, place_id, provider, status, attempts, last_error, created_at, updated_at
+        `,
+        [provider, placeIds],
+      ),
+    );
+    return rows.map((row) => this.toRecord(row));
+  }
+
   async markDone(id: string): Promise<void> {
     await this.dataSource.query(
       `UPDATE job_geo_place_enrich SET status='done', updated_at=now() WHERE id=$1`,

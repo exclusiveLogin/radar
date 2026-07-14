@@ -6,7 +6,7 @@ import type {
   PhaseScope,
   PhaseTrigger,
 } from "@radar/shared";
-import { DEFAULT_PHASE_POLICY, phasePolicySchema } from "@radar/shared";
+import { DEFAULT_PHASE_POLICY, legacyTriggerToMode, phasePolicySchema } from "@radar/shared";
 import type { DataSource } from "typeorm";
 
 type PhaseRow = {
@@ -20,7 +20,7 @@ type PhaseRow = {
   updated_at: Date;
 };
 
-/** Реестр фаз обогащения на Postgres (v2). */
+/** Р РµРµСЃС‚СЂ С„Р°Р· РѕР±РѕРіР°С‰РµРЅРёСЏ РЅР° Postgres (v2). */
 export class TypeOrmPhaseDefinitionRepository implements IPhaseDefinitionRepository {
   constructor(private readonly dataSource: DataSource) {}
 
@@ -55,7 +55,7 @@ export class TypeOrmPhaseDefinitionRepository implements IPhaseDefinitionReposit
   }
 
   async upsert(entry: PhaseManifestEntry): Promise<void> {
-    // legacy columns kind/stage — NOT NULL в старой схеме до отдельной миграции drop
+    // legacy columns kind/stage вЂ” NOT NULL РІ СЃС‚Р°СЂРѕР№ СЃС…РµРјРµ РґРѕ РѕС‚РґРµР»СЊРЅРѕР№ РјРёРіСЂР°С†РёРё drop
     const legacyKind = entry.trigger === "eager" ? "eager" : "lazy";
     const legacyStage = entry.trigger === "scheduled" ? entry.id : null;
 
@@ -106,6 +106,7 @@ export class TypeOrmPhaseDefinitionRepository implements IPhaseDefinitionReposit
   private toRecord(row: PhaseRow): PhaseDefinitionRecord {
     return {
       id: row.id,
+      triggerMode: legacyTriggerToMode(row.trigger as PhaseTrigger),
       trigger: row.trigger as PhaseTrigger,
       scope: row.scope ?? "ingestParse",
       enrichers: row.enrichers,
@@ -116,3 +117,4 @@ export class TypeOrmPhaseDefinitionRepository implements IPhaseDefinitionReposit
     };
   }
 }
+

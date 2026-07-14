@@ -17,7 +17,7 @@
       {
         "pipelineKey": "parse",
         "label": "ingestParse scheduled phases (queue_parse_coverage claim-drain)",
-        "host": "phase",
+        "host": "parse",
         "spawn": "in-process",
         "schedulingImpl": "legacy",
         "enabled": true
@@ -25,7 +25,7 @@
       {
         "pipelineKey": "geo-enrich",
         "label": "geoParse scheduled phases (dadata → nominatim → llm)",
-        "host": "phase",
+        "host": "geo",
         "spawn": "in-process",
         "schedulingImpl": "legacy",
         "enabled": true
@@ -49,5 +49,13 @@
       "webPort": 5173
     }
   },
-  "transport": {}
+  "transport": {
+    "kind": "rmq",
+    "rmq": {
+      "url": "amqp://radar:radar@127.0.0.1:5672/radar",
+      "exchange": "radar.events",
+      "prefetch": 10,
+      "dedupTable": true
+    }
+  }
 }

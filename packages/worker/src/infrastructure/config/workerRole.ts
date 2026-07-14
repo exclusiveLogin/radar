@@ -1,17 +1,21 @@
-/**
+﻿/**
  * SSOT роли worker-процесса (монолит или docker split).
- * `all` — поведение по умолчанию (один процесс на хосте).
  */
-export type WorkerRole = "all" | "ingest" | "backfill" | "phase" | "tracking";
+export type WorkerRole = "all" | "ingest" | "backfill" | "parse" | "geo" | "tracking" | "phase";
 
-const VALID_ROLES = new Set<WorkerRole>(["all", "ingest", "backfill", "phase", "tracking"]);
+const VALID_ROLES = new Set<WorkerRole>([
+  "all",
+  "ingest",
+  "backfill",
+  "parse",
+  "geo",
+  "tracking",
+  "phase",
+]);
 
-/** Читает RADAR_WORKER_ROLE из env; невалидное значение → `all`. */
 export function resolveWorkerRoleFromEnv(env: NodeJS.ProcessEnv = process.env): WorkerRole {
   const raw = env.RADAR_WORKER_ROLE?.trim().toLowerCase();
-  if (raw && VALID_ROLES.has(raw as WorkerRole)) {
-    return raw as WorkerRole;
-  }
+  if (raw && VALID_ROLES.has(raw as WorkerRole)) return raw as WorkerRole;
   return "all";
 }
 
@@ -23,25 +27,34 @@ export function roleRunsBackfill(role: WorkerRole): boolean {
   return role === "all" || role === "backfill";
 }
 
+/** ingestParse daemons (legacy phase = parse+geo together). */
+export function roleRunsParseDaemons(role: WorkerRole): boolean {
+  return role === "all" || role === "parse" || role === "phase";
+}
+
+export function roleRunsGeoDaemons(role: WorkerRole): boolean {
+  return role === "all" || role === "geo" || role === "phase";
+}
+
+/** @deprecated alias */
 export function roleRunsPhaseDaemons(role: WorkerRole): boolean {
-  return role === "all" || role === "phase";
+  return roleRunsParseDaemons(role) || roleRunsGeoDaemons(role);
 }
 
 export function roleRunsTrackingDaemon(role: WorkerRole): boolean {
   return role === "all" || role === "tracking";
 }
 
-/** OutboxRelay нужен phase-worker (cross-process) и монолиту (события API). */
-export function roleRunsOutboxRelay(role: WorkerRole): boolean {
-  return role === "all" || role === "phase";
+/** OutboxRelay отключён — RMQ-only. */
+export function roleRunsOutboxRelay(_role: WorkerRole): boolean {
+  return false;
 }
 
-/** Ingest/backfill пишут RawMessageIngested в event_outbox вместо in-process phase subscriber. */
-export function rolePublishesIngestToOutbox(role: WorkerRole): boolean {
-  return role === "ingest" || role === "backfill";
+/** Ingest публикует через IEventTransport, не outbox. */
+export function rolePublishesIngestToOutbox(_role: WorkerRole): boolean {
+  return false;
 }
 
-/** Подписчик phaseIngest на in-process bus (монолит или phase-worker через OutboxRelay). */
 export function roleSubscribesPhaseIngestOnBus(role: WorkerRole): boolean {
-  return role === "all" || role === "phase";
+  return roleRunsParseDaemons(role);
 }

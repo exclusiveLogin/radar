@@ -168,6 +168,8 @@ export {
   PRECISION_RANK,
   enricherIdSchema,
   phaseTriggerSchema,
+  phaseTriggerModeSchema,
+  legacyTriggerToMode,
   phaseScopeSchema,
   phaseKindSchema,
   enrichStageSchema,
@@ -203,10 +205,21 @@ export {
   deploymentRunnersSchema,
   deploymentInfraObsSchema,
   deploymentInfraSchema,
+  deploymentTransportKindSchema,
+  deploymentTransportRmqSchema,
   deploymentTransportSchema,
   deploymentManifestSchema,
   DEFAULT_DEPLOYMENT_MANIFEST,
 } from "./schemas";
+export {
+  RADAR_TOPICS,
+  radarTopicRoutingKeySchema,
+  defaultTopicForEvent,
+  drainTopicForPhaseScope,
+  listRadarTopicRoutingKeys,
+  InProcessEventTransport,
+} from "./transport/index.js";
+export type { RadarTopicRoutingKey } from "./transport/index.js";
 export {
   buildTrackEdges,
   createCorridorRollupIndex,
@@ -513,9 +526,16 @@ export type {
   DeploymentRunners,
   DeploymentInfraObs,
   DeploymentInfra,
+  DeploymentTransportKind,
+  DeploymentTransportRmq,
   DeploymentTransport,
   DeploymentManifest,
 } from "./deployment/deploymentManifest";
+export type {
+  IEventTransport,
+  TransportEventHandler,
+  TransportSignalHandler,
+} from "./ports/eventTransport.js";
 
 // --- type-only exports ---
 export type {

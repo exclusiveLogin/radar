@@ -3,6 +3,7 @@
  * Ingest доставляет mat_ingest_raw; фазы маркируют queue_parse_coverage и мержат в накопитель.
  */
 import { z } from "zod";
+import { radarTopicRoutingKeySchema } from "../../transport/topicCatalog.js";
 
 export const enricherIdSchema = z.enum([
   "catalog",
@@ -13,11 +14,14 @@ export const enricherIdSchema = z.enum([
 ]);
 export type EnricherId = z.infer<typeof enricherIdSchema>;
 
-/** Как фаза запускается: eager — после ingest; scheduled — daemon; manual — только явный run. */
+/** @deprecated Заменён на phaseTriggerModeSchema; сохранён для import/БД. */
 export const phaseTriggerSchema = z.enum(["eager", "scheduled", "manual"]);
 export type PhaseTrigger = z.infer<typeof phaseTriggerSchema>;
 
-/** Контур исполнения: ingestParse (raw->event) или geoParse (place enrichment). */
+/** Режим пробуждения фазы (ортогонально policy). */
+export const phaseTriggerModeSchema = z.enum(["event", "timeout", "both", "manual"]);
+export type PhaseTriggerMode = z.infer<typeof phaseTriggerModeSchema>;
+
 export const phaseScopeSchema = z.enum(["ingestParse", "geoParse"]);
 export type PhaseScope = z.infer<typeof phaseScopeSchema>;
 
@@ -29,24 +33,28 @@ export type PhaseKind = z.infer<typeof phaseKindSchema>;
 export const enrichStageSchema = z.enum(["llm", "dadata", "nominatim"]);
 export type EnrichStage = z.infer<typeof enrichStageSchema>;
 
-/** Политика нагрузки и батчинга фазы (SSOT в манифесте → БД). */
+/** Политика нагрузки, батчинга и transport-подписки фазы. */
 export const phasePolicySchema = z.object({
   batchSize: z.number().int().positive().default(100),
   intervalMs: z.number().int().positive().default(60_000),
   concurrency: z.number().int().positive().default(1),
   minIntervalMs: z.number().int().nonnegative().default(0),
   rateLimitPerMinute: z.number().int().positive().optional(),
-  /** eager: inline сразу после ingest или через очередь (для тяжёлых LLM). */
+  /** inline — сразу после ingest; queue — через RMQ topic. */
   eagerMode: z.enum(["inline", "queue"]).default("queue"),
+  claimOrder: z.enum(["asc", "desc"]).optional(),
+  subscribeTopic: radarTopicRoutingKeySchema.optional(),
+  publishTopic: radarTopicRoutingKeySchema.optional(),
 });
 export type PhasePolicy = z.infer<typeof phasePolicySchema>;
 
 export const DEFAULT_PHASE_POLICY: PhasePolicy = phasePolicySchema.parse({});
 
-/** Запись манифеста фазы. */
 export const phaseManifestEntrySchema = z.object({
   id: z.string().min(1),
-  trigger: phaseTriggerSchema,
+  triggerMode: phaseTriggerModeSchema.default("both"),
+  /** @deprecated — нормализуется в triggerMode при import. */
+  trigger: phaseTriggerSchema.optional(),
   scope: phaseScopeSchema.default("ingestParse"),
   enrichers: z.array(enricherIdSchema).min(1),
   policy: phasePolicySchema.default({}),
@@ -84,7 +92,14 @@ export const LEGACY_PHASE_ID_MAP: Record<string, string> = {
   "enrich-nominatim": "nominatim",
 };
 
-/** Нормализует legacy-манифест (kind/stage → trigger/policy). */
+/** Legacy trigger → triggerMode. */
+export function legacyTriggerToMode(trigger: PhaseTrigger): PhaseTriggerMode {
+  if (trigger === "eager") return "event";
+  if (trigger === "manual") return "manual";
+  return "both";
+}
+
+/** Нормализует legacy-манифест (kind/stage/trigger → triggerMode/policy). */
 export function normalizePhaseManifestEntry(raw: Record<string, unknown>): PhaseManifestEntry {
   const id = LEGACY_PHASE_ID_MAP[String(raw.id)] ?? String(raw.id);
   let trigger = raw.trigger as PhaseTrigger | undefined;
@@ -92,10 +107,13 @@ export function normalizePhaseManifestEntry(raw: Record<string, unknown>): Phase
     const kind = raw.kind as string | undefined;
     trigger = kind === "lazy" ? "scheduled" : (kind as PhaseTrigger) ?? "scheduled";
   }
+  const triggerMode =
+    (raw.triggerMode as PhaseTriggerMode | undefined) ?? legacyTriggerToMode(trigger);
   const policy = phasePolicySchema.parse(raw.policy ?? {});
   const enrichers = z.array(enricherIdSchema).parse(raw.enrichers);
   return phaseManifestEntrySchema.parse({
     id,
+    triggerMode,
     trigger,
     scope: raw.scope ?? "ingestParse",
     enrichers,

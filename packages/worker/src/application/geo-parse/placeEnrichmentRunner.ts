@@ -119,12 +119,15 @@ export class PlaceEnrichmentRunner {
     provider: PlaceEnrichmentProvider,
     limit: number,
     logContext?: { phaseId?: string },
+    targetedPlaceIds?: string[],
   ): Promise<{ claimed: number; processed: number; failed: number }> {
     if (this.isDadataSuggestionsBlocked(provider)) {
       return { claimed: 0, processed: 0, failed: 0 };
     }
 
-    const claimed = await this.jobs.claimEligibleBatch(provider, limit);
+    const claimed = targetedPlaceIds?.length
+      ? await this.jobs.claimForPlaceIds(provider, targetedPlaceIds)
+      : await this.jobs.claimEligibleBatch(provider, limit);
     if (claimed.length === 0) {
       return { claimed: 0, processed: 0, failed: 0 };
     }
