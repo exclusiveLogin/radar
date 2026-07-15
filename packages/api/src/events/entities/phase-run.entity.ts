@@ -10,7 +10,7 @@ import {
   UpdateDateColumn,
 } from "typeorm";
 
-@Entity({ name: "log_parse_phase_run" })
+@Entity({ name: "log_phase_run" })
 export class PhaseRunEntity {
   @PrimaryGeneratedColumn("uuid")
   id!: string;

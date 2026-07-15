@@ -485,6 +485,8 @@ export interface IPhaseCoverageRepository {
   }): Promise<void>;
   /** Catch-up: pending для всех raw без done по фазе. */
   enqueueCatchUp(phaseId: string): Promise<{ enqueued: number }>;
+  /** Targeted plan: pending только для указанных materializationIds (raw_message_id). */
+  planPendingForIds(phaseId: string, rawMessageIds: string[]): Promise<{ planned: number }>;
   /**
    * Claim pending; при prerequisitePhaseIds — только строки, где все предшествующие фазы done.
    */

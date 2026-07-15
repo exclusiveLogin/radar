@@ -5,7 +5,7 @@ import type {
 } from "@radar/shared";
 
 /**
- * Ставит queue_parse_coverage pending для новых raw и catch-up при включении фазы.
+ * Plan pending jobs для parse phases (RMQ ids → job_parse_phase).
  */
 export class CoverageEnqueuer {
   constructor(
@@ -13,15 +13,16 @@ export class CoverageEnqueuer {
     private readonly phases: IPhaseDefinitionRepository,
   ) {}
 
-  /** После ingest: pending для всех enabled ingestParse eager + scheduled фаз. */
-  async onNewRawMessage(rawMessageId: string): Promise<void> {
-    const [eager, scheduled] = await Promise.all([
-      this.phases.listEnabled("eager", "ingestParse"),
-      this.phases.listEnabled("scheduled", "ingestParse"),
-    ]);
-    for (const phase of [...eager, ...scheduled]) {
-      await this.coverage.enqueuePending({ rawMessageId, phaseId: phase.id });
+  /** Targeted plan после ingest/reparse — только указанные materializationIds. */
+  async planPendingForIds(materializationIds: string[]): Promise<{ planned: number }> {
+    if (materializationIds.length === 0) return { planned: 0 };
+    const phases = await this.listAutoPhases();
+    let planned = 0;
+    for (const phase of phases) {
+      const result = await this.coverage.planPendingForIds(phase.id, materializationIds);
+      planned += result.planned;
     }
+    return { planned };
   }
 
   /** При enable фазы — догон всех raw без done. */

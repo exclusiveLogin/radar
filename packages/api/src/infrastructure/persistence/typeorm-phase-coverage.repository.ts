@@ -24,7 +24,7 @@ type CoverageRow = {
   updated_at: Date;
 };
 
-/** Покрытие per-phase на Postgres (queue_parse_coverage). */
+/** Покрытие per-phase на Postgres (job_parse_phase). */
 export class TypeOrmPhaseCoverageRepository implements IPhaseCoverageRepository {
   constructor(private readonly dataSource: DataSource) {}
 
@@ -34,7 +34,7 @@ export class TypeOrmPhaseCoverageRepository implements IPhaseCoverageRepository 
     parsedEventId?: string | null;
   }): Promise<void> {
     await this.dataSource.query(
-      `INSERT INTO queue_parse_coverage (raw_message_id, phase_id, parsed_event_id, status)
+      `INSERT INTO job_parse_phase (raw_message_id, phase_id, parsed_event_id, status)
        VALUES ($1, $2, $3, 'pending')
        ON CONFLICT (raw_message_id, phase_id) DO NOTHING`,
       [input.rawMessageId, input.phaseId, input.parsedEventId ?? null],
@@ -44,11 +44,11 @@ export class TypeOrmPhaseCoverageRepository implements IPhaseCoverageRepository 
   async enqueueCatchUp(phaseId: string): Promise<{ enqueued: number }> {
     const rows = readTypeOrmQueryRows<{ id: string }>(
       await this.dataSource.query(
-        `INSERT INTO queue_parse_coverage (raw_message_id, phase_id, status)
+        `INSERT INTO job_parse_phase (raw_message_id, phase_id, status)
        SELECT rm.id, $1, 'pending'
        FROM mat_ingest_raw rm
        WHERE NOT EXISTS (
-         SELECT 1 FROM queue_parse_coverage pc
+         SELECT 1 FROM job_parse_phase pc
          WHERE pc.raw_message_id = rm.id AND pc.phase_id = $1 AND pc.status = 'done'
        )
        ON CONFLICT (raw_message_id, phase_id) DO NOTHING
@@ -59,6 +59,26 @@ export class TypeOrmPhaseCoverageRepository implements IPhaseCoverageRepository 
     return { enqueued: rows.length };
   }
 
+  async planPendingForIds(phaseId: string, rawMessageIds: string[]): Promise<{ planned: number }> {
+    if (rawMessageIds.length === 0) return { planned: 0 };
+    const rows = readTypeOrmQueryRows<{ id: string }>(
+      await this.dataSource.query(
+        `INSERT INTO job_parse_phase (raw_message_id, phase_id, status)
+       SELECT rm.id, $1, 'pending'
+       FROM mat_ingest_raw rm
+       WHERE rm.id = ANY($2::uuid[])
+         AND NOT EXISTS (
+           SELECT 1 FROM job_parse_phase pc
+           WHERE pc.raw_message_id = rm.id AND pc.phase_id = $1 AND pc.status = 'done'
+         )
+       ON CONFLICT (raw_message_id, phase_id) DO NOTHING
+       RETURNING id`,
+        [phaseId, rawMessageIds],
+      ),
+    );
+    return { planned: rows.length };
+  }
+
   async claimBatch(
     phaseId: string,
     limit: number,
@@ -67,7 +87,7 @@ export class TypeOrmPhaseCoverageRepository implements IPhaseCoverageRepository 
     const prereq =
       prerequisitePhaseIds.length > 0
         ? `AND NOT EXISTS (
-             SELECT 1 FROM queue_parse_coverage prereq
+             SELECT 1 FROM job_parse_phase prereq
              WHERE prereq.raw_message_id = pc.raw_message_id
                AND prereq.phase_id = ANY($3::text[])
                AND prereq.status <> 'done'
@@ -83,9 +103,9 @@ export class TypeOrmPhaseCoverageRepository implements IPhaseCoverageRepository 
 
     const rows = readTypeOrmQueryRows<CoverageRow>(
       await this.dataSource.query(
-        `UPDATE queue_parse_coverage SET status = 'processing', updated_at = now()
+        `UPDATE job_parse_phase SET status = 'processing', updated_at = now()
        WHERE id IN (
-         SELECT pc.id FROM queue_parse_coverage pc
+         SELECT pc.id FROM job_parse_phase pc
          INNER JOIN mat_ingest_raw rm ON rm.id = pc.raw_message_id
          WHERE pc.status = 'pending' AND pc.phase_id = $1
          ${prereq}
@@ -111,7 +131,7 @@ export class TypeOrmPhaseCoverageRepository implements IPhaseCoverageRepository 
     const prereq =
       prerequisitePhaseIds && prerequisitePhaseIds.length > 0
         ? `AND NOT EXISTS (
-             SELECT 1 FROM queue_parse_coverage prereq
+             SELECT 1 FROM job_parse_phase prereq
              WHERE prereq.raw_message_id = pc.raw_message_id
                AND prereq.phase_id = ANY($3::text[])
                AND prereq.status <> 'done'
@@ -124,9 +144,9 @@ export class TypeOrmPhaseCoverageRepository implements IPhaseCoverageRepository 
 
     const rows = readTypeOrmQueryRows<CoverageRow>(
       await this.dataSource.query(
-        `UPDATE queue_parse_coverage SET status = 'processing', updated_at = now()
+        `UPDATE job_parse_phase SET status = 'processing', updated_at = now()
        WHERE id IN (
-         SELECT pc.id FROM queue_parse_coverage pc
+         SELECT pc.id FROM job_parse_phase pc
          WHERE pc.status = 'pending' AND pc.phase_id = $1
            AND pc.raw_message_id = ANY($2::uuid[])
          ${prereq}
@@ -142,7 +162,7 @@ export class TypeOrmPhaseCoverageRepository implements IPhaseCoverageRepository 
 
   async markDone(id: string): Promise<void> {
     await this.dataSource.query(
-      `UPDATE queue_parse_coverage SET status = 'done', processed_at = now(), updated_at = now()
+      `UPDATE job_parse_phase SET status = 'done', processed_at = now(), updated_at = now()
        WHERE id = $1`,
       [id],
     );
@@ -150,7 +170,7 @@ export class TypeOrmPhaseCoverageRepository implements IPhaseCoverageRepository 
 
   async markDoneForMessage(rawMessageId: string, phaseId: string): Promise<void> {
     await this.dataSource.query(
-      `INSERT INTO queue_parse_coverage (raw_message_id, phase_id, status, processed_at)
+      `INSERT INTO job_parse_phase (raw_message_id, phase_id, status, processed_at)
        VALUES ($1, $2, 'done', now())
        ON CONFLICT (raw_message_id, phase_id) DO UPDATE
          SET status = 'done', processed_at = now(), updated_at = now(), last_error = NULL`,
@@ -160,7 +180,7 @@ export class TypeOrmPhaseCoverageRepository implements IPhaseCoverageRepository 
 
   async markFailed(id: string, error: string): Promise<void> {
     await this.dataSource.query(
-      `UPDATE queue_parse_coverage SET status = 'failed', attempts = attempts + 1,
+      `UPDATE job_parse_phase SET status = 'failed', attempts = attempts + 1,
        last_error = $2, updated_at = now() WHERE id = $1`,
       [id, error.slice(0, 2000)],
     );
@@ -169,7 +189,7 @@ export class TypeOrmPhaseCoverageRepository implements IPhaseCoverageRepository 
   async resetProcessingForPhase(phaseId: string): Promise<number> {
     const rows = readTypeOrmQueryRows<{ id: string }>(
       await this.dataSource.query(
-        `UPDATE queue_parse_coverage SET status = 'pending', updated_at = now()
+        `UPDATE job_parse_phase SET status = 'pending', updated_at = now()
        WHERE phase_id = $1 AND status = 'processing'
        RETURNING id`,
         [phaseId],
@@ -181,7 +201,7 @@ export class TypeOrmPhaseCoverageRepository implements IPhaseCoverageRepository 
   async clearQueuedWork(phaseIds?: string[]): Promise<number> {
     const rows = readTypeOrmQueryRows<{ id: string }>(
       await this.dataSource.query(
-        `DELETE FROM queue_parse_coverage
+        `DELETE FROM job_parse_phase
        WHERE status IN ('pending', 'processing')
          AND ($1::text[] IS NULL OR phase_id = ANY($1::text[]))
        RETURNING id`,
@@ -195,7 +215,7 @@ export class TypeOrmPhaseCoverageRepository implements IPhaseCoverageRepository 
     if (phaseIds.length === 0) return 0;
     const rows = readTypeOrmQueryRows<{ id: string }>(
       await this.dataSource.query(
-        `UPDATE queue_parse_coverage SET status = 'pending', processed_at = NULL, last_error = NULL,
+        `UPDATE job_parse_phase SET status = 'pending', processed_at = NULL, last_error = NULL,
        updated_at = now()
        WHERE phase_id = ANY($1::text[]) AND status IN ('done', 'failed', 'processing')
        RETURNING id`,
@@ -207,7 +227,7 @@ export class TypeOrmPhaseCoverageRepository implements IPhaseCoverageRepository 
 
   async countByStatus(phaseId?: string): Promise<Record<PhaseCoverageStatus, number>> {
     const rows = (await this.dataSource.query(
-      `SELECT status, COUNT(*)::int AS count FROM queue_parse_coverage
+      `SELECT status, COUNT(*)::int AS count FROM job_parse_phase
        WHERE ($1::text IS NULL OR phase_id = $1)
        GROUP BY status`,
       [phaseId ?? null],
@@ -238,7 +258,7 @@ export class TypeOrmPhaseCoverageRepository implements IPhaseCoverageRepository 
   }
 }
 
-/** @deprecated Алиас таблицы queue_parse_coverage */
+/** @deprecated Алиас таблицы job_parse_phase */
 export class TypeOrmEnrichmentQueueRepository extends TypeOrmPhaseCoverageRepository {
   async enqueue(input: {
     rawMessageId: string;

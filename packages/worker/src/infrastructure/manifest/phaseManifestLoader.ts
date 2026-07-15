@@ -1,10 +1,8 @@
-/**
- * Загрузка/import/export манифеста фаз (ADR-003 v2).
- */
 import * as fs from "node:fs";
 import * as path from "node:path";
 import type { IPhaseDefinitionRepository, PhaseManifest } from "@radar/shared";
-import { normalizePhaseManifestEntry, phaseManifestSchema } from "@radar/shared";
+import { normalizePhaseManifestEntry, phaseManifestSchema, deploymentManifestSchema } from "@radar/shared";
+import { seedPhasesFromManifest } from "./manifestSeed.js";
 
 const DEFAULT_REL = path.join(".radar", "phase.manifest.json");
 const BUNDLED_DEFAULT_REL = path.join("docs", "examples", "phase.manifest.default.json");
@@ -49,10 +47,15 @@ export async function importPhaseManifest(
   manifest: PhaseManifest,
   repo: IPhaseDefinitionRepository,
 ): Promise<{ phases: number }> {
-  for (const phase of manifest.phases) {
-    await repo.upsert(phase);
-  }
-  return { phases: manifest.phases.length };
+  console.warn(
+    "phase manifest:import deprecated — используйте: npm run radar -- stack bootstrap [--apply-config]",
+  );
+  const result = await seedPhasesFromManifest(
+    deploymentManifestSchema.parse({ version: 1, phases: manifest.phases }),
+    repo,
+    "apply-config",
+  );
+  return { phases: result.inserted + result.updated };
 }
 
 export async function exportPhaseManifest(

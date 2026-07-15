@@ -1,14 +1,14 @@
 /**
  * @see ../../../../../docs/database-table-naming.md
- * @deprecated Алиас PhaseCoverageEntity — та же таблица queue_parse_coverage с PhasePipelineV2.
+ * @deprecated Алиас PhaseCoverageEntity — та же таблица job_parse_phase с PhasePipelineV2.
  * Per-provider очередь (ADR-003): строка на пару `(raw_message_id, phase_id)`.
  */
 import { Column, Entity, PrimaryGeneratedColumn, Unique } from "typeorm";
 
 type EnrichmentStatus = "pending" | "processing" | "done" | "failed";
 
-@Entity({ name: "queue_parse_coverage" })
-@Unique("uq_queue_parse_coverage_raw_phase", ["rawMessageId", "phaseId"])
+@Entity({ name: "job_parse_phase" })
+@Unique("uq_job_parse_phase_raw_phase", ["rawMessageId", "phaseId"])
 export class EnrichmentQueueEntity {
   @PrimaryGeneratedColumn("uuid")
   id!: string;

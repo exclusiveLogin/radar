@@ -42,8 +42,7 @@ export function resolveRuntimePipelines(
     .filter((entry) => hostMatchesPipeline(entry.host, input.workerRole))
     .map((entry) => ({
       entry,
-      schedulingImpl: entry.schedulingImpl,
-      runtime:
-        entry.schedulingImpl === "runner-platform" ? "runner-platform" : ("legacy" as const),
+      schedulingImpl: "runner-platform" as const,
+      runtime: "runner-platform" as const,
     }));
 }

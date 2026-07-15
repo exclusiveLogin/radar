@@ -43,6 +43,7 @@ stack — инфраструктура и dev
   up              docker + dev:app
   dev [--full]    UI+API [+worker] (host, HMR)
   cold-up         первый холодный старт (-Geo -Tiles -Verbose)
+  bootstrap       seed phase_definitions из deployment.manifest (-apply-config)
   docker-dev      dev hot-reload (profile app)
   docker-prod     prod images (profile prod, baked dist)
   docker-prod:assets-check  проверка runtime-файлов в prod-контейнерах
@@ -155,6 +156,7 @@ const ACTIONS = {
     up: () => npm('up'),
     dev: (pass) => (pass.includes('--full') ? npm('dev', pass.filter((a) => a !== '--full')) : npm('dev:app', pass)),
     'cold-up': (pass) => nodeScript('scripts/cold-up.mjs', pass),
+    bootstrap: (pass) => nodeScript('scripts/stack-bootstrap.mjs', pass),
     "db:up": () => npm('db:up'),
     'db:down': () => npm('db:down'),
     migrate: () => npm('migration:run'),

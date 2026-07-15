@@ -60,7 +60,7 @@ export async function runFullReparseLikeIngest(input: FullReparseInput): Promise
   let index = 0;
   for (const row of rows) {
     input.onMessage?.(index, rows.length, row.id);
-    await runPostIngestPhaseFlow(input.ingestFlow, row.id, { skipCoverageEnqueue: true });
+    await runPostIngestPhaseFlow(input.ingestFlow, row.id, { skipInlineEager: true });
     index += 1;
   }
 

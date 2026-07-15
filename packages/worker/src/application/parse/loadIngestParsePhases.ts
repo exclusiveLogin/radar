@@ -1,4 +1,5 @@
 import type { IPhaseDefinitionRepository, PhaseDefinitionRecord } from "@radar/shared";
+import { DEFAULT_PHASE_POLICY } from "@radar/shared";
 import { loadPhaseManifest } from "../../infrastructure/manifest/phaseManifestLoader.js";
 import { sortPhasesByOrder } from "../phases/phaseOrder.js";
 
@@ -12,7 +13,7 @@ function defaultCatalogPhase(): PhaseDefinitionRecord[] {
       trigger: "eager",
       scope: "ingestParse",
       enrichers: ["catalog"],
-      policy: { batchSize: 100, intervalMs: 60_000, concurrency: 1, minIntervalMs: 0, eagerMode: "inline" },
+      policy: { ...DEFAULT_PHASE_POLICY, batchSize: 100, eagerMode: "inline" },
       enabled: true,
       order: 0,
       updatedAt,

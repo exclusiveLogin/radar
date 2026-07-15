@@ -64,7 +64,7 @@ export class PhasesAdminService implements OnModuleInit, OnModuleDestroy {
     const loaderPath = join(MONOREPO_ROOT, "packages/shared/dist/deployment/deploymentManifest.loader.js");
     const { loadDeploymentManifest } = nodeRequire(loaderPath) as DeploymentManifestModule;
     const manifest = loadDeploymentManifest({ repoRoot: MONOREPO_ROOT });
-    this.transport = createApiEventTransport(manifest.transport);
+    this.transport = createApiEventTransport(manifest.transport, this.dataSource);
     await this.transport.start();
   }
 
@@ -167,13 +167,20 @@ export class PhasesAdminService implements OnModuleInit, OnModuleDestroy {
     return { ok: true, reset };
   }
 
-  /** Catch-up: drain-сигнал worker по scope фазы (ingest/geo). */
-  private async enqueueCatchUpForPhase(phase: PhaseDefinitionRecord): Promise<void> {
-    if (phase.scope === "geoParse") {
+  /** Catch-up: SQL enqueue + drain-сигнал worker по scope фазы. */
+  private async enqueueCatchUpForPhase(
+    phase: PhaseDefinitionRecord,
+  ): Promise<{ enqueued: number }> {
+    let enqueued = 0;
+    if (phase.scope === "ingestParse") {
+      const result = await this.coverage.enqueueCatchUp(phase.id);
+      enqueued = result.enqueued;
+    } else if (phase.scope === "geoParse") {
       const provider = resolveGeoEnrichmentProvider(phase);
-      if (!provider) return;
+      if (!provider) return { enqueued: 0 };
     }
-    await this.publishDrainForPhase(phase);
+    await this.publishDrainForPhase(phase, "full");
+    return { enqueued };
   }
 
   /** Включение/выключение фазы — control-сигнал runner. */
@@ -181,11 +188,14 @@ export class PhasesAdminService implements OnModuleInit, OnModuleDestroy {
     return this.transport.publishSignal(RADAR_TOPICS.RUNNER_CONTROL, { phaseKey, enabled });
   }
 
-  /** Полный drain очереди фазы через RMQ. */
-  private publishDrainForPhase(phase: PhaseDefinitionRecord): Promise<void> {
+  /** Полный или targeted drain очереди фазы через RMQ. */
+  private publishDrainForPhase(
+    phase: PhaseDefinitionRecord,
+    mode: "full" | "targeted" = "full",
+  ): Promise<void> {
     return this.transport.publishSignal(drainTopicForPhaseScope(phase.scope), {
       phaseKey: phase.id,
-      mode: "full-list",
+      mode,
     });
   }
 
@@ -347,7 +357,7 @@ export class PhasesAdminService implements OnModuleInit, OnModuleDestroy {
     const geoJobsCleared = await this.placeJobs.clearQueuedWork();
 
     const closedRows = (await this.dataSource.query(
-      `UPDATE log_parse_phase_run SET
+      `UPDATE log_phase_run SET
          status = 'canceled',
          control = 'cancel',
          finished_at = now(),

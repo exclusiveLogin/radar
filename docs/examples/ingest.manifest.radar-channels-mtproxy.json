@@ -116,6 +116,35 @@
         "bindingMode": "user_mtproto_channel",
         "enabled": true
       }
+    },
+    {
+      "persist": true,
+      "provider": {
+        "key": "tg-default",
+        "title": "User MTProto + MTProxy (env)",
+        "adapterKind": "telegram",
+        "adapterConfig": {
+          "kind": "telegram",
+          "historyBatchSize": 200
+        },
+        "credentialRefs": {
+          "mtprotoSessionSlot": "tg-default-user",
+          "mtproxyProfile": "default"
+        }
+      },
+      "channel": {
+        "key": "radar-vrv",
+        "telegramTarget": "@vrv_radar",
+        "title": "VRV Radar",
+        "enabled": true
+      },
+      "binding": {
+        "bindingKey": "radar-vrv-mtproto",
+        "channelKey": "radar-vrv",
+        "externalTarget": "@vrv_radar",
+        "bindingMode": "user_mtproto_channel",
+        "enabled": true
+      }
     }
   ]
 }

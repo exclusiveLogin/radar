@@ -1,6 +1,6 @@
 /**
  * Phase-pipeline v2 (ADR-003): фаза = enrichers[] + policy + trigger.
- * Ingest доставляет mat_ingest_raw; фазы маркируют queue_parse_coverage и мержат в накопитель.
+ * Ingest доставляет mat_ingest_raw; фазы маркируют job_parse_phase и мержат в накопитель.
  */
 import { z } from "zod";
 import { radarTopicRoutingKeySchema } from "../../transport/topicCatalog.js";
@@ -45,6 +45,10 @@ export const phasePolicySchema = z.object({
   claimOrder: z.enum(["asc", "desc"]).optional(),
   subscribeTopic: radarTopicRoutingKeySchema.optional(),
   publishTopic: radarTopicRoutingKeySchema.optional(),
+  /** Максимум попыток claim→handle до terminal failed. */
+  maxAttempts: z.number().int().positive().default(3),
+  /** После failed — вернуть в pending до исчерпания maxAttempts. */
+  retryFailed: z.boolean().default(true),
 });
 export type PhasePolicy = z.infer<typeof phasePolicySchema>;
 

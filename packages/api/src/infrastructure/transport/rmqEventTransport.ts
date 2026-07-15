@@ -187,14 +187,20 @@ export class RmqEventTransport implements IEventTransport {
     if (this.stopping) return;
     const key = this.groupKey(sub);
     if (this.activeGroups.has(key)) return;
-
-    const ch = this.requireChannel();
-    const q = await this.ensureQueueTopology(ch, sub.routingKey, sub.queueSuffix);
-    const { consumerTag } = await ch.consume(q, (msg) => void this.onGroupMessage(key, msg), {
-      noAck: false,
-    });
+    // Резервируем ключ до await — иначе parallel subscribe создаёт competing consumers.
     this.activeGroups.add(key);
-    this.consumers.push({ groupKey: key, tag: consumerTag });
+
+    try {
+      const ch = this.requireChannel();
+      const q = await this.ensureQueueTopology(ch, sub.routingKey, sub.queueSuffix);
+      const { consumerTag } = await ch.consume(q, (msg) => void this.onGroupMessage(key, msg), {
+        noAck: false,
+      });
+      this.consumers.push({ groupKey: key, tag: consumerTag });
+    } catch (err) {
+      this.activeGroups.delete(key);
+      throw err;
+    }
   }
 
   private async onGroupMessage(groupKey: string, msg: ConsumeMessage | null): Promise<void> {
@@ -211,7 +217,7 @@ export class RmqEventTransport implements IEventTransport {
       const matching = this.subs.filter((s) => this.groupKey(s) === groupKey);
       if (parsed.kind === "unit") {
         for (const event of parsed.events) {
-          if (this.dedup && !(await this.dedup.tryClaim(event.id))) continue;
+          if (this.dedup && !(await this.dedup.tryClaim(`${groupKey}:${event.id}`))) continue;
           for (const sub of matching) {
             if (sub.kind !== "unit") continue;
             await (sub.handler as TransportEventHandler)(event);

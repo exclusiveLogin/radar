@@ -8,5 +8,4 @@ export {
 export {
   createPipelineLauncher,
   type PipelineLauncherFactoryDeps,
-  type LegacyWorkloadAdapter,
 } from "./PipelineLauncherFactory.js";

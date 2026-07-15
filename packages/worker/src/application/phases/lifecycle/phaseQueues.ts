@@ -19,10 +19,10 @@ export async function clearPhaseQueues(input: {
   if (input.dryRun) {
     const notes =
       input.scope === "ingest"
-        ? ["Очистит queue_parse_coverage и cancel log_parse_phase_run (ingestParse)."]
+        ? ["Очистит job_parse_phase и cancel log_phase_run (ingestParse)."]
         : input.scope === "geo"
-          ? ["Очистит job_geo_place_enrich (pending/processing) и cancel log_parse_phase_run."]
-          : ["Очистит ingest coverage + geo jobs + cancel всех log_parse_phase_run."];
+          ? ["Очистит job_geo_place_enrich (pending/processing) и cancel log_phase_run."]
+          : ["Очистит ingest coverage + geo jobs + cancel всех log_phase_run."];
 
     return {
       phase: phaseLabel,
@@ -60,8 +60,8 @@ export async function clearPhaseQueues(input: {
     action: "clear",
     dryRun: false,
     counts: {
-      log_parse_phase_run_canceled: toStop.phaseRunsClosed,
-      queue_parse_coverage_cleared: queueCleared,
+      log_phase_run_canceled: toStop.phaseRunsClosed,
+      job_parse_phase_cleared: queueCleared,
       job_geo_place_enrich_cleared: toStop.geoJobsCleared,
     },
   };

@@ -51,7 +51,6 @@ async function main(): Promise<void> {
     ingestFlow: {
       rawMessages: repos.rawMessages,
       phases: repos.phaseDefinitions,
-      enqueuer: runtime.coverageEnqueuer,
       runner: runtime.phaseRunner,
     },
     onMessage: () => {

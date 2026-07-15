@@ -1,23 +1,20 @@
 import type { IPhaseDefinitionRepository, IRawMessageRepository } from "@radar/shared";
-import type { CoverageEnqueuer } from "./coverageEnqueuer.js";
 import type { PhaseRunner } from "./phaseRunner.js";
 import { sortPhasesByOrder } from "./phaseOrder.js";
 
 export type PhaseIngestFlowDeps = {
   rawMessages: IRawMessageRepository;
   phases: IPhaseDefinitionRepository;
-  enqueuer: CoverageEnqueuer;
   runner: PhaseRunner;
 };
 
 export type PhaseIngestFlowOptions = {
-  /** Bulk reparse: не ставить llm/scheduled в очередь на каждое сообщение. */
-  skipCoverageEnqueue?: boolean;
+  /** Bulk reparse: пропустить inline eager. */
+  skipInlineEager?: boolean;
 };
 
 /**
- * Тот же путь, что после ingest: coverage pending + inline eager по order.
- * Reparse и RawMessageIngested используют эту функцию (SSOT).
+ * Post-ingest SSOT: только inline eager. Очередь — через RMQ → planPendingForIds.
  */
 export async function runPostIngestPhaseFlow(
   deps: PhaseIngestFlowDeps,
@@ -27,9 +24,7 @@ export async function runPostIngestPhaseFlow(
   const raw = await deps.rawMessages.findById(rawMessageId);
   if (!raw?.id) return;
 
-  if (!options.skipCoverageEnqueue) {
-    await deps.enqueuer.onNewRawMessage(rawMessageId);
-  }
+  if (options.skipInlineEager) return;
 
   const eagerPhases = sortPhasesByOrder(
     (await deps.phases.listEnabled("eager", "ingestParse")).filter(
