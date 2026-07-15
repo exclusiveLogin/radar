@@ -58,6 +58,10 @@ export type PhaseRunnerDeps = {
 export class PhaseRunner {
   constructor(private readonly deps: PhaseRunnerDeps) {}
 
+  get placeEnrichmentRunner(): PlaceEnrichmentRunner | undefined {
+    return this.deps.placeEnrichmentRunner;
+  }
+
   private createHandler(phase: PhaseDefinitionRecord): ParseRawMessageHandler {
     const phaseContext: ParsePhaseContext = {
       phaseId: phase.id,
@@ -93,7 +97,14 @@ export class PhaseRunner {
     await this.deps.coverage.markDoneForMessage(rawMessageId, phase.id);
   }
 
-  /** Прогон claim-batch с phase_run и cooperative control. */
+  /** Domain eval одной parse-задачи — без mark (UnifiedRunner закрывает через IWorkQueue). */
+  async handleParseTask(phase: PhaseDefinitionRecord, task: PhaseCoverageTask): Promise<void> {
+    const handler = this.createHandler(phase);
+    const raw = await this.deps.rawMessages.findById(task.rawMessageId);
+    if (!raw?.id) throw new Error("raw_message not found");
+    await handler.handle(raw);
+  }
+
   async runBatch(input: {
     phase: PhaseDefinitionRecord;
     runId: string;

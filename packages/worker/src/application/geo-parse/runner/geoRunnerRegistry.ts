@@ -24,22 +24,22 @@ import type { Workload } from "../../runtime/workload/createWorkload.js";
 
 const DEFAULT_REFRESH_MS = 15_000;
 
-export type ParseRunnerRegistryDeps = {
+export type GeoRunnerRegistryDeps = {
   phases: IPhaseDefinitionRepository;
   phaseRuns: IPhaseRunRepository;
   coverage: IPhaseCoverageRepository;
   placeJobs: IPlaceEnrichmentJobRepository;
   runner: PhaseRunner;
-  placeEnrichmentRunner?: PlaceEnrichmentRunner;
+  placeEnrichmentRunner: PlaceEnrichmentRunner;
   obs?: WorkloadObsContext;
 };
 
-export class ParseRunnerRegistry {
+export class GeoRunnerRegistry {
   private workloads = new Map<string, Workload>();
   private refreshTimer: ReturnType<typeof setInterval> | null = null;
   private stopped = true;
 
-  constructor(private readonly deps: ParseRunnerRegistryDeps) {}
+  constructor(private readonly deps: GeoRunnerRegistryDeps) {}
 
   start(): void {
     this.stopped = false;
@@ -62,7 +62,7 @@ export class ParseRunnerRegistry {
 
   private async refresh(): Promise<void> {
     if (this.stopped) return;
-    const scheduled = await this.deps.phases.listEnabled("scheduled", "ingestParse");
+    const scheduled = await this.deps.phases.listEnabled("scheduled", "geoParse");
     const ids = new Set(scheduled.map((p) => p.id));
 
     for (const [id, workload] of this.workloads) {

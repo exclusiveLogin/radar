@@ -551,8 +551,8 @@ export type {
 export type {
   WorkItemOutcome,
   WorkItemResult,
-  IWorkClaim,
-} from "./work-queue/work-claim.js";
+  IWorkQueue,
+} from "./work-queue/work-queue.js";
 export {
   resolveWorkQueueStatusAfterFailure,
   DEFAULT_MAX_ATTEMPTS,
@@ -731,6 +731,7 @@ export type {
   FieldProvenance,
   EnricherId,
   PhaseTrigger,
+  PhaseTriggerMode,
   PhaseScope,
   PhaseKind,
   EnrichStage,

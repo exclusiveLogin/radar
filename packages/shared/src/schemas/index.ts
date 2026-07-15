@@ -354,6 +354,7 @@ export type {
   FieldProvenance,
   EnricherId,
   PhaseTrigger,
+  PhaseTriggerMode,
   PhaseScope,
   PhaseKind,
   EnrichStage,

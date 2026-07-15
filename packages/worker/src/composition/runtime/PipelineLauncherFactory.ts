@@ -2,28 +2,19 @@
  * ---
  * layer: worker/composition
  * domain: deployment/runtime
- * purpose: Фабрика PipelineLauncher — legacy adapter | runner-platform workload по schedulingImpl.
+ * purpose: Фабрика PipelineLauncher — runner-platform workload only (ADR-025).
  * ---
  */
 import type { DataSource } from "typeorm";
 import type { IObservabilityRecorder, PipelineKey } from "@radar/shared";
 import type { WorkerRuntimeManifest } from "@radar/shared/manifest/domains/workerRuntime.loader.js";
 import type { PhaseRunner } from "../../application/phases/phaseRunner.js";
-import { IngestParseDaemonService, type IngestParseDaemonConfig } from "../../application/runtime/legacy/ingestParseDaemonService.js";
-import { PlaceEnrichmentDaemonService, type PlaceEnrichmentDaemonConfig } from "../../application/runtime/legacy/placeEnrichmentDaemonService.js";
-import { TrackingRebuildDaemon, type TrackingRebuildDaemonConfig } from "../../application/runtime/legacy/trackingRebuildDaemon.js";
-import {
-  createLegacyGeoEnrichLauncher,
-  createLegacyIngestParseLauncher,
-  createLegacyTrackingLauncher,
-  LegacyWorkloadAdapter,
-} from "../../application/runtime/legacy/LegacyWorkloadAdapter.js";
 import {
   createWorkloadObsConfig,
   type WorkloadObsContext,
 } from "../../application/runtime/observability/workloadObsHooks.js";
-import { createGeoEnrichRunner } from "../../application/geo-parse/runner/geoEnrichRunner.js";
 import { ParseRunnerRegistry } from "../../application/parse/runner/parseRunnerRegistry.js";
+import { GeoRunnerRegistry } from "../../application/geo-parse/runner/geoRunnerRegistry.js";
 import { createTrackingRunner } from "../../application/tracking/runner/trackingRunner.js";
 import type { Workload } from "../../application/runtime/workload/createWorkload.js";
 import type { WorkerDbRepositories } from "../../infrastructure/persistence/workerDbRepos.types.js";
@@ -38,7 +29,6 @@ export type PipelineLauncherFactoryDeps = {
   workerRuntime: WorkerRuntimeManifest;
 };
 
-/** Runner-platform Workload → PipelineLauncher (+ optional enqueue). */
 class RunnerPlatformLauncher implements PipelineLauncher {
   readonly runtime = "runner-platform" as const;
 
@@ -60,7 +50,6 @@ class RunnerPlatformLauncher implements PipelineLauncher {
   }
 }
 
-/** ParseRunnerRegistry уже имеет start/stop/enqueueAll — оборачиваем как launcher. */
 class ParseRunnerLauncher implements PipelineLauncher {
   readonly pipelineKey = "parse" as const;
   readonly runtime = "runner-platform" as const;
@@ -80,61 +69,55 @@ class ParseRunnerLauncher implements PipelineLauncher {
   }
 }
 
+class GeoRunnerLauncher implements PipelineLauncher {
+  readonly pipelineKey = "geo-enrich" as const;
+  readonly runtime = "runner-platform" as const;
+
+  constructor(private readonly registry: GeoRunnerRegistry) {}
+
+  start(): void {
+    this.registry.start();
+  }
+
+  async stop(): Promise<void> {
+    await this.registry.stop();
+  }
+
+  enqueue(): void {
+    this.registry.enqueueAll();
+  }
+}
+
 function obsCtxFor(
   deps: PipelineLauncherFactoryDeps,
   pipelineKey: PipelineKey,
-  runtime: "legacy" | "runner-platform",
 ): WorkloadObsContext | undefined {
   if (!deps.obsBinding) return undefined;
   return {
     recorder: deps.obsBinding.recorder,
     hostId: deps.obsBinding.hostId,
     pipelineKey,
-    runtime,
+    runtime: "runner-platform",
   };
 }
 
-/** Создаёт launcher для одного resolved pipeline; null если schedulingImpl не поддержан. */
+/** Создаёт runner-platform launcher; null если phaseRunner недоступен. */
 export function createPipelineLauncher(
   resolved: ResolvedRuntimePipeline,
   deps: PipelineLauncherFactoryDeps,
 ): PipelineLauncher | null {
-  const { entry, runtime, schedulingImpl } = resolved;
-  const obsBinding = deps.obsBinding;
+  const { entry } = resolved;
   const { workerRuntime } = deps;
-  const trackingConfig: TrackingRebuildDaemonConfig = {
-    intervalMs: workerRuntime.tracking.intervalMs,
-    enabled: workerRuntime.tracking.enabled,
-  };
-  const parseDaemonConfig: IngestParseDaemonConfig = {
-    pollMs: workerRuntime.parse.daemon.pollMs,
-    runStaleMs: workerRuntime.parse.runStaleMs,
-    enabled: workerRuntime.parse.daemon.enabled,
-  };
-  const geoDaemonConfig: PlaceEnrichmentDaemonConfig = {
-    pollMs: workerRuntime.geo.daemon.pollMs,
-    orphanRunMs: workerRuntime.geo.orphanRunMs,
-    runStaleMs: workerRuntime.geo.runStaleMs,
-  };
 
   switch (entry.pipelineKey) {
     case "tracking": {
-      if (schedulingImpl === "runner-platform") {
-        const obs = obsCtxFor(deps, "tracking", "runner-platform");
-        const runner = createTrackingRunner(
-          deps.dataSource,
-          obs ? createWorkloadObsConfig(obs) : undefined,
-          { intervalMs: workerRuntime.tracking.intervalMs },
-        );
-        return new RunnerPlatformLauncher("tracking", runner);
-      }
-      if (obsBinding) {
-        return createLegacyTrackingLauncher(deps.dataSource, obsBinding, trackingConfig);
-      }
-      return wrapLegacyDaemon(
-        "tracking",
-        new TrackingRebuildDaemon(deps.dataSource, undefined, trackingConfig),
+      const obs = obsCtxFor(deps, "tracking");
+      const runner = createTrackingRunner(
+        deps.dataSource,
+        obs ? createWorkloadObsConfig(obs) : undefined,
+        { intervalMs: workerRuntime.tracking.intervalMs },
       );
+      return new RunnerPlatformLauncher("tracking", runner);
     }
     case "parse": {
       if (!deps.phaseRunner) return null;
@@ -142,73 +125,29 @@ export function createPipelineLauncher(
         phases: deps.workerRepos.phaseDefinitions,
         phaseRuns: deps.workerRepos.phaseRuns,
         coverage: deps.workerRepos.phaseCoverage,
+        placeJobs: deps.workerRepos.placeEnrichmentJobs,
         runner: deps.phaseRunner,
+        placeEnrichmentRunner: deps.phaseRunner.placeEnrichmentRunner,
       };
-      if (schedulingImpl === "runner-platform") {
-        const obs = obsCtxFor(deps, "parse", "runner-platform");
-        return new ParseRunnerLauncher(
-          new ParseRunnerRegistry({ ...parseDeps, obs }),
-        );
-      }
-      if (obsBinding) {
-        return createLegacyIngestParseLauncher(parseDeps, obsBinding, parseDaemonConfig);
-      }
-      return wrapLegacyDaemon(
-        "parse",
-        new IngestParseDaemonService(
-          parseDeps.phases,
-          parseDeps.phaseRuns,
-          parseDeps.coverage,
-          parseDeps.runner,
-          undefined,
-          parseDaemonConfig,
-        ),
+      const obs = obsCtxFor(deps, "parse");
+      return new ParseRunnerLauncher(
+        new ParseRunnerRegistry({ ...parseDeps, obs }),
       );
     }
     case "geo-enrich": {
-      if (!deps.phaseRunner) return null;
+      if (!deps.phaseRunner?.placeEnrichmentRunner) return null;
       const geoDeps = {
         phases: deps.workerRepos.phaseDefinitions,
         phaseRuns: deps.workerRepos.phaseRuns,
+        coverage: deps.workerRepos.phaseCoverage,
         placeJobs: deps.workerRepos.placeEnrichmentJobs,
         runner: deps.phaseRunner,
+        placeEnrichmentRunner: deps.phaseRunner.placeEnrichmentRunner,
       };
-      if (schedulingImpl === "runner-platform") {
-        const obs = obsCtxFor(deps, "geo-enrich", "runner-platform");
-        const runner = createGeoEnrichRunner(geoDeps, obs);
-        return new RunnerPlatformLauncher("geo-enrich", runner);
-      }
-      if (obsBinding) {
-        return createLegacyGeoEnrichLauncher(geoDeps, obsBinding, geoDaemonConfig);
-      }
-      return wrapLegacyDaemon(
-        "geo-enrich",
-        new PlaceEnrichmentDaemonService(
-          geoDeps.phases,
-          geoDeps.phaseRuns,
-          geoDeps.placeJobs,
-          geoDeps.runner,
-          undefined,
-          geoDaemonConfig,
-        ),
-      );
+      const obs = obsCtxFor(deps, "geo-enrich");
+      return new GeoRunnerLauncher(new GeoRunnerRegistry({ ...geoDeps, obs }));
     }
     default:
       return null;
   }
 }
-
-/** Legacy daemon без obs — минимальный PipelineLauncher-адаптер. */
-function wrapLegacyDaemon(
-  pipelineKey: PipelineKey,
-  daemon: { start(): void; stop(): void | Promise<void> },
-): PipelineLauncher {
-  return {
-    pipelineKey,
-    runtime: "legacy",
-    start: () => daemon.start(),
-    stop: () => daemon.stop(),
-  };
-}
-
-export type { LegacyWorkloadAdapter };

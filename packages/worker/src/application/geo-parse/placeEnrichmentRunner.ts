@@ -1,4 +1,4 @@
-import { canonicalRegionCode, isGeoEnrichEligibleKind, type IPlaceAliasRepository, type IPlaceEnrichmentJobRepository, type IPlaceRepository, type IRegionRepository, type PlaceContribution, type PlaceEnrichmentProvider, type PlaceRecord, buildCatalogPlaceGeocodeQuery, parseRegionViewbox, resolveNominatimCountryCode } from "@radar/shared";
+import { canonicalRegionCode, isGeoEnrichEligibleKind, type IPlaceAliasRepository, type IPlaceEnrichmentJobRepository, type IPlaceRepository, type IRegionRepository, type PlaceContribution, type PlaceEnrichmentJobRecord, type PlaceEnrichmentProvider, type PlaceRecord, type WorkItemResult, buildCatalogPlaceGeocodeQuery, parseRegionViewbox, resolveNominatimCountryCode } from "@radar/shared";
 import { DadataEnricher } from "../../infrastructure/enrichers/dadataEnricher.js";
 import { loadDadataToken } from "../../infrastructure/enrichers/dadataConfig.js";
 import { LlmEnricher } from "../../infrastructure/enrichers/llmEnricher.js";
@@ -378,6 +378,81 @@ export class PlaceEnrichmentRunner {
         best,
       },
     });
+  }
+
+  /**
+   * Domain eval одного claimed job — без mark (UnifiedRunner закрывает через IWorkQueue).
+   */
+  async processClaimedJob(
+    provider: PlaceEnrichmentProvider,
+    job: PlaceEnrichmentJobRecord,
+  ): Promise<WorkItemResult> {
+    if (this.isDadataSuggestionsBlocked(provider)) {
+      return { outcome: "skipped", detail: "dadata_blocked" };
+    }
+    try {
+      const place = await this.places.findById(job.placeId);
+      if (!place || place.kind === "region") {
+        return { outcome: "skipped", detail: "skip_region" };
+      }
+      if (!isGeoEnrichEligibleKind(place.kind)) {
+        return { outcome: "skipped", detail: "kind_below_city" };
+      }
+      const region = (await this.regions.listActive()).find((r) => r.id === place.regionId);
+      if (!region) {
+        return { outcome: "failed", detail: `${provider}: region not found` };
+      }
+      if (isGarbageIngestPlaceName(place.name)) {
+        return { outcome: "skipped", detail: "non_geocodable" };
+      }
+      const regionCode = canonicalRegionCode(region);
+      const parent = place.parentPlaceId ? await this.places.findById(place.parentPlaceId) : undefined;
+      const placeLabel = normalizePlaceLabelForGeocode(place.name);
+      const query = buildCatalogPlaceGeocodeQuery({
+        placeName: placeLabel,
+        placeNameWithType: place.nameWithType
+          ? normalizePlaceLabelForGeocode(place.nameWithType)
+          : undefined,
+        region,
+        parentPlaceName: parent?.name,
+        parentPlaceNameWithType: parent?.nameWithType,
+      });
+      const nominatimHints =
+        provider === "nominatim"
+          ? {
+              countryCode: resolveNominatimCountryCode(region.iso),
+              viewbox: parseRegionViewbox(region.bbox),
+            }
+          : undefined;
+      const contribution = await this.buildContribution(
+        provider,
+        place.id,
+        query,
+        regionCode,
+        nominatimHints,
+      );
+      if (!contribution) {
+        if (this.isDadataSuggestionsBlocked(provider)) {
+          return { outcome: "skipped", detail: "dadata_blocked" };
+        }
+        return { outcome: "failed", detail: enrichmentMissError(provider) };
+      }
+      const applied = await this.applyContribution(place.id, provider, contribution);
+      if (!applied.ok) {
+        return { outcome: "failed", detail: applied.reason };
+      }
+      if (contribution.fields.name) {
+        await this.aliases.upsertAlias({
+          placeId: place.id,
+          alias: contribution.fields.name,
+          source: "auto",
+        });
+      }
+      return { outcome: "completed" };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return { outcome: "failed", detail: message };
+    }
   }
 
   private toContribution(

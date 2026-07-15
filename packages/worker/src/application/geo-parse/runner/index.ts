@@ -1,8 +1,4 @@
 export {
-  createGeoEnrichRunner,
-  GEO_ENRICH_PIPELINE_KEY,
-  type GeoEnrichRunner,
-  type GeoEnrichRunnerDeps,
-  type GeoEnrichArtifact,
-  type GeoEnrichPhaseOutcome,
-} from "./geoEnrichRunner.js";
+  GeoRunnerRegistry,
+  type GeoRunnerRegistryDeps,
+} from "./geoRunnerRegistry.js";
