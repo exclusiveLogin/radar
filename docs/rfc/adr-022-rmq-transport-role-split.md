@@ -30,3 +30,25 @@ Accepted (2026-07-14)
 - Проще grep-gate: producers только `transport.publish` / `publishSignal`.
 - RabbitMQ + Management UI `:15672`, Prometheus `:15692`, Grafana dashboard в compose.
 - Legacy `RADAR_WORKER_ROLE=phase` deprecated — используйте `parse` / `geo`.
+
+## RMQ fan-out topology (2026-07-15)
+
+**Проблема as-is:** одна durable-очередь на routing key (`radar_message_parsed`).
+Parse / geo / tracking — competing consumers → событие получает только одна роль.
+
+**Решение:**
+
+```
+publish → topic exchange (без assert queue на publish)
+              ↓ fan-out bind
+   {topic_slug}.{parse|geo|tracking|…}
+              ↓
+   round-robin между репликами одной роли
+```
+
+- SSOT имён: `packages/shared/src/transport/rmqQueueName.ts`
+- `TransportSubscribeOptions.queueSuffix` — явный override (Wave 6 launchers, phase wake)
+- Default suffix: `resolveRmqConsumerSuffix(RADAR_WORKER_ROLE)` / `api`
+- Drain/control: подписка только на role-relevant topics (`wireTransportRuntimeSignals`)
+
+См. также [ADR-026](./adr-026-ingest-backfill-role-split.md) (future: ingest vs backfill).

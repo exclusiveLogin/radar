@@ -25,14 +25,16 @@ import type {
   IPlaceScanPort,
   IObservabilityRecorder,
   HostSnapshot,
+  IEventTransport,
 } from "@radar/shared";
-import { InProcessEventBus, RADAR_TOPICS } from "@radar/shared";
+import { InProcessEventBus, PIPELINE_RMQ_QUEUE_SUFFIX, RADAR_TOPICS, resolveRmqConsumerSuffix } from "@radar/shared";
 import { loadDeploymentManifest } from "@radar/shared/deployment/deploymentManifest.loader.js";
 import { createEventTransport } from "../infrastructure/transport/createEventTransport.js";
 import { TransportEventPublisher } from "../infrastructure/transport/transportEventPublisher.js";
 import { bridgeTransportTopicToBus } from "../infrastructure/transport/bridgeTransportToBus.js";
 import { wireTransportTrigger } from "./runtime/workload/wireTransportTrigger.js";
 import { wireTransportRuntimeSignals } from "../infrastructure/transport/wireTransportRuntimeSignals.js";
+import { wirePhaseWakeScheduler } from "./phases/phaseWakeScheduler.js";
 import { loadWorkerRuntimeManifest } from "@radar/shared/manifest/domains/workerRuntime.loader.js";
 import {
   ParseAttemptLogger,
@@ -152,15 +154,7 @@ export async function createWorkerCompositionRoot(
   });
 
   const bus = new InProcessEventBus();
-  const eventTransport = createEventTransport({
-    transport: deploymentManifest.transport,
-    workerRole,
-  });
-  await eventTransport.start();
-  if (deploymentManifest.transport.kind === "rmq") {
-    bridgeTransportTopicToBus(eventTransport, bus, RADAR_TOPICS.RAW_INGESTED);
-    bridgeTransportTopicToBus(eventTransport, bus, RADAR_TOPICS.MESSAGE_PARSED);
-  }
+  let eventTransport!: IEventTransport;
   const parseAttemptLogger = new ParseAttemptLogger(workerRuntime.logging.verboseParse);
   const metricsAggregator = new MetricsAggregator();
 
@@ -179,6 +173,7 @@ export async function createWorkerCompositionRoot(
   let phaseManualRunPoller: PhaseManualRunPoller | undefined;
   let phaseRunner: PhaseRunner | undefined;
   let coverageEnqueuer: CoverageEnqueuer | undefined;
+  let teardownPhaseWake: (() => void) | undefined;
   let parseWorkerPool: ParseWorkerPool | undefined;
   let shutdown: (() => Promise<void>) | undefined;
   let observabilityRecorder: IObservabilityRecorder | undefined;
@@ -204,6 +199,17 @@ export async function createWorkerCompositionRoot(
 
   if (storageMode === WorkerStorageMode.Db) {
     dataSource = await createWorkerDataSource();
+    eventTransport = createEventTransport({
+      transport: deploymentManifest.transport,
+      workerRole,
+      dataSource,
+    });
+    await eventTransport.start();
+    if (deploymentManifest.transport.kind === "rmq") {
+      const bridgeSuffix = { queueSuffix: resolveRmqConsumerSuffix(workerRole) };
+      bridgeTransportTopicToBus(eventTransport, bus, RADAR_TOPICS.RAW_INGESTED, bridgeSuffix);
+      bridgeTransportTopicToBus(eventTransport, bus, RADAR_TOPICS.MESSAGE_PARSED, bridgeSuffix);
+    }
     const repos = await createWorkerDbRepositories(dataSource);
     workerRepos = repos;
 
@@ -227,7 +233,7 @@ export async function createWorkerCompositionRoot(
     bus.subscribe("MessageParseFailed", parseAttemptWriter.handler);
 
     shutdown = async () => {
-      await eventTransport.stop();
+      teardownPhaseWake?.();
       phaseManualRunPoller?.stop();
       await ingestParseDaemon?.stop();
       await placeEnrichmentDaemon?.stop();
@@ -235,6 +241,7 @@ export async function createWorkerCompositionRoot(
       await trackingRebuildDaemon?.stop();
       await parseWorkerPool?.shutdown();
       await ingestOrchestrator?.stop();
+      await eventTransport.stop();
       if (dataSource?.isInitialized) {
         await dataSource.destroy();
       }
@@ -364,18 +371,34 @@ export async function createWorkerCompositionRoot(
       events: new TransportEventPublisher(eventTransport),
       placeEnrichmentRunner,
     });
-    wireTransportRuntimeSignals({ transport: eventTransport, workerRepos, phaseRunner });
     coverageEnqueuer = new CoverageEnqueuer(
       workerRepos.phaseCoverage,
       workerRepos.phaseDefinitions,
     );
-    if (roleSubscribesPhaseIngestOnBus(workerRole)) { eventTransport.subscribe(RADAR_TOPICS.RAW_INGESTED,
+    wireTransportRuntimeSignals({
+      transport: eventTransport,
+      workerRepos,
+      phaseRunner,
+      coverageEnqueuer,
+      workerRole,
+    });
+    teardownPhaseWake = await wirePhaseWakeScheduler({
+      transport: eventTransport,
+      phases: workerRepos.phaseDefinitions,
+      onWake: (phase) => {
+        const key = phase.scope === "ingestParse" ? "parse" : "geo-enrich";
+        pipelineLaunchers.find((l) => l.pipelineKey === key)?.enqueue?.();
+      },
+    });
+    if (roleSubscribesPhaseIngestOnBus(workerRole)) {
+      eventTransport.subscribe(
+        RADAR_TOPICS.RAW_INGESTED,
         createPhaseIngestHandler({
           rawMessages: workerRepos.rawMessages,
           phases: workerRepos.phaseDefinitions,
-          enqueuer: coverageEnqueuer,
           runner: phaseRunner,
         }),
+        { queueSuffix: "parse" },
       );
     }
     const startParseDaemons =
@@ -421,6 +444,11 @@ export async function createWorkerCompositionRoot(
       }
     }
   } else {
+    eventTransport = createEventTransport({
+      transport: deploymentManifest.transport,
+      workerRole,
+    });
+    await eventTransport.start();
     eventTransport.subscribe(
       RADAR_TOPICS.RAW_INGESTED,
       createRawMessageIngestedHandler({
@@ -500,6 +528,7 @@ export async function createWorkerCompositionRoot(
       wireTransportTrigger(eventTransport, RADAR_TOPICS.RAW_INGESTED, {
         debounceMs: 250,
         onRoute: () => launcher.enqueue!(),
+        queueSuffix: PIPELINE_RMQ_QUEUE_SUFFIX.parse,
         obs: observabilityRecorder
           ? {
               recorder: observabilityRecorder,
@@ -513,6 +542,7 @@ export async function createWorkerCompositionRoot(
       wireTransportTrigger(eventTransport, RADAR_TOPICS.MESSAGE_PARSED, {
         debounceMs: 250,
         onRoute: () => launcher.enqueue!(),
+        queueSuffix: PIPELINE_RMQ_QUEUE_SUFFIX.tracking,
         obs: observabilityRecorder
           ? {
               recorder: observabilityRecorder,
@@ -526,6 +556,7 @@ export async function createWorkerCompositionRoot(
       wireTransportTrigger(eventTransport, RADAR_TOPICS.MESSAGE_PARSED, {
         debounceMs: 250,
         onRoute: () => launcher.enqueue!(),
+        queueSuffix: PIPELINE_RMQ_QUEUE_SUFFIX["geo-enrich"],
         obs: observabilityRecorder
           ? {
               recorder: observabilityRecorder,

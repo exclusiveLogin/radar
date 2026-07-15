@@ -218,8 +218,19 @@ export {
   drainTopicForPhaseScope,
   listRadarTopicRoutingKeys,
   InProcessEventTransport,
+  createCompositeTransportDedup,
+  createLruTransportDedup,
+  rmqTopicSlug,
+  rmqQueueName,
+  PIPELINE_RMQ_QUEUE_SUFFIX,
+  resolveRmqConsumerSuffix,
+  resolveRmqQueueSuffixForPhaseScope,
 } from "./transport/index.js";
-export type { RadarTopicRoutingKey } from "./transport/index.js";
+export type {
+  RadarTopicRoutingKey,
+  ITransportDedup,
+  RmqConsumerRole,
+} from "./transport/index.js";
 export {
   buildTrackEdges,
   createCorridorRollupIndex,
@@ -535,7 +546,18 @@ export type {
   IEventTransport,
   TransportEventHandler,
   TransportSignalHandler,
+  TransportSubscribeOptions,
 } from "./ports/eventTransport.js";
+export type {
+  WorkItemOutcome,
+  WorkItemResult,
+  IWorkClaim,
+} from "./work-queue/work-claim.js";
+export {
+  resolveWorkQueueStatusAfterFailure,
+  DEFAULT_MAX_ATTEMPTS,
+  DEFAULT_RETRY_FAILED,
+} from "./work-queue/workQueueTerminalPolicy.js";
 
 // --- type-only exports ---
 export type {

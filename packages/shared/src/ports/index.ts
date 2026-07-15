@@ -10,6 +10,7 @@ export type {
   IEventTransport,
   TransportEventHandler,
   TransportSignalHandler,
+  TransportSubscribeOptions,
 } from "./eventTransport";
 export type {
   ISourceUniquenessContributor,

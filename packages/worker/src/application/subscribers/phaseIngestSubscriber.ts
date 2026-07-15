@@ -2,9 +2,7 @@ import type { DomainEvent } from "@radar/shared";
 import type { PhaseIngestFlowDeps } from "../phases/phaseIngestFlow.js";
 import { runPostIngestPhaseFlow } from "../phases/phaseIngestFlow.js";
 
-/**
- * RawMessageIngested → тот же SSOT-поток, что и reparse (phaseIngestFlow).
- */
+/** RawMessageIngested → inline eager only; очередь через RMQ planPending. */
 export function createPhaseIngestHandler(
   deps: PhaseIngestFlowDeps,
 ): (event: DomainEvent) => Promise<void> {

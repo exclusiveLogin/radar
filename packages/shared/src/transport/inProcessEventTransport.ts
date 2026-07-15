@@ -3,6 +3,7 @@ import type {
   IEventTransport,
   TransportEventHandler,
   TransportSignalHandler,
+  TransportSubscribeOptions,
 } from "../ports/eventTransport.js";
 import type { Unsubscribe } from "../ports/events.js";
 import type { RadarTopicRoutingKey } from "./topicCatalog.js";
@@ -18,13 +19,21 @@ export class InProcessEventTransport implements IEventTransport {
     this.signalHandlers.clear();
   }
 
-  subscribe(routingKey: RadarTopicRoutingKey, handler: TransportEventHandler): Unsubscribe {
+  subscribe(
+    routingKey: RadarTopicRoutingKey,
+    handler: TransportEventHandler,
+    _options?: TransportSubscribeOptions,
+  ): Unsubscribe {
     const set = this.getOrCreate(this.eventHandlers, routingKey);
     set.add(handler);
     return () => set.delete(handler);
   }
 
-  subscribeSignal(routingKey: RadarTopicRoutingKey, handler: TransportSignalHandler): Unsubscribe {
+  subscribeSignal(
+    routingKey: RadarTopicRoutingKey,
+    handler: TransportSignalHandler,
+    _options?: TransportSubscribeOptions,
+  ): Unsubscribe {
     const set = this.getOrCreate(this.signalHandlers, routingKey);
     set.add(handler);
     return () => set.delete(handler);
