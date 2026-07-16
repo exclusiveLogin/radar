@@ -18,7 +18,7 @@ import {
 } from "../nextgenKalmanLink";
 import type { TurnPenaltyConfig } from "../nextgenGravity";
 import type { NodeMode, ThreatProfile, TrajectoryTrack } from "../../types";
-import type { NextGenNode } from "../phase1-stdbscan/NextGenPhase1";
+import type { NextGenNode } from "../step1-stdbscan/NextGenStep1";
 import {
   appendNodeToOpenTrack,
   createOpenTrackFromNode,
@@ -31,7 +31,7 @@ import { buildTrackMetadata } from "../../buildTrackMetadata";
 /** Минимум нод для сплошной магистрали (иначе пунктир). */
 const DEFAULT_MIN_BACKBONE_NODES = 3;
 
-export interface NextGenPhase3Stats {
+export interface NextGenStep3Stats {
   linksConsidered: number;
   linksAccepted: number;
   nodesSeeded: number;
@@ -43,7 +43,7 @@ export interface NextGenPhase3Stats {
   rejectKalmanInnovation: number;
 }
 
-export class NextGenPhase3 {
+export class NextGenStep3 {
   /**
    * Forward pass: ноды батча по времени → лучший open-трек (min evaluateNextGenLink) или seed.
    * seedTracks — хвосты из БД (incremental/live).
@@ -57,7 +57,7 @@ export class NextGenPhase3 {
     profile: ThreatProfile,
     minBackboneNodes: number = DEFAULT_MIN_BACKBONE_NODES,
     seedTracks: readonly NextGenSeedTrack[] = [],
-  ): { tracks: TrajectoryTrack[]; stats: NextGenPhase3Stats } {
+  ): { tracks: TrajectoryTrack[]; stats: NextGenStep3Stats } {
     const sorted = [...nodes].sort(
       (a, b) => a.occurredAt.getTime() - b.occurredAt.getTime(),
     );
@@ -71,7 +71,7 @@ export class NextGenPhase3 {
     }));
 
     const used = new Set<string>();
-    const stats: NextGenPhase3Stats = {
+    const stats: NextGenStep3Stats = {
       linksConsidered: 0,
       linksAccepted: 0,
       nodesSeeded: 0,
@@ -154,7 +154,7 @@ export class NextGenPhase3 {
   }
 
   private static bumpReject(
-    stats: NextGenPhase3Stats,
+    stats: NextGenStep3Stats,
     reason: NextGenLinkRejectReason | undefined,
   ): void {
     switch (reason) {

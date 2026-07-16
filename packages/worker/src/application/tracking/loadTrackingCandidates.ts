@@ -11,10 +11,10 @@ import {
   resolveNodeMode,
   trackingPipelineTypesSqlIn,
   canEnterPipeline,
-  mergeDedupClosure,
+  mergeCandidateWindow,
   TRACKING_PIPELINE_NOT_PROCESSED_SQL,
   withTrackingL1Transaction,
-  type DedupClosureLoad,
+  type CandidateWindowLoad,
   type TrackingCandidate,
 } from "@radar/shared";
 
@@ -147,22 +147,23 @@ const CONSUMED_ANCHOR_SQL = `
     WHERE tpc.event_location_id = el.id
   )`;
 
-type DedupClosureOptions = {
+type CandidateWindowOptions = {
   until: Date;
   /** Окно ε_temporal (мс) — lookback от min(pending) для consumed-якорей. */
   lookbackMs: number;
 };
 
 /**
- * Глобальный dedup closure: pending + consumed-якоря в [min(pending)−lookback, until].
+ * Candidate window: pending + consumed-якоря в [min(pending)−lookback, until].
+ * Сама дедупликация — позже в ST-DBSCAN; здесь только загрузка окна.
  */
-export async function loadDedupClosure(
+export async function loadCandidateWindow(
   ds: DataSource,
-  opts: DedupClosureOptions,
-): Promise<DedupClosureLoad> {
+  opts: CandidateWindowOptions,
+): Promise<CandidateWindowLoad> {
   const pending = await loadPendingTrackingCandidates(ds, { until: opts.until });
   if (pending.length === 0) {
-    return { pending: [], closure: [], lookbackMs: opts.lookbackMs };
+    return { pending: [], window: [], lookbackMs: opts.lookbackMs };
   }
 
   const minAt = pending[0]!.occurredAt.getTime();
@@ -186,12 +187,12 @@ export async function loadDedupClosure(
   );
 
   const anchors = anchorRows.map(toCandidate).filter(canEnterPipeline);
-  const closure = mergeDedupClosure(pending, anchors);
+  const window = mergeCandidateWindow(pending, anchors);
 
-  return { pending, closure, lookbackMs: opts.lookbackMs };
+  return { pending, window, lookbackMs: opts.lookbackMs };
 }
 
-/** @deprecated Используй loadDedupClosure / loadPendingTrackingCandidates. */
+/** @deprecated Используй loadCandidateWindow / loadPendingTrackingCandidates. */
 export async function loadTrackingCandidatesBatch(
   ds: DataSource,
   opts: BatchOptions,

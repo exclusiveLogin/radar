@@ -8,27 +8,27 @@
  * ---
  */
 import {
-  DEFAULT_TRACKING_PHASE_MANIFEST,
+  DEFAULT_TRACKING_STEP_MANIFEST,
   type H3VectorFlowMap,
-  type NextGenPhase2Stats,
-  type NextGenPhase3Stats,
+  type NextGenStep2Stats,
+  type NextGenStep3Stats,
   type NextGenSeedTrack,
   type ProfileKinematics,
   type ThreatProfile,
   type TrackingCandidate,
   type TrackingDomainTrack as TrajectoryTrack,
-  type TrackingPhaseManifest,
+  type TrackingStepManifest,
   type TrackingPipelineConfig,
 } from "@radar/shared";
 import {
-  createTrackingPhasePayload,
-  type TrackingClusterPhaseStats,
-} from "./trackingPhaseContracts.js";
-import { createTrackingPhaseRegistry } from "./trackingPhaseRegistry.js";
-import { runTrackingPhases } from "./trackingPhaseRunner.js";
-import { NEXTGEN_TRACKING_PHASES } from "./nextGenPhases.js";
+  createTrackingStepPayload,
+  type TrackingClusterStepStats,
+} from "./trackingStepContracts.js";
+import { createTrackingStepRegistry } from "./trackingStepRegistry.js";
+import { runTrackingSteps } from "./trackingStepRunner.js";
+import { NEXTGEN_TRACKING_STEPS } from "./nextGenSteps.js";
 
-const NEXTGEN_PHASE_REGISTRY = createTrackingPhaseRegistry(NEXTGEN_TRACKING_PHASES);
+const NEXTGEN_STEP_REGISTRY = createTrackingStepRegistry(NEXTGEN_TRACKING_STEPS);
 
 export function buildTracksViaNextGenPipeline(
   candidates: TrackingCandidate[],
@@ -37,19 +37,19 @@ export function buildTracksViaNextGenPipeline(
   config: TrackingPipelineConfig,
   flowMap: H3VectorFlowMap,
   seedTracks: readonly NextGenSeedTrack[] = [],
-  manifest: TrackingPhaseManifest = DEFAULT_TRACKING_PHASE_MANIFEST,
+  manifest: TrackingStepManifest = DEFAULT_TRACKING_STEP_MANIFEST,
 ): {
   tracks: TrajectoryTrack[];
-  cluster: TrackingClusterPhaseStats;
-  phase2: NextGenPhase2Stats;
-  phase3: NextGenPhase3Stats;
+  cluster: TrackingClusterStepStats;
+  phase2: NextGenStep2Stats;
+  phase3: NextGenStep3Stats;
 } {
-  const payload = createTrackingPhasePayload({ candidates, kin, profile, config, seedTracks });
-  const result = runTrackingPhases(manifest, NEXTGEN_PHASE_REGISTRY, payload, { flowMap });
+  const payload = createTrackingStepPayload({ candidates, kin, profile, config, seedTracks });
+  const result = runTrackingSteps(manifest, NEXTGEN_STEP_REGISTRY, payload, { flowMap });
   return {
     tracks: result.tracks,
     cluster: result.clusterStats,
-    phase2: result.phase2Stats,
-    phase3: result.phase3Stats,
+    phase2: result.step2Stats,
+    phase3: result.step3Stats,
   };
 }

@@ -3,7 +3,7 @@
  * layer: worker/application
  * domain: tracking/runner
  * purpose: Wave 3 (tracking-parse-architecture-refactor) — tracking-workload на runner platform.
- *          Алгоритм НЕ переписан: `loadDedupClosure`/`runIncrementalBatch` — те же функции, что
+ *          Алгоритм НЕ переписан: `loadCandidateWindow`/`runIncrementalBatch` — те же функции, что
  *          использует legacy `TrackingRebuildDaemon`. Изменён только runtime-контур:
  *          `trigger -> ingest(loadSlice) -> run(evaluate) -> materialize -> signaling(telemetry)`
  *          вместо ручного `setInterval` + инлайн-SQL в классе демона.
@@ -26,7 +26,7 @@ import {
   readTrackingRunControl,
   resetTrackingWatermark,
 } from "../../../infrastructure/tracking/trackingPipelineStateRepository.js";
-import { loadDedupClosure, runIncrementalBatch, countTrackingPipelineRemaining } from "../trackingRebuildService.js";
+import { loadCandidateWindow, runIncrementalBatch, countTrackingPipelineRemaining } from "../trackingRebuildService.js";
 import { takeTrackingWakeIds } from "../trackingWakePriority.js";
 import type { JobKernelObsConfig } from "../../runtime/runner-platform/jobKernel.js";
 import { reportWorkloadLiveMetrics } from "../../runtime/observability/workloadObsHooks.js";
@@ -84,7 +84,7 @@ export function createTrackingRunner(
         let lastStats: Parameters<NonNullable<Parameters<typeof runIncrementalBatch>[1]["onProgress"]>>[0] = {};
         const result = await runIncrementalBatch(ds, {
           candidates: slice.chunk,
-          dedupClosure: slice.closure,
+          candidateWindow: slice.window,
           fullPendingIds: slice.fullPendingIds,
           rebuildGen: slice.run.rebuildGen,
           config: slice.config,
@@ -124,7 +124,7 @@ export function createTrackingRunner(
 
     const until = new Date();
     const lookbackMs = maxEpsilonTemporalMs(state.config.profiles);
-    const { pending, closure } = await loadDedupClosure(ds, { until, lookbackMs });
+    const { pending, window } = await loadCandidateWindow(ds, { until, lookbackMs });
 
     // Wake с ids → приоритет в batch; без ids — обычный drain batchSize.
     const wakeIds = new Set(takeTrackingWakeIds());
@@ -159,7 +159,7 @@ export function createTrackingRunner(
     const slice: TrackingRunnerSlice = {
       run,
       chunk,
-      closure,
+      window,
       fullPendingIds: new Set(pending.map((c) => c.eventLocationId)),
       totalCandidates,
       config: state.config,
@@ -195,7 +195,7 @@ export function createTrackingRunner(
 const EMPTY_SLICE: TrackingRunnerSlice = {
   run: { id: "", rebuildGen: "", startedAt: "" },
   chunk: [],
-  closure: [],
+  window: [],
   fullPendingIds: new Set(),
   totalCandidates: 0,
   config: {} as TrackingRunnerSlice["config"],

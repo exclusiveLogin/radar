@@ -6,18 +6,18 @@
  * ---
  */
 import type {
-  TrackingPhaseDeps,
-  TrackingPhaseManifest,
-  TrackingPhasePayload,
-} from "./trackingPhaseContracts.js";
-import type { TrackingPhaseRegistry } from "./trackingPhaseRegistry.js";
+  TrackingStepDeps,
+  TrackingStepManifest,
+  TrackingStepPayload,
+} from "./trackingStepContracts.js";
+import type { TrackingStepRegistry } from "./trackingStepRegistry.js";
 
-export function runTrackingPhases(
-  manifest: TrackingPhaseManifest,
-  registry: TrackingPhaseRegistry,
-  payload: TrackingPhasePayload,
-  deps: TrackingPhaseDeps,
-): TrackingPhasePayload {
+export function runTrackingSteps(
+  manifest: TrackingStepManifest,
+  registry: TrackingStepRegistry,
+  payload: TrackingStepPayload,
+  deps: TrackingStepDeps,
+): TrackingStepPayload {
   let current = payload;
   for (const entry of manifest) {
     if (!entry.enabled) continue;

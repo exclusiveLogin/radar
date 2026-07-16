@@ -3,21 +3,21 @@
  * layer: shared
  * kind: domain
  * domain: tracking/stdbscan
- * purpose: Глобальный dedup-граф — ST-DBSCAN на closure (pending + consumed-якоря).
- *          Размер daemon-тика не влияет на схлопывание.
+ * purpose: Candidate window + post-cluster consumed — ST-DBSCAN на окне
+ *          (pending + consumed-якоря). Размер daemon-тика не влияет на схлопывание.
  * ---
  */
 import type { TrackingCandidate } from "../types";
 
-/** Результат загрузки очереди для инкрементального rebuild. */
-export type DedupClosureLoad = {
+/** Результат загрузки candidate window для инкрементального rebuild. */
+export type CandidateWindowLoad = {
   /** Необработанные pipeline-точки (идут в assign + consumed). */
   pending: TrackingCandidate[];
   /**
-   * Множество для ST-DBSCAN: pending ∪ недавние consumed в окне ε_temporal.
+   * Окно для ST-DBSCAN: pending ∪ недавние consumed в lookback ε_temporal.
    * Якоря не назначаются повторно.
    */
-  closure: TrackingCandidate[];
+  window: TrackingCandidate[];
   lookbackMs: number;
 };
 
@@ -64,7 +64,7 @@ export function resolvePendingConsumedAfterDedup(
 }
 
 /** Уникальные кандидаты по eventLocationId (pending перекрывает anchor). */
-export function mergeDedupClosure(
+export function mergeCandidateWindow(
   pending: TrackingCandidate[],
   anchors: TrackingCandidate[],
 ): TrackingCandidate[] {

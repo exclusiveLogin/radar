@@ -18,7 +18,7 @@ export type TrackingCursorSnapshot = TrackingPipelineState;
 export type TrackingRunnerSlice = {
   run: TrackingActiveRun;
   chunk: TrackingCandidate[];
-  closure: TrackingCandidate[];
+  window: TrackingCandidate[];
   fullPendingIds: ReadonlySet<string>;
   totalCandidates: number;
   config: TrackingPipelineConfig;

@@ -18,7 +18,7 @@ import {
 } from "../../flowAlignment";
 import type { ProfileKinematics } from "../../profileKinematics";
 import type { H3VectorFlowMap } from "../flow-map/H3VectorFlowMap";
-import type { NextGenNode } from "../phase1-stdbscan/NextGenPhase1";
+import type { NextGenNode } from "../step1-stdbscan/NextGenStep1";
 import { blendedAlignment } from "../nextgenGravity";
 
 export interface NextGenSegment {
@@ -32,7 +32,7 @@ export interface NextGenSegment {
   azimuth: number;
 }
 
-export interface NextGenPhase2Stats {
+export interface NextGenStep2Stats {
   pairsConsidered: number;
   pairsAccepted: number;
   pairsRejectedKinematics: number;
@@ -47,7 +47,7 @@ type PairCompatibility = {
   rejectedByKinematics: boolean;
 };
 
-export class NextGenPhase2 {
+export class NextGenStep2 {
   /**
    * Принимает отсортированные по времени ноды.
    * Разбивает на окна, строит матрицу, возвращает жесткие пары (отрезки).
@@ -58,7 +58,7 @@ export class NextGenPhase2 {
     flowMap: H3VectorFlowMap,
     flowWeights: FlowAlignmentWeights,
     rflPenaltyThreshold: number,
-  ): { segments: NextGenSegment[]; stats: NextGenPhase2Stats } {
+  ): { segments: NextGenSegment[]; stats: NextGenStep2Stats } {
     const segments: NextGenSegment[] = [];
     const acceptedReliability: number[] = [];
     let pairsConsidered = 0;

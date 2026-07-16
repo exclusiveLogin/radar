@@ -11,7 +11,7 @@ import { ParseErrorsWidget } from "./widgets/ParseErrorsWidget";
 import { TelemetryWidget } from "./widgets/TelemetryWidget";
 import { WorkerRunnersWidget } from "./widgets/WorkerRunnersWidget";
 import { TrackingPipelineWidget } from "./widgets/TrackingPipelineWidget";
-import { TrackingPhaseProgressWidget } from "./widgets/TrackingPhaseProgressWidget";
+import { TrackingStepProgressWidget } from "./widgets/TrackingStepProgressWidget";
 import { TrackingKinematicsSettingsWidget } from "./widgets/TrackingKinematicsSettingsWidget";
 import { TrackingRunHistoryWidget } from "./widgets/TrackingRunHistoryWidget";
 import { RunnerDiscoveryWidget } from "./widgets/RunnerDiscoveryWidget";
@@ -70,7 +70,7 @@ export const ADMIN_LAYOUT_SECTIONS: AdminLayoutSection[] = [
     title: "Треки",
     widgets: [
       { id: "tracking-pipeline", component: TrackingPipelineWidget, span: 12 },
-      { id: "tracking-phase-progress", component: TrackingPhaseProgressWidget, span: 12 },
+      { id: "tracking-step-progress", component: TrackingStepProgressWidget, span: 12 },
       { id: "tracking-settings", component: TrackingKinematicsSettingsWidget, span: 12 },
       { id: "tracking-runs", component: TrackingRunHistoryWidget, span: 12 },
     ],

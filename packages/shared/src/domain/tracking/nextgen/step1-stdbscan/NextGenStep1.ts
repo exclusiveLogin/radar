@@ -18,7 +18,7 @@ export interface NextGenNode extends TrackingCandidate {
   mass: number;
 }
 
-export class NextGenPhase1 {
+export class NextGenStep1 {
   /**
    * Запускает ST-DBSCAN для удаления дублей и превращает оставшихся кандидатов в атомарные ноды.
    */

@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import {
-  DEFAULT_TRACKING_PHASE_MANIFEST,
+  DEFAULT_TRACKING_STEP_MANIFEST,
   workbookObservabilityResponseSchema,
   type ActiveWorkload,
   type PhaseRun,
@@ -42,7 +42,7 @@ export class WorkbookAdminService {
     const registry: WorkbookRegistryEntry[] = [
       {
         pipelineKey: "tracking",
-        phases: DEFAULT_TRACKING_PHASE_MANIFEST.map((phase) => ({
+        phases: DEFAULT_TRACKING_STEP_MANIFEST.map((phase) => ({
           id: phase.id,
           enabled: phase.enabled,
         })),

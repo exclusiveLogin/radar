@@ -48,7 +48,7 @@ import {
   writeTracksL1,
   type BuiltTracks,
 } from "../../infrastructure/tracking/trackingTracksWriteRepository.js";
-import { buildTracksViaNextGenPipeline, type TrackingClusterPhaseStats } from "./pipeline/index.js";
+import { buildTracksViaNextGenPipeline, type TrackingClusterStepStats } from "./pipeline/index.js";
 import { randomUUID } from "crypto";
 
 type RebuildOptions = {
@@ -135,8 +135,8 @@ export type IncrementalBatchResult = {
 export type IncrementalBatchOptions = {
   /** Pending-тик (chunk) — assign + consumed. */
   candidates: TrackingCandidate[];
-  /** Глобальный dedup closure; по умолчанию = candidates. */
-  dedupClosure?: TrackingCandidate[];
+  /** Candidate window для ST-DBSCAN; по умолчанию = candidates. */
+  candidateWindow?: TrackingCandidate[];
   /** Все pending в очереди (для consumed после глобального dedup). */
   fullPendingIds?: ReadonlySet<string>;
   rebuildGen: string;
@@ -152,24 +152,24 @@ type NextGenClusterProgress = {
   nodesOut: number;
 };
 
-type NextGenPhase2Progress = {
-  phase2PairsConsidered: number;
-  phase2PairsAccepted: number;
-  phase2PairsRejectedByKinematics: number;
-  phase2ReliabilityAvg: number;
-  phase2ReliabilityP95: number;
+type NextGenStep2Progress = {
+  step2PairsConsidered: number;
+  step2PairsAccepted: number;
+  step2PairsRejectedByKinematics: number;
+  step2ReliabilityAvg: number;
+  step2ReliabilityP95: number;
 };
 
-type NextGenPhase3Progress = {
-  phase3LinksConsidered: number;
-  phase3LinksAccepted: number;
-  phase3NodesSeeded: number;
-  phase3RejectGap: number;
-  phase3RejectDistance: number;
-  phase3RejectVelocity: number;
-  phase3RejectCounterFlow: number;
-  phase3RejectTurn: number;
-  phase3RejectKalmanInnovation: number;
+type NextGenStep3Progress = {
+  step3LinksConsidered: number;
+  step3LinksAccepted: number;
+  step3NodesSeeded: number;
+  step3RejectGap: number;
+  step3RejectDistance: number;
+  step3RejectVelocity: number;
+  step3RejectCounterFlow: number;
+  step3RejectTurn: number;
+  step3RejectKalmanInnovation: number;
 };
 
 async function emitProgress(
@@ -187,34 +187,34 @@ export async function runIncrementalBatch(
   const rebuildAt = opts.rebuildAt ?? new Date();
   const chunkIds = new Set(opts.candidates.map(c => c.eventLocationId));
   const fullPendingIds = opts.fullPendingIds ?? chunkIds;
-  const dedupClosure = opts.dedupClosure ?? opts.candidates;
+  const candidateWindow = opts.candidateWindow ?? opts.candidates;
   await emitProgress(opts.onProgress, { stage: "loading" });
 
   const openTrackSeeds = await loadOpenTrackSeeds(ds, rebuildAt, opts.config);
-  const byProfile = groupByProfile(dedupClosure);
+  const byProfile = groupByProfile(candidateWindow);
   let collapsedByDedup = 0;
   let stdbscanClusters = 0;
   let kalmanTracksOpen = 0;
   let kalmanTracksClosed = 0;
   let kalmanNodesAdded = 0;
   const nextGenClusterAgg: NextGenClusterProgress = { candidatesIn: 0, nodesOut: 0 };
-  const nextGenPhase2Agg: NextGenPhase2Progress = {
-    phase2PairsConsidered: 0,
-    phase2PairsAccepted: 0,
-    phase2PairsRejectedByKinematics: 0,
-    phase2ReliabilityAvg: 0,
-    phase2ReliabilityP95: 0,
+  const nextGenStep2Agg: NextGenStep2Progress = {
+    step2PairsConsidered: 0,
+    step2PairsAccepted: 0,
+    step2PairsRejectedByKinematics: 0,
+    step2ReliabilityAvg: 0,
+    step2ReliabilityP95: 0,
   };
-  const nextGenPhase3Agg: NextGenPhase3Progress = {
-    phase3LinksConsidered: 0,
-    phase3LinksAccepted: 0,
-    phase3NodesSeeded: 0,
-    phase3RejectGap: 0,
-    phase3RejectDistance: 0,
-    phase3RejectVelocity: 0,
-    phase3RejectCounterFlow: 0,
-    phase3RejectTurn: 0,
-    phase3RejectKalmanInnovation: 0,
+  const nextGenStep3Agg: NextGenStep3Progress = {
+    step3LinksConsidered: 0,
+    step3LinksAccepted: 0,
+    step3NodesSeeded: 0,
+    step3RejectGap: 0,
+    step3RejectDistance: 0,
+    step3RejectVelocity: 0,
+    step3RejectCounterFlow: 0,
+    step3RejectTurn: 0,
+    step3RejectKalmanInnovation: 0,
   };
   let nextGenProfilesWithAccepted = 0;
   const built: BuiltTracks = { tracks: [], nodes: [] };
@@ -222,7 +222,7 @@ export async function runIncrementalBatch(
   const handledIds = new Set<string>();
 
   const seedWeights = resolveSeedWeights(opts.config);
-  const gravityIndex = resolvePlaceGravityForRebuild(dedupClosure, opts.config, seedWeights);
+  const gravityIndex = resolvePlaceGravityForRebuild(candidateWindow, opts.config, seedWeights);
 
   for (const profile of Object.keys(byProfile) as ThreatProfile[]) {
     await emitProgress(opts.onProgress, { stage: "cluster" });
@@ -258,23 +258,23 @@ export async function runIncrementalBatch(
     kalmanNodesAdded += profileBuilt.nodes.length;
     nextGenClusterAgg.candidatesIn += profileBuilt.nextgenCluster.candidatesIn;
     nextGenClusterAgg.nodesOut += profileBuilt.nextgenCluster.nodesOut;
-    nextGenPhase2Agg.phase2PairsConsidered += profileBuilt.nextgenPhase2.phase2PairsConsidered;
-    nextGenPhase2Agg.phase2PairsAccepted += profileBuilt.nextgenPhase2.phase2PairsAccepted;
-    nextGenPhase2Agg.phase2PairsRejectedByKinematics += profileBuilt.nextgenPhase2.phase2PairsRejectedByKinematics;
-    if (profileBuilt.nextgenPhase2.phase2PairsAccepted > 0) {
+    nextGenStep2Agg.step2PairsConsidered += profileBuilt.nextgenStep2.step2PairsConsidered;
+    nextGenStep2Agg.step2PairsAccepted += profileBuilt.nextgenStep2.step2PairsAccepted;
+    nextGenStep2Agg.step2PairsRejectedByKinematics += profileBuilt.nextgenStep2.step2PairsRejectedByKinematics;
+    if (profileBuilt.nextgenStep2.step2PairsAccepted > 0) {
       nextGenProfilesWithAccepted += 1;
-      nextGenPhase2Agg.phase2ReliabilityAvg += profileBuilt.nextgenPhase2.phase2ReliabilityAvg;
-      nextGenPhase2Agg.phase2ReliabilityP95 += profileBuilt.nextgenPhase2.phase2ReliabilityP95;
+      nextGenStep2Agg.step2ReliabilityAvg += profileBuilt.nextgenStep2.step2ReliabilityAvg;
+      nextGenStep2Agg.step2ReliabilityP95 += profileBuilt.nextgenStep2.step2ReliabilityP95;
     }
-    nextGenPhase3Agg.phase3LinksConsidered += profileBuilt.nextgenPhase3.phase3LinksConsidered;
-    nextGenPhase3Agg.phase3LinksAccepted += profileBuilt.nextgenPhase3.phase3LinksAccepted;
-    nextGenPhase3Agg.phase3NodesSeeded += profileBuilt.nextgenPhase3.phase3NodesSeeded;
-    nextGenPhase3Agg.phase3RejectGap += profileBuilt.nextgenPhase3.phase3RejectGap;
-    nextGenPhase3Agg.phase3RejectDistance += profileBuilt.nextgenPhase3.phase3RejectDistance;
-    nextGenPhase3Agg.phase3RejectVelocity += profileBuilt.nextgenPhase3.phase3RejectVelocity;
-    nextGenPhase3Agg.phase3RejectCounterFlow += profileBuilt.nextgenPhase3.phase3RejectCounterFlow;
-    nextGenPhase3Agg.phase3RejectTurn += profileBuilt.nextgenPhase3.phase3RejectTurn;
-    nextGenPhase3Agg.phase3RejectKalmanInnovation += profileBuilt.nextgenPhase3.phase3RejectKalmanInnovation;
+    nextGenStep3Agg.step3LinksConsidered += profileBuilt.nextgenStep3.step3LinksConsidered;
+    nextGenStep3Agg.step3LinksAccepted += profileBuilt.nextgenStep3.step3LinksAccepted;
+    nextGenStep3Agg.step3NodesSeeded += profileBuilt.nextgenStep3.step3NodesSeeded;
+    nextGenStep3Agg.step3RejectGap += profileBuilt.nextgenStep3.step3RejectGap;
+    nextGenStep3Agg.step3RejectDistance += profileBuilt.nextgenStep3.step3RejectDistance;
+    nextGenStep3Agg.step3RejectVelocity += profileBuilt.nextgenStep3.step3RejectVelocity;
+    nextGenStep3Agg.step3RejectCounterFlow += profileBuilt.nextgenStep3.step3RejectCounterFlow;
+    nextGenStep3Agg.step3RejectTurn += profileBuilt.nextgenStep3.step3RejectTurn;
+    nextGenStep3Agg.step3RejectKalmanInnovation += profileBuilt.nextgenStep3.step3RejectKalmanInnovation;
 
     await emitProgress(opts.onProgress, {
       stage: "join",
@@ -285,8 +285,8 @@ export async function runIncrementalBatch(
       kalmanNodesAdded,
       ...nextGenProgressPatch(
         nextGenClusterAgg,
-        nextGenPhase2Agg,
-        nextGenPhase3Agg,
+        nextGenStep2Agg,
+        nextGenStep3Agg,
         nextGenProfilesWithAccepted,
         { tracksOpen: kalmanTracksOpen, tracksClosed: kalmanTracksClosed, nodesAdded: kalmanNodesAdded },
       ),
@@ -302,8 +302,8 @@ export async function runIncrementalBatch(
     kalmanNodesAdded,
     ...nextGenProgressPatch(
       nextGenClusterAgg,
-      nextGenPhase2Agg,
-      nextGenPhase3Agg,
+      nextGenStep2Agg,
+      nextGenStep3Agg,
       nextGenProfilesWithAccepted,
       { tracksOpen: kalmanTracksOpen, tracksClosed: kalmanTracksClosed, nodesAdded: kalmanNodesAdded },
     ),
@@ -346,8 +346,8 @@ export async function runIncrementalBatch(
     kalmanNodesAdded,
     ...nextGenProgressPatch(
       nextGenClusterAgg,
-      nextGenPhase2Agg,
-      nextGenPhase3Agg,
+      nextGenStep2Agg,
+      nextGenStep3Agg,
       nextGenProfilesWithAccepted,
       { tracksOpen: kalmanTracksOpen, tracksClosed: kalmanTracksClosed, nodesAdded: kalmanNodesAdded },
     ),
@@ -364,64 +364,64 @@ export async function runIncrementalBatch(
 
 function nextGenProgressPatch(
   cluster: NextGenClusterProgress,
-  phase2: NextGenPhase2Progress,
-  phase3: NextGenPhase3Progress,
+  phase2: NextGenStep2Progress,
+  phase3: NextGenStep3Progress,
   profilesWithAccepted: number,
   joinTrackCounts: { tracksOpen: number; tracksClosed: number; nodesAdded: number },
 ): Partial<TrackingRebuildStats> {
-  const reliabilityAvg = profilesWithAccepted > 0 ? phase2.phase2ReliabilityAvg / profilesWithAccepted : 0;
-  const reliabilityP95 = profilesWithAccepted > 0 ? phase2.phase2ReliabilityP95 / profilesWithAccepted : 0;
+  const reliabilityAvg = profilesWithAccepted > 0 ? phase2.step2ReliabilityAvg / profilesWithAccepted : 0;
+  const reliabilityP95 = profilesWithAccepted > 0 ? phase2.step2ReliabilityP95 / profilesWithAccepted : 0;
   return {
-    ...(phase2.phase2PairsConsidered > 0
+    ...(phase2.step2PairsConsidered > 0
       ? {
-          phase2PairsConsidered: phase2.phase2PairsConsidered,
-          phase2PairsAccepted: phase2.phase2PairsAccepted,
-          phase2PairsRejectedByKinematics: phase2.phase2PairsRejectedByKinematics,
-          phase2ReliabilityAvg: reliabilityAvg,
-          phase2ReliabilityP95: reliabilityP95,
+          step2PairsConsidered: phase2.step2PairsConsidered,
+          step2PairsAccepted: phase2.step2PairsAccepted,
+          step2PairsRejectedByKinematics: phase2.step2PairsRejectedByKinematics,
+          step2ReliabilityAvg: reliabilityAvg,
+          step2ReliabilityP95: reliabilityP95,
         }
       : {}),
-    ...(phase3.phase3LinksConsidered > 0
+    ...(phase3.step3LinksConsidered > 0
       ? {
-          phase3LinksConsidered: phase3.phase3LinksConsidered,
-          phase3LinksAccepted: phase3.phase3LinksAccepted,
-          phase3NodesSeeded: phase3.phase3NodesSeeded,
-          phase3RejectGap: phase3.phase3RejectGap,
-          phase3RejectDistance: phase3.phase3RejectDistance,
-          phase3RejectVelocity: phase3.phase3RejectVelocity,
-          phase3RejectCounterFlow: phase3.phase3RejectCounterFlow,
-          phase3RejectTurn: phase3.phase3RejectTurn,
-          phase3RejectKalmanInnovation: phase3.phase3RejectKalmanInnovation,
+          step3LinksConsidered: phase3.step3LinksConsidered,
+          step3LinksAccepted: phase3.step3LinksAccepted,
+          step3NodesSeeded: phase3.step3NodesSeeded,
+          step3RejectGap: phase3.step3RejectGap,
+          step3RejectDistance: phase3.step3RejectDistance,
+          step3RejectVelocity: phase3.step3RejectVelocity,
+          step3RejectCounterFlow: phase3.step3RejectCounterFlow,
+          step3RejectTurn: phase3.step3RejectTurn,
+          step3RejectKalmanInnovation: phase3.step3RejectKalmanInnovation,
         }
       : {}),
-    phaseStats: {
+    stepStats: {
       ...(cluster.candidatesIn > 0
         ? { cluster: { candidatesIn: cluster.candidatesIn, nodesOut: cluster.nodesOut } }
         : {}),
-      ...(phase2.phase2PairsConsidered > 0
+      ...(phase2.step2PairsConsidered > 0
         ? {
             field_train: {
-              pairsConsidered: phase2.phase2PairsConsidered,
-              pairsAccepted: phase2.phase2PairsAccepted,
-              pairsRejectedByKinematics: phase2.phase2PairsRejectedByKinematics,
+              pairsConsidered: phase2.step2PairsConsidered,
+              pairsAccepted: phase2.step2PairsAccepted,
+              pairsRejectedByKinematics: phase2.step2PairsRejectedByKinematics,
               reliabilityAvg,
               reliabilityP95,
             },
           }
         : {}),
-      ...(phase3.phase3LinksConsidered > 0
+      ...(phase3.step3LinksConsidered > 0
         ? {
             join: {
-              linksConsidered: phase3.phase3LinksConsidered,
-              linksAccepted: phase3.phase3LinksAccepted,
-              nodesSeeded: phase3.phase3NodesSeeded,
+              linksConsidered: phase3.step3LinksConsidered,
+              linksAccepted: phase3.step3LinksAccepted,
+              nodesSeeded: phase3.step3NodesSeeded,
               ...joinTrackCounts,
-              rejectGap: phase3.phase3RejectGap,
-              rejectDistance: phase3.phase3RejectDistance,
-              rejectVelocity: phase3.phase3RejectVelocity,
-              rejectCounterFlow: phase3.phase3RejectCounterFlow,
-              rejectTurn: phase3.phase3RejectTurn,
-              rejectKalmanInnovation: phase3.phase3RejectKalmanInnovation,
+              rejectGap: phase3.step3RejectGap,
+              rejectDistance: phase3.step3RejectDistance,
+              rejectVelocity: phase3.step3RejectVelocity,
+              rejectCounterFlow: phase3.step3RejectCounterFlow,
+              rejectTurn: phase3.step3RejectTurn,
+              rejectKalmanInnovation: phase3.step3RejectKalmanInnovation,
             },
           }
         : {}),
@@ -430,7 +430,7 @@ function nextGenProgressPatch(
 }
 
 export {
-  loadDedupClosure,
+  loadCandidateWindow,
   loadPendingTrackingCandidates,
   loadTrackingCandidatesBatch,
   countTrackingCandidates,
@@ -512,9 +512,9 @@ function computeWatermark(candidates: TrackingCandidate[]): TrackingWatermark | 
 const NEXTGEN_MAX_OPEN_TRACKS = 400;
 
 type NextGenBuildProgress = {
-  nextgenCluster: TrackingClusterPhaseStats;
-  nextgenPhase2: NextGenPhase2Progress;
-  nextgenPhase3: NextGenPhase3Progress;
+  nextgenCluster: TrackingClusterStepStats;
+  nextgenStep2: NextGenStep2Progress;
+  nextgenStep3: NextGenStep3Progress;
 };
 
 /**
@@ -550,23 +550,23 @@ function buildTracksNextGenForProfile(
   return {
     ...finalizeTracks(drafts, new Date()),
     nextgenCluster: built.cluster,
-    nextgenPhase2: {
-      phase2PairsConsidered: built.phase2.pairsConsidered,
-      phase2PairsAccepted: built.phase2.pairsAccepted,
-      phase2PairsRejectedByKinematics: built.phase2.pairsRejectedKinematics,
-      phase2ReliabilityAvg: built.phase2.reliabilityAvg,
-      phase2ReliabilityP95: built.phase2.reliabilityP95,
+    nextgenStep2: {
+      step2PairsConsidered: built.phase2.pairsConsidered,
+      step2PairsAccepted: built.phase2.pairsAccepted,
+      step2PairsRejectedByKinematics: built.phase2.pairsRejectedKinematics,
+      step2ReliabilityAvg: built.phase2.reliabilityAvg,
+      step2ReliabilityP95: built.phase2.reliabilityP95,
     },
-    nextgenPhase3: {
-      phase3LinksConsidered: built.phase3.linksConsidered,
-      phase3LinksAccepted: built.phase3.linksAccepted,
-      phase3NodesSeeded: built.phase3.nodesSeeded,
-      phase3RejectGap: built.phase3.rejectGap,
-      phase3RejectDistance: built.phase3.rejectDistance,
-      phase3RejectVelocity: built.phase3.rejectVelocity,
-      phase3RejectCounterFlow: built.phase3.rejectCounterFlow,
-      phase3RejectTurn: built.phase3.rejectTurn,
-      phase3RejectKalmanInnovation: built.phase3.rejectKalmanInnovation,
+    nextgenStep3: {
+      step3LinksConsidered: built.phase3.linksConsidered,
+      step3LinksAccepted: built.phase3.linksAccepted,
+      step3NodesSeeded: built.phase3.nodesSeeded,
+      step3RejectGap: built.phase3.rejectGap,
+      step3RejectDistance: built.phase3.rejectDistance,
+      step3RejectVelocity: built.phase3.rejectVelocity,
+      step3RejectCounterFlow: built.phase3.rejectCounterFlow,
+      step3RejectTurn: built.phase3.rejectTurn,
+      step3RejectKalmanInnovation: built.phase3.rejectKalmanInnovation,
     },
   };
 }

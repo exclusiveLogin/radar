@@ -16,7 +16,7 @@ import { segmentVelocityMps } from "../rearFrontGate";
 import type { FlowAlignmentWeights } from "../flowAlignment";
 import type { ProfileKinematics } from "../profileKinematics";
 import type { KalmanStateJson, TrajectoryNode } from "../types";
-import type { NextGenNode } from "./phase1-stdbscan/NextGenPhase1";
+import type { NextGenNode } from "./step1-stdbscan/NextGenStep1";
 import {
   evaluateLinkWithReason,
   type LinkEvaluation,

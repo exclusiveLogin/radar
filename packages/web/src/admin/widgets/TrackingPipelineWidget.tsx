@@ -204,8 +204,8 @@ export function TrackingPipelineWidget() {
                 : ""}
               {" · "}очередь{" "}
               {status.metrics?.unconsumedPipeline?.toLocaleString("ru-RU") ?? "—"}
-              {" · "}closure{" "}
-              {status.metrics?.dedupClosureSize?.toLocaleString("ru-RU") ?? "—"}
+              {" · "}window{" "}
+              {status.metrics?.candidateWindowSize?.toLocaleString("ru-RU") ?? "—"}
               {activeRun?.stats?.stage && activeRun.stats.stage !== "idle" && (
                 <> · стадия: {activeRun.stats.stage}</>
               )}

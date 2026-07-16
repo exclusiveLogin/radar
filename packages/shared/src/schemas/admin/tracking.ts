@@ -10,7 +10,7 @@
 import { z } from "zod";
 import { threatProfileSchema } from "../map/tracks";
 
-export const trackingPhaseIdSchema = z.enum([
+export const trackingStepIdSchema = z.enum([
   "cluster",
   "filter",
   "field_train",
@@ -25,9 +25,6 @@ export const trackingRebuildStageSchema = z.enum([
   "join",
   "persisting",
   "done",
-  /** @deprecated legacy-имена стадий тика, оставлены для чтения истории старых runs. */
-  "stdbscan",
-  "kalman",
 ]);
 
 export const trackingWatermarkSchema = z.object({
@@ -36,13 +33,13 @@ export const trackingWatermarkSchema = z.object({
 });
 
 /** cluster: сколько кандидатов вошло / сколько узлов сформировал ST-DBSCAN. */
-export const trackingClusterPhaseStatsSchema = z.object({
+export const trackingClusterStepStatsSchema = z.object({
   candidatesIn: z.number().int().nonnegative(),
   nodesOut: z.number().int().nonnegative(),
 });
 
 /** field_train: обучение H3-поля на парах узлов (Ф2 NextGen). */
-export const trackingFieldTrainPhaseStatsSchema = z.object({
+export const trackingFieldTrainStepStatsSchema = z.object({
   pairsConsidered: z.number().int().nonnegative(),
   pairsAccepted: z.number().int().nonnegative(),
   pairsRejectedByKinematics: z.number().int().nonnegative(),
@@ -51,7 +48,7 @@ export const trackingFieldTrainPhaseStatsSchema = z.object({
 });
 
 /** join: хронологическая сборка треков по Kalman-локусу + H3-гравитации (Ф3 NextGen). */
-export const trackingJoinPhaseStatsSchema = z.object({
+export const trackingJoinStepStatsSchema = z.object({
   linksConsidered: z.number().int().nonnegative(),
   linksAccepted: z.number().int().nonnegative(),
   nodesSeeded: z.number().int().nonnegative(),
@@ -66,21 +63,21 @@ export const trackingJoinPhaseStatsSchema = z.object({
   rejectKalmanInnovation: z.number().int().nonnegative(),
 });
 
-/** Разбивка статистики run/тика по фазам NextGen (filter/optimize — без stats, identity passthrough). */
-export const trackingPhaseStatsSchema = z.object({
-  cluster: trackingClusterPhaseStatsSchema.optional(),
-  field_train: trackingFieldTrainPhaseStatsSchema.optional(),
-  join: trackingJoinPhaseStatsSchema.optional(),
+/** Разбивка статистики run/тика по steps NextGen (filter/optimize — без stats, identity passthrough). */
+export const trackingStepStatsSchema = z.object({
+  cluster: trackingClusterStepStatsSchema.optional(),
+  field_train: trackingFieldTrainStepStatsSchema.optional(),
+  join: trackingJoinStepStatsSchema.optional(),
 });
 
-export const trackingRebuildStatsSchema = z.object({
+export const trackingRebuildStatsObjectSchema = z.object({
   stage: trackingRebuildStageSchema,
-  /** Размер тика daemon (сколько pending assign за проход). Dedup closure — глобальный. */
+  /** Размер тика daemon (сколько pending assign за проход). Candidate window — глобальный. */
   batchSize: z.number().int().nonnegative().optional(),
   /** Точек в pending-очереди тика. */
   pendingCandidates: z.number().int().nonnegative().optional(),
-  /** Размер dedup closure (pending + consumed якоря). */
-  dedupClosureSize: z.number().int().nonnegative().optional(),
+  /** Размер candidate window (pending + consumed якоря). */
+  candidateWindowSize: z.number().int().nonnegative().optional(),
   batchIndex: z.number().int().nonnegative().optional(),
   processedCandidates: z.number().int().nonnegative().optional(),
   totalCandidates: z.number().int().nonnegative().optional(),
@@ -93,32 +90,35 @@ export const trackingRebuildStatsSchema = z.object({
   attentionConflicts: z.number().int().nonnegative().optional(),
   softAssigns: z.number().int().nonnegative().optional(),
   /** Ф2 NextGen: сколько пар рассмотрено в окне обучения H3. */
-  phase2PairsConsidered: z.number().int().nonnegative().optional(),
+  step2PairsConsidered: z.number().int().nonnegative().optional(),
   /** Ф2 NextGen: сколько пар прошло векторацию и попало в поле. */
-  phase2PairsAccepted: z.number().int().nonnegative().optional(),
+  step2PairsAccepted: z.number().int().nonnegative().optional(),
   /** Ф2 NextGen: сколько пар отклонено кинематическим коррелятором. */
-  phase2PairsRejectedByKinematics: z.number().int().nonnegative().optional(),
+  step2PairsRejectedByKinematics: z.number().int().nonnegative().optional(),
   /** Ф2 NextGen: средняя достоверность принятых пар (0..1). */
-  phase2ReliabilityAvg: z.number().min(0).max(1).optional(),
+  step2ReliabilityAvg: z.number().min(0).max(1).optional(),
   /** Ф2 NextGen: P95 достоверности принятых пар (0..1). */
-  phase2ReliabilityP95: z.number().min(0).max(1).optional(),
+  step2ReliabilityP95: z.number().min(0).max(1).optional(),
   /** Ф3 NextGen: сколько candidate→track линков оценено. */
-  phase3LinksConsidered: z.number().int().nonnegative().optional(),
+  step3LinksConsidered: z.number().int().nonnegative().optional(),
   /** Ф3 NextGen: сколько линков принято и привело к append ноды. */
-  phase3LinksAccepted: z.number().int().nonnegative().optional(),
+  step3LinksAccepted: z.number().int().nonnegative().optional(),
   /** Ф3 NextGen: сколько нод засеяно новым треком (не нашли валидный link). */
-  phase3NodesSeeded: z.number().int().nonnegative().optional(),
+  step3NodesSeeded: z.number().int().nonnegative().optional(),
   /** Ф3 NextGen reject-диагностика по причинам. */
-  phase3RejectGap: z.number().int().nonnegative().optional(),
-  phase3RejectDistance: z.number().int().nonnegative().optional(),
-  phase3RejectVelocity: z.number().int().nonnegative().optional(),
-  phase3RejectCounterFlow: z.number().int().nonnegative().optional(),
-  phase3RejectTurn: z.number().int().nonnegative().optional(),
-  phase3RejectKalmanInnovation: z.number().int().nonnegative().optional(),
+  step3RejectGap: z.number().int().nonnegative().optional(),
+  step3RejectDistance: z.number().int().nonnegative().optional(),
+  step3RejectVelocity: z.number().int().nonnegative().optional(),
+  step3RejectCounterFlow: z.number().int().nonnegative().optional(),
+  step3RejectTurn: z.number().int().nonnegative().optional(),
+  step3RejectKalmanInnovation: z.number().int().nonnegative().optional(),
   elapsedMs: z.number().int().nonnegative().optional(),
-  /** Статистика по 5-фазному NextGen pipeline (SSOT для UI-блоков по фазам). */
-  phaseStats: trackingPhaseStatsSchema.optional(),
+  /** Статистика по NextGen step-constructor pipeline (SSOT для UI-блоков по фазам). */
+  stepStats: trackingStepStatsSchema.optional(),
 });
+
+/** SSOT-схема stats run/тика. Rename ключей — только через SQL-миграцию. */
+export const trackingRebuildStatsSchema = trackingRebuildStatsObjectSchema;
 
 /** Агрегированные метрики пайплайна для админки. */
 export const trackingPipelineMetricsSchema = z.object({
@@ -126,8 +126,8 @@ export const trackingPipelineMetricsSchema = z.object({
   totalTargetCandidates: z.number().int().nonnegative(),
   /** Очередь: ещё не прошли пайплайн. */
   unconsumedPipeline: z.number().int().nonnegative(),
-  /** Размер dedup closure (pending + consumed-якоря) — live для админки. */
-  dedupClosureSize: z.number().int().nonnegative().optional(),
+  /** Размер candidate window (pending + consumed-якоря) — live для админки. */
+  candidateWindowSize: z.number().int().nonnegative().optional(),
   /** Фактический размер тика daemon с учётом cap. */
   effectiveBatchSize: z.number().int().positive().optional(),
   processedCandidates: z.number().int().nonnegative(),
@@ -155,7 +155,7 @@ export const trackingRebuildRunSchema = z.object({
   since: z.string().datetime(),
   until: z.string().datetime(),
   rebuildGen: z.string(),
-  stats: trackingRebuildStatsSchema.partial(),
+  stats: trackingRebuildStatsObjectSchema.partial(),
   checkpoint: trackingWatermarkSchema.nullable().optional(),
   error: z.string().nullable().optional(),
 });
@@ -270,9 +270,9 @@ export const trackingPipelineStatusSchema = z.object({
   remainingCandidates: z.number().int().nonnegative().optional(),
 });
 
-/** Состав фаз NextGen pipeline (id + enabled) — источник для phase-блоков в admin UI. */
-export const trackingPhaseManifestEntrySchema = z.object({
-  id: trackingPhaseIdSchema,
+/** Состав steps NextGen pipeline (id + enabled) — источник для step-блоков в admin UI. */
+export const trackingStepManifestEntrySchema = z.object({
+  id: trackingStepIdSchema,
   enabled: z.boolean(),
 });
 
@@ -289,18 +289,18 @@ export const trackingStatusResponseSchema = z.object({
   percentApprox: z.number().min(0).max(100),
   metrics: trackingPipelineMetricsSchema,
   config: trackingPipelineConfigSchema,
-  /** Состав фаз pipeline (SSOT: @radar/shared DEFAULT_TRACKING_PHASE_MANIFEST). */
-  phaseManifest: z.array(trackingPhaseManifestEntrySchema),
+  /** Состав steps pipeline (SSOT: @radar/shared DEFAULT_TRACKING_STEP_MANIFEST). */
+  stepManifest: z.array(trackingStepManifestEntrySchema),
 });
 
 export type TrackingPipelineMetrics = z.infer<typeof trackingPipelineMetricsSchema>;
 
 export type TrackingRebuildStage = z.infer<typeof trackingRebuildStageSchema>;
 export type TrackingWatermark = z.infer<typeof trackingWatermarkSchema>;
-export type TrackingClusterPhaseStats = z.infer<typeof trackingClusterPhaseStatsSchema>;
-export type TrackingFieldTrainPhaseStats = z.infer<typeof trackingFieldTrainPhaseStatsSchema>;
-export type TrackingJoinPhaseStats = z.infer<typeof trackingJoinPhaseStatsSchema>;
-export type TrackingPhaseStats = z.infer<typeof trackingPhaseStatsSchema>;
+export type TrackingClusterStepStats = z.infer<typeof trackingClusterStepStatsSchema>;
+export type TrackingFieldTrainStepStats = z.infer<typeof trackingFieldTrainStepStatsSchema>;
+export type TrackingJoinStepStats = z.infer<typeof trackingJoinStepStatsSchema>;
+export type TrackingStepStats = z.infer<typeof trackingStepStatsSchema>;
 export type TrackingRebuildStats = z.infer<typeof trackingRebuildStatsSchema>;
 export type TrackingRebuildRun = z.infer<typeof trackingRebuildRunSchema>;
 export type TrackingPipelineConfig = z.infer<typeof trackingPipelineConfigSchema>;

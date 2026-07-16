@@ -15,7 +15,7 @@ import { randomUUID } from "crypto";
 import { DEFAULT_WORKER_RUNTIME_MANIFEST } from "@radar/shared/manifest/domains/workerRuntime.loader.js";
 import {
   countTrackingPipelineRemaining,
-  loadDedupClosure,
+  loadCandidateWindow,
   runIncrementalBatch,
 } from "../../tracking/trackingRebuildService.js";
 import type { ObsTickReporter } from "./obsTickReporter.js";
@@ -95,12 +95,12 @@ export class TrackingRebuildDaemon {
       await this.touchRunHeartbeat(state.active_run_id, { stage: "loading" });
     }
 
-    let closureLoad;
+    let windowLoad;
     try {
-      closureLoad = await loadDedupClosure(this.ds, { until, lookbackMs });
+      windowLoad = await loadCandidateWindow(this.ds, { until, lookbackMs });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      console.error("[tracking-daemon] dedup closure load failed:", message);
+      console.error("[tracking-daemon] candidate window load failed:", message);
       const staleRun = await this.ensureActiveRun(state, true);
       if (staleRun) {
         await this.failRun(staleRun.id, message, Date.now() - new Date(staleRun.startedAt).getTime());
@@ -108,7 +108,7 @@ export class TrackingRebuildDaemon {
       return;
     }
 
-    const { pending: allPending, closure } = closureLoad;
+    const { pending: allPending, window } = windowLoad;
     const run = await this.ensureActiveRun(state, allPending.length > 0);
     if (!run) return;
 
@@ -124,7 +124,7 @@ export class TrackingRebuildDaemon {
     const loadingStats: Partial<TrackingRebuildStats> = {
       stage: "loading",
       pendingCandidates: allPending.length,
-      dedupClosureSize: closure.length,
+      candidateWindowSize: window.length,
       elapsedMs: Date.now() - runStartedMs,
     };
     await this.updateRunStats(run.id, loadingStats);
@@ -143,7 +143,7 @@ export class TrackingRebuildDaemon {
     const flowField = this.acquireFlowField(run.id, config);
     const result = await runIncrementalBatch(this.ds, {
       candidates: chunk,
-      dedupClosure: closure,
+      candidateWindow: window,
       fullPendingIds,
       rebuildGen: run.rebuildGen,
       config,
@@ -154,7 +154,7 @@ export class TrackingRebuildDaemon {
           ...stats,
           batchSize,
           pendingCandidates: allPending.length,
-          dedupClosureSize: closure.length,
+          candidateWindowSize: window.length,
           processedCandidates: processed,
           totalCandidates,
           percentApprox:

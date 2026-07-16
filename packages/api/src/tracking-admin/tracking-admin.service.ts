@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable } from "@nestjs/common";
 import { InjectDataSource } from "@nestjs/typeorm";
 import {
-  DEFAULT_TRACKING_PHASE_MANIFEST,
+  DEFAULT_TRACKING_STEP_MANIFEST,
   resolveTrackingPipelineStatus,
   TRACKING_PIPELINE_NOT_PROCESSED_SQL,
   TRACKING_PERSIST_ADVISORY_LOCK_KEY,
@@ -146,7 +146,7 @@ export class TrackingAdminService {
       percentApprox,
       metrics,
       config,
-      phaseManifest: DEFAULT_TRACKING_PHASE_MANIFEST,
+      stepManifest: DEFAULT_TRACKING_STEP_MANIFEST,
     });
   }
 
@@ -620,7 +620,7 @@ export class TrackingAdminService {
       totalCandidatesGeo: totalTargetCandidates,
       totalTargetCandidates,
       unconsumedPipeline,
-      dedupClosureSize: stats.dedupClosureSize,
+      candidateWindowSize: stats.candidateWindowSize,
       effectiveBatchSize,
       processedCandidates,
       percentProcessed: percentPipelineProcessed,
@@ -686,7 +686,7 @@ export class TrackingAdminService {
     const totalTargetCandidates = Number(targetCount);
     const nodesInTracks = Number(nodes);
     const unconsumedPipeline = await this.countUnconsumedPipeline(until);
-    const dedupClosureSize = await this.countDedupClosureSize(until, config, unconsumedPipeline);
+    const candidateWindowSize = await this.countCandidateWindowSize(until, config, unconsumedPipeline);
     const effectiveBatchSize = resolveDaemonBatchSize(config.batchSize);
     const percentNodesInTracks =
       totalTargetCandidates > 0
@@ -710,7 +710,7 @@ export class TrackingAdminService {
       totalCandidatesGeo: Number(geoCount),
       totalTargetCandidates,
       unconsumedPipeline,
-      dedupClosureSize,
+      candidateWindowSize,
       effectiveBatchSize,
       processedCandidates: totalTargetCandidates - unconsumedPipeline,
       percentProcessed: percentPipelineProcessed,
@@ -728,10 +728,10 @@ export class TrackingAdminService {
   }
 
   /**
-   * Live-размер dedup closure: pending ∪ consumed-якоря в окне ε_temporal.
+   * Live-размер candidate window: pending ∪ consumed-якоря в окне ε_temporal.
    * Pending и anchors не пересекаются → сумма.
    */
-  private async countDedupClosureSize(
+  private async countCandidateWindowSize(
     until: Date,
     config: TrackingPipelineConfig,
     unconsumedPipeline: number,

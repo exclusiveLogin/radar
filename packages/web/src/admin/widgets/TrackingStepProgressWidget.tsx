@@ -1,10 +1,10 @@
-import type { TrackingPhaseId, TrackingRebuildStats } from "@radar/shared";
+import type { TrackingStepId, TrackingRebuildStats } from "@radar/shared";
 import { Panel } from "../../shared/ds";
 import { useObservable } from "../../shared/hooks/useObservable";
 import { trackingStatus$ } from "../../shared/state/adminStore";
 
 /** Русские подписи фаз NextGen pipeline — презентационная деталь, не часть домена. */
-const PHASE_LABELS: Record<TrackingPhaseId, string> = {
+const PHASE_LABELS: Record<TrackingStepId, string> = {
   cluster: "1. Cluster",
   filter: "2. Filter",
   field_train: "3. Field train",
@@ -12,7 +12,7 @@ const PHASE_LABELS: Record<TrackingPhaseId, string> = {
   optimize: "5. Optimize",
 };
 
-const PHASE_HINTS: Record<TrackingPhaseId, string> = {
+const PHASE_HINTS: Record<TrackingStepId, string> = {
   cluster: "ST-DBSCAN дедуп кандидатов → узлы",
   filter: "Pair-reliability фильтр сверх Ф2 (заготовка)",
   field_train: "Обучение H3 векторного поля на парах узлов",
@@ -34,7 +34,7 @@ function PhaseCard({
   active,
   rows,
 }: {
-  id: TrackingPhaseId;
+  id: TrackingStepId;
   enabled: boolean;
   active: boolean;
   rows: [string, string][];
@@ -71,10 +71,10 @@ function PhaseCard({
   );
 }
 
-function phaseRows(id: TrackingPhaseId, phaseStats: TrackingRebuildStats["phaseStats"]): [string, string][] {
-  const cluster = phaseStats?.cluster;
-  const fieldTrain = phaseStats?.field_train;
-  const join = phaseStats?.join;
+function stepRows(id: TrackingStepId, stepStats: TrackingRebuildStats["stepStats"]): [string, string][] {
+  const cluster = stepStats?.cluster;
+  const fieldTrain = stepStats?.field_train;
+  const join = stepStats?.join;
   switch (id) {
     case "cluster":
       return cluster
@@ -112,13 +112,13 @@ function phaseRows(id: TrackingPhaseId, phaseStats: TrackingRebuildStats["phaseS
   }
 }
 
-/** Прогресс NextGen pipeline, разбитый по 5 фазам phase-constructor'а (SSOT: phaseManifest). */
-export function TrackingPhaseProgressWidget() {
+/** Прогресс NextGen pipeline, разбитый по 5 фазам phase-constructor'а (SSOT: stepManifest). */
+export function TrackingStepProgressWidget() {
   const status = useObservable(trackingStatus$, null);
   const stats = status?.activeRun?.stats ?? status?.lastRun?.stats;
   const runStatus = status?.activeRun?.status ?? status?.lastRun?.status ?? "idle";
   const m = status?.metrics;
-  const manifest = status?.phaseManifest ?? [];
+  const manifest = status?.stepManifest ?? [];
 
   const tickSize = m?.effectiveBatchSize ?? status?.config?.batchSize ?? stats?.batchSize ?? 500;
   const processed = stats?.processedCandidates ?? m?.processedCandidates ?? 0;
@@ -149,7 +149,7 @@ export function TrackingPhaseProgressWidget() {
             id={entry.id}
             enabled={entry.enabled}
             active={entry.enabled && isPipelineRunning}
-            rows={phaseRows(entry.id, stats?.phaseStats)}
+            rows={stepRows(entry.id, stats?.stepStats)}
           />
         ))}
       </div>

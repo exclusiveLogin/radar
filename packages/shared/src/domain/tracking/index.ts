@@ -129,11 +129,11 @@ export {
 export type { ClusteringPhaseResult } from "./stdbscan/clusteringPhase";
 export {
   pickAssignableFromDedup,
-  mergeDedupClosure,
+  mergeCandidateWindow,
   resolvePendingConsumedAfterDedup,
   resolvePendingConsumedAfterClustering,
 } from "./stdbscan/dedupGraph";
-export type { DedupClosureLoad } from "./stdbscan/dedupGraph";
+export type { CandidateWindowLoad } from "./stdbscan/dedupGraph";
 export { buildTrackEdges } from "./flow/buildTrackEdges";
 export type { TrajectoryEdge } from "./flow/buildTrackEdges";
 export {

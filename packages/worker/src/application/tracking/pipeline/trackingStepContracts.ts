@@ -4,40 +4,40 @@
  * domain: tracking/pipeline
  * purpose: Контракты фазового конструктора tracking (единственный алгоритм — NextGen).
  *          Каждая фаза — чистая функция payload -> payload; порядок и enable/disable
- *          задаёт манифест (см. @radar/shared DEFAULT_TRACKING_PHASE_MANIFEST).
+ *          задаёт манифест (см. @radar/shared DEFAULT_TRACKING_STEP_MANIFEST).
  * ---
  */
 import type {
   H3VectorFlowMap,
-  NextGenPhase2Stats,
-  NextGenPhase3Stats,
+  NextGenStep2Stats,
+  NextGenStep3Stats,
   NextGenSeedTrack,
   NextGenSegment,
   ProfileKinematics,
   ThreatProfile,
   TrackingCandidate,
   TrackingDomainTrack as TrajectoryTrack,
-  TrackingPhaseId,
-  TrackingPhaseManifest,
-  TrackingPhaseManifestEntry,
+  TrackingStepId,
+  TrackingStepManifest,
+  TrackingStepManifestEntry,
   TrackingPipelineConfig,
 } from "@radar/shared";
 import type { NextGenNode } from "@radar/shared";
 
-export type { TrackingPhaseId, TrackingPhaseManifest, TrackingPhaseManifestEntry };
+export type { TrackingStepId, TrackingStepManifest, TrackingStepManifestEntry };
 
 /** Статистика cluster-фазы: сколько кандидатов вошло, сколько узлов сформировано ST-DBSCAN. */
-export type TrackingClusterPhaseStats = {
+export type TrackingClusterStepStats = {
   candidatesIn: number;
   nodesOut: number;
 };
 
-const EMPTY_CLUSTER_STATS: TrackingClusterPhaseStats = {
+const EMPTY_CLUSTER_STATS: TrackingClusterStepStats = {
   candidatesIn: 0,
   nodesOut: 0,
 };
 
-const EMPTY_PHASE2_STATS: NextGenPhase2Stats = {
+const EMPTY_PHASE2_STATS: NextGenStep2Stats = {
   pairsConsidered: 0,
   pairsAccepted: 0,
   pairsRejectedKinematics: 0,
@@ -45,7 +45,7 @@ const EMPTY_PHASE2_STATS: NextGenPhase2Stats = {
   reliabilityP95: 0,
 };
 
-const EMPTY_PHASE3_STATS: NextGenPhase3Stats = {
+const EMPTY_PHASE3_STATS: NextGenStep3Stats = {
   linksConsidered: 0,
   linksAccepted: 0,
   nodesSeeded: 0,
@@ -58,7 +58,7 @@ const EMPTY_PHASE3_STATS: NextGenPhase3Stats = {
 };
 
 /** Мутируемый payload единого прохода фаз (SSOT состояния для одного профиля угрозы). */
-export type TrackingPhasePayload = {
+export type TrackingStepPayload = {
   readonly candidates: TrackingCandidate[];
   readonly kin: ProfileKinematics;
   readonly profile: ThreatProfile;
@@ -67,39 +67,39 @@ export type TrackingPhasePayload = {
   readonly seedTracks: readonly NextGenSeedTrack[];
   /** Заполняется cluster-фазой. */
   nodes: NextGenNode[];
-  clusterStats: TrackingClusterPhaseStats;
+  clusterStats: TrackingClusterStepStats;
   /** Заполняется field_train-фазой (пары для обучения H3-поля). */
   segments: NextGenSegment[];
-  phase2Stats: NextGenPhase2Stats;
+  step2Stats: NextGenStep2Stats;
   /** Заполняется join-фазой. */
   tracks: TrajectoryTrack[];
-  phase3Stats: NextGenPhase3Stats;
+  step3Stats: NextGenStep3Stats;
 };
 
 /** Внешние зависимости, общие для всех фаз одного прогона (run-scoped). */
-export type TrackingPhaseDeps = {
+export type TrackingStepDeps = {
   readonly flowMap: H3VectorFlowMap;
 };
 
-export interface TrackingPhase {
-  readonly id: TrackingPhaseId;
-  run(payload: TrackingPhasePayload, deps: TrackingPhaseDeps): TrackingPhasePayload;
+export interface TrackingStep {
+  readonly id: TrackingStepId;
+  run(payload: TrackingStepPayload, deps: TrackingStepDeps): TrackingStepPayload;
 }
 
-export function createTrackingPhasePayload(input: {
+export function createTrackingStepPayload(input: {
   candidates: TrackingCandidate[];
   kin: ProfileKinematics;
   profile: ThreatProfile;
   config: TrackingPipelineConfig;
   seedTracks: readonly NextGenSeedTrack[];
-}): TrackingPhasePayload {
+}): TrackingStepPayload {
   return {
     ...input,
     nodes: [],
     clusterStats: EMPTY_CLUSTER_STATS,
     segments: [],
-    phase2Stats: EMPTY_PHASE2_STATS,
+    step2Stats: EMPTY_PHASE2_STATS,
     tracks: [],
-    phase3Stats: EMPTY_PHASE3_STATS,
+    step3Stats: EMPTY_PHASE3_STATS,
   };
 }
