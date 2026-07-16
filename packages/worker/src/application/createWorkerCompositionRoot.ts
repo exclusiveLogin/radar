@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Composition root worker: DataSource, repos, InProcessEventBus, OutboxRelay (db mode).
  * Р­С‚Рѕ wiring Р·Р°РІРёСЃРёРјРѕСЃС‚РµР№, РЅРµ Unit of Work вЂ” СЃРј. docs.
  * @see ../../../../docs/domain/how-it-works.md#composition-root-flow
@@ -42,6 +42,8 @@ import {
   MetricsAggregator,
 } from "./subscribers/index.js";
 import { createPhaseIngestHandler } from "./subscribers/phaseIngestSubscriber.js";
+import { createGeoPlaceIngestHandler } from "./subscribers/geoPlaceIngestSubscriber.js";
+import { createTrackingIngestHandler } from "./subscribers/trackingIngestSubscriber.js";
 import { createRawMessageIngestedHandler } from "./subscribers/rawMessageIngestedSubscriber.js";
 import { CoverageEnqueuer } from "./phases/coverageEnqueuer.js";
 import { PhaseRunner } from "./phases/phaseRunner.js";
@@ -123,7 +125,7 @@ export type WorkerCompositionOptions = {
   placeScan?: IPlaceScanPort;
   /**
    * Override ingestParse-С„Р°Р· РґР»СЏ offline CLI (snap/report).
-   * Default / `{ kind: "manifest" }` вЂ” enabled С„Р°Р·С‹ РёР· phase.manifest (prod parity).
+   * Default / `{ kind: "manifest" }` вЂ” enabled из DB / deployment.manifest.phases.
    */
   ingestParsePhaseSelection?: IngestParsePhaseSelection;
   /** @deprecated РСЃРїРѕР»СЊР·СѓР№ ingestParsePhaseSelection / CLI --phases. */
@@ -378,9 +380,17 @@ export async function createWorkerCompositionRoot(
     wireTransportRuntimeSignals({
       transport: eventTransport,
       workerRepos,
-      phaseRunner,
       coverageEnqueuer,
       workerRole,
+      onParseWake: () => {
+        pipelineLaunchers.find((l) => l.pipelineKey === "parse")?.enqueue?.();
+      },
+      onGeoWake: () => {
+        pipelineLaunchers.find((l) => l.pipelineKey === "geo-enrich")?.enqueue?.();
+      },
+      onTrackingWake: () => {
+        pipelineLaunchers.find((l) => l.pipelineKey === "tracking")?.enqueue?.();
+      },
     });
     teardownPhaseWake = await wirePhaseWakeScheduler({
       transport: eventTransport,
@@ -390,16 +400,55 @@ export async function createWorkerCompositionRoot(
         pipelineLaunchers.find((l) => l.pipelineKey === key)?.enqueue?.();
       },
     });
-    if (roleSubscribesPhaseIngestOnBus(workerRole)) {
+    if (roleSubscribesPhaseIngestOnBus(workerRole) && coverageEnqueuer) {
       eventTransport.subscribe(
         RADAR_TOPICS.RAW_INGESTED,
         createPhaseIngestHandler({
           rawMessages: workerRepos.rawMessages,
-          phases: workerRepos.phaseDefinitions,
-          runner: phaseRunner,
+          coverageEnqueuer,
+          onWake: () => {
+            pipelineLaunchers.find((l) => l.pipelineKey === "parse")?.enqueue?.();
+          },
         }),
         { queueSuffix: "parse" },
       );
+    }
+    
+    if (roleRunsGeoDaemons(workerRole) && workerRepos) {
+      eventTransport.subscribe(
+        RADAR_TOPICS.MESSAGE_PARSED,
+        createGeoPlaceIngestHandler({
+          phases: workerRepos.phaseDefinitions,
+          placeJobs: workerRepos.placeEnrichmentJobs,
+          onWake: () => {
+            pipelineLaunchers.find((l) => l.pipelineKey === "geo-enrich")?.enqueue?.();
+          },
+        }),
+        { queueSuffix: PIPELINE_RMQ_QUEUE_SUFFIX["geo-enrich"] },
+      );
+    }
+    if (roleRunsTrackingDaemon(workerRole)) {
+      eventTransport.subscribe(
+        RADAR_TOPICS.MESSAGE_PARSED,
+        createTrackingIngestHandler({
+          onWake: () => {
+            pipelineLaunchers.find((l) => l.pipelineKey === "tracking")?.enqueue?.();
+          },
+        }),
+        { queueSuffix: PIPELINE_RMQ_QUEUE_SUFFIX.tracking },
+      );
+      // timeout → RMQ wake(∅), не локальный hybrid interval
+      const trackingIntervalMs = workerRuntime.tracking.intervalMs;
+      const trackingTimer = setInterval(() => {
+        void eventTransport.publishSignal(RADAR_TOPICS.RUNNER_DRAIN_TRACKING, {
+          mode: "full",
+        });
+      }, trackingIntervalMs);
+      const prevShutdown = shutdown;
+      shutdown = async () => {
+        clearInterval(trackingTimer);
+        await prevShutdown?.();
+      };
     }
     const startParseDaemons =
       roleRunsParseDaemons(workerRole) &&
@@ -423,6 +472,12 @@ export async function createWorkerCompositionRoot(
           ingestParseDaemon = createPipelineLauncher(parseSpec, factoryDeps) ?? undefined;
           ingestParseDaemon?.start();
           if (ingestParseDaemon) pipelineLaunchers.push(ingestParseDaemon);
+          // Catch-up raw без job_parse_phase (тиковые drainOnce, не until-empty).
+          if (coverageEnqueuer) {
+            void coverageEnqueuer.catchUpPhase("catalog").then(() => {
+              ingestParseDaemon?.enqueue?.();
+            });
+          }
         }
 
         phaseManualRunPoller = new PhaseManualRunPoller(

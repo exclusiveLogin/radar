@@ -12,6 +12,7 @@ export class TypeOrmEventLocationRepository implements IEventLocationRepository 
       relations: { region: true },
     });
     return rows.map((row) => ({
+      id: row.id,
       regionId: row.regionId,
       regionCode: row.region?.iso ?? row.region?.name ?? "",
       placeId: row.placeId ?? undefined,

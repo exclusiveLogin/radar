@@ -10,6 +10,7 @@ export const RADAR_TOPICS = {
   GEO_ENRICH_REQUEST: "radar.geo.enrich.request",
   RUNNER_DRAIN_PARSE: "radar.runner.drain.parse",
   RUNNER_DRAIN_GEO: "radar.runner.drain.geo",
+  RUNNER_DRAIN_TRACKING: "radar.runner.drain.tracking",
   RUNNER_CONTROL: "radar.runner.control",
 } as const;
 

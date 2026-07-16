@@ -1,5 +1,5 @@
 /**
- * Unified phase workload — schedule/wake + один drainOnce на тик (ADR-025).
+ * Unified phase workload вЂ” schedule/wake + РѕРґРёРЅ drainOnce РЅР° С‚РёРє (ADR-025).
  */
 import type {
   IPhaseCoverageRepository,
@@ -95,9 +95,8 @@ export function createUnifiedPhaseWorkload(
           reset: async () => {},
         },
         loadSlice: async () => {
+          // Mutex = job SKIP LOCKED, не active phase_run (live ids не ждут catch-up).
           await deps.phaseRuns.failStaleActiveRuns(phase.id, STALE_RUN_MS);
-          const active = await deps.phaseRuns.findActiveForPhase(phase.id);
-          if (active) return { slice: { phase }, isEmpty: true };
 
           if (phase.scope === "geoParse") {
             const provider = resolveGeoEnrichmentProvider(phase) as PlaceEnrichmentProvider | null;

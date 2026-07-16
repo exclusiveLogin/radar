@@ -145,7 +145,7 @@ export const DEFAULT_DEPLOYMENT_MANIFEST: DeploymentManifest = deploymentManifes
       triggerMode: "event",
       scope: "ingestParse",
       enrichers: ["catalog"],
-      policy: { batchSize: 100, eagerMode: "inline" },
+      policy: { batchSize: 100, eagerMode: "queue" },
       enabled: true,
       order: 0,
     },

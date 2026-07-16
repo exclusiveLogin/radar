@@ -50,8 +50,7 @@ async function main(): Promise<void> {
     forceLocks,
     ingestFlow: {
       rawMessages: repos.rawMessages,
-      phases: repos.phaseDefinitions,
-      runner: runtime.phaseRunner,
+      coverageEnqueuer: runtime.coverageEnqueuer,
     },
     onMessage: () => {
       const snap = runtime.metricsAggregator.snapshot();
@@ -73,7 +72,7 @@ async function main(): Promise<void> {
   );
 
   if (drainScheduled) {
-    const scheduledIngest = await repos.phaseDefinitions.listEnabled("scheduled", "ingestParse");
+    const scheduledIngest = await repos.phaseDefinitions.listEnabled(undefined, "ingestParse");
     for (const phase of scheduledIngest) {
       const run = await repos.phaseRuns.create({
         phaseId: phase.id,

@@ -2,6 +2,8 @@ import {
   BadRequestException,
   Injectable,
   NotFoundException,
+  OnModuleDestroy,
+  OnModuleInit,
 } from "@nestjs/common";
 import { InjectDataSource } from "@nestjs/typeorm";
 import {
@@ -48,6 +50,11 @@ import { TypeOrmIngestBindingRepository } from "../infrastructure/persistence/ty
 import { TypeOrmIngestProviderRepository } from "../infrastructure/persistence/typeorm-ingest-provider.repository";
 import { TypeOrmRawMessageRepository } from "../infrastructure/persistence/typeorm-raw-message.repository";
 import { MANUAL_ADMIN_PROVIDER_KEY } from "./ingest-admin.constants";
+import { createApiEventTransport } from "../infrastructure/transport/createEventTransport.js";
+import { join } from "node:path";
+import { createRequire } from "node:module";
+import { MONOREPO_ROOT } from "../monorepo-root.js";
+import { RADAR_TOPICS, type IEventTransport } from "@radar/shared";
 
 const updateIngestBindingBodySchema = z.object({
   enabled: z.boolean(),
@@ -59,13 +66,14 @@ const providerDetailSchema = z.object({
 });
 
 @Injectable()
-export class IngestAdminService {
+export class IngestAdminService implements OnModuleInit, OnModuleDestroy {
   private readonly providers: TypeOrmIngestProviderRepository;
   private readonly bindings: TypeOrmIngestBindingRepository;
   private readonly channels: TypeOrmChannelRepository;
   private readonly rawMessages: TypeOrmRawMessageRepository;
   private readonly outbox: TypeOrmDomainEventOutbox;
   private readonly backfillJobs: TypeOrmIngestBackfillJobRepository;
+  private transport!: IEventTransport;
 
   constructor(
     @InjectDataSource()
@@ -77,6 +85,22 @@ export class IngestAdminService {
     this.rawMessages = new TypeOrmRawMessageRepository(dataSource);
     this.outbox = new TypeOrmDomainEventOutbox(dataSource);
     this.backfillJobs = new TypeOrmIngestBackfillJobRepository(dataSource);
+  }
+
+  /** RMQ transport для RawMessageIngested (parse planPending). */
+  async onModuleInit(): Promise<void> {
+    const nodeRequire = createRequire(__filename);
+    const loaderPath = join(MONOREPO_ROOT, "packages/shared/dist/deployment/deploymentManifest.loader.js");
+    const { loadDeploymentManifest } = nodeRequire(loaderPath) as {
+      loadDeploymentManifest: (opts: { repoRoot: string }) => import("@radar/shared").DeploymentManifest;
+    };
+    const manifest = loadDeploymentManifest({ repoRoot: MONOREPO_ROOT });
+    this.transport = createApiEventTransport(manifest.transport, this.dataSource);
+    await this.transport.start();
+  }
+
+  async onModuleDestroy(): Promise<void> {
+    await this.transport?.stop();
   }
 
   /** Список всех ingest-провайдеров (включая draft/paused). */
@@ -142,7 +166,7 @@ export class IngestAdminService {
   }
 
   /**
-   * Ручной ingest атаки: канал + manual-admin, upsert mat_ingest_raw, событие в outbox.
+   * Ручной ingest: upsert mat_ingest_raw, RMQ RawMessageIngested (+ outbox audit).
    */
   async manualIngest(body: unknown) {
     const input = manualIngestRequestSchema.parse(body) satisfies ManualIngestRequest;
@@ -441,8 +465,10 @@ export class IngestAdminService {
         channelKey: raw.channelKey,
         providerKey: raw.providerKey,
         hash: raw.hash,
+        materializationIds: [aggregateId],
       },
     };
+    await this.transport.publish(RADAR_TOPICS.RAW_INGESTED, [event]);
     await this.outbox.append([event]);
   }
 }

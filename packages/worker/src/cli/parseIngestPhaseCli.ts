@@ -2,8 +2,8 @@ import type { IngestParsePhaseSelection } from "../application/parse/loadIngestP
 import { readStringFlag, type CliFlagMap } from "./workerCliArgs.js";
 
 /**
- * Offline CLI: без `--phases` — enabled фазы из phase.manifest;
- * с `--phases=id1,id2` — override, manifest не используется.
+ * Offline CLI: без `--phases` — enabled из DB / deployment.manifest;
+ * с `--phases=id1,id2` — override (включая disabled).
  */
 export function parseIngestPhaseCli(map: CliFlagMap): IngestParsePhaseSelection {
   const phasesRaw = readStringFlag(map, ["phases"]);

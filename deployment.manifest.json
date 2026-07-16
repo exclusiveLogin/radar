@@ -24,7 +24,7 @@
       },
       {
         "pipelineKey": "geo-enrich",
-        "label": "geoParse scheduled phases (dadata → nominatim → llm)",
+        "label": "geoParse scheduled phases (dadata в†’ nominatim в†’ llm)",
         "host": "geo",
         "spawn": "in-process",
         "schedulingImpl": "runner-platform",
@@ -38,7 +38,7 @@
       "triggerMode": "event",
       "scope": "ingestParse",
       "enrichers": ["catalog"],
-      "policy": { "batchSize": 100, "eagerMode": "inline" },
+      "policy": { "batchSize": 100, "eagerMode": "queue" },
       "enabled": true,
       "order": 0
     },

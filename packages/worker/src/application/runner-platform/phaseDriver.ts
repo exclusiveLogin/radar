@@ -37,15 +37,17 @@ export type PhaseDriver<TWorkItem> = {
   schedule: PhaseDriverSchedule;
 };
 
-/** triggerMode фазы → ScheduleMode workload (RMQ wake ортогонален, см. phaseWakeScheduler). */
+/**
+ * triggerMode → ScheduleMode workload.
+ * timeout/both: локальный interval снят — тики только по RMQ wake(∅) из phaseWakeScheduler.
+ */
 export function triggerModeToSchedule(
   triggerMode: PhaseTriggerMode | undefined,
-  intervalMs: number,
+  _intervalMs: number,
 ): PhaseDriverSchedule {
-  const mode = triggerMode ?? "both";
-  if (mode === "timeout") return { mode: "interval", intervalMs };
-  if (mode === "both") return { mode: "hybrid", intervalMs };
-  // event | manual — только wake/enqueue, без interval watchdog
+  // Все режимы — event; timeout/both будит timer→RMQ→enqueue (не прямой drain).
+  void _intervalMs;
+  void triggerMode;
   return { mode: "event" };
 }
 

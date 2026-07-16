@@ -158,6 +158,7 @@ export class ParseRawMessageHandler {
               direction: record.direction,
               postedAt: record.postedAt,
               locations: (activation.isActive ? locations : []).map((location) => ({
+                id: location.id,
                 regionId: location.regionId,
                 regionCode: location.regionCode,
                 placeId: location.placeId,
@@ -169,6 +170,9 @@ export class ParseRawMessageHandler {
                 statusCode: location.statusCode ?? record.eventType,
                 occurredAt: record.postedAt,
               })),
+              eventLocationIds: (activation.isActive ? locations : [])
+                .map((location) => location.id)
+                .filter((id): id is string => typeof id === "string" && id.length > 0),
             },
           }),
         ]);

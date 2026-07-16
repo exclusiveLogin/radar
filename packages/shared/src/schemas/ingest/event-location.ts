@@ -11,6 +11,8 @@ import { z } from "zod";
 import { locationPrecisionSchema } from "./location-precision";
 
 export const eventLocationSchema = z.object({
+  /** Persisted mat_parse_location.id (есть после list из БД). */
+  id: z.string().uuid().optional(),
   regionId: z.string().uuid(),
   placeId: z.string().uuid().optional(),
   regionCode: z.string().min(1),

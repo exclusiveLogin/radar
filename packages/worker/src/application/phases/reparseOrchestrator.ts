@@ -27,16 +27,12 @@ export type FullReparseResult = {
 };
 
 /**
- * Полный reparse (контур rebuild): сброс карты + wipe parsed/workspace,
- * затем ingest-flow по каждому raw с нуля.
- * @see ../parse/parseWorkspaceRunModes.ts
+ * Полный reparse: сброс карты + wipe parsed/workspace,
+ * затем planPending(ids) по каждому raw (без inline handle).
  */
 export async function runFullReparseLikeIngest(input: FullReparseInput): Promise<FullReparseResult> {
-  const [, scheduled] = await Promise.all([
-    input.repos.phaseDefinitions.listEnabled("eager", "ingestParse"),
-    input.repos.phaseDefinitions.listEnabled("scheduled", "ingestParse"),
-  ]);
-  const scheduledIds = scheduled.map((p) => p.id);
+  const ingestPhases = await input.repos.phaseDefinitions.listEnabled(undefined, "ingestParse");
+  const phaseIds = ingestPhases.map((p) => p.id);
 
   const mapReset = new MapStateFullReset({
     dataSource: input.dataSource,
@@ -47,9 +43,9 @@ export async function runFullReparseLikeIngest(input: FullReparseInput): Promise
     forceLocks: input.forceLocks,
   });
 
-  // Не открываем scheduled-очередь до конца bulk reparse — иначе daemon гоняется с CLI.
-  if (scheduledIds.length > 0) {
-    await input.repos.phaseCoverage.clearQueuedWork(scheduledIds);
+  // Не открываем очередь до конца bulk plan — иначе daemon гоняется с CLI.
+  if (phaseIds.length > 0) {
+    await input.repos.phaseCoverage.clearQueuedWork(phaseIds);
   }
 
   const postedOrder = resolveRawMessagePostedAtOrder();
@@ -60,14 +56,14 @@ export async function runFullReparseLikeIngest(input: FullReparseInput): Promise
   let index = 0;
   for (const row of rows) {
     input.onMessage?.(index, rows.length, row.id);
-    await runPostIngestPhaseFlow(input.ingestFlow, row.id, { skipInlineEager: true });
+    await runPostIngestPhaseFlow(input.ingestFlow, row.id);
     index += 1;
   }
 
   let phasesInvalidated = 0;
-  if (scheduledIds.length > 0) {
-    phasesInvalidated = await input.repos.phaseCoverage.invalidateForPhases(scheduledIds);
-    for (const phaseId of scheduledIds) {
+  if (phaseIds.length > 0) {
+    phasesInvalidated = await input.repos.phaseCoverage.invalidateForPhases(phaseIds);
+    for (const phaseId of phaseIds) {
       await input.repos.phaseCoverage.enqueueCatchUp(phaseId);
     }
   }

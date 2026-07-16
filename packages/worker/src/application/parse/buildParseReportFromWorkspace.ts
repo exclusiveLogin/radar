@@ -3,6 +3,7 @@ import { parseReportSchema } from "@radar/shared";
 import { createHash } from "node:crypto";
 import { PARSER_VERSION } from "../../domain/parsing/version.js";
 import { inferSeverity } from "../../domain/parsing/inferSeverity.js";
+import { resolveEventTypeForCandidate } from "../../domain/parse/resolveEventTypeForCandidate.js";
 import { materializeCandidateExtras } from "../../domain/parse/resolveTraitsForCandidate.js";
 
 type BuildReportInput = {
@@ -20,7 +21,10 @@ type BuildReportInput = {
 export function buildParseReportFromWorkspace(input: BuildReportInput): ParseReport {
   const hash = createHash("sha256").update(input.rawText, "utf8").digest("hex");
   const primary = input.workspace.candidates[0];
-  const isEvent = Boolean(primary && primary.eventType !== "unknown");
+  const resolvedType = primary
+    ? resolveEventTypeForCandidate(primary, input.workspace)
+    : "unknown";
+  const isEvent = Boolean(primary && resolvedType !== "unknown");
 
   return parseReportSchema.parse({
     index: input.index,
@@ -35,12 +39,12 @@ export function buildParseReportFromWorkspace(input: BuildReportInput): ParseRep
     classification: isEvent
       ? { kind: "event" as const }
       : { kind: "noise" as const, reason: "event_type_not_detected" },
-    event: primary
+    event: primary && resolvedType !== "unknown"
       ? (() => {
           const extras = materializeCandidateExtras(primary, input.workspace);
           return {
-            eventType: primary.eventType as EventType,
-            severity: inferSeverity(input.workspace.groomedText, primary.eventType),
+            eventType: resolvedType as EventType,
+            severity: inferSeverity(input.workspace.groomedText, resolvedType),
             repeat: Boolean(extras.repeat),
             count: typeof extras.count === "number" ? extras.count : undefined,
           };
@@ -52,7 +56,7 @@ export function buildParseReportFromWorkspace(input: BuildReportInput): ParseRep
         .filter((c) => c.anchor.kind === "place" || c.anchor.kind === "region")
         .map((c) => ({
           name: c.anchor.name,
-          kind: c.anchor.kind === "region" ? "city" as const : "city" as const,
+          kind: c.anchor.kind === "region" ? ("city" as const) : ("city" as const),
           lat: c.anchor.lat,
           lon: c.anchor.lon,
         })),

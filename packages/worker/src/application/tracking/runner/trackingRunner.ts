@@ -27,6 +27,7 @@ import {
   resetTrackingWatermark,
 } from "../../../infrastructure/tracking/trackingPipelineStateRepository.js";
 import { loadDedupClosure, runIncrementalBatch, countTrackingPipelineRemaining } from "../trackingRebuildService.js";
+import { takeTrackingWakeIds } from "../trackingWakePriority.js";
 import type { JobKernelObsConfig } from "../../runtime/runner-platform/jobKernel.js";
 import { reportWorkloadLiveMetrics } from "../../runtime/observability/workloadObsHooks.js";
 import { createWorkload, type Workload } from "../../runtime/workload/createWorkload.js";
@@ -53,6 +54,8 @@ export function createTrackingRunner(
 ): TrackingRunner {
   const intervalMs =
     options?.intervalMs ?? DEFAULT_WORKER_RUNTIME_MANIFEST.tracking.intervalMs;
+  // intervalMs — для timer→RMQ снаружи (composition); workload сам только event.
+  void intervalMs;
   const flowFieldByRun = new Map<string, H3VectorFlowMap>();
   const telemetryBridge = createTrackingTelemetryBridge();
 
@@ -123,6 +126,16 @@ export function createTrackingRunner(
     const lookbackMs = maxEpsilonTemporalMs(state.config.profiles);
     const { pending, closure } = await loadDedupClosure(ds, { until, lookbackMs });
 
+    // Wake с ids → приоритет в batch; без ids — обычный drain batchSize.
+    const wakeIds = new Set(takeTrackingWakeIds());
+    const orderedPending =
+      wakeIds.size === 0
+        ? pending
+        : [
+            ...pending.filter((c) => wakeIds.has(c.eventLocationId)),
+            ...pending.filter((c) => !wakeIds.has(c.eventLocationId)),
+          ];
+
     const run = await ensureActiveTrackingRun(ds, state, pending.length > 0);
     if (!run) return { slice: EMPTY_SLICE, isEmpty: true };
 
@@ -140,7 +153,7 @@ export function createTrackingRunner(
     if (control?.pause || control?.cancel) return { slice: EMPTY_SLICE, isEmpty: true };
 
     const batchSize = resolveDaemonBatchSize(state.config.batchSize);
-    const chunk = pending.slice(0, batchSize);
+    const chunk = orderedPending.slice(0, batchSize);
     const totalCandidates = await countTrackingPipelineRemaining(ds, { until });
 
     const slice: TrackingRunnerSlice = {
@@ -156,7 +169,8 @@ export function createTrackingRunner(
 
   const workload = createWorkload({
     workbook,
-    schedule: { mode: "hybrid", intervalMs },
+    // timer→RMQ wake(∅); event wake с ids — через trackingIngestSubscriber
+    schedule: { mode: "event" },
     io: {
       cursorStore: {
         read: () => readTrackingPipelineState(ds),

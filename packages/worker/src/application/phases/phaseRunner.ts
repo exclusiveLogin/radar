@@ -88,15 +88,6 @@ export class PhaseRunner {
     );
   }
 
-  /** Inline eager: одно сообщение без claim из очереди. */
-  async runInline(phase: PhaseDefinitionRecord, rawMessageId: string): Promise<void> {
-    const raw = await this.deps.rawMessages.findById(rawMessageId);
-    if (!raw?.id) return;
-    const handler = this.createHandler(phase);
-    await handler.handle(raw);
-    await this.deps.coverage.markDoneForMessage(rawMessageId, phase.id);
-  }
-
   /** Domain eval одной parse-задачи — без mark (UnifiedRunner закрывает через IWorkQueue). */
   async handleParseTask(phase: PhaseDefinitionRecord, task: PhaseCoverageTask): Promise<void> {
     const handler = this.createHandler(phase);

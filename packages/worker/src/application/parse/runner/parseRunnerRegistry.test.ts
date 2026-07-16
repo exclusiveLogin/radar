@@ -19,7 +19,7 @@ function fakePhase(id: string): PhaseDefinitionRecord {
     trigger: "scheduled",
     scope: "ingestParse",
     enrichers: ["llm"],
-    policy: { batchSize: 10, intervalMs: 60_000, minIntervalMs: 60_000, eagerMode: "inline" } as PhaseDefinitionRecord["policy"],
+    policy: { batchSize: 10, intervalMs: 60_000, minIntervalMs: 60_000, eagerMode: "queue" } as PhaseDefinitionRecord["policy"],
     enabled: true,
     order: 1,
     updatedAt: new Date().toISOString(),

@@ -31,11 +31,8 @@ export class CoverageEnqueuer {
     return result.enqueued;
   }
 
+  /** Все enabled ingestParse (catalog/event/scheduled) — не только scheduled. */
   async listAutoPhases(): Promise<PhaseDefinitionRecord[]> {
-    const [eager, scheduled] = await Promise.all([
-      this.phases.listEnabled("eager", "ingestParse"),
-      this.phases.listEnabled("scheduled", "ingestParse"),
-    ]);
-    return [...eager, ...scheduled];
+    return this.phases.listEnabled(undefined, "ingestParse");
   }
 }

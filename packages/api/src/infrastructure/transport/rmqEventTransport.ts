@@ -179,6 +179,17 @@ export class RmqEventTransport implements IEventTransport {
     });
     await ch.bindQueue(q, this.cfg.exchange, routingKey);
     await ch.bindQueue(dlq, DLX, dlq);
+    // Split-role: orphan `*.monolith` (0 consumers) — удалить, если никто не слушает.
+    if (this.consumerQueueSuffix !== "monolith" && queueSuffix !== "monolith") {
+      try {
+        await ch.deleteQueue(rmqQueueName(routingKey, "monolith"), {
+          ifUnused: true,
+          ifEmpty: false,
+        });
+      } catch {
+        /* очередь может отсутствовать */
+      }
+    }
     return q;
   }
 

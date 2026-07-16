@@ -179,7 +179,7 @@ export class PhasesAdminService implements OnModuleInit, OnModuleDestroy {
       const provider = resolveGeoEnrichmentProvider(phase);
       if (!provider) return { enqueued: 0 };
     }
-    await this.publishDrainForPhase(phase, "full");
+    await this.publishDrainForPhase(phase, "full", { catchUp: true });
     return { enqueued };
   }
 
@@ -188,14 +188,16 @@ export class PhasesAdminService implements OnModuleInit, OnModuleDestroy {
     return this.transport.publishSignal(RADAR_TOPICS.RUNNER_CONTROL, { phaseKey, enabled });
   }
 
-  /** Полный или targeted drain очереди фазы через RMQ. */
+  /** Полный или targeted drain очереди фазы через RMQ wake. */
   private publishDrainForPhase(
     phase: PhaseDefinitionRecord,
     mode: "full" | "targeted" = "full",
+    extra: { catchUp?: boolean; materializationIds?: string[]; placeIds?: string[] } = {},
   ): Promise<void> {
     return this.transport.publishSignal(drainTopicForPhaseScope(phase.scope), {
       phaseKey: phase.id,
       mode,
+      ...extra,
     });
   }
 
