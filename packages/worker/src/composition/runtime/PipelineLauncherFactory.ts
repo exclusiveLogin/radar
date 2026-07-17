@@ -8,23 +8,22 @@
 import type { DataSource } from "typeorm";
 import type { IObservabilityRecorder, PipelineKey } from "@radar/shared";
 import type { WorkerRuntimeManifest } from "@radar/shared/manifest/domains/workerRuntime.loader.js";
-import type { PhaseRunner } from "../../application/phases/phaseRunner.js";
 import {
   createWorkloadObsConfig,
   type WorkloadObsContext,
 } from "../../application/runtime/observability/workloadObsHooks.js";
+import type { PhasePlatformDeps } from "../../application/runtime/runner-platform/phasePlatformDeps.js";
 import { ParseRunnerRegistry } from "../../application/parse/runner/parseRunnerRegistry.js";
 import { GeoRunnerRegistry } from "../../application/geo-parse/runner/geoRunnerRegistry.js";
 import { createTrackingRunner } from "../../application/tracking/runner/trackingRunner.js";
 import type { Workload } from "../../application/runtime/workload/createWorkload.js";
-import type { WorkerDbRepositories } from "../../infrastructure/persistence/workerDbRepos.types.js";
 import type { PipelineLauncher } from "../../application/runtime/pipelineLauncher.js";
 import type { ResolvedRuntimePipeline } from "./RuntimeResolver.js";
 
 export type PipelineLauncherFactoryDeps = {
   dataSource: DataSource;
-  workerRepos: WorkerDbRepositories;
-  phaseRunner?: PhaseRunner;
+  /** Platform ports для parse/geo; tracking использует только dataSource. */
+  phasePlatform?: PhasePlatformDeps;
   obsBinding?: { recorder: IObservabilityRecorder; hostId: string };
   workerRuntime: WorkerRuntimeManifest;
 };
@@ -101,7 +100,7 @@ function obsCtxFor(
   };
 }
 
-/** Создаёт runner-platform launcher; null если phaseRunner недоступен. */
+/** Создаёт runner-platform launcher; null если порты недоступны. */
 export function createPipelineLauncher(
   resolved: ResolvedRuntimePipeline,
   deps: PipelineLauncherFactoryDeps,
@@ -120,32 +119,22 @@ export function createPipelineLauncher(
       return new RunnerPlatformLauncher("tracking", runner);
     }
     case "parse": {
-      if (!deps.phaseRunner) return null;
-      const parseDeps = {
-        phases: deps.workerRepos.phaseDefinitions,
-        phaseRuns: deps.workerRepos.phaseRuns,
-        coverage: deps.workerRepos.phaseCoverage,
-        placeJobs: deps.workerRepos.placeEnrichmentJobs,
-        runner: deps.phaseRunner,
-        placeEnrichmentRunner: deps.phaseRunner.placeEnrichmentRunner,
-      };
+      if (!deps.phasePlatform?.parseTool) return null;
       const obs = obsCtxFor(deps, "parse");
       return new ParseRunnerLauncher(
-        new ParseRunnerRegistry({ ...parseDeps, obs }),
+        new ParseRunnerRegistry({ ...deps.phasePlatform, obs }),
       );
     }
     case "geo-enrich": {
-      if (!deps.phaseRunner?.placeEnrichmentRunner) return null;
-      const geoDeps = {
-        phases: deps.workerRepos.phaseDefinitions,
-        phaseRuns: deps.workerRepos.phaseRuns,
-        coverage: deps.workerRepos.phaseCoverage,
-        placeJobs: deps.workerRepos.placeEnrichmentJobs,
-        runner: deps.phaseRunner,
-        placeEnrichmentRunner: deps.phaseRunner.placeEnrichmentRunner,
-      };
+      if (!deps.phasePlatform?.placeEnrichmentRunner) return null;
       const obs = obsCtxFor(deps, "geo-enrich");
-      return new GeoRunnerLauncher(new GeoRunnerRegistry({ ...geoDeps, obs }));
+      return new GeoRunnerLauncher(
+        new GeoRunnerRegistry({
+          ...deps.phasePlatform,
+          placeEnrichmentRunner: deps.phasePlatform.placeEnrichmentRunner,
+          obs,
+        }),
+      );
     }
     default:
       return null;

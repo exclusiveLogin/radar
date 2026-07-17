@@ -81,6 +81,8 @@ function buildSummary(kinds: Array<"event" | "noise" | "meta">): Omit<ParseSumma
 
 function buildRuntimeOptions(cli: ParsedCli): WorkerCompositionOptions {
   return {
+    workerRole: "parse",
+    bootCaps: ["parse"],
     storageMode: cli.storageMode,
     startIngestParseDaemon: false,
     ingestParsePhaseSelection: cli.ingestParsePhaseSelection,
@@ -122,11 +124,15 @@ export async function runParseSnap(
   }
 
   const runtime = await createWorkerCompositionRoot(buildRuntimeOptions(cli));
+  if (!runtime.parsePipelineService) {
+    throw new Error("parse stack не инициализирован (нужен cap parse).");
+  }
+  const parsePipeline = runtime.parsePipelineService;
   const source = fs.readFileSync(filePath, "utf8");
   const blocks = splitMessageBlocks(source);
   const results = [];
   for (const [index, block] of blocks.entries()) {
-    const executed = await runtime.parsePipelineService.execute({
+    const executed = await parsePipeline.execute({
       rawText: block,
       index,
       file: path.basename(filePath),

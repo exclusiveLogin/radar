@@ -28,8 +28,7 @@ import {
 } from "../../../infrastructure/tracking/trackingPipelineStateRepository.js";
 import { loadCandidateWindow, runIncrementalBatch, countTrackingPipelineRemaining } from "../trackingRebuildService.js";
 import { takeTrackingWakeIds } from "../trackingWakePriority.js";
-import type { JobKernelObsConfig } from "../../runtime/runner-platform/jobKernel.js";
-import { reportWorkloadLiveMetrics } from "../../runtime/observability/workloadObsHooks.js";
+import type { JobKernelObsPort } from "../../runtime/runner-platform/jobKernel.js";
 import { createWorkload, type Workload } from "../../runtime/workload/createWorkload.js";
 import { createTrackingMaterialize } from "./trackingMaterializationPorts.js";
 import { createTrackingTelemetryBridge, TRACKING_PIPELINE_KEY } from "./trackingTelemetryBridge.js";
@@ -49,7 +48,7 @@ export type TrackingRunner = Workload & {
 
 export function createTrackingRunner(
   ds: DataSource,
-  obs?: JobKernelObsConfig,
+  obs?: JobKernelObsPort,
   options?: CreateTrackingRunnerOptions,
 ): TrackingRunner {
   const intervalMs =
@@ -91,7 +90,7 @@ export function createTrackingRunner(
           flowField,
           onProgress: async (stats) => {
             lastStats = stats;
-            if (obs) reportWorkloadLiveMetrics(obs, stats as Record<string, unknown>);
+            obs?.onLiveMetrics?.(stats as Record<string, unknown>);
           },
         });
 

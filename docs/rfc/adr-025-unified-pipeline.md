@@ -16,9 +16,24 @@ Parse/geo/tracking pipelines использовали параллельные �
 |------|------|
 | Workbook | Чертёж: descriptor + `evaluate` |
 | Workload | Инферинг wb: schedule/wake/lock + IO ports |
-| PhaseDriver | SSOT фабрика фазы: `queue` + `runItem` + `schedule` |
-| IWorkQueue | Порт job-таблицы: plan → claimBatch → mark* |
-| UnifiedRunner | Один оборот жерновов (`drainOnce` = 1 batch) |
+| PhaseDriver | Composition-фабрика: `queue` + `runItem` + `schedule` (рецепт→склад+инструмент) |
+| IWorkQueue | Порт склада материала: plan → claimBatch → mark* |
+| UnifiedRunner | Молотилка / ЧПУ-цикл (`drainOnce` = 1 batch); **не знает домен** |
+| ParsePhaseTool | Domain-инструмент parse (task → материализация) |
+| PlaceEnrichmentRunner | Domain-инструмент geo |
+
+### Полки (без смешения ролей)
+
+| Полка | Знает домен? | Примеры |
+|-------|--------------|---------|
+| mill | нет | `UnifiedRunner`, `jobKernel` |
+| ports | граница | `IWorkQueue`, `IEventTransport`, wake ports |
+| domain | да | parse/geo tools, tick gates |
+| infra | снаружи | TypeORM, RMQ |
+| composition | связка | root, PhaseDriver factory, signal wiring |
+| obs | метрики | phase_run logs, workloadObs (inject) |
+
+Формула ЧПУ: **рецепт + инструмент + склад → результат + события**.
 
 ## Decision
 

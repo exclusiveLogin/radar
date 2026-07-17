@@ -19,23 +19,14 @@ import type {
   ScheduleMode,
   SignalEnvelope,
 } from "./runnerContracts.js";
-import type { IObservabilityRecorder, ObsPipelineRuntime, PipelineKey } from "@radar/shared";
-import {
-  reportMaterialize,
-  reportWorkloadLiveMetrics,
-  reportWorkloadPaused,
-  reportWorkloadRunning,
-  reportWorkloadStopped,
-  reportWorkloadTickEnd,
-  reportWorkloadTickStart,
-} from "../observability/workloadObsHooks.js";
-
-export type JobKernelObsConfig = {
-  recorder: IObservabilityRecorder;
-  hostId: string;
-  workloadId: string;
-  pipelineKey: PipelineKey;
-  runtime: ObsPipelineRuntime;
+export type JobKernelObsPort = {
+  onRunning?(): void;
+  onPaused?(): void;
+  onStopped?(): void;
+  onTickStart?(): void;
+  onTickEnd(metrics?: Record<string, unknown>): void;
+  onMaterialize?(): void;
+  onLiveMetrics?(metrics: Record<string, unknown>): void;
 };
 
 export type JobKernelStatus = {
@@ -52,8 +43,8 @@ export type JobKernelConfig<TCursor, TSlice, TArtifact> = {
   /** Кооперативный control (pause/cancel) — источник хранения (DB/memory) решает вызывающая сторона. */
   readControl?: RunControlReader;
   onUnhandledError?: (error: unknown) => void;
-  /** Iter 2: optional obs write-path hooks. */
-  obs?: JobKernelObsConfig;
+  /** Optional observability port; mill не знает recorder или метрики. */
+  obs?: JobKernelObsPort;
 };
 
 export type JobKernel = {
@@ -79,12 +70,12 @@ export function createJobKernel<TCursor, TSlice, TArtifact>(
     if (paused) return;
     const handle = lockEngine.tryAcquire(config.pipelineKey);
     if (!handle) return;
-    if (config.obs) reportWorkloadTickStart(config.obs);
+    config.obs?.onTickStart?.();
     try {
       const cursor = await cursorEngine.current();
       const { slice, isEmpty } = await config.callbacks.loadSlice(cursor);
       if (isEmpty) {
-        if (config.obs) reportWorkloadTickEnd(config.obs, { empty: true });
+        config.obs?.onTickEnd?.({ empty: true });
         return;
       }
 
@@ -93,7 +84,7 @@ export function createJobKernel<TCursor, TSlice, TArtifact>(
         checkControl: readControl,
       });
       await config.callbacks.materialize(artifact);
-      if (config.obs) reportMaterialize(config.obs);
+      config.obs?.onMaterialize?.();
       await cursorEngine.advance(nextCursor);
 
       if (config.callbacks.emitProgress) {
@@ -106,19 +97,12 @@ export function createJobKernel<TCursor, TSlice, TArtifact>(
         };
         await config.callbacks.emitProgress(envelope);
       }
-      if (config.obs) {
-        reportWorkloadTickEnd(config.obs, {
-          runId,
-          pipelineKey: config.pipelineKey,
-        });
-      }
+      config.obs?.onTickEnd?.({ runId, pipelineKey: config.pipelineKey });
     } catch (error) {
       config.onUnhandledError?.(error);
-      if (config.obs) {
-        reportWorkloadTickEnd(config.obs, {
-          error: error instanceof Error ? error.message : String(error),
-        });
-      }
+      config.obs?.onTickEnd?.({
+        error: error instanceof Error ? error.message : String(error),
+      });
     } finally {
       handle.release();
     }
@@ -133,21 +117,21 @@ export function createJobKernel<TCursor, TSlice, TArtifact>(
   return {
     start: () => {
       schedule.start();
-      if (config.obs) reportWorkloadRunning(config.obs);
+      config.obs?.onRunning?.();
     },
     stop: () => {
       schedule.stop();
-      if (config.obs) reportWorkloadStopped(config.obs);
+      config.obs?.onStopped?.();
     },
     runOnce: () => schedule.runOnce(),
     enqueue: () => schedule.wake(),
     pause: () => {
       paused = true;
-      if (config.obs) reportWorkloadPaused(config.obs);
+      config.obs?.onPaused?.();
     },
     resume: () => {
       paused = false;
-      if (config.obs) reportWorkloadRunning(config.obs);
+      config.obs?.onRunning?.();
       schedule.wake();
     },
     getStatus: (): JobKernelStatus => ({

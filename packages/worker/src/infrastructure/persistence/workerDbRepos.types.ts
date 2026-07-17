@@ -73,6 +73,7 @@ export type ApiPersistenceModule = {
   TypeOrmDomainEventRepository: new (dataSource: DataSource) => IDomainEventRepository;
   TypeOrmParseAttemptRepository: new (dataSource: DataSource) => IParseAttemptRepository;
   TypeOrmPhaseCoverageRepository: new (dataSource: DataSource) => IPhaseCoverageRepository;
+  TypeOrmEnrichmentQueueRepository: new (dataSource: DataSource) => IEnrichmentQueueRepository;
   TypeOrmPhaseDefinitionRepository: new (
     dataSource: DataSource,
   ) => IPhaseDefinitionRepository;

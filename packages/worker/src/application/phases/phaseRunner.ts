@@ -1,98 +1,32 @@
 import type {
-  IEventEvidenceRepository,
-  IEventLocationRepository,
-  IEventPublisher,
-  IMessageParseWorkspaceRepository,
-  IParsedEventRepository,
   IPhaseCoverageRepository,
   IPhaseDefinitionRepository,
-  IPhaseRunRepository,
-  IPlaceCacheRepository,
-  IPlaceEnrichmentJobRepository,
-  IPlaceRepository,
-  IRawMessageRepository,
-  IRegionRepository,
-  IPlaceScanPort,
   PhaseCoverageTask,
   PhaseDefinitionRecord,
   PhaseRunStats,
   PhaseTrigger,
 } from "@radar/shared";
-import type { PlaceEnrichmentRunner } from "../geo-parse/placeEnrichmentRunner.js";
-import { ParseRawMessageHandler } from "../handlers/parseRawMessageHandler.js";
-import { createParseWorkspaceStack } from "../parse/createParseWorkspaceStack.js";
-import type { ParsePhaseContext } from "../parse/parsePhaseContext.js";
-import { resolvePhaseRunKind } from "../parse/parseWorkspaceRunModes.js";
-import type { GeoValidationService } from "../parse/geoValidationService.js";
-import { notifyMapPushSnapshotAfterPhase } from "../../infrastructure/notifyMapPushSnapshot.js";
+import type { ParsePhaseTool } from "../parse/parsePhaseTool.js";
 import { prerequisitePhaseIds } from "./phaseOrder.js";
+import type { PhaseRunSession } from "./phaseRunSession.js";
 
 export type PhaseRunnerDeps = {
-  rawMessages: IRawMessageRepository;
+  parseTool: ParsePhaseTool;
+  session: PhaseRunSession;
   coverage: IPhaseCoverageRepository;
   phaseDefinitions: IPhaseDefinitionRepository;
-  phaseRuns: IPhaseRunRepository;
-  parsedEvents: IParsedEventRepository;
-  messageParseWorkspaces: IMessageParseWorkspaceRepository;
-  eventLocations: IEventLocationRepository;
-  eventEvidence: IEventEvidenceRepository;
-  placeEnrichmentJobs: IPlaceEnrichmentJobRepository;
-  places: IPlaceRepository;
-  regions: IRegionRepository;
-  validation: GeoValidationService;
-  placeScan: IPlaceScanPort;
-  placeCache: IPlaceCacheRepository;
-  events: IEventPublisher;
-  /** geoParse drain (job_geo_place_enrich). */
-  placeEnrichmentRunner?: PlaceEnrichmentRunner;
 };
 
 /**
- * Единое ядро исполнения фазы: coverage claim → handler.
- *
- * Целевой контур phase job (lazy enrich): load workspace → enricher фазы → finalize.
- * Сейчас handler всё ещё rebuild-like через ParseWorkspaceMessageService.run().
- * @see ../parse/parseWorkspaceRunModes.ts
+ * Legacy parse drain (CLI / manual poller): coverage claim → parseTool → mark.
+ * Mill/daemon идут через UnifiedRunner + PhaseDriver; geo — через runGeoPhaseDrain.
  */
 export class PhaseRunner {
   constructor(private readonly deps: PhaseRunnerDeps) {}
 
-  get placeEnrichmentRunner(): PlaceEnrichmentRunner | undefined {
-    return this.deps.placeEnrichmentRunner;
-  }
-
-  private createHandler(phase: PhaseDefinitionRecord): ParseRawMessageHandler {
-    const phaseContext: ParsePhaseContext = {
-      phaseId: phase.id,
-      phaseMode: phase.enrichers.includes("llm") ? "enrich" : "baseline",
-      enrichers: phase.enrichers,
-      runKind: resolvePhaseRunKind(phase),
-    };
-    const { workspaceService } = createParseWorkspaceStack({
-      placeScan: this.deps.placeScan,
-      regions: this.deps.regions,
-      places: this.deps.places,
-      validation: this.deps.validation,
-      parsedEvents: this.deps.parsedEvents,
-      eventLocations: this.deps.eventLocations,
-      messageParseWorkspaces: this.deps.messageParseWorkspaces,
-    });
-    return new ParseRawMessageHandler(
-      workspaceService,
-      this.deps.parsedEvents,
-      this.deps.eventLocations,
-      this.deps.eventEvidence,
-      this.deps.events,
-      phaseContext,
-    );
-  }
-
   /** Domain eval одной parse-задачи — без mark (UnifiedRunner закрывает через IWorkQueue). */
   async handleParseTask(phase: PhaseDefinitionRecord, task: PhaseCoverageTask): Promise<void> {
-    const handler = this.createHandler(phase);
-    const raw = await this.deps.rawMessages.findById(task.rawMessageId);
-    if (!raw?.id) throw new Error("raw_message not found");
-    await handler.handle(raw);
+    await this.deps.parseTool.run(phase, task);
   }
 
   async runBatch(input: {
@@ -101,7 +35,6 @@ export class PhaseRunner {
     trigger: PhaseTrigger;
     tasks: PhaseCoverageTask[];
   }): Promise<PhaseRunStats> {
-    const handler = this.createHandler(input.phase);
     const stats: PhaseRunStats = {
       claimed: input.tasks.length,
       processed: 0,
@@ -110,23 +43,17 @@ export class PhaseRunner {
     };
 
     for (const task of input.tasks) {
-      const continuation = await this.resolveRunContinuation(input.runId);
+      const continuation = await this.deps.session.resolveContinuation(input.runId);
       if (continuation === "cancel") break;
       if (continuation === "pause") {
-        await this.deps.phaseRuns.updateStatus(input.runId, "paused");
+        await this.deps.session.phaseRuns.updateStatus(input.runId, "paused");
         break;
       }
 
       try {
-        const raw = await this.deps.rawMessages.findById(task.rawMessageId);
-        if (!raw?.id) {
-          await this.deps.coverage.markFailed(task.id, "raw_message not found");
-          stats.failed += 1;
-        } else {
-          await handler.handle(raw);
-          await this.deps.coverage.markDone(task.id);
-          stats.ok += 1;
-        }
+        await this.deps.parseTool.run(input.phase, task);
+        await this.deps.coverage.markDone(task.id);
+        stats.ok += 1;
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         await this.deps.coverage.markFailed(task.id, message);
@@ -138,8 +65,8 @@ export class PhaseRunner {
       stats.pendingRemaining = counts.pending + counts.processing;
       stats.totalKnown =
         counts.pending + counts.processing + counts.done + counts.failed;
-      await this.deps.phaseRuns.updateStats(input.runId, stats);
-      await this.deps.phaseRuns.appendLog(input.runId, {
+      await this.deps.session.phaseRuns.updateStats(input.runId, stats);
+      await this.deps.session.phaseRuns.appendLog(input.runId, {
         at: new Date().toISOString(),
         level: "info",
         message: `processed=${stats.processed} ok=${stats.ok} failed=${stats.failed} pending=${stats.pendingRemaining ?? 0}`,
@@ -150,7 +77,8 @@ export class PhaseRunner {
   }
 
   /**
-   * Drain: батчи claim до пустой очереди, один phase_run (manual / scheduled).
+   * Drain ingestParse: батчи claim до пустой очереди, один phase_run.
+   * geoParse сюда не входит — composition/CLI зовут runGeoPhaseDrain.
    */
   async runDrain(input: {
     phase: PhaseDefinitionRecord;
@@ -161,14 +89,16 @@ export class PhaseRunner {
     placeIds?: string[];
   }): Promise<PhaseRunStats> {
     if (input.phase.scope === "geoParse") {
-      return this.runGeoDrain(input);
+      throw new Error(
+        `PhaseRunner.runDrain: geoParse вне scope — используйте runGeoPhaseDrain (phase=${input.phase.id})`,
+      );
     }
-    const run = await this.resolveRunForTick({
+    const run = await this.deps.session.resolveForTick({
       phase: input.phase,
       trigger: input.trigger,
       existingRunId: input.runId,
     });
-    await this.deps.phaseRuns.appendLog(run.id, {
+    await this.deps.session.phaseRuns.appendLog(run.id, {
       at: new Date().toISOString(),
       level: "info",
       message: `${input.trigger} drain started phase=${input.phase.id} batchSize=${input.batchSize}`,
@@ -196,13 +126,13 @@ export class PhaseRunner {
 
     try {
       for (;;) {
-        const beforeBatch = await this.resolveRunContinuation(run.id);
+        const beforeBatch = await this.deps.session.resolveContinuation(run.id);
         if (beforeBatch === "cancel") {
-          await this.finalizeRun(run.id, "canceled", totals);
+          await this.deps.session.finalize(run.id, "canceled", totals);
           return totals;
         }
         if (beforeBatch === "pause") {
-          await this.finalizeRun(run.id, "paused", totals);
+          await this.deps.session.finalize(run.id, "paused", totals);
           return totals;
         }
 
@@ -217,7 +147,7 @@ export class PhaseRunner {
               input.batchSize,
               prereqIds,
             );
-        await this.deps.phaseRuns.appendLog(run.id, {
+        await this.deps.session.phaseRuns.appendLog(run.id, {
           at: new Date().toISOString(),
           level: "info",
           message: `claimed batch=${tasks.length}`,
@@ -228,21 +158,21 @@ export class PhaseRunner {
           totals.pendingRemaining = counts.pending + counts.processing;
           totals.totalKnown =
             counts.pending + counts.processing + counts.done + counts.failed;
-          await this.deps.phaseRuns.appendLog(run.id, {
+          await this.deps.session.phaseRuns.appendLog(run.id, {
             at: new Date().toISOString(),
             level: "info",
             message: `drain idle pending=${totals.pendingRemaining ?? 0}`,
           });
-          const idleOutcome = await this.resolveRunContinuation(run.id);
+          const idleOutcome = await this.deps.session.resolveContinuation(run.id);
           if (idleOutcome === "cancel") {
-            await this.finalizeRun(run.id, "canceled", totals);
+            await this.deps.session.finalize(run.id, "canceled", totals);
             return totals;
           }
           if (idleOutcome === "pause") {
-            await this.finalizeRun(run.id, "paused", totals);
+            await this.deps.session.finalize(run.id, "paused", totals);
             return totals;
           }
-          await this.finalizeRun(run.id, "completed", totals);
+          await this.deps.session.finalize(run.id, "completed", totals);
           return totals;
         }
 
@@ -255,57 +185,32 @@ export class PhaseRunner {
         totals = mergePhaseRunStats(totals, batchStats);
 
         if (input.materializationIds?.length) {
-          await this.finalizeRun(run.id, "completed", totals);
+          await this.deps.session.finalize(run.id, "completed", totals);
           return totals;
         }
 
-        const afterBatch = await this.resolveRunContinuation(run.id);
+        const afterBatch = await this.deps.session.resolveContinuation(run.id);
         if (afterBatch === "cancel") {
-          await this.finalizeRun(run.id, "canceled", totals);
+          await this.deps.session.finalize(run.id, "canceled", totals);
           return totals;
         }
         if (afterBatch === "pause") {
-          await this.finalizeRun(run.id, "paused", totals);
+          await this.deps.session.finalize(run.id, "paused", totals);
           return totals;
         }
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      await this.deps.phaseRuns.appendLog(run.id, {
+      await this.deps.session.phaseRuns.appendLog(run.id, {
         at: new Date().toISOString(),
         level: "error",
         message,
       });
-      await this.deps.phaseRuns.updateStatus(run.id, "failed", { error: message });
+      await this.deps.session.phaseRuns.updateStatus(run.id, "failed", { error: message });
       throw err;
     }
   }
 
-  /** Drain geoParse — вынесен в geo-parse tooling. */
-  private async runGeoDrain(input: {
-    phase: PhaseDefinitionRecord;
-    runId: string;
-    batchSize: number;
-    trigger: PhaseTrigger;
-    placeIds?: string[];
-  }): Promise<PhaseRunStats> {
-    const runner = this.deps.placeEnrichmentRunner;
-    if (!runner) {
-      throw new Error("placeEnrichmentRunner not configured");
-    }
-    const { runGeoPhaseDrain } = await import("../geo-parse/runGeoPhaseDrain.js");
-    return runGeoPhaseDrain(
-      {
-        placeEnrichmentRunner: runner,
-        placeEnrichmentJobs: this.deps.placeEnrichmentJobs,
-        phaseRuns: this.deps.phaseRuns,
-        resolveRunForTick: (args) => this.resolveRunForTick(args),
-        resolveRunContinuation: (runId) => this.resolveRunContinuation(runId),
-        finalizeRun: (runId, status, stats) => this.finalizeRun(runId, status, stats),
-      },
-      input,
-    );
-  }
   /** Полный тик scheduled/manual: claim → run → finalize run. */
   async runPhaseTick(input: {
     phase: PhaseDefinitionRecord;
@@ -314,8 +219,13 @@ export class PhaseRunner {
     /** Запись из админки (pending) — не создавать дубликат phase_run. */
     existingRunId?: string;
   }): Promise<PhaseRunStats> {
-    const run = await this.resolveRunForTick(input);
-    await this.deps.phaseRuns.appendLog(run.id, {
+    if (input.phase.scope === "geoParse") {
+      throw new Error(
+        `PhaseRunner.runPhaseTick: geoParse вне scope — используйте runGeoPhaseDrain (phase=${input.phase.id})`,
+      );
+    }
+    const run = await this.deps.session.resolveForTick(input);
+    await this.deps.session.phaseRuns.appendLog(run.id, {
       at: new Date().toISOString(),
       level: "info",
       message: input.existingRunId
@@ -334,7 +244,7 @@ export class PhaseRunner {
         input.batchSize,
         prereqIds,
       );
-      await this.deps.phaseRuns.appendLog(run.id, {
+      await this.deps.session.phaseRuns.appendLog(run.id, {
         at: new Date().toISOString(),
         level: "info",
         message: `claimed batch=${tasks.length}`,
@@ -351,20 +261,19 @@ export class PhaseRunner {
           totalKnown:
             counts.pending + counts.processing + counts.done + counts.failed,
         };
-        await this.deps.phaseRuns.appendLog(run.id, {
+        await this.deps.session.phaseRuns.appendLog(run.id, {
           at: new Date().toISOString(),
           level: "info",
           message: `no eligible work pending=${empty.pendingRemaining ?? 0}`,
         });
-        const idleOutcome = await this.resolveRunContinuation(run.id);
+        const idleOutcome = await this.deps.session.resolveContinuation(run.id);
         const idleStatus =
           idleOutcome === "cancel"
             ? "canceled"
             : idleOutcome === "pause"
               ? "paused"
               : "completed";
-        await this.deps.phaseRuns.clearControl(run.id);
-        await this.deps.phaseRuns.updateStatus(run.id, idleStatus, { stats: empty });
+        await this.deps.session.finalize(run.id, idleStatus, empty);
         return empty;
       }
 
@@ -375,84 +284,24 @@ export class PhaseRunner {
         tasks,
       });
 
-      const outcome = await this.resolveRunContinuation(run.id);
+      const outcome = await this.deps.session.resolveContinuation(run.id);
       const finalStatus =
         outcome === "cancel"
           ? "canceled"
           : outcome === "pause"
             ? "paused"
             : "completed";
-      await this.deps.phaseRuns.clearControl(run.id);
-      await this.deps.phaseRuns.updateStatus(run.id, finalStatus, { stats });
+      await this.deps.session.finalize(run.id, finalStatus, stats);
       return stats;
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      await this.deps.phaseRuns.appendLog(run.id, {
+      await this.deps.session.phaseRuns.appendLog(run.id, {
         at: new Date().toISOString(),
         level: "error",
         message,
       });
-      await this.deps.phaseRuns.updateStatus(run.id, "failed", { error: message });
+      await this.deps.session.phaseRuns.updateStatus(run.id, "failed", { error: message });
       throw err;
-    }
-  }
-
-  /** Cooperative cancel/pause + учёт status=canceled из админки. */
-  private async resolveRunContinuation(
-    runId: string,
-  ): Promise<"continue" | "cancel" | "pause"> {
-    const control = await this.deps.phaseRuns.getControl(runId);
-    if (control === "cancel") return "cancel";
-    if (control === "pause") return "pause";
-    const run = await this.deps.phaseRuns.findById(runId);
-    if (!run || (run.status !== "running" && run.status !== "pending")) {
-      return "cancel";
-    }
-    return "continue";
-  }
-
-  private async resolveRunForTick(input: {
-    phase: PhaseDefinitionRecord;
-    trigger: PhaseTrigger;
-    existingRunId?: string;
-  }) {
-    if (!input.existingRunId) {
-      return this.deps.phaseRuns.create({
-        phaseId: input.phase.id,
-        trigger: input.trigger,
-        status: "running",
-      });
-    }
-
-    const existing = await this.deps.phaseRuns.findById(input.existingRunId);
-    if (!existing) {
-      throw new Error(`phase run ${input.existingRunId} not found`);
-    }
-    if (existing.phaseId !== input.phase.id) {
-      throw new Error(
-        `phase run ${input.existingRunId} phase mismatch: ${existing.phaseId} vs ${input.phase.id}`,
-      );
-    }
-    if (existing.status !== "pending" && existing.status !== "running") {
-      throw new Error(
-        `phase run ${input.existingRunId} not executable (status=${existing.status})`,
-      );
-    }
-    if (existing.status === "pending") {
-      await this.deps.phaseRuns.updateStatus(existing.id, "running");
-    }
-    return existing;
-  }
-
-  private async finalizeRun(
-    runId: string,
-    status: "completed" | "canceled" | "paused",
-    stats: PhaseRunStats,
-  ): Promise<void> {
-    await this.deps.phaseRuns.clearControl(runId);
-    await this.deps.phaseRuns.updateStatus(runId, status, { stats });
-    if (status === "completed") {
-      void notifyMapPushSnapshotAfterPhase();
     }
   }
 }

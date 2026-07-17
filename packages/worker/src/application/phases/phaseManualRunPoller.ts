@@ -1,9 +1,20 @@
 import type {
   IPhaseDefinitionRepository,
   IPhaseRunRepository,
+  PhaseDefinitionRecord,
   PhaseRun,
+  PhaseRunStats,
+  PhaseTrigger,
 } from "@radar/shared";
-import { PhaseRunner } from "./phaseRunner.js";
+
+export type PhaseManualDrainPort = {
+  runDrain(input: {
+    phase: PhaseDefinitionRecord;
+    runId: string;
+    batchSize: number;
+    trigger: PhaseTrigger;
+  }): Promise<PhaseRunStats | void>;
+};
 
 /**
  * Подхватывает log_parse_phase_run (trigger=manual, status=pending) из админки Run
@@ -20,7 +31,7 @@ export class PhaseManualRunPoller {
   constructor(
     private readonly phases: IPhaseDefinitionRepository,
     private readonly phaseRuns: IPhaseRunRepository,
-    private readonly runner: PhaseRunner,
+    private readonly drain: PhaseManualDrainPort,
     private readonly pollMs: number,
   ) {}
 
@@ -77,7 +88,7 @@ export class PhaseManualRunPoller {
         return;
       }
 
-      await this.runner.runDrain({
+      await this.drain.runDrain({
         phase,
         runId: run.id,
         batchSize: phase.policy.batchSize,

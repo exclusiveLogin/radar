@@ -1,7 +1,8 @@
+/**
+ * Фабрика PhaseDriver: scope → queue + runItem + schedule.
+ * Не знает PhaseRunner — только parseTool / PlaceEnrichmentRunner из PhasePlatformDeps.
+ */
 import type {
-  IPhaseCoverageRepository,
-  IPhaseDefinitionRepository,
-  IPlaceEnrichmentJobRepository,
   IWorkQueue,
   PhaseCoverageTask,
   PhaseDefinitionRecord,
@@ -10,20 +11,11 @@ import type {
   WorkItemResult,
 } from "@radar/shared";
 import { resolveGeoEnrichmentProvider } from "@radar/shared";
-import type { PlaceEnrichmentRunner } from "../../geo-parse/placeEnrichmentRunner.js";
 import { prerequisitePhaseIds } from "../../phases/phaseOrder.js";
-import type { PhaseRunner } from "../../phases/phaseRunner.js";
-import { createGeoPlaceQueue } from "../../phases/geoPlaceQueue.js";
-import { createParsePhaseQueue } from "../../phases/parsePhaseQueue.js";
+import { createGeoPlaceQueue } from "../ports/geoPlaceQueue.js";
+import { createParsePhaseQueue } from "../ports/parsePhaseQueue.js";
+import type { PhasePlatformDeps } from "./phasePlatformDeps.js";
 import type { ScheduleMode } from "./runnerContracts.js";
-
-export type PhaseDriverDeps = {
-  phases: IPhaseDefinitionRepository;
-  coverage: IPhaseCoverageRepository;
-  placeJobs: IPlaceEnrichmentJobRepository;
-  runner: PhaseRunner;
-  placeEnrichmentRunner?: PlaceEnrichmentRunner;
-};
 
 export type PhaseDriverSchedule = {
   mode: ScheduleMode;
@@ -45,7 +37,6 @@ export function triggerModeToSchedule(
   triggerMode: PhaseTriggerMode | undefined,
   _intervalMs: number,
 ): PhaseDriverSchedule {
-  // Все режимы — event; timeout/both будит timer→RMQ→enqueue (не прямой drain).
   void _intervalMs;
   void triggerMode;
   return { mode: "event" };
@@ -58,11 +49,15 @@ function resolveIntervalMs(phase: PhaseDefinitionRecord): number {
 /** Фабрика домена по scope phase_definitions. */
 export async function buildPhaseDriver(
   phase: PhaseDefinitionRecord,
-  deps: PhaseDriverDeps,
+  deps: PhasePlatformDeps,
 ): Promise<PhaseDriver<PhaseCoverageTask | PlaceEnrichmentJobRecord>> {
   const schedule = triggerModeToSchedule(phase.triggerMode, resolveIntervalMs(phase));
 
   if (phase.scope === "ingestParse") {
+    if (!deps.parseTool) {
+      throw new Error(`parse phase ${phase.id}: parseTool missing`);
+    }
+    const parseTool = deps.parseTool;
     const enabledPhases = await deps.phases.listEnabled(undefined, "ingestParse");
     const queue = createParsePhaseQueue({
       coverage: deps.coverage,
@@ -74,7 +69,7 @@ export async function buildPhaseDriver(
       schedule,
       runItem: async (task) => {
         try {
-          await deps.runner.handleParseTask(phase, task as PhaseCoverageTask);
+          await parseTool.run(phase, task as PhaseCoverageTask);
           return { outcome: "completed" as const };
         } catch (error) {
           const detail = error instanceof Error ? error.message : String(error);

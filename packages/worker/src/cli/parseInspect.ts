@@ -77,11 +77,16 @@ export async function runParseInspect(argv: string[]): Promise<void> {
     startIngestParseDaemon: false,
     ingestParsePhaseSelection: cli.ingestParsePhaseSelection,
   });
+  if (!runtime.parsePipelineService || !runtime.placeScan) {
+    throw new Error("parse stack не инициализирован (нужен cap parse).");
+  }
+  const parsePipeline = runtime.parsePipelineService;
+  const placeScan = runtime.placeScan;
 
   const blocks = splitMessageBlocks(source);
   const results = [];
   for (const [index, block] of blocks.entries()) {
-    const executed = await runtime.parsePipelineService.execute({
+    const executed = await parsePipeline.execute({
       rawText: block,
       index,
       file: cli.filePathArg || "stdin",
@@ -97,7 +102,7 @@ export async function runParseInspect(argv: string[]): Promise<void> {
   const eventKind = primary.report.classification.kind;
   if (eventKind === "event" && primary.workspace) {
     const text = primary.workspace.groomedText;
-    for (const hit of runtime.placeScan.matchRegions(text)) {
+    for (const hit of placeScan.matchRegions(text)) {
       geoHits.push({
         kind: "region",
         name: hit.entry.name,
@@ -106,7 +111,7 @@ export async function runParseInspect(argv: string[]): Promise<void> {
         span: hit.span,
       });
     }
-    for (const hit of runtime.placeScan.matchPlaces(text, {})) {
+    for (const hit of placeScan.matchPlaces(text, {})) {
       geoHits.push({
         kind: "place",
         name: hit.entry.name,

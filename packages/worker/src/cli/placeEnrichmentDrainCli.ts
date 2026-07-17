@@ -1,10 +1,11 @@
 import { MONOREPO_ROOT } from "@repo/root";
 import type { PlaceEnrichmentProvider } from "@radar/shared";
+import { resolveGeoEnrichmentProvider } from "@radar/shared";
 import { createWorkerCompositionRoot } from "../application/createWorkerCompositionRoot.js";
+import { runGeoPhaseDrain } from "../application/geo-parse/runGeoPhaseDrain.js";
 import { loadRootEnv } from "../infrastructure/config/loadRootEnv.js";
 import { WorkerStorageMode } from "../infrastructure/persistence/storageMode.js";
 import { parseLongFlagsMap, readStringFlag } from "./workerCliArgs.js";
-import { createProgress } from "./progress.js";
 
 function resolveProvider(
   enrichers: string[],
@@ -19,7 +20,7 @@ function resolveProvider(
   return null;
 }
 
-/** One-shot drain scheduled geoParse (как тик PlaceEnrichmentDaemon). */
+/** One-shot drain scheduled geoParse через runGeoPhaseDrain (+ phase_run session). */
 async function main(): Promise<void> {
   loadRootEnv(MONOREPO_ROOT);
   const flags = parseLongFlagsMap(process.argv);
@@ -32,8 +33,8 @@ async function main(): Promise<void> {
     storageMode: WorkerStorageMode.Db,
     startIngestParseDaemon: false,
   });
-  if (!runtime.workerRepos || !runtime.placeEnrichmentRunner) {
-    throw new Error("parse-engine:geo:drain: требуется db mode");
+  if (!runtime.workerRepos || !runtime.placeEnrichmentRunner || !runtime.phaseRunSession) {
+    throw new Error("parse-engine:geo:drain: требуется db mode + session");
   }
 
   let geoPhases = await runtime.workerRepos.phaseDefinitions.listEnabled(
@@ -48,11 +49,26 @@ async function main(): Promise<void> {
   }
 
   for (const phase of geoPhases) {
-    const provider = resolveProvider(phase.enrichers, providerFilter);
+    const provider =
+      resolveProvider(phase.enrichers, providerFilter) ?? resolveGeoEnrichmentProvider(phase);
     if (!provider) continue;
-    const result = await runtime.placeEnrichmentRunner.runDrain(
-      provider,
-      phase.policy.batchSize,
+
+    const run = await runtime.workerRepos.phaseRuns.create({
+      phaseId: phase.id,
+      trigger: "manual",
+    });
+    const result = await runGeoPhaseDrain(
+      {
+        placeEnrichmentRunner: runtime.placeEnrichmentRunner,
+        placeEnrichmentJobs: runtime.workerRepos.placeEnrichmentJobs,
+        session: runtime.phaseRunSession,
+      },
+      {
+        phase,
+        runId: run.id,
+        batchSize: phase.policy.batchSize,
+        trigger: "manual",
+      },
     );
     console.log(
       `geo drained phase=${phase.id} provider=${provider} processed=${result.processed} failed=${result.failed}`,

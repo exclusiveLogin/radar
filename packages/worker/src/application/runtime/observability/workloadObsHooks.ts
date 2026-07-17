@@ -3,7 +3,7 @@ import type {
   ObsPipelineRuntime,
   PipelineKey,
 } from "@radar/shared";
-import type { JobKernelObsConfig } from "../runner-platform/jobKernel.js";
+import type { JobKernelObsPort } from "../runner-platform/jobKernel.js";
 import { buildWorkloadId, obsNow } from "./obsContext.js";
 
 export type WorkloadObsContext = {
@@ -15,15 +15,32 @@ export type WorkloadObsContext = {
 };
 
 /** Собирает конфиг obs для jobKernel / workload producers. */
-export function createWorkloadObsConfig(ctx: WorkloadObsContext): JobKernelObsConfig {
-  return {
+export function createWorkloadObsConfig(ctx: WorkloadObsContext): JobKernelObsPort {
+  const config = {
     recorder: ctx.recorder,
     hostId: ctx.hostId,
     workloadId: buildWorkloadId(ctx.hostId, ctx.pipelineKey, ctx.workloadIdSuffix),
     pipelineKey: ctx.pipelineKey,
     runtime: ctx.runtime,
   };
+  return {
+    onRunning: () => reportWorkloadRunning(config),
+    onPaused: () => reportWorkloadPaused(config),
+    onStopped: () => reportWorkloadStopped(config),
+    onTickStart: () => reportWorkloadTickStart(config),
+    onTickEnd: (metrics) => reportWorkloadTickEnd(config, metrics),
+    onMaterialize: () => reportMaterialize(config),
+    onLiveMetrics: (metrics) => reportWorkloadLiveMetrics(config, metrics),
+  };
 }
+
+type WorkloadObsConfig = {
+  recorder: IObservabilityRecorder;
+  hostId: string;
+  workloadId: string;
+  pipelineKey: PipelineKey;
+  runtime: ObsPipelineRuntime;
+};
 
 /** Fire-and-forget upsert workload — ошибки не блокируют pipeline tick. */
 function fireUpsertWorkload(
@@ -36,7 +53,7 @@ function fireUpsertWorkload(
 }
 
 /** Upsert workload в статусе running (start/resume). */
-export function reportWorkloadRunning(obs: JobKernelObsConfig): void {
+export function reportWorkloadRunning(obs: WorkloadObsConfig): void {
   fireUpsertWorkload(obs.recorder, {
     workloadId: obs.workloadId,
     hostId: obs.hostId,
@@ -48,7 +65,7 @@ export function reportWorkloadRunning(obs: JobKernelObsConfig): void {
 }
 
 /** Upsert workload в статусе paused. */
-export function reportWorkloadPaused(obs: JobKernelObsConfig): void {
+export function reportWorkloadPaused(obs: WorkloadObsConfig): void {
   fireUpsertWorkload(obs.recorder, {
     workloadId: obs.workloadId,
     hostId: obs.hostId,
@@ -60,7 +77,7 @@ export function reportWorkloadPaused(obs: JobKernelObsConfig): void {
 }
 
 /** Upsert workload в статусе stopped (teardown). */
-export function reportWorkloadStopped(obs: JobKernelObsConfig): void {
+export function reportWorkloadStopped(obs: WorkloadObsConfig): void {
   fireUpsertWorkload(obs.recorder, {
     workloadId: obs.workloadId,
     hostId: obs.hostId,
@@ -72,7 +89,7 @@ export function reportWorkloadStopped(obs: JobKernelObsConfig): void {
 }
 
 /** Upsert workload в начале tick jobKernel. */
-export function reportWorkloadTickStart(obs: JobKernelObsConfig): void {
+export function reportWorkloadTickStart(obs: WorkloadObsConfig): void {
   fireUpsertWorkload(obs.recorder, {
     workloadId: obs.workloadId,
     hostId: obs.hostId,
@@ -85,7 +102,7 @@ export function reportWorkloadTickStart(obs: JobKernelObsConfig): void {
 
 /** Upsert workload после tick (idle + опциональные metrics). */
 export function reportWorkloadTickEnd(
-  obs: JobKernelObsConfig,
+  obs: WorkloadObsConfig,
   metrics?: Record<string, unknown>,
 ): void {
   fireUpsertWorkload(obs.recorder, {
@@ -100,7 +117,7 @@ export function reportWorkloadTickEnd(
 }
 
 /** Счётчик materialize для runner-platform workload. */
-export function reportMaterialize(obs: JobKernelObsConfig): void {
+export function reportMaterialize(obs: WorkloadObsConfig): void {
   void obs.recorder.recordMaterialize(obs.pipelineKey).catch((err: unknown) => {
     console.warn("[obs] recordMaterialize failed:", err);
   });
@@ -108,7 +125,7 @@ export function reportMaterialize(obs: JobKernelObsConfig): void {
 
 /** Live metrics во время batch (parity legacy onProgress). */
 export function reportWorkloadLiveMetrics(
-  obs: JobKernelObsConfig,
+  obs: WorkloadObsConfig,
   metrics: Record<string, unknown>,
 ): void {
   fireUpsertWorkload(obs.recorder, {

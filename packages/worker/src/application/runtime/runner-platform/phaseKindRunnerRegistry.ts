@@ -1,28 +1,12 @@
-import type {
-  IPhaseCoverageRepository,
-  IPhaseDefinitionRepository,
-  IPhaseRunRepository,
-  IPlaceEnrichmentJobRepository,
-  PhaseScope,
-} from "@radar/shared";
-import type { PlaceEnrichmentRunner } from "../../geo-parse/placeEnrichmentRunner.js";
-import type { PhaseRunner } from "../../phases/phaseRunner.js";
+import type { PhaseScope } from "@radar/shared";
 import { createUnifiedPhaseWorkload } from "./unifiedPhaseWorkload.js";
-import type { WorkloadObsContext } from "../observability/workloadObsHooks.js";
+import type { PhasePlatformDeps } from "./phasePlatformDeps.js";
 import { createWorkloadObsConfig } from "../observability/workloadObsHooks.js";
 import type { Workload } from "../workload/createWorkload.js";
 
 const DEFAULT_REFRESH_MS = 15_000;
 
-export type PhaseKindRunnerRegistryDeps = {
-  phases: IPhaseDefinitionRepository;
-  phaseRuns: IPhaseRunRepository;
-  coverage: IPhaseCoverageRepository;
-  placeJobs: IPlaceEnrichmentJobRepository;
-  runner: PhaseRunner;
-  placeEnrichmentRunner?: PlaceEnrichmentRunner;
-  obs?: WorkloadObsContext;
-};
+export type PhaseKindRunnerRegistryDeps = PhasePlatformDeps;
 
 /** Общий реестр scheduled phase-workload по PhaseKind (parse/geo). */
 export class PhaseKindRunnerRegistry {

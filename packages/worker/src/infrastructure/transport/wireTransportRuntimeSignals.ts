@@ -1,14 +1,31 @@
 import type { IEventTransport, PhaseDefinitionRecord } from "@radar/shared";
 import { RADAR_TOPICS } from "@radar/shared";
-import type { CoverageEnqueuer } from "../../application/phases/coverageEnqueuer.js";
 import { hasCap, type DomainCap } from "../config/workerRole.js";
-import type { WorkerDbRepositories } from "../persistence/workerDbRepos.types.js";
 
+const PIPELINE_SUFFIX_TRACKING = "tracking";
+
+export type ParseDrainPrepInput = {
+  phase: PhaseDefinitionRecord;
+  mode: "targeted" | "full";
+  ids?: string[];
+  catchUp?: boolean;
+};
+
+export type GeoEnrichPrepInput = {
+  phase: PhaseDefinitionRecord;
+  placeIds?: string[];
+};
+
+/**
+ * Composition injects ports/handlers — infra не знает CoverageEnqueuer / workerRepos bag.
+ */
 export type WireTransportRuntimeSignalsInput = {
   transport: IEventTransport;
-  workerRepos: WorkerDbRepositories;
-  coverageEnqueuer: CoverageEnqueuer;
   caps: ReadonlySet<DomainCap>;
+  setPhaseEnabled?: (phaseKey: string, enabled: boolean) => Promise<void>;
+  findPhase?: (phaseKey: string) => Promise<PhaseDefinitionRecord | null>;
+  prepareParseDrain?: (input: ParseDrainPrepInput) => Promise<void>;
+  prepareGeoEnrich?: (input: GeoEnrichPrepInput) => Promise<void>;
   /** Один drainOnce-тик через launcher (не runDrain until empty). */
   onParseWake?: () => void;
   onGeoWake?: () => void;
@@ -16,25 +33,35 @@ export type WireTransportRuntimeSignalsInput = {
 };
 
 /** Подписка worker на RMQ drain/control сигналы от admin/CLI/timer (топик своей роли). */
-export function wireTransportRuntimeSignals(input: WireTransportRuntimeSignalsInput): void {
+export function wireTransportRuntimeSignals(
+  input: WireTransportRuntimeSignalsInput,
+): () => void {
   const {
     transport,
-    workerRepos,
-    coverageEnqueuer,
     caps,
+    setPhaseEnabled,
+    findPhase,
+    prepareParseDrain,
+    prepareGeoEnrich,
     onParseWake,
     onGeoWake,
     onTrackingWake,
   } = input;
 
-  transport.subscribeSignal(RADAR_TOPICS.RUNNER_CONTROL, async (payload) => {
-    const phaseKey = String(payload.phaseKey ?? "");
-    if (!phaseKey) return;
-    const enabled = payload.enabled;
-    if (typeof enabled === "boolean") {
-      await workerRepos.phaseDefinitions.setEnabled(phaseKey, enabled);
-    }
-  });
+  const teardown: Array<() => void> = [];
+
+  if (setPhaseEnabled) {
+    teardown.push(
+      transport.subscribeSignal(RADAR_TOPICS.RUNNER_CONTROL, async (payload) => {
+        const phaseKey = String(payload.phaseKey ?? "");
+        if (!phaseKey) return;
+        const enabled = payload.enabled;
+        if (typeof enabled === "boolean") {
+          await setPhaseEnabled(phaseKey, enabled);
+        }
+      }),
+    );
+  }
 
   const bindDrain = (
     topic: (typeof RADAR_TOPICS)[keyof typeof RADAR_TOPICS],
@@ -42,12 +69,13 @@ export function wireTransportRuntimeSignals(input: WireTransportRuntimeSignalsIn
     queueSuffix: string,
     onWake?: () => void,
   ) => {
-    transport.subscribeSignal(
+    if (!findPhase) return;
+    teardown.push(transport.subscribeSignal(
       topic,
       async (payload) => {
         const phaseKey = String(payload.phaseKey ?? "");
         if (!phaseKey) return;
-        const phase = await workerRepos.phaseDefinitions.findById(phaseKey);
+        const phase = await findPhase(phaseKey);
         if (!phase || phase.scope !== scope) return;
 
         const mode = payload.mode === "targeted" ? "targeted" : "full";
@@ -55,18 +83,19 @@ export function wireTransportRuntimeSignals(input: WireTransportRuntimeSignalsIn
           ? payload.materializationIds.map(String)
           : undefined;
 
-        if (scope === "ingestParse") {
-          if (mode === "targeted" && ids?.length) {
-            await coverageEnqueuer.planPendingForIds(ids);
-          } else if (payload.catchUp === true) {
-            await coverageEnqueuer.catchUpPhase(phase.id);
-          }
+        if (scope === "ingestParse" && prepareParseDrain) {
+          await prepareParseDrain({
+            phase,
+            mode,
+            ids,
+            catchUp: payload.catchUp === true,
+          });
         }
 
         onWake?.();
       },
       { queueSuffix },
-    );
+    ));
   };
 
   if (hasCap(caps, "parse")) {
@@ -74,34 +103,39 @@ export function wireTransportRuntimeSignals(input: WireTransportRuntimeSignalsIn
   }
   if (hasCap(caps, "geo")) {
     bindDrain(RADAR_TOPICS.RUNNER_DRAIN_GEO, "geoParse", "geo", onGeoWake);
-    transport.subscribeSignal(
-      RADAR_TOPICS.GEO_ENRICH_REQUEST,
-      async (payload) => {
-        const phaseKey = String(payload.phaseKey ?? "");
-        if (!phaseKey) return;
-        const phase = await workerRepos.phaseDefinitions.findById(phaseKey);
-        if (!phase || phase.scope !== "geoParse") return;
+    if (findPhase) {
+      teardown.push(transport.subscribeSignal(
+        RADAR_TOPICS.GEO_ENRICH_REQUEST,
+        async (payload) => {
+          const phaseKey = String(payload.phaseKey ?? "");
+          if (!phaseKey) return;
+          const phase = await findPhase(phaseKey);
+          if (!phase || phase.scope !== "geoParse") return;
 
-        const ids = Array.isArray(payload.materializationIds)
-          ? payload.materializationIds.map(String)
-          : undefined;
-        if (ids?.length) {
-          await coverageEnqueuer.planPendingForIds(ids);
-        }
-        onGeoWake?.();
-      },
-      { queueSuffix: "geo" },
-    );
+          const placeIds = [
+            ...(Array.isArray(payload.placeIds) ? payload.placeIds.map(String) : []),
+            ...(Array.isArray(payload.materializationIds)
+              ? payload.materializationIds.map(String)
+              : []),
+          ];
+          if (placeIds.length && prepareGeoEnrich) {
+            await prepareGeoEnrich({ phase, placeIds });
+          }
+          onGeoWake?.();
+        },
+        { queueSuffix: "geo" },
+      ));
+    }
   }
   if (hasCap(caps, "tracking")) {
-    transport.subscribeSignal(
+    teardown.push(transport.subscribeSignal(
       RADAR_TOPICS.RUNNER_DRAIN_TRACKING,
       async () => {
         onTrackingWake?.();
       },
       { queueSuffix: PIPELINE_SUFFIX_TRACKING },
-    );
+    ));
   }
-}
 
-const PIPELINE_SUFFIX_TRACKING = "tracking";
+  return () => teardown.forEach((unsubscribe) => unsubscribe());
+}

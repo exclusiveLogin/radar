@@ -10,7 +10,7 @@
  * ---
  */
 import type { WorkbookDescriptor, WorkbookInstance } from "@radar/shared";
-import { createJobKernel, type JobKernel, type JobKernelObsConfig } from "../runner-platform/jobKernel.js";
+import { createJobKernel, type JobKernel, type JobKernelObsPort } from "../runner-platform/jobKernel.js";
 import type { CursorStore } from "../runner-platform/cursorEngine.js";
 import type {
   EmitProgress,
@@ -32,8 +32,8 @@ export type CreateWorkloadOptions<TCursor, TSlice, TArtifact> = {
   schedule: { mode: ScheduleMode; intervalMs?: number };
   readControl?: () => Promise<"continue" | "pause" | "cancel">;
   onUnhandledError?: (error: unknown) => void;
-  /** Iter 2: optional obs write-path. */
-  obs?: JobKernelObsConfig;
+  /** Optional observability callback port. */
+  obs?: JobKernelObsPort;
 };
 
 export type Workload = JobKernel & {

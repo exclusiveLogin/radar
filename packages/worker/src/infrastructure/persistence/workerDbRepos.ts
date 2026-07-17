@@ -31,7 +31,7 @@ export async function createWorkerDbRepositories(
     domainEvents: new persistence.TypeOrmDomainEventRepository(dataSource),
     parseAttempts: new persistence.TypeOrmParseAttemptRepository(dataSource),
     phaseCoverage: new persistence.TypeOrmPhaseCoverageRepository(dataSource),
-    enrichmentQueue: new persistence.TypeOrmPhaseCoverageRepository(dataSource),
+    enrichmentQueue: new persistence.TypeOrmEnrichmentQueueRepository(dataSource),
     phaseDefinitions: new persistence.TypeOrmPhaseDefinitionRepository(dataSource),
     phaseRuns: new persistence.TypeOrmPhaseRunRepository(dataSource),
   };

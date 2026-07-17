@@ -88,16 +88,26 @@ async function main(): Promise<void> {
       });
     }
     const scheduledGeo = await repos.phaseDefinitions.listEnabled("scheduled", "geoParse");
+    const { runGeoPhaseDrain } = await import("../application/geo-parse/runGeoPhaseDrain.js");
     for (const phase of scheduledGeo) {
-      const provider = phase.enrichers.includes("llm")
-        ? "llm"
-        : phase.enrichers.includes("dadata")
-          ? "dadata"
-          : phase.enrichers.includes("nominatim")
-            ? "nominatim"
-            : null;
-      if (!provider || !runtime.placeEnrichmentRunner) continue;
-      await runtime.placeEnrichmentRunner.runDrain(provider, phase.policy.batchSize);
+      if (!runtime.placeEnrichmentRunner || !runtime.phaseRunSession) continue;
+      const run = await repos.phaseRuns.create({
+        phaseId: phase.id,
+        trigger: "manual",
+      });
+      await runGeoPhaseDrain(
+        {
+          placeEnrichmentRunner: runtime.placeEnrichmentRunner,
+          placeEnrichmentJobs: repos.placeEnrichmentJobs,
+          session: runtime.phaseRunSession,
+        },
+        {
+          phase,
+          runId: run.id,
+          trigger: "manual",
+          batchSize: phase.policy.batchSize,
+        },
+      );
     }
     console.log(
       `Scheduled drain done: ingestPhases=${scheduledIngest.length}, geoPhases=${scheduledGeo.length}`,

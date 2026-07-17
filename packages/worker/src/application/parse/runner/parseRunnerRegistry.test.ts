@@ -7,7 +7,8 @@ import type {
   PhaseDefinitionRecord,
 } from "@radar/shared";
 import { ParseRunnerRegistry, type ParseRunnerRegistryDeps } from "./parseRunnerRegistry.js";
-import type { PhaseRunner } from "../../phases/phaseRunner.js";
+import { createPhaseRunSession } from "../../phases/phaseRunSession.js";
+import type { ParsePhaseTool } from "../parsePhaseTool.js";
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -30,15 +31,21 @@ function buildDeps(
   listEnabled: () => Promise<PhaseDefinitionRecord[]>,
   drainCalls: string[],
 ): ParseRunnerRegistryDeps {
+  const phaseRuns = {
+    failStaleActiveRuns: async () => 0,
+    findActiveForPhase: async () => null,
+    create: async () => ({ id: "run-1" }) as never,
+    updateStats: async () => undefined,
+    updateStatus: async () => undefined,
+    clearControl: async () => undefined,
+    getControl: async () => null,
+    findById: async () => ({ id: "run-1", status: "running" }) as never,
+    appendLog: async () => undefined,
+  } as unknown as IPhaseRunRepository;
+
   return {
     phases: { listEnabled } as unknown as IPhaseDefinitionRepository,
-    phaseRuns: {
-      failStaleActiveRuns: async () => 0,
-      findActiveForPhase: async () => null,
-      create: async () => ({ id: "run-1" }) as never,
-      updateStats: async () => undefined,
-      updateStatus: async () => undefined,
-    } as unknown as IPhaseRunRepository,
+    phaseRuns,
     coverage: {
       countByStatus: async () => ({ pending: 1, processing: 0, done: 0, failed: 0 }),
       enqueueCatchUp: async () => ({ enqueued: 1 }),
@@ -51,11 +58,15 @@ function buildDeps(
     placeJobs: {
       countByStatus: async () => ({ pending: 0, processing: 0, done: 0, failed: 0 }),
     } as never,
-    runner: {
-      handleParseTask: async (phase: PhaseDefinitionRecord) => {
+    session: createPhaseRunSession(phaseRuns),
+    parseTool: {
+      run: async (phase: PhaseDefinitionRecord) => {
         drainCalls.push(phase.id);
       },
-    } as unknown as PhaseRunner,
+      createHandler: () => {
+        throw new Error("unused");
+      },
+    } as unknown as ParsePhaseTool,
   };
 }
 

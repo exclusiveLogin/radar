@@ -1,21 +1,14 @@
 /**
  * Unified phase workload — schedule/wake + один drainOnce на тик (ADR-025).
+ * evaluate = mill drainOnce + session; geo policy — в PhaseTickGate.
  */
-import type {
-  IPhaseCoverageRepository,
-  IPhaseDefinitionRepository,
-  IPhaseRunRepository,
-  IPlaceEnrichmentJobRepository,
-  PhaseDefinitionRecord,
-  PhaseRunStats,
-  PlaceEnrichmentProvider,
-} from "@radar/shared";
-import { createWorkbook, resolveGeoEnrichmentProvider } from "@radar/shared";
-import type { PlaceEnrichmentRunner } from "../../geo-parse/placeEnrichmentRunner.js";
-import type { PhaseRunner } from "../../phases/phaseRunner.js";
+import type { PhaseDefinitionRecord, PhaseRunStats } from "@radar/shared";
+import { createWorkbook } from "@radar/shared";
+import { createPhaseTickGate } from "../../phases/phaseTickGate.js";
 import { buildPhaseDriver, triggerModeToSchedule } from "./phaseDriver.js";
+import type { PhasePlatformDeps } from "./phasePlatformDeps.js";
 import { createUnifiedRunner } from "./unifiedRunner.js";
-import type { JobKernelObsConfig } from "./jobKernel.js";
+import type { JobKernelObsPort } from "./jobKernel.js";
 import { createWorkload, type Workload } from "../workload/createWorkload.js";
 import { createTelemetryBus, type TelemetryBus } from "./telemetryBus.js";
 
@@ -28,26 +21,21 @@ export type UnifiedPhaseArtifact = {
 
 type UnifiedPhaseSlice = { phase: PhaseDefinitionRecord };
 
-const STALE_RUN_MS = 2 * 60 * 60 * 1000;
-
-export type UnifiedPhaseWorkloadDeps = {
-  phases: IPhaseDefinitionRepository;
-  phaseRuns: IPhaseRunRepository;
-  coverage: IPhaseCoverageRepository;
-  placeJobs: IPlaceEnrichmentJobRepository;
-  runner: PhaseRunner;
-  placeEnrichmentRunner?: PlaceEnrichmentRunner;
-};
+export type UnifiedPhaseWorkloadDeps = PhasePlatformDeps;
 
 export function createUnifiedPhaseWorkload(
   deps: UnifiedPhaseWorkloadDeps,
   phase: PhaseDefinitionRecord,
-  obs?: JobKernelObsConfig,
+  obs?: JobKernelObsPort,
 ): Workload & { telemetry: TelemetryBus<UnifiedPhaseArtifact> } {
   const telemetry = createTelemetryBus<UnifiedPhaseArtifact>();
   const pipelineKey = phase.scope === "ingestParse" ? "parse" : "geo-enrich";
   const intervalMs = Math.max(phase.policy.intervalMs, phase.policy.minIntervalMs, 1000);
   const schedule = triggerModeToSchedule(phase.triggerMode, intervalMs);
+  const tickGate = createPhaseTickGate({
+    phaseRuns: deps.phaseRuns,
+    placeJobs: deps.placeJobs,
+  });
 
   const workbook = createWorkbook<Record<string, never>, UnifiedPhaseSlice, UnifiedPhaseArtifact>({
     pipelineKey,
@@ -59,10 +47,9 @@ export function createUnifiedPhaseWorkload(
         return { artifact: { phaseId: slice.phase.id, stats: idle }, nextCursor: {} };
       }
 
-      const run = await deps.phaseRuns.create({
-        phaseId: slice.phase.id,
+      const run = await deps.session.resolveForTick({
+        phase: slice.phase,
         trigger: "scheduled",
-        status: "pending",
       });
 
       const driver = await buildPhaseDriver(slice.phase, deps);
@@ -78,8 +65,8 @@ export function createUnifiedPhaseWorkload(
         ok: tick.ok,
         failed: tick.failed,
       };
-      await deps.phaseRuns.updateStats(run.id, totals);
-      await deps.phaseRuns.updateStatus(run.id, "completed", { stats: totals });
+      await deps.session.phaseRuns.updateStats(run.id, totals);
+      await deps.session.finalize(run.id, "completed", totals);
       return { artifact: { phaseId: slice.phase.id, stats: totals }, nextCursor: {} };
     },
   });
@@ -95,20 +82,8 @@ export function createUnifiedPhaseWorkload(
           reset: async () => {},
         },
         loadSlice: async () => {
-          // Mutex = job SKIP LOCKED, не active phase_run (live ids из самого catch-up).
-          await deps.phaseRuns.failStaleActiveRuns(phase.id, STALE_RUN_MS);
-
-          if (phase.scope === "geoParse") {
-            const provider = resolveGeoEnrichmentProvider(phase) as PlaceEnrichmentProvider | null;
-            if (provider === "nominatim") {
-              const dadata = await deps.placeJobs.countByStatus("dadata");
-              if (dadata.pending + dadata.processing > 0) {
-                return { slice: { phase }, isEmpty: true };
-              }
-            }
-          }
-
-          return { slice: { phase }, isEmpty: false };
+          const gate = await tickGate.beforeTick(phase);
+          return { slice: { phase }, isEmpty: gate.skip };
         },
         materialize: async () => {},
         emitProgress: (envelope) =>

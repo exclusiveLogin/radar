@@ -1,0 +1,140 @@
+/**
+ * ---
+ * layer: worker/composition
+ * domain: bootstrap
+ * purpose: Собирает persistence, transport и fallback repositories worker.
+ * ---
+ */
+import type {
+  IChannelRepository,
+  IEventEvidenceRepository,
+  IEventLocationRepository,
+  IEventTransport,
+  IIngestBackfillJobRepository,
+  IIngestBindingRepository,
+  IIngestCursorRepository,
+  IIngestProviderRepository,
+  IMessageParseWorkspaceRepository,
+  IParsedEventRepository,
+  IPlaceAliasRepository,
+  IPlaceRepository,
+  IRawMessageRepository,
+  IRegionRepository,
+} from "@radar/shared";
+import type { DataSource } from "typeorm";
+import { ParseAttemptWriter } from "../../application/subscribers/index.js";
+import { createEventTransport } from "../../infrastructure/transport/createEventTransport.js";
+import { createWorkerDataSource } from "../../infrastructure/persistence/createWorkerDataSource.js";
+import {
+  InMemoryEventEvidenceRepository,
+  InMemoryEventLocationRepository,
+  InMemoryMessageParseWorkspaceRepository,
+  InMemoryParsedEventRepository,
+  InMemoryPlaceAliasRepository,
+  InMemoryPlaceRepository,
+  InMemoryRawMessageRepository,
+  InMemoryRegionRepository,
+} from "../../application/handlers/inMemoryRepositories.js";
+import { createWorkerDbRepositories } from "../../infrastructure/persistence/workerDbRepos.js";
+import type { WorkerDbRepositories } from "../../infrastructure/persistence/workerDbRepos.types.js";
+import { WorkerStorageMode } from "../../infrastructure/persistence/storageMode.js";
+import type { resolveWorkerBootstrapContext } from "./resolveWorkerBootstrapContext.js";
+
+type BootstrapContext = ReturnType<typeof resolveWorkerBootstrapContext>;
+
+/** Создаёт DB или in-memory persistence, сохраняя единый runtime contract. */
+export async function createWorkerPersistence(
+  context: Pick<
+    BootstrapContext,
+    | "storageMode"
+    | "workerRole"
+    | "deploymentManifest"
+    | "needsParseStack"
+    | "bus"
+    | "lifecycle"
+  >,
+) {
+  let dataSource: DataSource | undefined;
+  let workerRepos: WorkerDbRepositories | undefined;
+  let rawMessages: IRawMessageRepository = new InMemoryRawMessageRepository();
+  let parsedEvents: IParsedEventRepository = new InMemoryParsedEventRepository();
+  let messageParseWorkspaces: IMessageParseWorkspaceRepository =
+    new InMemoryMessageParseWorkspaceRepository();
+  let eventLocations: IEventLocationRepository = new InMemoryEventLocationRepository();
+  let eventEvidence: IEventEvidenceRepository = new InMemoryEventEvidenceRepository();
+  let regions: IRegionRepository = new InMemoryRegionRepository();
+  let places: IPlaceRepository = new InMemoryPlaceRepository();
+  let aliases: IPlaceAliasRepository = new InMemoryPlaceAliasRepository();
+  let cursors: IIngestCursorRepository | undefined;
+  let ingestProviders: IIngestProviderRepository | undefined;
+  let ingestBindings: IIngestBindingRepository | undefined;
+  let channels: IChannelRepository | undefined;
+  let backfillJobs: IIngestBackfillJobRepository | undefined;
+  let eventTransport: IEventTransport;
+
+  if (context.storageMode === WorkerStorageMode.Db) {
+    dataSource = await createWorkerDataSource();
+    eventTransport = createEventTransport({
+      transport: context.deploymentManifest.transport,
+      workerRole: context.workerRole,
+      dataSource,
+    });
+    await eventTransport.start();
+    context.lifecycle.register(async () => {
+      if (dataSource?.isInitialized) await dataSource.destroy();
+    });
+    context.lifecycle.register(() => eventTransport.stop());
+
+    workerRepos = await createWorkerDbRepositories(dataSource);
+    ({
+      rawMessages,
+      parsedEvents,
+      messageParseWorkspaces,
+      eventLocations,
+      eventEvidence,
+      regions,
+      places,
+      aliases,
+      cursors,
+      ingestProviders,
+      ingestBindings,
+      channels,
+      backfillJobs,
+    } = workerRepos);
+
+    if (context.needsParseStack) {
+      const parseAttemptWriter = new ParseAttemptWriter(workerRepos.parseAttempts);
+      context.bus.subscribe("MessageParsed", parseAttemptWriter.handler);
+      context.bus.subscribe("MessageParseFailed", parseAttemptWriter.handler);
+    }
+  } else {
+    eventTransport = createEventTransport({
+      transport: context.deploymentManifest.transport,
+      workerRole: context.workerRole,
+    });
+    await eventTransport.start();
+  }
+
+  return {
+    dataSource,
+    workerRepos,
+    eventTransport,
+    rawMessages,
+    parsedEvents,
+    messageParseWorkspaces,
+    eventLocations,
+    eventEvidence,
+    regions,
+    places,
+    aliases,
+    cursors,
+    ingestProviders,
+    ingestBindings,
+    channels,
+    backfillJobs,
+    shutdown:
+      context.storageMode === WorkerStorageMode.Db
+        ? () => context.lifecycle.shutdown()
+        : undefined,
+  };
+}

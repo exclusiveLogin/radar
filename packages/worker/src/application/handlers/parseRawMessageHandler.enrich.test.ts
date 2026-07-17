@@ -14,7 +14,7 @@ import {
   InMemoryRegionRepository,
 } from "../../application/handlers/inMemoryRepositories.js";
 import { ParseRawMessageHandler } from "../../application/handlers/parseRawMessageHandler.js";
-import { createParseWorkspaceStack } from "../../application/parse/createParseWorkspaceStack.js";
+import { createParseWorkspaceMessageService } from "../../application/parse/createParseWorkspaceMessageService.js";
 import { createTestGeoValidation } from "../../application/parse/createTestGeoValidation.js";
 import { buildTestPlaceScanService } from "../../domain/parse/geo/testPlaceScanFixture.js";
 
@@ -41,7 +41,7 @@ async function buildHandler(input: {
   for (const region of input.regions) {
     await regionRepo.upsertMany([region]);
   }
-  const { workspaceService } = createParseWorkspaceStack({
+  const workspaceService = createParseWorkspaceMessageService({
     placeScan,
     regions: regionRepo,
     places,

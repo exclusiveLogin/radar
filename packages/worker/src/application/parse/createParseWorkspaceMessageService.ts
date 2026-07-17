@@ -14,7 +14,7 @@ import {
 } from "./ParseWorkspaceMessageService.js";
 import { ParseWorkspacePersistService } from "./ParseWorkspacePersistService.js";
 
-export type ParseWorkspaceStackDeps = {
+export type ParseWorkspaceMessageServiceDeps = {
   placeScan: IPlaceScanPort;
   regions: IRegionRepository;
   places: IPlaceRepository;
@@ -24,11 +24,13 @@ export type ParseWorkspaceStackDeps = {
   messageParseWorkspaces: IMessageParseWorkspaceRepository;
 };
 
-/** SSOT: persist + message service для handler, phase runner и heal CLI. */
-export function createParseWorkspaceStack(deps: ParseWorkspaceStackDeps): {
-  persist: ParseWorkspacePersistService;
-  workspaceService: ParseWorkspaceMessageService;
-} {
+/**
+ * Собирает ParseWorkspaceMessageService: persist — приватный коллаборатор,
+ * наружу не протекает (SSOT для handler, phase tool и heal CLI).
+ */
+export function createParseWorkspaceMessageService(
+  deps: ParseWorkspaceMessageServiceDeps,
+): ParseWorkspaceMessageService {
   const persist = new ParseWorkspacePersistService(
     deps.parsedEvents,
     deps.eventLocations,
@@ -49,7 +51,7 @@ export function createParseWorkspaceStack(deps: ParseWorkspaceStackDeps): {
     };
   };
 
-  const workspaceService = new ParseWorkspaceMessageService({
+  return new ParseWorkspaceMessageService({
     placeScan: deps.placeScan,
     regions: deps.regions,
     places: deps.places,
@@ -57,5 +59,4 @@ export function createParseWorkspaceStack(deps: ParseWorkspaceStackDeps): {
     persist,
     loadStoredWorkspace,
   });
-  return { persist, workspaceService };
 }

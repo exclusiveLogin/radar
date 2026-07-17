@@ -93,7 +93,9 @@ function ensureCleanOutdir(outdir: string): void {
 
 async function parseFileBlocks(options: {
   filePath: string;
-  parse: Awaited<ReturnType<typeof createWorkerCompositionRoot>>["parsePipelineService"]["execute"];
+  parse: NonNullable<
+    Awaited<ReturnType<typeof createWorkerCompositionRoot>>["parsePipelineService"]
+  >["execute"];
 }): Promise<{
   payload: Array<Record<string, unknown>>;
   blocksCount: number;
@@ -146,6 +148,10 @@ async function main(): Promise<void> {
     startIngestParseDaemon: false,
     ingestParsePhaseSelection: options.ingestParsePhaseSelection,
   });
+  if (!runtime.parsePipelineService) {
+    throw new Error("parse stack не инициализирован (нужен cap parse).");
+  }
+  const parsePipeline = runtime.parsePipelineService;
 
   const allRecords: FlatRecord[] = [];
   let totalBlocks = 0;
@@ -154,7 +160,7 @@ async function main(): Promise<void> {
   for (const file of files) {
     const { payload, blocksCount, kinds } = await parseFileBlocks({
       filePath: file,
-      parse: runtime.parsePipelineService.execute.bind(runtime.parsePipelineService),
+      parse: parsePipeline.execute.bind(parsePipeline),
     });
     totalBlocks += blocksCount;
     allKinds.push(...kinds);

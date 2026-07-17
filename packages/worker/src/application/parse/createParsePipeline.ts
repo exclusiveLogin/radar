@@ -7,7 +7,7 @@ import {
   InMemoryPlaceRepository,
   InMemoryRegionRepository,
 } from "../handlers/inMemoryRepositories.js";
-import { createParseWorkspaceStack } from "./createParseWorkspaceStack.js";
+import { createParseWorkspaceMessageService } from "./createParseWorkspaceMessageService.js";
 import { createTestGeoValidation } from "./createTestGeoValidation.js";
 import { ParsePipelineService } from "./parsePipelineService.js";
 import { PlaceScanService } from "../../domain/parse/geo/placeScanService.js";
@@ -47,7 +47,7 @@ export function createParsePipeline(deps: CreateParsePipelineDeps): {
     deps.aliases ?? new InMemoryPlaceAliasRepository(),
   );
 
-  const { workspaceService } = createParseWorkspaceStack({
+  const workspaceService = createParseWorkspaceMessageService({
     placeScan: deps.placeScan,
     regions: deps.regions,
     places,

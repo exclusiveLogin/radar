@@ -1,28 +1,17 @@
 import type {
-  IPhaseRunRepository,
   IPlaceEnrichmentJobRepository,
   PhaseDefinitionRecord,
   PhaseRunStats,
   PhaseTrigger,
 } from "@radar/shared";
 import { resolveGeoEnrichmentProvider } from "@radar/shared";
+import type { PhaseRunSession } from "../phases/phaseRunSession.js";
 import type { PlaceEnrichmentRunner } from "./placeEnrichmentRunner.js";
 
 export type GeoPhaseDrainDeps = {
   placeEnrichmentRunner: PlaceEnrichmentRunner;
   placeEnrichmentJobs: IPlaceEnrichmentJobRepository;
-  phaseRuns: IPhaseRunRepository;
-  resolveRunForTick(input: {
-    phase: PhaseDefinitionRecord;
-    trigger: PhaseTrigger;
-    existingRunId?: string;
-  }): Promise<{ id: string }>;
-  resolveRunContinuation(runId: string): Promise<"continue" | "cancel" | "pause">;
-  finalizeRun(
-    runId: string,
-    status: "completed" | "canceled" | "paused",
-    stats: PhaseRunStats,
-  ): Promise<void>;
+  session: PhaseRunSession;
 };
 
 /** Drain geoParse: catch-up place jobs + батчи PlaceEnrichmentRunner. */
@@ -36,38 +25,38 @@ export async function runGeoPhaseDrain(
     placeIds?: string[];
   },
 ): Promise<PhaseRunStats> {
-  const runner = deps.placeEnrichmentRunner;
+  const { session, placeEnrichmentJobs, placeEnrichmentRunner: runner } = deps;
   const provider = resolveGeoEnrichmentProvider(input.phase);
   if (!provider) {
     throw new Error(`geo phase ${input.phase.id} has no provider enricher`);
   }
   if (input.placeIds?.length) {
     for (const placeId of input.placeIds) {
-      await deps.placeEnrichmentJobs.enqueue(placeId, provider);
+      await placeEnrichmentJobs.enqueue(placeId, provider);
     }
   }
 
-  const run = await deps.resolveRunForTick({
+  const run = await session.resolveForTick({
     phase: input.phase,
     trigger: input.trigger,
     existingRunId: input.runId,
   });
-  await deps.phaseRuns.appendLog(run.id, {
+  await session.phaseRuns.appendLog(run.id, {
     at: new Date().toISOString(),
     level: "info",
     message: `${input.trigger} geo drain provider=${provider}`,
   });
 
-  let totals: PhaseRunStats = { claimed: 0, processed: 0, ok: 0, failed: 0 };
+  const totals: PhaseRunStats = { claimed: 0, processed: 0, ok: 0, failed: 0 };
   try {
     for (;;) {
-      const control = await deps.resolveRunContinuation(run.id);
+      const control = await session.resolveContinuation(run.id);
       if (control === "cancel") {
-        await deps.finalizeRun(run.id, "canceled", totals);
+        await session.finalize(run.id, "canceled", totals);
         return totals;
       }
       if (control === "pause") {
-        await deps.finalizeRun(run.id, "paused", totals);
+        await session.finalize(run.id, "paused", totals);
         return totals;
       }
 
@@ -80,45 +69,45 @@ export async function runGeoPhaseDrain(
       totals.failed = (totals.failed ?? 0) + batch.failed;
 
       if (input.placeIds?.length) {
-        await deps.finalizeRun(run.id, "completed", totals);
+        await session.finalize(run.id, "completed", totals);
         return totals;
       }
 
-      const jobCounts = await deps.placeEnrichmentJobs.countByStatus(provider);
+      const jobCounts = await placeEnrichmentJobs.countByStatus(provider);
       totals.pendingRemaining = jobCounts.pending + jobCounts.processing;
       totals.totalKnown =
         (totals.ok ?? 0) + (totals.failed ?? 0) + totals.pendingRemaining;
-      await deps.phaseRuns.updateStats(run.id, totals);
-      await deps.phaseRuns.appendLog(run.id, {
+      await session.phaseRuns.updateStats(run.id, totals);
+      await session.phaseRuns.appendLog(run.id, {
         at: new Date().toISOString(),
         level: "info",
         message: `geo batch claimed=${batch.claimed} ok=${batch.processed} failed=${batch.failed} pending=${totals.pendingRemaining ?? 0}`,
       });
 
       if (batch.claimed === 0) {
-        const counts = await deps.placeEnrichmentJobs.countByStatus(provider);
+        const counts = await placeEnrichmentJobs.countByStatus(provider);
         totals.pendingRemaining = counts.pending + counts.processing;
         totals.totalKnown =
           (totals.ok ?? 0) + (totals.failed ?? 0) + totals.pendingRemaining;
-        const idleOutcome = await deps.resolveRunContinuation(run.id);
+        const idleOutcome = await session.resolveContinuation(run.id);
         const status =
           idleOutcome === "cancel"
             ? "canceled"
             : idleOutcome === "pause"
               ? "paused"
               : "completed";
-        await deps.finalizeRun(run.id, status, totals);
+        await session.finalize(run.id, status, totals);
         return totals;
       }
     }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    await deps.phaseRuns.appendLog(run.id, {
+    await session.phaseRuns.appendLog(run.id, {
       at: new Date().toISOString(),
       level: "error",
       message,
     });
-    await deps.phaseRuns.updateStatus(run.id, "failed", { error: message });
+    await session.phaseRuns.updateStatus(run.id, "failed", { error: message });
     throw err;
   }
 }
