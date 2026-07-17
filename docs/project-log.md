@@ -26,11 +26,13 @@
 | 1 | Протянуть `TypeOrmPlaceEvidenceRepository` в read-side wiring | ❌ |
 | 2 | Read-side: trust summary + evidence history | ❌ |
 | 3 | `GET /api/places/:placeId/evidence?limit=...` | ❌ |
-| 4 | `needsAttention` в place DTO/read model | ❌ |
+| 4 | 
+eedsAttention` в place DTO/read model | ❌ |
 | 5 | Swagger + docs sync | 🟡 частично (docs есть, API — нет) |
 | 6 | Quality gates (`typecheck`, `lint`, smoke) | ❓ не прогоняли в рамках ит.2 |
 
-**Следующий шаг:** wiring evidence repo в read-side → endpoint evidence history → trust-поля и `needsAttention` в выдаче places.
+**Следующий шаг:** wiring evidence repo в read-side → endpoint evidence history → trust-поля и 
+eedsAttention` в выдаче places.
 
 ---
 

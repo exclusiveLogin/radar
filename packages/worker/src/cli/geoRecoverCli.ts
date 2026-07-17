@@ -17,6 +17,8 @@ async function main(): Promise<void> {
   loadRootEnv(MONOREPO_ROOT);
   const force = hasAnyFlag(parseLongFlagsMap(process.argv), ["force"]);
   const runtime = await createWorkerCompositionRoot({
+    workerRole: "geo",
+    bootCaps: ["geo"],
     storageMode: WorkerStorageMode.Db,
     startIngestParseDaemon: false,
   });

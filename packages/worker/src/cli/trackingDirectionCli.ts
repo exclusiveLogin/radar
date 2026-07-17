@@ -35,6 +35,8 @@ async function main(): Promise<void> {
   const top = Number(readStringFlag(flags, ["top"]) ?? "15");
 
   const runtime = await createWorkerCompositionRoot({
+    workerRole: "tracking",
+    bootCaps: ["tracking"],
     storageMode: WorkerStorageMode.Db,
     startIngestParseDaemon: false,
   });

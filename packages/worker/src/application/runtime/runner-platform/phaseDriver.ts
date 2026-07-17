@@ -10,12 +10,12 @@ import type {
   WorkItemResult,
 } from "@radar/shared";
 import { resolveGeoEnrichmentProvider } from "@radar/shared";
-import type { PlaceEnrichmentRunner } from "../geo-parse/placeEnrichmentRunner.js";
-import { prerequisitePhaseIds } from "../phases/phaseOrder.js";
-import type { PhaseRunner } from "../phases/phaseRunner.js";
-import { createGeoPlaceQueue } from "../phases/geoPlaceQueue.js";
-import { createParsePhaseQueue } from "../phases/parsePhaseQueue.js";
-import type { ScheduleMode } from "../runtime/runner-platform/runnerContracts.js";
+import type { PlaceEnrichmentRunner } from "../../geo-parse/placeEnrichmentRunner.js";
+import { prerequisitePhaseIds } from "../../phases/phaseOrder.js";
+import type { PhaseRunner } from "../../phases/phaseRunner.js";
+import { createGeoPlaceQueue } from "../../phases/geoPlaceQueue.js";
+import { createParsePhaseQueue } from "../../phases/parsePhaseQueue.js";
+import type { ScheduleMode } from "./runnerContracts.js";
 
 export type PhaseDriverDeps = {
   phases: IPhaseDefinitionRepository;

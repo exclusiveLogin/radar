@@ -67,7 +67,7 @@ export class ParsePipelineAdminService implements OnModuleDestroy {
     return this.startJob("reset", "parse-engine:pipeline:reset", ["--no-force-locks"]);
   }
 
-  /** Полный reparse + drain scheduled (как `npm run radar -- parse run`). */
+  /** Полный reparse + drain scheduled (как `npm run radar -- parse run`). */
   async startReparse(): Promise<ParsePipelineStartResponse> {
     return this.startJob("reparse", "parse-engine:rebuild:drain", ["--no-force-locks"]);
   }

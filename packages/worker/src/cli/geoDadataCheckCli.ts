@@ -9,6 +9,8 @@ import { WorkerStorageMode } from "../infrastructure/persistence/storageMode.js"
 async function main(): Promise<void> {
   loadRootEnv(MONOREPO_ROOT);
   const runtime = await createWorkerCompositionRoot({
+    workerRole: "geo",
+    bootCaps: ["geo"],
     storageMode: WorkerStorageMode.Db,
     startIngestParseDaemon: false,
   });

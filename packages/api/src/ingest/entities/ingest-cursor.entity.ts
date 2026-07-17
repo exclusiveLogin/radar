@@ -2,7 +2,8 @@
  * «Где остановились» при live-ingest: последнее принятое сообщение по паре channel+provider.
  * Не определяет порядок архива в БД — только помогает адаптеру не терять хвост потока; backfill state хранится отдельным полем.
  * @see ../../../../../docs/domain/persistence-map.md#IngestCursorEntity
- * @see ../../../../../docs/database-table-naming.md`n * @see ../../../../../docs/domain/contexts/ingest.md
+ * @see ../../../../../docs/database-table-naming.md
+ * @see ../../../../../docs/domain/contexts/ingest.md
  */
 import { Column, Entity, JoinColumn, ManyToOne, PrimaryColumn } from "typeorm";
 import { ChannelEntity } from "./channel.entity";

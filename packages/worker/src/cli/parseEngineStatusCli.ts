@@ -92,6 +92,8 @@ async function main(): Promise<void> {
   loadRootEnv(MONOREPO_ROOT);
   const scope = resolveScope(process.argv);
   const runtime = await createWorkerCompositionRoot({
+    workerRole: "parse",
+    bootCaps: ["parse","geo"],
     storageMode: WorkerStorageMode.Db,
     startIngestParseDaemon: false,
   });

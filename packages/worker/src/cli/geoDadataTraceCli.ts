@@ -15,6 +15,8 @@ async function main(): Promise<void> {
   console.log("token present:", Boolean(token), "len:", token?.length ?? 0);
 
   const runtime = await createWorkerCompositionRoot({
+    workerRole: "geo",
+    bootCaps: ["geo"],
     storageMode: WorkerStorageMode.Db,
     startIngestParseDaemon: false,
   });

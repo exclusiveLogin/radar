@@ -10,7 +10,8 @@
 | Проверка | Статус | Комментарий |
 |----------|--------|-------------|
 | `aggregateType` в коде соответствует enum в `domain-event.ts` | OK | Все присвоения используют значения из enum |
-| Классы `AggregateRoot` / `new XxxAggregate` | N/A | Не используются (by design) |
+| Классы `AggregateRoot` / 
+ew XxxAggregate` | N/A | Не используются (by design) |
 | `aggregateId` для `raw_message` = uuid строки | OK | `IngestRawMessageHandler`, parse handlers |
 | `parsed_event` id после `upsert` | OK | `ParseRawMessageHandler` |
 | `channel`, `session_slot`, `system` в runtime | Gap | Enum есть, publish не найден |

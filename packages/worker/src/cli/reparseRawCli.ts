@@ -18,6 +18,8 @@ async function main(): Promise<void> {
   const drainScheduled = hasAnyFlag(flags, ["drain-scheduled", "drainScheduled"]);
   const forceLocks = !hasAnyFlag(flags, ["no-force-locks", "noForceLocks"]);
   const runtime = await createWorkerCompositionRoot({
+    workerRole: "parse",
+    bootCaps: ["parse","geo"],
     storageMode: WorkerStorageMode.Db,
     startIngestParseDaemon: false,
   });

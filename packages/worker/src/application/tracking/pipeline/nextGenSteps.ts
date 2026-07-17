@@ -53,15 +53,15 @@ export const fieldTrainStep: TrackingStep = {
   run(payload, deps) {
     const flowWeights = resolveNextGenFlowWeights(payload.config);
     const rflPenaltyThreshold = resolveNextGenRflPenaltyThreshold(payload.config);
-    const phase2 = NextGenStep2.execute(
+    const step2 = NextGenStep2.execute(
       payload.nodes,
       payload.kin,
       deps.flowMap,
       flowWeights,
       rflPenaltyThreshold,
     );
-    registerSegmentFlows(deps.flowMap, phase2.segments);
-    return { ...payload, segments: phase2.segments, step2Stats: phase2.stats };
+    registerSegmentFlows(deps.flowMap, step2.segments);
+    return { ...payload, segments: step2.segments, step2Stats: step2.stats };
   },
 };
 
@@ -72,7 +72,7 @@ export const joinStep: TrackingStep = {
     const flowWeights = resolveNextGenFlowWeights(payload.config);
     const turn = resolveNextGenTurnPenalty(payload.config);
     const minBackboneNodes = payload.config.nextgen?.minBackboneNodes ?? 3;
-    const phase3 = NextGenStep3.assemble(
+    const step3 = NextGenStep3.assemble(
       payload.nodes,
       payload.kin,
       deps.flowMap,
@@ -82,7 +82,7 @@ export const joinStep: TrackingStep = {
       minBackboneNodes,
       payload.seedTracks,
     );
-    return { ...payload, tracks: phase3.tracks, step3Stats: phase3.stats };
+    return { ...payload, tracks: step3.tracks, step3Stats: step3.stats };
   },
 };
 

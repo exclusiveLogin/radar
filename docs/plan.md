@@ -83,7 +83,9 @@ isProject: true
   - `GET /health` (или `/api/health`) — версия/время, без БД;
   - `GET /ready` (или `/api/ready`) — короткий запрос к БД (`SELECT 1` / репозиторий), чтобы убедиться, что `DATABASE_URL` и миграции на месте.
 - **Документация:** **Swagger (OpenAPI)** через `@nestjs/swagger`, UI по умолчанию например `/api/docs` (путь зафиксировать в README); DTO с `@ApiProperty` для ответов smoke-эндпоинтов.
-- **Скрипты (корень монорепы и/или `packages/api`):** `dev` / `start:dev` (`nest start --watch`), `build`, `start:prod` (`node dist/main`), плюс прокси-скрипты из корня (`npm run api:dev` и т.д.); опционально e2e-заготовка Nest на потом без обязательного полного набора тестов в коммите 1.
+- **Скрипты (корень монорепы и/или `packages/api`):** `dev` / `start:dev` (
+est start --watch`), `build`, `start:prod` (
+ode dist/main`), плюс прокси-скрипты из корня (`npm run api:dev` и т.д.); опционально e2e-заготовка Nest на потом без обязательного полного набора тестов в коммите 1.
 - **README (корень):** краткая инструкция: поднять БД (`docker compose up -d`), применить миграции, запустить API, открыть Swagger и проверить `/health` и `/ready`.
 
 ## Структура репозитория (ориентир под первый коммит)
@@ -94,7 +96,7 @@ isProject: true
 - `packages/worker` — входная точка GramJS, логика сессии/авторизации (без полноценного парсинга каналов в коммите 1 — только подключение и «живой» ping).
 - `packages/web` — минимальный фронт (страница + вызов health API).
 - `tsconfig.base.json` + `references` / project references по пакетам.
-- `.gitignore` — `node_modules`, локальные `.env`, **файлы сессии Telegram**, `dist`, логи.
+- `.gitignore` — `node_modules`, локальные `.env`, **файлы сессии Telegram**, `dist`, логи.
 
 ## Диаграмма (целевой поток после скелета)
 
@@ -164,7 +166,8 @@ flowchart LR
 1. Read-side/API:
    - отдать `trustState`, `isTrusted`, `trustScore`, `trustUpdatedAt`, `evidenceProviders` в place-related выдаче;
    - добавить endpoint истории evidence по `placeId` (с параметром `limit`);
-   - добавить derived-поле `needsAttention` для UI.
+   - добавить derived-поле 
+eedsAttention` для UI.
 
 2. Контракты и совместимость:
    - additive-only изменения response DTO на первом этапе;
@@ -173,7 +176,8 @@ flowchart LR
 
 3. Документация:
    - синхронизировать `README.md`, `docs/place-trust-explained.md`, `docs/geo-dataset-schemas.md`;
-   - зафиксировать UI-интерпретацию `needsAttention`.
+   - зафиксировать UI-интерпретацию 
+eedsAttention`.
 
 #### Технические задачи (порядок выполнения)
 
@@ -183,18 +187,22 @@ flowchart LR
    - получение evidence history.
 3. Добавить/расширить endpoint:
    - `GET /api/places/:placeId/evidence?limit=...`.
-4. Добавить `needsAttention` в place DTO/read model.
+4. Добавить 
+eedsAttention` в place DTO/read model.
 5. Обновить Swagger/контракты и docs.
 6. Прогнать quality gates.
 
 #### Definition of Done
 
-- Read-side возвращает trust-поля и `needsAttention` для place.
+- Read-side возвращает trust-поля и 
+eedsAttention` для place.
 - Endpoint evidence history доступен и ограничивает выдачу по `limit`.
-- `npm run typecheck` и `npm run lint` зелёные.
+- `npm run typecheck` и `npm run lint` зелёные.
 - Smoke-проверки:
-  - `unverified` -> `needsAttention=true`,
-  - `verified` -> `needsAttention=false`.
+  - `unverified` -> 
+eedsAttention=true`,
+  - `verified` -> 
+eedsAttention=false`.
 
 ### Raw Ingest Providers — выполнено (2026-05-14)
 

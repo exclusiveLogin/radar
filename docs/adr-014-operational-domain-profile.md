@@ -1,119 +1,121 @@
-﻿> **Имена таблиц:** актуальные — [database-table-naming.md](./database-table-naming.md). Ниже — исторический контекст.`n`n# ADR-014: Р’С‹РЅРѕСЃ РґРѕРјРµРЅРЅРѕР№ Р·РѕРЅС‹ Р‘РџР›Рђ (Operational Domain Profile)
+﻿> **Имена таблиц:** актуальные — [database-table-naming.md](./database-table-naming.md). Ниже — исторический контекст.
 
-Р”Р°С‚Р°: 2026-06-14  
-РЎС‚Р°С‚СѓСЃ: **РџСЂРµРґР»РѕР¶РµРЅРѕ**
+# ADR-014: Вынос доменной зоны БПЛА (Operational Domain Profile)
 
-РЎРІСЏР·Р°РЅРѕ: [ADR-003](./adr-003-phase-enrichment-accumulator.md), [ADR-008](./adr-008-kinematic-vs-static-events.md), [rfc/parse-processor-workspace.md](./rfc/parse-processor-workspace.md), [sdd/odp/](./sdd/odp/README.md), [sdd/tracking/](./sdd/tracking/README.md)
+Дата: 2026-06-14  
+Статус: **Предложено**
 
----
-
-## РљРѕРЅС‚РµРєСЃС‚
-
-РџСЂРѕРґСѓРєС‚ РёСЃС‚РѕСЂРёС‡РµСЃРєРё Р·Р°С‚РѕС‡РµРЅ РїРѕРґ **РѕРґРёРЅ OSINT-РґРѕРјРµРЅ** (СЂР°РґР°СЂ, Telegram-РєР°РЅР°Р»С‹, РїРµСЂРµС…РІР°С‚, С„РёРєСЃР°С†РёРё). Р­С‚Рѕ РїСЂРѕСЏРІРёР»РѕСЃСЊ РІ РєРѕРґРµ РєР°Рє **Р¶С‘СЃС‚РєР°СЏ РїСЂРёРІСЏР·РєР° Рє РѕРґРЅРѕРјСѓ РґРѕРјРµРЅСѓ**, С…РѕС‚СЏ Р°СЂС…РёС‚РµРєС‚СѓСЂРЅРѕ СѓР¶Рµ РµСЃС‚СЊ Р·Р°РґРµР» РїРѕРґ РєРѕРЅС„РёРіСѓСЂР°С†РёСЋ (`status_dictionary`, phase manifest, parse workspace RFC).
-
-**Р¦РµР»СЊ:** UI, РїР°СЂСЃРµСЂС‹ Рё tracking РЅР°СЃС‚СЂР°РёРІР°СЋС‚СЃСЏ **С„РёР»СЊС‚СЂР°РјРё Рё РјР°РЅРёС„РµСЃС‚Р°РјРё**, Р±РµР· РїСЂР°РІРєРё TypeScript РїСЂРё РґРѕР±Р°РІР»РµРЅРёРё С‚РёРїР° СЃРѕР±С‹С‚РёСЏ, СЃРјРµРЅРµ Р»РµРєСЃРёРєРё РёР»Рё Р·Р°РїСѓСЃРєРµ РІС‚РѕСЂРѕРіРѕ РґРѕРјРµРЅР° (СЂР°РєРµС‚С‹-only, РґСЂСѓРіРѕР№ СЂРµРіРёРѕРЅ, РґСЂСѓРіРѕР№ СЏР·С‹Рє).
-
-**РќРµ С†РµР»СЊ:** РїРµСЂРµРїРёСЃР°С‚СЊ РІРµСЃСЊ parse big-bang РёР»Рё СЃРґРµР»Р°С‚СЊ Turing-complete DSL РїСЂР°РІРёР» РІ v1.
-
-> рџ“– **РџРѕС€Р°РіРѕРІРѕ РїСЂРѕСЃС‚С‹Рј СЏР·С‹РєРѕРј:** [operational-domain-profile-walkthrough.md](./rfc/operational-domain-profile-walkthrough.md) вЂ” С€Р°РіРё D0вЂ“D5, **В§13 РєР°СЂС‚Р° РјРёРіСЂР°С†РёРё С„Р°Р№Р»РѕРІ**.
+Связано: [ADR-003](./adr-003-phase-enrichment-accumulator.md), [ADR-008](./adr-008-kinematic-vs-static-events.md), [rfc/parse-processor-workspace.md](./rfc/parse-processor-workspace.md), [sdd/odp/](./sdd/odp/README.md), [sdd/tracking/](./sdd/tracking/README.md)
 
 ---
 
-## РўРµРєСѓС‰РёР№ coupling (Р°СѓРґРёС‚ СЃР»РѕС‘РІ)
+## Контекст
 
-### РљР°СЂС‚Р°: РіРґРµ Р·Р°С€РёС‚ В«Р‘РџР›Рђ-РґРѕРјРµРЅВ»
+Продукт исторически заточен под **один OSINT-домен** (радар, Telegram-каналы, перехват, фиксации). Это проявилось в коде как **жёсткая привязка к одному домену**, хотя архитектурно уже есть задел под конфигурацию (`status_dictionary`, phase manifest, parse workspace RFC).
 
-| РЎР»РѕР№ | Р¤Р°Р№Р» / Р°СЂС‚Рµfact | Coupling | Severity |
+**Цель:** UI, парсеры и tracking настраиваются **фильтрами и манифестами**, без правки TypeScript при добавлении типа события, смене лексики или запуске второго домена (ракеты-only, другой регион, другой язык).
+
+**Не цель:** переписать весь parse big-bang или сделать Turing-complete DSL правил в v1.
+
+> 📖 **Пошагово простым языком:** [operational-domain-profile-walkthrough.md](./rfc/operational-domain-profile-walkthrough.md) — шаги D0–D5, **§13 карта миграции файлов**.
+
+---
+
+## Текущий coupling (аудит слоёв)
+
+### Карта: где зашит «БПЛА-домен»
+
+| Слой | Файл / артеfact | Coupling | Severity |
 |------|-----------------|----------|----------|
-| **Shared contracts** | `packages/shared/src/schemas/ingest/event-type.ts` | Р—Р°РєСЂС‹С‚С‹Р№ `z.enum([fixation, вЂ¦])` вЂ” РЅРѕРІС‹Р№ С‚РёРї = РґРµРїР»РѕР№ | рџ”ґ РІС‹СЃРѕРєРёР№ |
-| **Shared UI filter** | `packages/shared/src/schemas/map/event-heatmap.ts` | `EVENT_HEATMAP_FILTER_TYPES` вЂ” С…Р°СЂРґРєРѕРґ РїРѕРґРјРЅРѕР¶РµСЃС‚РІР° | рџџ  СЃСЂРµРґРЅРёР№ |
-| **Parse rules** | `packages/worker/src/domain/parsing/extractEventType.ts` | ~30 regex СЃ `Р±РїР»Р°`, `РґСЂРѕРЅ`, `РјРІС€`, `СЂР°РєРµС‚` | рџ”ґ РІС‹СЃРѕРєРёР№ |
-| **Parse subject** | `extractEventSubject.ts` (same file) | РџСЂРёРѕСЂРёС‚РµС‚ drone/rocket/mws | рџџ  СЃСЂРµРґРЅРёР№ |
-| **Geo grooming** | `packages/worker/.../geoCatalog.ts` | Strip-prefix `(?:Р±РїР»Р°\|С„РёРєСЃР°С†РёСЏ\|вЂ¦)` | рџџ  СЃСЂРµРґРЅРёР№ |
-| **Dictionary DB** | `status_dictionary` | Р•СЃС‚СЊ `parser_hints[]`, РЅРѕ **РЅРµ SSOT** РґР»СЏ regex | рџџЎ С‡Р°СЃС‚РёС‡РЅРѕ |
-| **Map read** | `map-query.service.ts`, fold | JOIN РїРѕ `status_dictionary` вЂ” **СѓР¶Рµ data-driven** | рџџў OK |
-| **Tracking (plan)** | `threatProfile: uav\|rocket\|balloon` | Enum РІ SDD; РјР°РїРїРёРЅРі РЅРµ РІ dictionary | рџџ  СЃСЂРµРґРЅРёР№ |
-| **Product copy** | `docs/plan.md`, README | В«СЂР°РґР°СЂ РїРѕ Р‘РџР›РђВ» вЂ” РјР°СЂРєeting, РЅРµ РєРѕРґ | рџџў OK |
+| **Shared contracts** | `packages/shared/src/schemas/ingest/event-type.ts` | Закрытый `z.enum([fixation, …])` — новый тип = деплой | 🔴 высокий |
+| **Shared UI filter** | `packages/shared/src/schemas/map/event-heatmap.ts` | `EVENT_HEATMAP_FILTER_TYPES` — хардкод подмножества | 🟠 средний |
+| **Parse rules** | `packages/worker/src/domain/parsing/extractEventType.ts` | ~30 regex с `бпла`, `дрон`, `мвш`, `ракет` | 🔴 высокий |
+| **Parse subject** | `extractEventSubject.ts` (same file) | Приоритет drone/rocket/mws | 🟠 средний |
+| **Geo grooming** | `packages/worker/.../geoCatalog.ts` | Strip-prefix `(?:бпла\|фиксация\|…)` | 🟠 средний |
+| **Dictionary DB** | `status_dictionary` | Есть `parser_hints[]`, но **не SSOT** для regex | 🟡 частично |
+| **Map read** | `map-query.service.ts`, fold | JOIN по `status_dictionary` — **уже data-driven** | 🟢 OK |
+| **Tracking (plan)** | `threatProfile: uav\|rocket\|balloon` | Enum в SDD; маппинг не в dictionary | рџџ  средний |
+| **Product copy** | `docs/plan.md`, README | «радар по БПЛА» — маркeting, не код | 🟢 OK |
 
-### Р’С‹РІРѕРґ РїРѕ СЃР»РѕСЏРј
+### Вывод по слоям
 
 ```text
 в”Њв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”ђ
-в”‚  UI / API read-side     вЂ” С‡Р°СЃС‚РёС‡РЅРѕ OK (status_dictionary)   в”‚
+│  UI / API read-side     — частично OK (status_dictionary)   │
 в”њв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”¤
-в”‚  Shared Zod enums       вЂ” Р–РЃРЎРўРљРР™ coupling (event types)    в”‚
+в”‚  Shared Zod enums       — ЖЁСТКРЙ coupling (event types)    в”‚
 в”њв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”¤
-в”‚  Worker parse domain    вЂ” Р–РЃРЎРўРљРР™ coupling (regex rules)    в”‚
+в”‚  Worker parse domain    — ЖЁСТКРЙ coupling (regex rules)    в”‚
 в”њв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”¤
-в”‚  Facts (mat_parse_event)  вЂ” РЅРµР№С‚СЂР°Р»СЊРЅС‹ (event_type = string)  в”‚
+│  Facts (mat_parse_event)  — нейтральны (event_type = string)  │
 в””в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”
 ```
 
-**Р“СЂР°РЅРёС†Р° decouple:** РјРµР¶РґСѓ **domain pack (РєРѕРЅС„РёРі)** Рё **platform core (shared + worker shell)**.  
-Facts РѕСЃС‚Р°СЋС‚СЃСЏ append-only; РјРµРЅСЏРµС‚СЃСЏ **РёРЅС‚РµСЂРїСЂРµС‚Р°С†РёСЏ** Рё **РЅР°Р±РѕСЂ Р°РєС‚РёРІРЅС‹С… РїСЂР°РІРёР»/С„РёР»СЊС‚СЂРѕРІ**.
+**Граница decouple:** между **domain pack (конфиг)** и **platform core (shared + worker shell)**.  
+Facts остаются append-only; меняется **интерпретация** и **набор активных правил/фильтров**.
 
 ---
 
-## Р РµС€РµРЅРёРµ
+## Решение
 
 ### 1. Operational Domain Profile (ODP)
 
-Р•РґРёРЅР°СЏ СЃСѓС‰РЅРѕСЃС‚СЊ РєРѕРЅС„РёРіСѓСЂР°С†РёРё В«РєР°РєРѕР№ РјРёСЂ РјС‹ РјРѕРЅРёС‚РѕСЂРёРјВ»:
+Единая сущность конфигурации «какой мир мы мониторим»:
 
 ```typescript
 type OperationalDomainProfile = {
   id: string;                    // e.g. "uav_osint_ru_v1"
-  title: string;                 // "Р‘РџР›Рђ OSINT (Р Р¤)"
+  title: string;                 // "БПЛА OSINT (РФ)"
   locale: string;                // "ru"
   isDefault: boolean;
-  /** РђРєС‚РёРІРЅС‹Рµ РєРѕРґС‹ РёР· status_dictionary */
+  /** Активные коды из status_dictionary */
   activeEventTypes: string[];
   /** UI presets: heatmap, map layers, widgets */
   uiPresets: UiFilterPreset[];
-  /** РњР°РїРїРёРЅРі РґР»СЏ tracking threat_profile (ADR-007/013) */
+  /** Маппинг для tracking threat_profile (ADR-007/013) */
   threatProfileRules: ThreatProfileRule[];
-  /** РЎСЃС‹Р»РєРё РЅР° rule packs РїР°СЂСЃРµСЂР° */
+  /** Ссылки на rule packs парсера */
   parserRulePackIds: string[];
   /** Geo grooming: noise prefixes, promo patterns */
   geoGroomingPackId?: string;
 };
 ```
 
-**SSOT v1:** JSON-РјР°РЅifest РІ СЂРµРїРѕ + Zod + import CLI (РїР°С‚С‚РµСЂРЅ РєР°Рє `phase_definitions`).  
-**v2:** СЃС‚СЂРѕРєР° РІ Р‘Р” `operational_domain_profiles`, toggle РІ Р°РґРјРёРЅРєРµ (enabled profile per deployment).
+**SSOT v1:** JSON-манifest в репо + Zod + import CLI (паттерн как `phase_definitions`).  
+**v2:** строка в БД `operational_domain_profiles`, toggle в админке (enabled profile per deployment).
 
-### 2. Р Р°Р·РґРµР»РµРЅРёРµ: Platform Core vs Domain Pack
+### 2. Разделение: Platform Core vs Domain Pack
 
-| Platform Core (РЅРµ Р·РЅР°РµС‚ РїСЂРѕ Р‘РџР›Рђ) | Domain Pack `uav_osint_ru` |
+| Platform Core (не знает про БПЛА) | Domain Pack `uav_osint_ru` |
 |----------------------------------|----------------------------|
 | `mat_parse_event`, `mat_parse_location` | Regex / processor rules |
-| `status_dictionary` schema | Entries + hints РґР»СЏ РґРѕРјРµРЅР° |
+| `status_dictionary` schema | Entries + hints для домена |
 | `mapStateFold`, Time Machine | `state_level` mapping per type |
 | Generic map API | UI filter presets |
 | Tracking worker shell | `threatProfileRules`, kinematics profile |
 | Parse workspace contract | EventTypeProcessor config |
 
-Domain pack **РЅРµ РёРјРїРѕСЂС‚РёСЂСѓРµС‚СЃСЏ** РІ core РєР°Рє `if (Р±РїР»Р°)` вЂ” С‚РѕР»СЊРєРѕ С‡РµСЂРµР· **injected config** РїСЂРё bootstrap worker/web.
+Domain pack **не импортируется** в core как `if (бпла)` — только через **injected config** при bootstrap worker/web.
 
-### 3. Event types вЂ” РѕС‚ open enum Рє dictionary-validated string
+### 3. Event types — от open enum к dictionary-validated string
 
-**РџСЂРѕР±Р»РµРјР°:** `eventTypeSchema = z.enum([...])` Р±Р»РѕРєРёСЂСѓРµС‚ РЅРѕРІС‹Рµ РєРѕРґС‹.
+**Проблема:** `eventTypeSchema = z.enum([...])` блокирует новые коды.
 
-**РџСѓС‚СЊ (incremental):**
+**Путь (incremental):**
 
-| Р­С‚Р°Рї | РР·РјРµРЅРµРЅРёРµ |
+| Этап | Рзменение |
 |------|-----------|
-| **E1** | `eventTypeCodeSchema = z.string().min(1)` РІ persistence; enum РѕСЃС‚Р°С‘С‚СЃСЏ РґР»СЏ **legacy compile-time** РІ worker tests |
+| **E1** | `eventTypeCodeSchema = z.string().min(1)` в persistence; enum остаётся для **legacy compile-time** в worker tests |
 | **E2** | Runtime validate: `status_dictionary.code` exists + active + in current ODP |
-| **E3** | РЈР±СЂР°С‚СЊ enum РёР· public API; РєР»РёРµРЅС‚С‹ С‡РёС‚Р°СЋС‚ dictionary |
+| **E3** | Убрать enum из public API; клиенты читают dictionary |
 
-`EventType` type alias в†’ `string` СЃ branded optional `EventTypeCode` РёР· dictionary snapshot.
+`EventType` type alias в†’ `string` с branded optional `EventTypeCode` из dictionary snapshot.
 
-### 4. Parser rules вЂ” external rule pack
+### 4. Parser rules — external rule pack
 
-**РџСЂРѕР±Р»РµРјР°:** `extractEventType.ts` вЂ” РјРѕРЅРѕР»РёС‚ regex.
+**Проблема:** `extractEventType.ts` — монолит regex.
 
-**Р РµС€РµРЅРёРµ:** Rule Pack manifest (YAML/JSON):
+**Решение:** Rule Pack manifest (YAML/JSON):
 
 ```yaml
 # data/domains/uav_osint_ru/parser-rules.v1.yaml
@@ -122,33 +124,33 @@ domainProfileId: uav_osint_ru_v1
 rules:
   - id: cleared_threat
     priority: 10
-    pattern: "РѕС‚Р±РѕР№.*(РѕРїР°СЃРЅРѕСЃС‚|РІРЅРёРјР°РЅРё|С‚СЂРµРІРѕРі|СѓРіСЂРѕР·)"
+    pattern: "отбой.*(опасност|внимани|тревог|угроз)"
     flags: is
     eventType: cleared
   - id: pvo_stats_destroyed
     priority: 20
-    pattern: "СѓРЅРёС‡С‚РѕР¶РµРЅ[Р°-СЏС‘]*\\s+\\d+\\s+(?:СѓРєСЂР°РёРЅСЃРєРёС…\\s+)?(?:Р±РїР»Р°|Р±РµСЃРїРёР»РѕС‚РЅ)"
+    pattern: "уничтожен[а-яё]*\\s+\\d+\\s+(?:украинских\\s+)?(?:бпла|беспилотн)"
     flags: i
     eventType: pvo_report
-  # вЂ¦
+  # …
 ```
 
 **Runtime:**
 
 ```typescript
-/** Р—Р°РіСЂСѓР¶Р°РµС‚ СѓРїРѕСЂСЏРґРѕС‡РµРЅРЅС‹Рµ РїСЂР°РІРёР»Р° РёР· pack; SSOT РІ data/, РЅРµ РІ TS. */
+/** Загружает упорядоченные правила из pack; SSOT в data/, не в TS. */
 function classifyEventType(text: string, pack: ParserRulePack): string | null;
 ```
 
-`extractEventType.ts` в†’ thin wrapper / re-export РґР»СЏ BC; golden tests РѕСЃС‚Р°СЋС‚СЃСЏ, РёСЃС‚РѕС‡РЅРёРє РїСЂР°РІРёР» вЂ” С„Р°Р№Р».
+`extractEventType.ts` → thin wrapper / re-export для BC; golden tests остаются, источник правил — файл.
 
-**РЎРІСЏР·СЊ СЃ parse RFC:** `EventTypeProcessor` С‡РёС‚Р°РµС‚ С‚РѕС‚ Р¶Рµ pack; workspace РЅРµ РґСѓР±Р»РёСЂСѓРµС‚ regex.
+**Связь с parse RFC:** `EventTypeProcessor` читает тот же pack; workspace не дублирует regex.
 
-### 5. UI filters вЂ” data-driven presets
+### 5. UI filters — data-driven presets
 
-**РџСЂРѕР±Р»РµРјР°:** `EVENT_HEATMAP_FILTER_TYPES` Р·Р°С…Р°СЂРґРєРѕР¶РµРЅ.
+**Проблема:** `EVENT_HEATMAP_FILTER_TYPES` захардкожен.
 
-**Р РµС€РµРЅРёРµ:**
+**Решение:**
 
 ```typescript
 type UiFilterPreset = {
@@ -161,20 +163,20 @@ type UiFilterPreset = {
 };
 ```
 
-Web РїСЂРё СЃС‚Р°СЂС‚Рµ:
+Web при старте:
 
 ```text
 GET /map/status-dictionary?domainProfile=uav_osint_ru_v1
 GET /map/domain-profile/active   в†’ uiPresets
 ```
 
-`MapHeatmapControls` СЃС‚СЂРѕРёС‚ РєРЅРѕРїРєРё РёР· **preset + dictionary titles**, РЅРµ РёР· const РІ shared.
+`MapHeatmapControls` строит кнопки из **preset + dictionary titles**, не из const в shared.
 
-### 6. Tracking threat_profile вЂ” mapping table, РЅРµ С…Р°СЂРґРєРѕРґ РІ resolve
+### 6. Tracking threat_profile — mapping table, не хардкод в resolve
 
-**РџСЂРѕР±Р»РµРјР° (planned):** `resolveThreatProfile()` СЃ Р»РёС‚РµСЂР°Р»Р°РјРё rocket/mws.
+**Проблема (planned):** `resolveThreatProfile()` с литералами rocket/mws.
 
-**Р РµС€РµРЅРёРµ:** РїСЂР°РІРёР»Р° РІ ODP:
+**Решение:** правила в ODP:
 
 ```typescript
 type ThreatProfileRule = {
@@ -187,45 +189,45 @@ type ThreatProfileRule = {
 };
 ```
 
-Worker tracking Р·Р°РіСЂСѓР¶Р°РµС‚ rules РёР· active ODP; fallback `unknown`.
+Worker tracking загружает rules из active ODP; fallback `unknown`.
 
-Kinematics (`PROFILE_KINEMATICS`) РѕСЃС‚Р°С‘С‚СЃСЏ РІ shared РєР°Рє **physics SSOT**, РЅРµ Р»РµРєСЃРёРєР° Р‘РџР›Рђ.
+Kinematics (`PROFILE_KINEMATICS`) остаётся в shared как **physics SSOT**, не лексика БПЛА.
 
 ### 7. Geo grooming pack
 
-Р’С‹РЅРµСЃС‚Рё prefix-strip РёР· `geoCatalog.ts`:
+Вынести prefix-strip из `geoCatalog.ts`:
 
 ```yaml
 # data/domains/uav_osint_ru/geo-grooming.v1.yaml
 stripLinePrefixes:
-  - "^(?:Р±РїР»Р°|СѓРіСЂРѕР·Р°|РѕРїР°СЃРЅРѕСЃС‚СЊ|РІРЅРёРјР°РЅРёРµ|С„РёРєСЃР°С†РёСЏ|РѕС‚Р±РѕР№)\\s+(?:РїРѕ|РЅР°)?\\s*"
+  - "^(?:бпла|угроза|опасность|внимание|фиксация|отбой)\\s+(?:по|на)?\\s*"
 commercialNoisePatterns: [...]
 ```
 
-### 8. Multi-domain (future, РЅРµ v1)
+### 8. Multi-domain (future, не v1)
 
-РћРґРёРЅ deployment = **РѕРґРёРЅ active ODP** (default).  
-РџРѕР·Р¶Рµ: channel-level override (`ingest_bindings.domain_profile_id`) РґР»СЏ СЃРјРµС€Р°РЅРЅС‹С… РёРЅСЃС‚Р°Р»Р»СЏС†РёР№.
+Один deployment = **один active ODP** (default).  
+Позже: channel-level override (`ingest_bindings.domain_profile_id`) для смешанных инсталляций.
 
 ---
 
-## Р“РґРµ Р¶РёРІС‘С‚ ODP: bundled vs on-premise
+## Где живёт ODP: bundled vs on-premise
 
-ODP вЂ” **РґР°РЅРЅС‹Рµ**, РЅРµ РєРѕРґ. РџР»Р°С‚С„РѕСЂРјР° С‚РѕР»СЊРєРѕ **Р·Р°РіСЂСѓР¶Р°РµС‚ pack** РїСЂРё СЃС‚Р°СЂС‚Рµ; **РѕС‚РєСѓРґР°** С‡РёС‚Р°С‚СЊ вЂ” СЂРµС€Р°РµС‚ РґРµРїР»РѕР№.
+ODP — **данные**, не код. Платформа только **загружает pack** при старте; **откуда** читать — решает деплой.
 
-### РўСЂРё СѓСЂРѕРІРЅСЏ (РЅРµ РїСѓС‚Р°С‚СЊ)
+### Три уровня (не путать)
 
-| РЈСЂРѕРІРµРЅСЊ | Р§С‚Рѕ | РљС‚Рѕ РІР»Р°РґРµР»РµС† | РњРµРЅСЏРµС‚СЃСЏ РєР°Рє |
+| Уровень | Что | Кто владелец | Меняется как |
 |---------|-----|--------------|--------------|
-| **Platform core** | worker, api, web, shared | РїСЂРѕРґСѓРєС‚ / git | СЂРµР»РёР· monorepo |
-| **Domain pack (ODP)** | manifest, parser-rules, geo-grooming, presets | РїСЂРѕРґСѓРєС‚ **РёР»Рё** Р·Р°РєР°Р·С‡РёРє | С„Р°Р№Р»С‹ / import, **Р±РµР·** С„РѕСЂРєР° core |
-| **Runtime dictionary** | `status_dictionary` РІ Р‘Р” | РѕР±С‰РёР№ | РјРёРіСЂР°С†РёРё + admin/import |
+| **Platform core** | worker, api, web, shared | продукт / git | релиз monorepo |
+| **Domain pack (ODP)** | manifest, parser-rules, geo-grooming, presets | продукт **или** заказчик | файлы / import, **без** форка core |
+| **Runtime dictionary** | `status_dictionary` в БД | общий | миграции + admin/import |
 
-Facts (`mat_parse_event`) РЅРµР№С‚СЂР°Р»СЊРЅС‹; ODP РІР»РёСЏРµС‚ РЅР° **parse + UI + tracking mapping**, РЅРµ РЅР° СЃС…РµРјСѓ facts.
+Facts (`mat_parse_event`) нейтральны; ODP влияет на **parse + UI + tracking mapping**, не на схему facts.
 
-### Р РµР¶РёРј A вЂ” Bundled (default, В«РёР· РєРѕСЂРѕР±РєРёВ»)
+### Режим A — Bundled (default, «из коробки»)
 
-Pack **РІС€РёС‚ РІ Р°СЂС‚Рµfact** РґРµРїР»РѕСЏ:
+Pack **вшит в артеfact** деплоя:
 
 ```text
 radar/
@@ -237,16 +239,16 @@ radar/
 
 | | |
 |---|---|
-| **РљРѕРіРґР°** | managed SaaS, С‚РёРїРѕРІРѕР№ В«Р Р°РґР°СЂ Р‘РџР›РђВ», dev/staging |
+| **Когда** | managed SaaS, типовой «Радар БПЛА», dev/staging |
 | **Env** | `DOMAIN_PACKS_PATH=data/domains` (default) |
-| **РћР±РЅРѕРІР»РµРЅРёРµ** | СЂРµР»РёР· РѕР±СЂР°Р·Р° / git pull + restart worker |
-| **РџР»СЋСЃ** | zero-config, CI golden tests = bundled pack |
+| **Обновление** | релиз образа / git pull + restart worker |
+| **Плюс** | zero-config, CI golden tests = bundled pack |
 
-РћРїС†РёРѕРЅР°Р»СЊРЅРѕ v2: npm `@radar/domain-uav-osint-ru` вЂ” С‚РѕС‚ Р¶Рµ РєРѕРЅС‚РµРЅС‚ РѕС‚РґРµР»СЊРЅС‹Рј РїР°РєРµС‚РѕРј (Р»РёС†РµРЅР·РёСЂРѕРІР°РЅРёРµ РґРѕРјРµРЅР°).
+Опционально v2: npm `@radar/domain-uav-osint-ru` — тот же контент отдельным пакетом (лицензирование домена).
 
-### Р РµР¶РёРј B вЂ” On-premise / customer-owned
+### Режим B — On-premise / customer-owned
 
-Pack **РІРЅРµ** РѕР±СЂР°Р·Р° вЂ” volume РёР»Рё РєР°С‚Р°Р»РѕРі Р·Р°РєР°Р·С‡РёРєР°:
+Pack **вне** образа — volume или каталог заказчика:
 
 ```text
 /opt/radar/domains/uav_osint_ru_v1/
@@ -257,53 +259,53 @@ Pack **РІРЅРµ** РѕР±СЂР°Р·Р° вЂ” volume РёР»Рё Рє�
 
 | | |
 |---|---|
-| **РљРѕРіРґР°** | Р·Р°РєСЂС‹С‚С‹Р№ РєРѕРЅС‚СѓСЂ, СЃРІРѕРё РєР°РЅР°Р»С‹/Р»РµРєСЃРёРєР°, РїСЂР°РІРєРё Р±РµР· РЅР°С€РµРіРѕ git |
+| **Когда** | закрытый контур, свои каналы/лексика, правки без нашего git |
 | **Env** | `DOMAIN_PACKS_PATH=/opt/radar/domains` |
-| **РћР±РЅРѕРІР»РµРЅРёРµ** | РїСЂР°РІРєР° YAML Сѓ Р·Р°РєР°Р·С‡РёРєР° в†’ validate CLI в†’ restart worker (v1) / reload (v2) |
-| **РџР»СЋСЃ** | core Р·Р°РєСЂС‹С‚, РґРѕРјРµРЅ РЅР°СЃС‚СЂР°РёРІР°РµС‚ SI/Р·Р°РєР°Р·С‡РёРє |
+| **Обновление** | правка YAML у заказчика → validate CLI → restart worker (v1) / reload (v2) |
+| **Плюс** | core закрыт, домен настраивает SI/заказчик |
 
-On-premise **в‰  fork repo** вЂ” РјРµРЅСЏРµС‚СЃСЏ С‚РѕР»СЊРєРѕ `domains/`, Р±РёРЅР°СЂРЅРёРєРё С‚Рµ Р¶Рµ.
+On-premise **≠ fork repo** — меняется только `domains/`, бинарники те же.
 
-### Р РµР¶РёРј C вЂ” Hybrid (СЂРµРєРѕРјРµРЅРґСѓРµРј РґР»СЏ prod)
+### Режим C — Hybrid (рекомендуем для prod)
 
 ```text
-1. Bundled pack РІ РѕР±СЂР°Р·Рµ     в†’ fallback / demo / РїРµСЂРІС‹Р№ boot
-2. DOMAIN_PACKS_PATH         в†’ РµСЃР»Рё РєР°С‚Р°Р»РѕРі РµСЃС‚СЊ, С‡РёС‚Р°РµРј РµРіРѕ (override)
-3. OPERATIONAL_DOMAIN_PROFILE_ID в†’ Р°РєС‚РёРІРЅС‹Р№ РїРѕРґРєР°С‚Р°Р»РѕРі
+1. Bundled pack в образе     → fallback / demo / первый boot
+2. DOMAIN_PACKS_PATH         в†’ если каталог есть, читаем его (override)
+3. OPERATIONAL_DOMAIN_PROFILE_ID в†’ активный подкаталог
 ```
 
 Loader:
 
 ```text
-if DOMAIN_PACKS_PATH Р·Р°РґР°РЅ Рё СЃСѓС‰РµСЃС‚РІСѓРµС‚ в†’ customer path
-else в†’ bundled data/domains РІРЅСѓС‚СЂРё image
+if DOMAIN_PACKS_PATH задан и существует → customer path
+else в†’ bundled data/domains внутри image
 ```
 
-Starter pack РІ РѕР±СЂР°Р·Рµ + override mount Р±РµР· РїРµСЂРµСЃР±РѕСЂРєРё.
+Starter pack в образе + override mount без пересборки.
 
-### Р РµР¶РёРј D вЂ” Import РІ Р‘Р” (v2)
+### Режим D — Import в БД (v2)
 
 ```bash
 domain:manifest:import --path /opt/radar/domains/uav_osint_ru_v1
 ```
 
-в†’ `operational_domain_profiles` (+ РѕРїС†РёРѕРЅР°Р»СЊРЅРѕ rules snapshot РІ JSONB).
+→ `operational_domain_profiles` (+ опционально rules snapshot в JSONB).
 
 | | |
 |---|---|
-| **РљРѕРіРґР°** | РїРѕР»РёС‚РёРєР° В«no bind mountsВ», С‚РѕР»СЊРєРѕ DB |
-| **Authoring** | git Сѓ Р·Р°РєР°Р·С‡РёРєР° в†’ import CLI |
-| **Runtime SSOT** | Р‘Р” |
+| **Когда** | политика «no bind mounts», только DB |
+| **Authoring** | git у заказчика → import CLI |
+| **Runtime SSOT** | БД |
 
-РћРґРёРЅ deployment вЂ” **РѕРґРёРЅ** source: `DOMAIN_PACK_SOURCE=file|db` (РЅРµ РѕР±Р° РѕРґРЅРѕРІСЂРµРјРµРЅРЅРѕ РєР°Рє SSOT).
+Один deployment — **один** source: `DOMAIN_PACK_SOURCE=file|db` (не оба одновременно как SSOT).
 
-### РљС‚Рѕ С‡С‚Рѕ РЅР°СЃС‚СЂР°РёРІР°РµС‚ (on-premise)
+### Кто что настраивает (on-premise)
 
-| Р РѕР»СЊ | РњРµРЅСЏРµС‚ | РќРµ С‚СЂРѕРіР°РµС‚ |
+| Роль | Меняет | Не трогает |
 |------|--------|------------|
-| Vendor | core, bundled pack | вЂ” |
-| Р—Р°РєР°Р·С‡РёРє / SI | pack YAML, `DOMAIN_PACKS_PATH`, import dictionary | TypeScript |
-| РђРЅР°Р»РёС‚РёРє (v2) | titles / ui_group РІ dictionary | regex rules |
+| Vendor | core, bundled pack | — |
+| Заказчик / SI | pack YAML, `DOMAIN_PACKS_PATH`, import dictionary | TypeScript |
+| Аналитик (v2) | titles / ui_group в dictionary | regex rules |
 
 ### Docker (on-prem)
 
@@ -316,72 +318,72 @@ worker:
     - ./customer-domains:/etc/radar/domains:ro
 ```
 
-Web С‡РёС‚Р°РµС‚ ODP **С‚РѕР»СЊРєРѕ С‡РµСЂРµР· API** (`GET /map/domain-profile/active`), РЅРµ filesystem.
+Web читает ODP **только через API** (`GET /map/domain-profile/active`), не filesystem.
 
-### Default РґР»СЏ В«Р Р°РґР°СЂВ»
+### Default для «Радар»
 
-| РЎСЂРµРґР° | Р РµР¶РёРј |
+| Среда | Режим |
 |-------|--------|
 | dev / CI | **A** bundled |
 | managed prod | **C** bundled + optional mount |
-| on-prem РєРѕРЅС‚СЂР°РєС‚ | **B** РёР»Рё **C** |
+| on-prem контракт | **B** или **C** |
 
-**v1:** file loader + `DOMAIN_PACKS_PATH` (СЂРµР¶РёРјС‹ **A + C**). DB import (**D**) вЂ” v2.
+**v1:** file loader + `DOMAIN_PACKS_PATH` (режимы **A + C**). DB import (**D**) — v2.
 
 ---
 
-## РџРѕРєСЂС‹С‚РёРµ: ODP в‰  РѕРґРёРЅ manifest
+## Покрытие: ODP в‰  один manifest
 
-**Р§РµСЃС‚РЅС‹Р№ РѕС‚РІРµС‚:** РѕРґРёРЅ `profile.manifest.json` **РЅРµ СЃРЅРёРјР°РµС‚** РІРµСЃСЊ coupling. ODP вЂ” СЌС‚Рѕ **РЅР°Р±РѕСЂ pack-С„Р°Р№Р»РѕРІ + dictionary + РґРѕСЂР°Р±РѕС‚РєР° loader РІ core**.
+**Честный ответ:** один `profile.manifest.json` **не снимает** весь coupling. ODP — это **набор pack-файлов + dictionary + доработка loader в core**.
 
-### Р§С‚Рѕ РїРѕРєСЂС‹РІР°РµС‚ С‚РѕР»СЊРєРѕ manifest
+### Что покрывает только manifest
 
-| РћР±Р»Р°СЃС‚СЊ | РџРѕР»СЏ ODP |
+| Область | Поля ODP |
 |---------|----------|
-| РљР°РєРёРµ С‚РёРїС‹ СЃРѕР±С‹С‚РёР№ Р°РєС‚РёРІРЅС‹ РІ РґРѕРјРµРЅРµ | `activeEventTypes` |
-| РљРЅРѕРїРєРё/С„РёР»СЊС‚СЂС‹ heatmap, РІРёРґР¶РµС‚С‹ | `uiPresets` |
-| Р‘РџР›Рђ vs СЂР°РєРµС‚Р° vs С€Р°СЂ РґР»СЏ С‚СЂРµРєРѕРІ | `threatProfileRules` |
-| РЎСЃС‹Р»РєРё РЅР° РґСЂСѓРіРёРµ С„Р°Р№Р»С‹ | `parserRulePackIds`, `geoGroomingPackId` |
+| Какие типы событий активны в домене | `activeEventTypes` |
+| Кнопки/фильтры heatmap, виджеты | `uiPresets` |
+| БПЛА vs ракета vs шар для треков | `threatProfileRules` |
+| Ссылки на другие файлы | `parserRulePackIds`, `geoGroomingPackId` |
 
-в‰€ **30вЂ“40%** С‚РµРєСѓС‰РµРіРѕ domain coupling.
+в‰€ **30–40%** текущего domain coupling.
 
-### Р§С‚Рѕ С‚СЂРµР±СѓРµС‚ РѕС‚РґРµР»СЊРЅС‹С… pack-С„Р°Р№Р»РѕРІ (РЅРµ manifest)
+### Что требует отдельных pack-файлов (не manifest)
 
-| РЎРµР№С‡Р°СЃ РІ РєРѕРґРµ | Pack | Р¤Р°Р·Р° |
+| Сейчас в коде | Pack | Фаза |
 |---------------|------|------|
 | `extractEventType.ts` (~30 regex) | `parser-rules.v1.yaml` | D1 |
-| `extractEventSubject()` | С‚РѕС‚ Р¶Рµ pack РёР»Рё subject rules | D1 |
+| `extractEventSubject()` | тот же pack или subject rules | D1 |
 | `geoCatalog.ts` prefix strip | `geo-grooming.v1.yaml` | D1 |
-| `classifyContentKind.ts` (EVENT_HINTS, Р±РїР»Р°вЂ¦) | `content-kind.v1.yaml` (v2, РѕРїС†РёРѕРЅР°Р»СЊРЅРѕ) | backlog |
+| `classifyContentKind.ts` (EVENT_HINTS, бпла…) | `content-kind.v1.yaml` (v2, опционально) | backlog |
 | `extractPvoStats.ts` | `pvo-stats-rules.v1.yaml` (v2) | backlog |
 
-### Р§С‚Рѕ С‚СЂРµР±СѓРµС‚ РїСЂР°РІРєРё core (РЅРµ РєРѕРЅС„РёРі)
+### Что требует правки core (не конфиг)
 
-| РњРµСЃС‚Рѕ | РџРѕС‡РµРјСѓ РЅРµ manifest | Р¤Р°Р·Р° |
+| Место | Почему не manifest | Фаза |
 |-------|-------------------|------|
-| `eventTypeSchema` z.enum | С‚РёРї СЃРёСЃС‚РµРјС‹ + API validation | D4 |
-| Loader: read pack в†’ inject classifier | РёРЅС„СЂР°СЃС‚СЂСѓРєС‚СѓСЂР° | D1вЂ“D2 |
-| Web: С‡РёС‚Р°С‚СЊ presets РёР· API | UI wiring | D3 |
-| `map-query` literal `event_type = 'вЂ¦'` | generic filter by `feed_kind` / dictionary | D6 |
-| `PROFILE_KINEMATICS` (max velocityвЂ¦) | **С„РёР·РёРєР°**, РЅРµ Р»РµРєСЃРёРєР° вЂ” **РѕСЃС‚Р°С‘С‚СЃСЏ РІ core** | вЂ” |
-| fold / Time Machine | СѓР¶Рµ С‡РµСЂРµР· `status_dictionary` | OK |
+| `eventTypeSchema` z.enum | тип системы + API validation | D4 |
+| Loader: read pack в†’ inject classifier | инфраструктура | D1–D2 |
+| Web: читать presets из API | UI wiring | D3 |
+| `map-query` literal `event_type = '…'` | generic filter by `feed_kind` / dictionary | D6 |
+| `PROFILE_KINEMATICS` (max velocity…) | **физика**, не лексика — **остаётся в core** | — |
+| fold / Time Machine | уже через `status_dictionary` | OK |
 
-### РС‚РѕРіРѕРІР°СЏ РјР°С‚СЂРёС†Р°
+### Ртоговая матрица
 
 ```text
                     manifest   full ODP pack   code refactor
-Parse regex            вЂ”            вњ…              вњ… loader
+Parse regex            —            ✅              ✅ loader
 UI heatmap filters     вњ…           вњ…              вњ… D3
 Threat mapping         вњ…           вњ…              вњ… D5
-Geo grooming           вЂ”            вњ…              вњ… loader
-Event type enum        вЂ”            вЂ”               вњ… D4
-Content kind / noise   вЂ”            partial v2      вњ…
-Macro stats parse        вЂ”            v2              вњ…
-API read routes          вЂ”            вЂ”               вњ… D6
-Kinematics physics     вЂ”            вЂ”               stays in core
+Geo grooming           —            ✅              ✅ loader
+Event type enum        —            —               ✅ D4
+Content kind / noise   —            partial v2      ✅
+Macro stats parse        —            v2              ✅
+API read routes          —            —               ✅ D6
+Kinematics physics     —            —               stays in core
 ```
 
-**Р РµР°Р»СЊРЅРѕ РїСЂРёРІРµСЃС‚Рё coupling РІ РїРѕСЂСЏРґРѕРє вЂ” РґР°**, РЅРѕ СЌС‚Рѕ **РїСЂРѕРіСЂР°РјРјР° D1вЂ“D5**, РЅРµ РѕРґРёРЅ JSON. Manifest вЂ” **РґРёСЂРёР¶С‘СЂ**, РЅРµ РІСЃСЏ РѕСЂРєРµСЃС‚СЂРѕРІРєР°.
+**Реально привести coupling в порядок — да**, но это **программа D1–D5**, не один JSON. Manifest — **дирижёр**, не вся оркестровка.
 
 ---
 
@@ -399,18 +401,18 @@ Web start
 
 Env:
 
-| Key | Default | РќР°Р·РЅР°С‡РµРЅРёРµ |
+| Key | Default | Назначение |
 |-----|---------|------------|
-| `OPERATIONAL_DOMAIN_PROFILE_ID` | `uav_osint_ru_v1` | id Р°РєС‚РёРІРЅРѕРіРѕ pack |
-| `DOMAIN_PACKS_PATH` | `data/domains` | РєР°С‚Р°Р»РѕРі packs (bundled РёР»Рё mount) |
+| `OPERATIONAL_DOMAIN_PROFILE_ID` | `uav_osint_ru_v1` | id активного pack |
+| `DOMAIN_PACKS_PATH` | `data/domains` | каталог packs (bundled или mount) |
 | `DOMAIN_PACK_SOURCE` | `file` | `file` \| `db` (v2) |
 
 ---
 
-## РњРёРіСЂР°С†РёРё / С…СЂР°РЅРµРЅРёРµ (v1)
+## Миграции / хранение (v1)
 
 ```sql
--- v1 optional: С‚РѕР»СЊРєРѕ manifest file, Р±РµР· С‚Р°Р±Р»РёС†С‹
+-- v1 optional: только manifest file, без таблицы
 -- v2:
 operational_domain_profiles (
   id            text PRIMARY KEY,
@@ -423,61 +425,61 @@ operational_domain_profiles (
 );
 ```
 
-`status_dictionary` СЂР°СЃС€РёСЂРёС‚СЊ (additive):
+`status_dictionary` расширить (additive):
 
 | Column | Purpose |
 |--------|---------|
 | `domain_profile_id` | nullable; NULL = all domains |
-| `event_category` | threat / movement / impact / вЂ¦ (SSOT РІРјРµСЃС‚Рѕ extras-only) |
+| `event_category` | threat / movement / impact / … (SSOT вместо extras-only) |
 | `affects_kinematics` | ADR-008 |
 | `threat_profile` | optional mapping for tracking |
 | `ui_group` | heatmap / operational / hidden |
 
 ---
 
-## РџР»Р°РЅ РІРЅРµРґСЂРµРЅРёСЏ (РЅРµ Р±Р»РѕРєРёСЂСѓРµС‚ tracking С„Р°Р·Сѓ 1)
+## План внедрения (не блокирует tracking фазу 1)
 
-РџРѕРґСЂРѕР±РЅРѕРµ РѕРїРёСЃР°РЅРёРµ РєР°Р¶РґРѕРіРѕ С€Р°РіР°: [operational-domain-profile-walkthrough.md](./rfc/operational-domain-profile-walkthrough.md).
+Подробное описание каждого шага: [operational-domain-profile-walkthrough.md](./rfc/operational-domain-profile-walkthrough.md).
 
-| Phase | Deliverable | Coupling СЃРЅРёРјР°РµС‚СЃСЏ |
+| Phase | Deliverable | Coupling снимается |
 |-------|-------------|-------------------|
-| **D0** | ADR + walkthrough + manifest schema Zod | вЂ” |
+| **D0** | ADR + walkthrough + manifest schema Zod | — |
 | **D1** | Rule pack YAML + loader; `extractEventType` в†’ delegate | Parse regex |
 | **D2** | ODP manifest + CLI import; API `GET /domain-profile/active` | Bootstrap |
 | **D3** | UI heatmap/layers from presets + dictionary | UI const |
 | **D4** | `eventType` runtime validation; deprecate z.enum | Shared enum |
 | **D5** | Threat profile rules in ODP | Tracking resolve |
-| **D6** | [API read-side decoupling](#api-read-side-decoupling-С„Р°Р·Р°-d6) | Domain routes, SQL literals, Swagger enum |
+| **D6** | [API read-side decoupling](#api-read-side-decoupling-фаза-d6) | Domain routes, SQL literals, Swagger enum |
 
-**РџР°СЂР°Р»Р»РµР»СЊРЅРѕ СЃ Tracking P1:** D1 РјРѕР¶РЅРѕ РЅР°С‡Р°С‚СЊ СЃСЂР°Р·Сѓ (parser pack); D3вЂ“D6 вЂ” РїРѕСЃР»Рµ РёР»Рё РІРјРµСЃС‚Рµ СЃ tracking.
+**Параллельно с Tracking P1:** D1 можно начать сразу (parser pack); D3–D6 — после или вместе с tracking.
 
 ---
 
-## API read-side decoupling (С„Р°Р·Р° D6)
+## API read-side decoupling (фаза D6)
 
-**РџСЂРѕР±Р»РµРјР°:** ODP (D1вЂ“D5) СЃРЅРёРјР°РµС‚ coupling РІ parse/UI/tracking, РЅРѕ **HTTP read-layer РѕСЃС‚Р°С‘С‚СЃСЏ domain-hardcoded**: РѕС‚РґРµР»СЊРЅС‹Рµ РјР°СЂС€СЂСѓС‚С‹ РїРѕРґ РѕРґРёРЅ РґРѕРјРµРЅ, SQL СЃ Р»РёС‚РµСЂР°Р»Р°РјРё С‚РёРїРѕРІ, Swagger СЃ `z.enum`, DTO СЃ domain-РїРѕР»СЏРјРё. Р­С‚Рѕ **РІС‚РѕСЂРѕР№ РїРѕР»РЅРѕС†РµРЅРЅС‹Р№ endpoint pack** вЂ” Р±РµР· D6 СЃРјРµРЅР° РґРѕРјРµРЅР° РїРѕС‚СЂРµР±СѓРµС‚ РїСЂР°РІРєРё API.
+**Проблема:** ODP (D1–D5) снимает coupling в parse/UI/tracking, но **HTTP read-layer остаётся domain-hardcoded**: отдельные маршруты под один домен, SQL с литералами типов, Swagger с `z.enum`, DTO с domain-полями. Это **второй полноценный endpoint pack** — без D6 смена домена потребует правки API.
 
-### РђРЅС‚Рё-patterns (Р·Р°РїСЂРµС‰РµРЅРѕ РїРѕСЃР»Рµ D6)
+### Анти-patterns (запрещено после D6)
 
-| Anti-pattern | РџСЂРёРјРµСЂ СЃРµР№С‡Р°СЃ | РџРѕС‡РµРјСѓ РїР»РѕС…Рѕ |
+| Anti-pattern | Пример сейчас | Почему плохо |
 |--------------|---------------|--------------|
-| Domain-named route | `GET /map/pvo-reports` | РЅРѕРІС‹Р№ РґРѕРјРµРЅ в†’ РЅРѕРІС‹Р№ URL |
-| Literal РІ SQL | `event_type = 'pvo_report'` | РѕР±С…РѕРґРёС‚ dictionary |
-| Closed enum РІ query | `eventTypeSchema` z.enum | РґРµРїР»РѕР№ РЅР° РЅРѕРІС‹Р№ РєРѕРґ |
-| Swagger examples | `fixation,pvo_work,...` | РґРѕРєСѓРјРµРЅС‚Р°С†РёСЏ в‰  active ODP |
-| Widget title hardcode | РЅР°Р·РІР°РЅРёРµ feed РІ UI | РЅРµ РёР· preset/dictionary |
+| Domain-named route | `GET /map/pvo-reports` | новый домен → новый URL |
+| Literal в SQL | `event_type = 'pvo_report'` | обходит dictionary |
+| Closed enum в query | `eventTypeSchema` z.enum | деплой на новый код |
+| Swagger examples | `fixation,pvo_work,...` | документация ≠ active ODP |
+| Widget title hardcode | название feed в UI | не из preset/dictionary |
 
-### Р¦РµР»РµРІР°СЏ РјРѕРґРµР»СЊ
+### Целевая модель
 
 ```text
 Client
   в†’ GET /map/domain-profile/active
   в†’ GET /map/status-dictionary
-  в†’ GET /map/events/heatmap?eventTypes=вЂ¦
+  в†’ GET /map/events/heatmap?eventTypes=…
   в†’ GET /map/event-feed?feedKind=macro_report
 ```
 
-**SSOT:** `status_dictionary` + ODP. API вЂ” С‚РѕРЅРєРёР№ query layer.
+**SSOT:** `status_dictionary` + ODP. API — тонкий query layer.
 
 | v0 | v1 |
 |----|-----|
@@ -486,38 +488,38 @@ Client
 
 Dictionary: `feed_kind`, `map_surface`, optional `extras_schema` (v2).
 
-### РљР°Рє API В«Р·Р°РјС‹РєР°РµС‚СЃСЏВ» РЅР° ODP (Р±РµР· Р°РІС‚РѕСЌРЅРґРїРѕРёРЅС‚РѕРІ)
+### Как API «замыкается» на ODP (без автоэндпоинтов)
 
-**РћС‚РІРµС‚ РѕРґРЅРѕР№ С„СЂР°Р·РѕР№:** С‡РµСЂРµР· **РѕР±С‰РёР№ loader РІ `packages/shared`** + **inject `DomainProfileContext` РІ API/worker** + **generic read-handlers СЃ РІР°Р»РёРґР°С†РёРµР№ query** вЂ” **РЅРµ** С‡РµСЂРµР· РіРµРЅРµСЂР°С†РёСЋ РјР°СЂС€СЂСѓС‚РѕРІ РёР· `profile.manifest.json`.
+**Ответ одной фразой:** через **общий loader в `packages/shared`** + **inject `DomainProfileContext` в API/worker** + **generic read-handlers с валидацией query** — **не** через генерацию маршрутов из `profile.manifest.json`.
 
-#### Non-goals (СЏРІРЅРѕ РЅРµ РґРµР»Р°РµРј)
+#### Non-goals (явно не делаем)
 
-| РџРѕРґС…РѕРґ | РџРѕС‡РµРјСѓ РѕС‚РІРµСЂРіРЅСѓС‚ |
+| Подход | Почему отвергнут |
 |--------|------------------|
-| Auto-endpoint РЅР° РєР°Р¶РґС‹Р№ `uiPresets[]` | СЃРЅРѕРІР° endpoint pack, С‚РѕР»СЊРєРѕ codegen; N presets в†’ N controllers |
-| Auto-endpoint РЅР° РєР°Р¶РґС‹Р№ `activeEventTypes` | explosion URL; С‚РёРїС‹ РјРµРЅСЏСЋС‚СЃСЏ С‡РµСЂРµР· dictionary, РЅРµ С‡РµСЂРµР· router |
-| Web С‡РёС‚Р°РµС‚ pack СЃ РґРёСЃРєР° | СѓС‚РµС‡РєР° deployment path; web = API client only |
-| Domain concept РІ path (`/map/<lexicon>/вЂ¦`) | РЅРѕРІС‹Р№ РґРѕРјРµРЅ = РЅРѕРІС‹Рµ routes |
-| Р”СѓР±Р»РёСЂРѕРІР°С‚СЊ ODP loader РІ `packages/api` | РґРІР° SSOT, drift worker vs API |
+| Auto-endpoint на каждый `uiPresets[]` | снова endpoint pack, только codegen; N presets → N controllers |
+| Auto-endpoint на каждый `activeEventTypes` | explosion URL; типы меняются через dictionary, не через router |
+| Web читает pack с диска | утечка deployment path; web = API client only |
+| Domain concept в path (`/map/<lexicon>/…`) | новый домен = новые routes |
+| Дублировать ODP loader в `packages/api` | два SSOT, drift worker vs API |
 
-#### SSOT Рё bootstrap (D2)
+#### SSOT и bootstrap (D2)
 
 ```text
 packages/shared/src/domain/domain-profile/
   resolveDomainPacksPath(env)
   loadOperationalDomainProfile(profileId, basePath)
-  в†’ DomainProfileContext   // singleton РЅР° РїСЂРѕС†РµСЃСЃ Nest/worker
+  в†’ DomainProfileContext   // singleton на процесс Nest/worker
 
 Worker Module.onModuleInit / worker bootstrap:
-  ctx = loadвЂ¦(OPERATIONAL_DOMAIN_PROFILE_ID, DOMAIN_PACKS_PATH)
-  inject в†’ RuleBasedEventClassifier, TrackingRebuild, вЂ¦
+  ctx = load…(OPERATIONAL_DOMAIN_PROFILE_ID, DOMAIN_PACKS_PATH)
+  inject в†’ RuleBasedEventClassifier, TrackingRebuild, …
 
 API Module (Nest):
   DomainProfileModule provides DOMAIN_PROFILE_CONTEXT
   MapController / MapQueryService inject ctx
 ```
 
-Web **РЅРµ** РёРјРїРѕСЂС‚РёСЂСѓРµС‚ loader вЂ” С‚РѕР»СЊРєРѕ HTTP:
+Web **не** импортирует loader — только HTTP:
 
 ```text
 GET /map/domain-profile/active   в†’ uiPresets, activeEventTypes (public subset)
@@ -526,43 +528,43 @@ GET /map/status-dictionary       в†’ titles, feed_kind, map_surface, kinema
 
 #### Generic endpoints vs manifest-driven routes
 
-Manifest **РЅРµ РїРѕСЂРѕР¶РґР°РµС‚** URL. РћРЅ Р·Р°РґР°С‘С‚ **РїРѕР»РёС‚РёРєСѓ**, РєРѕС‚РѕСЂСѓСЋ **СЃСѓС‰РµСЃС‚РІСѓСЋС‰РёРµ** handlers РїСЂРёРјРµРЅСЏСЋС‚:
+Manifest **не порождает** URL. Он задаёт **политику**, которую **существующие** handlers применяют:
 
-| Handler (С„РёРєСЃРёСЂРѕРІР°РЅРЅС‹Р№ URL) | Р§С‚Рѕ Р±РµСЂС‘С‚ РёР· ODP / dictionary |
+| Handler (фиксированный URL) | Что берёт из ODP / dictionary |
 |-----------------------------|-------------------------------|
 | `GET /map/events/heatmap` | `eventTypes` query вЉ† `activeEventTypes` + dictionary validate |
 | `GET /map/event-feed` | `feedKind` в†’ JOIN `status_dictionary.feed_kind` |
-| `GET /map/tracks` | threat filter РѕРїС†РёРѕРЅР°Р»СЊРЅРѕ РёР· preset; kinematics РёР· dictionary |
-| `GET /map/domain-profile/active` | СЏРІРЅР°СЏ РІС‹РґР°С‡Р° manifest subset РєР»РёРµРЅС‚Сѓ |
+| `GET /map/tracks` | threat filter опционально из preset; kinematics из dictionary |
+| `GET /map/domain-profile/active` | явная выдача manifest subset клиенту |
 
-РќРѕРІС‹Р№ С‚РёРї СЃРѕР±С‹С‚РёСЏ РёР»Рё feed = **СЃС‚СЂРѕРєР° РІ dictionary** (+ РѕРїС†РёРѕРЅР°Р»СЊРЅРѕ preset РІ manifest), **Р±РµР·** РЅРѕРІРѕРіРѕ `@Get()` РІ controller.
+Новый тип события или feed = **строка в dictionary** (+ опционально preset в manifest), **без** нового `@Get()` в controller.
 
 #### Validation layer (D4 + D6)
 
-Р•РґРёРЅР°СЏ С‚РѕС‡РєР° РїРµСЂРµРґ SQL вЂ” РЅРµ СЂР°Р·РјР°Р·Р°РЅРЅР°СЏ РїРѕ controller:
+Единая точка перед SQL — не размазанная по controller:
 
 ```typescript
-// packages/shared РёР»Рё packages/api/src/map/domain-profile/
+// packages/shared или packages/api/src/map/domain-profile/
 assertQueryableEventTypes(codes: string[], ctx: DomainProfileContext): void;
 assertFeedKind(feedKind: string, ctx: DomainProfileContext): void;
 
-// Nest: guard РёР»Рё MapQueryService private method
-// Reject 400 РµСЃР»Рё code в€‰ activeEventTypes РёР»Рё РЅРµС‚ РІ dictionary РґР»СЏ profile
+// Nest: guard или MapQueryService private method
+// Reject 400 если code ∉ activeEventTypes или нет в dictionary для profile
 ```
 
-SQL **С‚РѕР»СЊРєРѕ** С‡РµСЂРµР· dictionary flags:
+SQL **только** через dictionary flags:
 
 ```sql
--- вњ… РїРѕСЃР»Рµ D6
+-- вњ… после D6
 JOIN status_dictionary sd ON sd.code = pe.event_type
 WHERE sd.feed_kind = $1
   AND (sd.domain_profile_id IS NULL OR sd.domain_profile_id = $profileId)
 
--- вќЊ Р·Р°РїСЂРµС‰РµРЅРѕ
+-- ❌ запрещено
 WHERE pe.event_type = 'pvo_report'
 ```
 
-#### РџРѕС‚РѕРє read-request (СЃРєРІРѕР·РЅРѕР№)
+#### Поток read-request (сквозной)
 
 ```mermaid
 sequenceDiagram
@@ -586,88 +588,88 @@ sequenceDiagram
   API-->>Web: feed items
 ```
 
-#### Р Р°СЃС€РёСЂРµРЅРёРµ РґРѕРјРµРЅР° (checklist Р±РµР· РґРµРїР»РѕСЏ API)
+#### Расширение домена (checklist без деплоя API)
 
-1. Р”РѕР±Р°РІРёС‚СЊ РєРѕРґ РІ `status_dictionary` (+ `feed_kind` / `map_surface` РїСЂРё РЅРµРѕР±С…РѕРґРёРјРѕСЃС‚Рё).
-2. Р”РѕР±Р°РІРёС‚СЊ РєРѕРґ РІ `activeEventTypes` Рё preset РІ manifest pack.
-3. `domain:manifest:import` РёР»Рё reload mount (v2).
-4. РљР»РёРµРЅС‚ РїРѕРґС…РІР°С‚С‹РІР°РµС‚ preset С‡РµСЂРµР· `/domain-profile/active`.
+1. Добавить код в `status_dictionary` (+ `feed_kind` / `map_surface` при необходимости).
+2. Добавить код в `activeEventTypes` и preset в manifest pack.
+3. `domain:manifest:import` или reload mount (v2).
+4. Клиент подхватывает preset через `/domain-profile/active`.
 
-**РќРµ С‚СЂРµР±СѓРµС‚СЃСЏ:** РЅРѕРІС‹Р№ controller method, РїСЂР°РІРєР° `z.enum`, РїСЂР°РІРєР° Swagger enum list РІ TS.
+**Не требуется:** новый controller method, правка `z.enum`, правка Swagger enum list в TS.
 
-#### Deprecated alias (РїРµСЂРµС…РѕРґРЅС‹Р№)
+#### Deprecated alias (переходный)
 
-`GET /map/pvo-reports` в†’ thin delegate РЅР° `listEventFeed({ feedKind: 'macro_report' })` + `@ApiDeprecated` РѕРґРЅР° РІРµСЂСЃРёСЏ. РЈРґР°Р»РµРЅРёРµ вЂ” РѕС‚РґРµР»СЊРЅС‹Р№ gate (СЃРј. РѕС‚РєСЂС‹С‚С‹Рµ РІРѕРїСЂРѕСЃС‹ В§6).
+`GET /map/pvo-reports` → thin delegate на `listEventFeed({ feedKind: 'macro_report' })` + `@ApiDeprecated` одна версия. Удаление — отдельный gate (см. открытые вопросы §6).
 
-#### Р“РґРµ Р¶РёРІС‘С‚ РєРѕРґ (РѕСЂРёРµРЅС‚РёСЂ)
+#### Где живёт код (ориентир)
 
-| РЎР»РѕР№ | РџСѓС‚СЊ |
+| Слой | Путь |
 |------|------|
 | Loader + types | `packages/shared/src/domain/domain-profile/` |
 | Nest provider | `packages/api/src/map/domain-profile/domain-profile.module.ts` |
 | Query validate | `packages/api/src/map/domain-profile/assert-queryable.ts` |
 | Generic feeds | `packages/api/src/map/event-feed/` |
 
-SDD РґРµС‚Р°Р»Рё: [phase-d6-api-read-decoupling.md](./sdd/odp/phase-d6-api-read-decoupling.md).
+SDD детали: [phase-d6-api-read-decoupling.md](./sdd/odp/phase-d6-api-read-decoupling.md).
 
 ---
 
-## РќРµ РґРµР»Р°РµРј
+## Не делаем
 
-- РџРѕР»РЅР°СЏ i18n РІСЃРµС… regex РІ v1
-- Admin UI СЂРµРґР°РєС‚РѕСЂ РїСЂР°РІРёР» (С‚РѕР»СЊРєРѕ manifest РІ git v1)
-- РќРµСЃРєРѕР»СЊРєРѕ active ODP РЅР° РѕРґРёРЅ deployment РІ v1
-- РЈРґР°Р»РµРЅРёРµ `status_dictionary` РІ РїРѕР»СЊР·Сѓ С‚РѕР»СЊРєРѕ YAML (Р‘Р” РѕСЃС‚Р°С‘С‚СЃСЏ SSOT РґР»СЏ runtime edits)
-- Auto-generation HTTP routes РёР· ODP manifest (СЃРј. [В§ D6 Non-goals](#non-goals-СЏРІРЅРѕ-РЅРµ-РґРµР»Р°РµРј))
+- Полная i18n всех regex в v1
+- Admin UI редактор правил (только manifest в git v1)
+- Несколько active ODP на один deployment в v1
+- Удаление `status_dictionary` в пользу только YAML (БД остаётся SSOT для runtime edits)
+- Auto-generation HTTP routes из ODP manifest (см. [§ D6 Non-goals](#non-goals-явно-не-делаем))
 
 ---
 
-## РџРѕСЃР»РµРґСЃС‚РІРёСЏ
+## Последствия
 
-| РџР»СЋСЃ | РњРёРЅСѓСЃ |
+| Плюс | Минус |
 |------|-------|
-| РќРѕРІС‹Р№ event type Р±РµР· РґРµРїР»РѕСЏ core | Р”РІР° РёСЃС‚РѕС‡РЅРёРєР° РїСЂР°РІРґС‹ РґРѕ D4 (YAML + enum) вЂ” РЅСѓР¶РµРЅ import sync |
-| Р’С‚РѕСЂРѕР№ РґРѕРјРµРЅ = РЅРѕРІС‹Р№ pack, РЅРµ fork repo | РњРёРіСЂР°С†РёСЏ golden tests РЅР° YAML packs |
-| UI С„РёР»СЊС‚СЂС‹ СЃРѕРіР»Р°СЃРѕРІР°РЅС‹ СЃ parse | Bootstrap СЃР»РѕР¶РЅРµРµ |
-| Tracking kinematics РѕС‚РґРµР»С‘РЅ РѕС‚ Р»РµРєСЃРёРєРё | v1 РІСЃС‘ РµС‰С‘ РѕРґРёРЅ default ODP |
+| Новый event type без деплоя core | Два источника правды до D4 (YAML + enum) — нужен import sync |
+| Второй домен = новый pack, не fork repo | Миграция golden tests на YAML packs |
+| UI фильтры согласованы с parse | Bootstrap сложнее |
+| Tracking kinematics отделён от лексики | v1 всё ещё один default ODP |
 
 ---
 
-## РљСЂРёС‚РµСЂРёРё РїСЂРёРЅСЏС‚РёСЏ
+## Критерии принятия
 
-- [ ] РќРѕРІРѕРµ РїСЂР°РІРёР»Рѕ parse РґРѕР±Р°РІР»СЏРµС‚СЃСЏ РІ YAML + `parser-rules:validate` Р±РµР· РїСЂР°РІРєРё `extractEventType.ts`
-- [ ] Heatmap UI СЃС‚СЂРѕРёС‚СЃСЏ РёР· ODP preset + dictionary (РЅРµС‚ `EVENT_HEATMAP_FILTER_TYPES` hardcode)
-- [ ] `GET /map/status-dictionary` С„РёР»СЊС‚СЂСѓРµС‚ РїРѕ active domain profile
-- [ ] Golden tests parse РїСЂРѕС…РѕРґСЏС‚ РЅР° pack `uav_osint_ru_v1` (parity СЃ С‚РµРєСѓС‰РёРј behavior)
-- [ ] `GET /map/event-feed` Р±РµР· domain literals; deprecated aliases РґРѕРєСѓРјРµРЅС‚РёСЂРѕРІР°РЅС‹ (D6)
+- [ ] Новое правило parse добавляется в YAML + `parser-rules:validate` без правки `extractEventType.ts`
+- [ ] Heatmap UI строится из ODP preset + dictionary (нет `EVENT_HEATMAP_FILTER_TYPES` hardcode)
+- [ ] `GET /map/status-dictionary` фильтрует по active domain profile
+- [ ] Golden tests parse проходят на pack `uav_osint_ru_v1` (parity с текущим behavior)
+- [ ] `GET /map/event-feed` без domain literals; deprecated aliases документированы (D6)
 
 ---
 
-## РЎРІСЏР·СЊ СЃ СЃСѓС‰РµСЃС‚РІСѓСЋС‰РёРјРё ADR
+## Связь с существующими ADR
 
-| ADR | РР·РјРµРЅРµРЅРёРµ |
+| ADR | Рзменение |
 |-----|-----------|
-| ADR-003 | ODP = РµС‰С‘ РѕРґРёРЅ manifest СЂСЏРґРѕРј СЃ phase_definitions |
-| ADR-008 | `affects_kinematics` + `event_category` РІ status_dictionary |
+| ADR-003 | ODP = ещё один manifest рядом с phase_definitions |
+| ADR-008 | `affects_kinematics` + `event_category` в status_dictionary |
 | Parse RFC | EventTypeProcessor в†ђ parser rule pack |
-| Tracking SDD | `resolveThreatProfile` в†ђ ODP rules, РЅРµ literals |
+| Tracking SDD | `resolveThreatProfile` в†ђ ODP rules, не literals |
 
 ---
 
-## РћС‚РєСЂС‹С‚С‹Рµ РІРѕРїСЂРѕСЃС‹
+## Открытые вопросы
 
-1. YAML vs JSON РґР»СЏ rule packs РІ СЂРµРїРѕ?
-2. Versioning pack: `uav_osint_ru_v1` vs semver С„Р°Р№Р»РѕРІ?
-3. Channel-level ODP override вЂ” РЅСѓР¶РµРЅ Р»Рё РІ v1?
-4. РљРѕРіРґР° СѓРґР°Р»СЏС‚СЊ `z.enum` event types РїРѕР»РЅРѕСЃС‚СЊСЋ (D4 gate)?
-5. Bundled-only vs customer pack licensing (РѕС‚РґРµР»СЊРЅС‹Р№ npm domain package)?
-6. D6: СЃСЂРѕРє СѓРґР°Р»РµРЅРёСЏ `/map/pvo-reports` alias?
+1. YAML vs JSON для rule packs в репо?
+2. Versioning pack: `uav_osint_ru_v1` vs semver файлов?
+3. Channel-level ODP override — нужен ли в v1?
+4. Когда удалять `z.enum` event types полностью (D4 gate)?
+5. Bundled-only vs customer pack licensing (отдельный npm domain package)?
+6. D6: срок удаления `/map/pvo-reports` alias?
 
 ---
 
-## РЎРј. С‚Р°РєР¶Рµ
+## См. также
 
-- [operational-domain-profile-walkthrough.md](./rfc/operational-domain-profile-walkthrough.md) вЂ” **РїРѕС€Р°РіРѕРІРѕ С‡РµР»РѕРІРµС‡РµСЃРєРёРј СЏР·С‹РєРѕРј**
+- [operational-domain-profile-walkthrough.md](./rfc/operational-domain-profile-walkthrough.md) — **пошагово человеческим языком**
 - [sdd/tracking/plan.md](./sdd/tracking/plan.md)
-- [place-trust-explained.md](./place-trust-explained.md) вЂ” Р°РЅР°Р»РѕРіРёСЏ: policy РІ data, РЅРµ РІ РєРѕРґРµ
+- [place-trust-explained.md](./place-trust-explained.md) — аналогия: policy в data, не в коде
 

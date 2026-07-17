@@ -43,9 +43,9 @@ flowchart LR
 
 | Цель | Команды (radar) | Worker | `.env` |
 |------|-----------------|--------|--------|
-| **Только UI + API** (без Telegram) | `stack cold-up` → `stack dev` | не нужен | `DATABASE_URL` |
-| **Полный dev-стек (хост)** | `stack cold-up` → `stack dev --full` | `RADAR_WORKER_ROLE=all` | как выше |
-| **Docker dev (всё в compose)** | `stack docker-dev` | split: ingest/backfill/phase | см. [docker-dev-stack.md](./docker-dev-stack.md) |
+| **Только UI + API** (без workers) | `stack cold-up` → `stack dev --app-only` | не нужен | `DATABASE_URL` |
+| **Полный dev-стек (хост)** | `stack cold-up` → `stack dev` | 5 процессов: ingest/backfill/parse/geo/tracking | как выше |
+| **Docker dev (всё в compose)** | `stack docker-dev` | 5 ролей в compose | см. [docker-dev-stack.md](./docker-dev-stack.md) |
 | **Продукт с live ingest** | + session + manifest + `RADAR_STORAGE_MODE=db` | `worker:dev` db | см. § Ingest |
 | **+ архив канала** | + `POST backfill-jobs` или `ingest backfill` | демон / CLI chunk | [backfill-v2-pipeline.md](./backfill-v2-pipeline.md) |
 | **Локальная карта (OSM tiles)** | `stack cold-up -- -Tiles` | — | `VITE_MAP_BASEMAP_STYLE=local` |
@@ -84,10 +84,10 @@ Copy-Item .env.example .env
 npm run radar -- stack cold-up
 ```
 
-### Шаг 2 — Dev-стек без Telegram (5 мин)
+### Шаг 2 — Dev-стек без workers (5 мин)
 
 ```powershell
-npm run radar -- stack dev
+npm run radar -- stack dev --app-only
 ```
 
 Проверка: http://127.0.0.1:5173 · http://127.0.0.1:3000/api/ready · http://127.0.0.1:8080 (Adminer).
@@ -102,7 +102,7 @@ npm run worker:dev
 # SQL: SELECT host_id, role FROM obs_hosts;
 # или sidecar — override в manifest или env:
 # DEPLOY__infra__obs__dockerize=true
-npm run radar -- stack dev --full
+npm run radar -- stack dev
 curl http://127.0.0.1:3020/health
 ```
 
@@ -141,10 +141,10 @@ npm run radar -- stack up
 Поднимает Docker и **API + web** (без worker). Полный стек:
 
 ```powershell
-npm run radar -- stack dev --full
+npm run radar -- stack dev
 ```
 
-(если Postgres уже запущен — можно `stack dev` / `stack dev --full` без `up`).
+(если Postgres уже запущен — можно `stack dev` / `stack dev` без `up`).
 
 ### 3. Проверка
 
@@ -292,7 +292,7 @@ SSOT таблиц radar ↔ legacy: **[radar-cli.md](./radar-cli.md)**. Част
 
 ```powershell
 npm run radar -- stack cold-up
-npm run radar -- stack dev --full
+npm run radar -- stack dev
 npm run radar -- stack migrate
 npm run radar -- parse run
 npm run radar -- ingest backfill -- --all-bindings --batch-size=100

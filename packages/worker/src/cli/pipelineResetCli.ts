@@ -53,6 +53,8 @@ async function main(): Promise<void> {
   }
 
   const runtime = await createWorkerCompositionRoot({
+    workerRole: "parse",
+    bootCaps: ["parse","geo"],
     storageMode: WorkerStorageMode.Db,
     startIngestParseDaemon: false,
     // Сброс не парсит сообщения — geo scan из БД не нужен.

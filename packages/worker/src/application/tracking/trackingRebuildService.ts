@@ -364,64 +364,64 @@ export async function runIncrementalBatch(
 
 function nextGenProgressPatch(
   cluster: NextGenClusterProgress,
-  phase2: NextGenStep2Progress,
-  phase3: NextGenStep3Progress,
+  step2: NextGenStep2Progress,
+  step3: NextGenStep3Progress,
   profilesWithAccepted: number,
   joinTrackCounts: { tracksOpen: number; tracksClosed: number; nodesAdded: number },
 ): Partial<TrackingRebuildStats> {
-  const reliabilityAvg = profilesWithAccepted > 0 ? phase2.step2ReliabilityAvg / profilesWithAccepted : 0;
-  const reliabilityP95 = profilesWithAccepted > 0 ? phase2.step2ReliabilityP95 / profilesWithAccepted : 0;
+  const reliabilityAvg = profilesWithAccepted > 0 ? step2.step2ReliabilityAvg / profilesWithAccepted : 0;
+  const reliabilityP95 = profilesWithAccepted > 0 ? step2.step2ReliabilityP95 / profilesWithAccepted : 0;
   return {
-    ...(phase2.step2PairsConsidered > 0
+    ...(step2.step2PairsConsidered > 0
       ? {
-          step2PairsConsidered: phase2.step2PairsConsidered,
-          step2PairsAccepted: phase2.step2PairsAccepted,
-          step2PairsRejectedByKinematics: phase2.step2PairsRejectedByKinematics,
+          step2PairsConsidered: step2.step2PairsConsidered,
+          step2PairsAccepted: step2.step2PairsAccepted,
+          step2PairsRejectedByKinematics: step2.step2PairsRejectedByKinematics,
           step2ReliabilityAvg: reliabilityAvg,
           step2ReliabilityP95: reliabilityP95,
         }
       : {}),
-    ...(phase3.step3LinksConsidered > 0
+    ...(step3.step3LinksConsidered > 0
       ? {
-          step3LinksConsidered: phase3.step3LinksConsidered,
-          step3LinksAccepted: phase3.step3LinksAccepted,
-          step3NodesSeeded: phase3.step3NodesSeeded,
-          step3RejectGap: phase3.step3RejectGap,
-          step3RejectDistance: phase3.step3RejectDistance,
-          step3RejectVelocity: phase3.step3RejectVelocity,
-          step3RejectCounterFlow: phase3.step3RejectCounterFlow,
-          step3RejectTurn: phase3.step3RejectTurn,
-          step3RejectKalmanInnovation: phase3.step3RejectKalmanInnovation,
+          step3LinksConsidered: step3.step3LinksConsidered,
+          step3LinksAccepted: step3.step3LinksAccepted,
+          step3NodesSeeded: step3.step3NodesSeeded,
+          step3RejectGap: step3.step3RejectGap,
+          step3RejectDistance: step3.step3RejectDistance,
+          step3RejectVelocity: step3.step3RejectVelocity,
+          step3RejectCounterFlow: step3.step3RejectCounterFlow,
+          step3RejectTurn: step3.step3RejectTurn,
+          step3RejectKalmanInnovation: step3.step3RejectKalmanInnovation,
         }
       : {}),
     stepStats: {
       ...(cluster.candidatesIn > 0
         ? { cluster: { candidatesIn: cluster.candidatesIn, nodesOut: cluster.nodesOut } }
         : {}),
-      ...(phase2.step2PairsConsidered > 0
+      ...(step2.step2PairsConsidered > 0
         ? {
             field_train: {
-              pairsConsidered: phase2.step2PairsConsidered,
-              pairsAccepted: phase2.step2PairsAccepted,
-              pairsRejectedByKinematics: phase2.step2PairsRejectedByKinematics,
+              pairsConsidered: step2.step2PairsConsidered,
+              pairsAccepted: step2.step2PairsAccepted,
+              pairsRejectedByKinematics: step2.step2PairsRejectedByKinematics,
               reliabilityAvg,
               reliabilityP95,
             },
           }
         : {}),
-      ...(phase3.step3LinksConsidered > 0
+      ...(step3.step3LinksConsidered > 0
         ? {
             join: {
-              linksConsidered: phase3.step3LinksConsidered,
-              linksAccepted: phase3.step3LinksAccepted,
-              nodesSeeded: phase3.step3NodesSeeded,
+              linksConsidered: step3.step3LinksConsidered,
+              linksAccepted: step3.step3LinksAccepted,
+              nodesSeeded: step3.step3NodesSeeded,
               ...joinTrackCounts,
-              rejectGap: phase3.step3RejectGap,
-              rejectDistance: phase3.step3RejectDistance,
-              rejectVelocity: phase3.step3RejectVelocity,
-              rejectCounterFlow: phase3.step3RejectCounterFlow,
-              rejectTurn: phase3.step3RejectTurn,
-              rejectKalmanInnovation: phase3.step3RejectKalmanInnovation,
+              rejectGap: step3.step3RejectGap,
+              rejectDistance: step3.step3RejectDistance,
+              rejectVelocity: step3.step3RejectVelocity,
+              rejectCounterFlow: step3.step3RejectCounterFlow,
+              rejectTurn: step3.step3RejectTurn,
+              rejectKalmanInnovation: step3.step3RejectKalmanInnovation,
             },
           }
         : {}),
@@ -551,22 +551,22 @@ function buildTracksNextGenForProfile(
     ...finalizeTracks(drafts, new Date()),
     nextgenCluster: built.cluster,
     nextgenStep2: {
-      step2PairsConsidered: built.phase2.pairsConsidered,
-      step2PairsAccepted: built.phase2.pairsAccepted,
-      step2PairsRejectedByKinematics: built.phase2.pairsRejectedKinematics,
-      step2ReliabilityAvg: built.phase2.reliabilityAvg,
-      step2ReliabilityP95: built.phase2.reliabilityP95,
+      step2PairsConsidered: built.step2.pairsConsidered,
+      step2PairsAccepted: built.step2.pairsAccepted,
+      step2PairsRejectedByKinematics: built.step2.pairsRejectedKinematics,
+      step2ReliabilityAvg: built.step2.reliabilityAvg,
+      step2ReliabilityP95: built.step2.reliabilityP95,
     },
     nextgenStep3: {
-      step3LinksConsidered: built.phase3.linksConsidered,
-      step3LinksAccepted: built.phase3.linksAccepted,
-      step3NodesSeeded: built.phase3.nodesSeeded,
-      step3RejectGap: built.phase3.rejectGap,
-      step3RejectDistance: built.phase3.rejectDistance,
-      step3RejectVelocity: built.phase3.rejectVelocity,
-      step3RejectCounterFlow: built.phase3.rejectCounterFlow,
-      step3RejectTurn: built.phase3.rejectTurn,
-      step3RejectKalmanInnovation: built.phase3.rejectKalmanInnovation,
+      step3LinksConsidered: built.step3.linksConsidered,
+      step3LinksAccepted: built.step3.linksAccepted,
+      step3NodesSeeded: built.step3.nodesSeeded,
+      step3RejectGap: built.step3.rejectGap,
+      step3RejectDistance: built.step3.rejectDistance,
+      step3RejectVelocity: built.step3.rejectVelocity,
+      step3RejectCounterFlow: built.step3.rejectCounterFlow,
+      step3RejectTurn: built.step3.rejectTurn,
+      step3RejectKalmanInnovation: built.step3.rejectKalmanInnovation,
     },
   };
 }

@@ -2,7 +2,7 @@
  * ---
  * layer: worker/runtime
  * domain: runner-platform
- * purpose: Барр-экспорт generic runtime-платформы job'ов. Единственный публичный вход пакета —
+ * purpose: Barrel-экспорт generic runtime-платформы job'ов. Единственный публичный вход пакета —
  *          домены (tracking/parse/geo-enrich) импортируют только отсюда.
  * ---
  */

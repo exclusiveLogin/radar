@@ -131,8 +131,8 @@ v1: circle approx 32-segment polygon; point-in-polygon test.
 
 **Pass (v1):**
 
-- Edge `(node_i → node_{i+1})` where `node_i` inside zone, `node_{i+1}` outside
-- Track has ≥ 2 nodes after `node_{i+1}`
+- Edge `(node_i → node_{i+1})` where `node_i` inside zone, `node_{i+1}` outside
+- Track has ≥ 2 nodes after `node_{i+1}`
 - Segment layer `pass`
 
 **Body:** all other edges (optional materialize or default implicit).

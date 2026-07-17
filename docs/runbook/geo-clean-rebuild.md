@@ -8,7 +8,7 @@ PowerShell, корень репозитория. Нужны `DATABASE_URL`, `RAD
 
 
 
-**CLI:** [`radar-cli.md`](../radar-cli.md) — `npm run radar -- <domain> <action>`
+**CLI:** [`radar-cli.md`](../radar-cli.md) — `npm run radar -- <domain> <action>`
 
 
 
@@ -183,7 +183,7 @@ npm run radar -- ingest backfill -- --all-bindings --batch-size=100
 
 npm run radar -- parse run
 
-npm run radar -- stack dev --full
+npm run radar -- stack dev
 
 ```
 
@@ -209,7 +209,7 @@ npm run radar -- parse run
 
 
 
-`pipeline reset` **недостаточен** — только очистит parsed. Альтернатива: `reset` + `stack dev --full` (catch-up).
+`pipeline reset` **недостаточен** — только очистит parsed. Альтернатива: `reset` + `stack dev` (catch-up).
 
 
 
@@ -333,7 +333,7 @@ npm run radar -- map diagnose
 
 
 
-**Pass (ориентир):** `rawWithoutParsed` ≈ 0; `workspaceDrift` = 0; `not_parsed` gap = 0%; `occurredAtMismatchPct` < 5%.
+**Pass (ориентир):** `rawWithoutParsed` ≈ 0; `workspaceDrift` = 0; `not_parsed` gap = 0%; `occurredAtMismatchPct` < 5%.
 
 
 

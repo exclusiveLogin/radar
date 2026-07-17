@@ -21,6 +21,8 @@ import { hasAnyFlag, parseLongFlagsMap } from "./workerCliArgs.js";
 async function openDb() {
   loadRootEnv(MONOREPO_ROOT);
   const runtime = await createWorkerCompositionRoot({
+    workerRole: "tracking",
+    bootCaps: ["tracking"],
     storageMode: WorkerStorageMode.Db,
     startIngestParseDaemon: false,
   });

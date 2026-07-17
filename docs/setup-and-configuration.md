@@ -43,7 +43,7 @@ npm run radar -- stack dev
 **Полный стек (worker на хосте):**
 
 ```powershell
-npm run radar -- stack dev --full
+npm run radar -- stack dev
 # или отдельно:
 $env:RADAR_STORAGE_MODE="db"
 npm run worker:dev
@@ -55,7 +55,7 @@ npm run worker:dev
 
 ```powershell
 npm run radar -- stack up          # Docker + API + Web
-npm run radar -- stack dev --full  # + worker (если нужен ingest/parse)
+npm run radar -- stack dev  # + worker (если нужен ingest/parse)
 ```
 
 Docker-вариант (всё в compose): [docker-dev-stack.md](docker-dev-stack.md)
@@ -200,7 +200,7 @@ npm run radar -- stack docker-dev
 { "infra": { "obs": { "dockerize": true, "mode": "service" } } }
 ```
 
-в `deployment.local.manifest.json`, затем `npm run radar -- stack dev --full`.
+в `deployment.local.manifest.json`, затем `npm run radar -- stack dev`.
 
 Подробнее: [runbook/observability.md](runbook/observability.md).
 
@@ -260,7 +260,7 @@ npm run radar -- geo catalog:import
 
 ```powershell
 npm run radar -- stack cold-up
-npm run radar -- stack dev --full
+npm run radar -- stack dev
 npm run radar -- stack docker-dev
 npm run radar -- ingest session:deploy
 npm run radar -- ingest manifest:import

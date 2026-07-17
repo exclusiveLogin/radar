@@ -1,19 +1,14 @@
 import type { IEventTransport, PhaseDefinitionRecord } from "@radar/shared";
 import { RADAR_TOPICS } from "@radar/shared";
 import type { CoverageEnqueuer } from "../../application/phases/coverageEnqueuer.js";
-import {
-  roleRunsGeoDaemons,
-  roleRunsParseDaemons,
-  roleRunsTrackingDaemon,
-  type WorkerRole,
-} from "../config/workerRole.js";
+import { hasCap, type DomainCap } from "../config/workerRole.js";
 import type { WorkerDbRepositories } from "../persistence/workerDbRepos.types.js";
 
 export type WireTransportRuntimeSignalsInput = {
   transport: IEventTransport;
   workerRepos: WorkerDbRepositories;
   coverageEnqueuer: CoverageEnqueuer;
-  workerRole: WorkerRole;
+  caps: ReadonlySet<DomainCap>;
   /** Один drainOnce-тик через launcher (не runDrain until empty). */
   onParseWake?: () => void;
   onGeoWake?: () => void;
@@ -26,7 +21,7 @@ export function wireTransportRuntimeSignals(input: WireTransportRuntimeSignalsIn
     transport,
     workerRepos,
     coverageEnqueuer,
-    workerRole,
+    caps,
     onParseWake,
     onGeoWake,
     onTrackingWake,
@@ -74,10 +69,10 @@ export function wireTransportRuntimeSignals(input: WireTransportRuntimeSignalsIn
     );
   };
 
-  if (roleRunsParseDaemons(workerRole)) {
+  if (hasCap(caps, "parse")) {
     bindDrain(RADAR_TOPICS.RUNNER_DRAIN_PARSE, "ingestParse", "parse", onParseWake);
   }
-  if (roleRunsGeoDaemons(workerRole)) {
+  if (hasCap(caps, "geo")) {
     bindDrain(RADAR_TOPICS.RUNNER_DRAIN_GEO, "geoParse", "geo", onGeoWake);
     transport.subscribeSignal(
       RADAR_TOPICS.GEO_ENRICH_REQUEST,
@@ -98,7 +93,7 @@ export function wireTransportRuntimeSignals(input: WireTransportRuntimeSignalsIn
       { queueSuffix: "geo" },
     );
   }
-  if (roleRunsTrackingDaemon(workerRole)) {
+  if (hasCap(caps, "tracking")) {
     transport.subscribeSignal(
       RADAR_TOPICS.RUNNER_DRAIN_TRACKING,
       async () => {

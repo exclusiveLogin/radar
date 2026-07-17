@@ -60,7 +60,7 @@ place_geo_link (
 
 | Поле | Тип | Назначение |
 |------|-----|-----------|
-| `name_stem` | text | Стем для быстрого матча без alias-роста |
+| `name_stem` | text | Стем для быстрого матча без alias-роста |
 | `geo_feature_id` | uuid FK | Ссылка на геометрию; заполняется при import или parse-match |
 
 ---
@@ -94,7 +94,7 @@ geo:features:import
 ### `data/geo/catalog/regions.json` — SSOT идентичности
 
 89 записей: 83 стандартных субъекта РФ + Крым + Севастополь + 4 НТ.  
-Включает: `iso`, `name`, `nameWithType`, `shortName`, `federalDistrict`, `fiasId`, `kladrId`, `frontRegion`, `borderRegion`.
+Включает: `iso`, `name`, `nameWithType`, `shortName`, `federalDistrict`, `fiasId`, `kladrId`, `frontRegion`, `borderRegion`.
 
 **Удалены вендоры:** `hflabs-region`, `rnekrasov-geojson` — из `geo-sources.json`.
 

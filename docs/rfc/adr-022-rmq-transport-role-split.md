@@ -1,4 +1,4 @@
-﻿# ADR-022: RMQ-only scheduling + parse/geo role split
+# ADR-022: RMQ-only scheduling + parse/geo role split
 
 ## Status
 
@@ -21,7 +21,7 @@ Accepted (2026-07-14)
 
 | Профиль | Worker cascade | API admin |
 |---------|----------------|----------|
-| `dev --full` | in-process (`role=all`) | RMQ |
+| `dev --full` | in-process (`role=<ingest|backfill|parse|geo|tracking>`) | RMQ |
 | docker dev/prod | RMQ | RMQ |
 | host split | RMQ (fail-fast без broker) | RMQ |
 

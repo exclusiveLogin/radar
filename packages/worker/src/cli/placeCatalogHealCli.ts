@@ -57,6 +57,8 @@ async function main(): Promise<void> {
   }
 
   const runtime = await createWorkerCompositionRoot({
+    workerRole: "geo",
+    bootCaps: ["geo"],
     storageMode: WorkerStorageMode.Db,
     startIngestParseDaemon: false,
   });

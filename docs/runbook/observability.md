@@ -19,7 +19,8 @@
 |-------|------------------|-------------------|-------|
 | **embedded** (default в db mode) | `embedded` | Postgres `obs_*` напрямую | Host dev, Docker без sidecar |
 | **service** | `service` | HTTP → obs-service → Postgres | Sidecar (`infra.obs.dockerize=true`) |
-| **выкл** | `noop` | никуда | memory mode, тесты |
+| **выкл** | 
+oop` | никуда | memory mode, тесты |
 
 > `infra.obs.dockerize=true` или `infra.obs.dockerizeAll=true` **автоматически** переключают write-path на `service`.
 

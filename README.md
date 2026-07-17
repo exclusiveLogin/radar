@@ -219,7 +219,7 @@ npm run radar -- <domain> <action>   # корень репо, PowerShell
 | Задача | Команда |
 |--------|---------|
 | Первый запуск | `npm run radar -- stack cold-up` |
-| Dev + worker | `npm run radar -- stack dev --full` |
+| Dev + worker | `npm run radar -- stack dev` |
 | Миграции | `npm run radar -- stack migrate` |
 | Geo-каталог | `npm run radar -- geo catalog:import` |
 | Backfill | `npm run radar -- ingest backfill -- --all-bindings --batch-size=100` |
@@ -281,7 +281,8 @@ node scripts/query-ingest-status.mjs
 
 ### Runtime geo enrichment (актуальный контур)
 
-- `raw` сначала проходит классификацию (`noise/meta/event`).
+- `raw` сначала проходит классификацию (
+oise/meta/event`).
 - Если это event: берется базовый регион из локальных артефактов/словаря.
 - Далее запускается цепочка enrichers (`cache -> dadata -> nominatim -> llm`).
 - Ответ провайдера матчится с каталогом (`fias -> alias -> name+region`).
@@ -298,7 +299,8 @@ node scripts/query-ingest-status.mjs
   - `matched_existing` -> пишется evidence `confirm`, place обновляет trust-поля.
   - `created_new` -> пишется evidence `candidate`, trust остается на уровне policy-оценки источника.
 - Базовые trust-score источников: `catalog=1.00`, `dadata=0.95`, `nominatim=0.80`, `llm=0.55`, `operator=1.00`, `system=0.70`.
-- Для UI/read-side неподтвержденные места должны помечаться предупреждением (`needsAttention` в итерации 2).
+- Для UI/read-side неподтвержденные места должны помечаться предупреждением (
+eedsAttention` в итерации 2).
 
 ## ⚙️ Статус репозитория
 
@@ -329,10 +331,10 @@ node scripts/query-ingest-status.mjs
 |-------|--------|----------|--------|
 | **`stack cold-up`** | `cold:up` | install + build shared + **миграции** | первый раз |
 | **`stack up`** | `up` | shared + API + web | UI без Telegram |
-| **`stack dev --full`** | `dev` | + worker | полный стек |
-| **`stack dev`** | `dev:app` | без worker | отладка карты/API |
-| **`stack docker-dev`** | `docker:dev` | api/web/worker в Docker | dev hot-reload |
-| **`stack docker-prod`** | `docker:prod` | baked dist + nginx | [docker-prod-stack.md](docs/docker-prod-stack.md) |
+| **`stack dev`** | `dev` | shared+api+web + **5 workers** (ingest/backfill/parse/geo/tracking) | полный host-стек |
+| **`stack dev --app-only`** | `dev:app` | shared+api+web, без workers | отладка карты/API |
+| **`stack docker-dev`** | `docker:dev` | api/web + 5 worker-ролей в Docker | dev hot-reload |
+| **`stack docker-prod`** | `docker:prod` | baked dist + nginx + 5 roles | [docker-prod-stack.md](docs/docker-prod-stack.md) |
 
 Подробнее: [docs/docker-dev-stack.md](docs/docker-dev-stack.md).
 
@@ -345,7 +347,7 @@ cd C:\path\to\radar
 Copy-Item .env.example .env
 npm run radar -- stack cold-up
 npm run radar -- stack dev
-# или с worker: npm run radar -- stack dev --full
+# только UI+API: npm run radar -- stack dev --app-only
 ```
 
 Опции `stack cold-up` (legacy `cold:up`, можно комбинировать):
@@ -424,7 +426,7 @@ docker compose --profile llm-ui up -d
 1. **`.env.example` → `.env`** в корне (`DATABASE_URL` обязателен).
 2. `docker compose up -d`
 3. `npm install` → `npm run radar -- stack migrate`
-4. `npm run radar -- stack dev --full` или `stack dev` (см. таблицу режимов выше).
+4. `npm run radar -- stack dev` или `stack dev` (см. таблицу режимов выше).
 
 Подробности transpile/watch: Nest + `shared/dist` для API; Vite тянет схемы из `packages/shared/src`.
 
@@ -529,7 +531,7 @@ npm run radar -- stack migrate
 
 | radar | Legacy | Назначение |
 |-------|--------|------------|
-| `stack cold-up` / `up` / `dev` / `dev --full` | `cold:up`, `up`, `dev:app`, `dev` | см. [§ Шпаргалка](#шпаргалка-операции) |
+| `stack cold-up` / `up` / `dev` / `dev --app-only` | `cold:up`, `up`, `dev`, `dev:app` | см. [§ Шпаргалка](#шпаргалка-операции) |
 | `parse run` | `parse-engine:rebuild:drain` | reparse + drain → карта |
 | `geo catalog:import` | `geo:catalog:import -w @radar/api` | geo-каталог в БД |
 | `map fold` | `map:fold:status` | диагностика fold |

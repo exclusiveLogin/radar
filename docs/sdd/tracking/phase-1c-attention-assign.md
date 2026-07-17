@@ -1,6 +1,6 @@
 # Phase 1c — Attention Assign (JPDA-lite)
 
-> **Superseded**: `attentionMatrix`/`assignCandidates`/offline auto-tune (`trackingFitness`, `configSampler`) удалены при hard-cut на `nextgen-gravity`. Join выполняет `NextGenPhase3` (Kalman-локус + H3-гравитация), см. `packages/shared/src/domain/tracking/nextgen/`.
+> **Superseded**: `attentionMatrix`/`assignCandidates`/offline auto-tune (`trackingFitness`, `configSampler`) удалены при hard-cut на `nextgen-gravity`. Join выполняет `NextGenPhase3` (Kalman-локус + H3-гравитация), см. `packages/shared/src/domain/tracking/nextgen/`.
 
 ## Цель
 

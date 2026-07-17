@@ -13,7 +13,7 @@ $env:RADAR_STORAGE_MODE="db"
 # runner-platform: deployment.manifest.json или DEPLOY__ overlay
 $env:DEPLOY__runners__pipelines__parse__schedulingImpl="legacy"
 $env:DEPLOY__runners__pipelines__tracking__schedulingImpl="legacy"
-npm run radar -- stack dev --full
+npm run radar -- stack dev
 npm run radar -- pipeline status
 ```
 

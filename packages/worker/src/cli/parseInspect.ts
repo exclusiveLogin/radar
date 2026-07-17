@@ -71,6 +71,8 @@ export async function runParseInspect(argv: string[]): Promise<void> {
   const cli = parseInspectCli(argv);
   const source = resolveInputText(cli);
   const runtime = await createWorkerCompositionRoot({
+    workerRole: "parse",
+    bootCaps: ["parse"],
     storageMode: cli.storageMode,
     startIngestParseDaemon: false,
     ingestParsePhaseSelection: cli.ingestParsePhaseSelection,

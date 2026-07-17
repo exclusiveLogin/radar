@@ -340,21 +340,33 @@ export function resolveIngestConnectionDisplay(
   }
 }
 
-/** Бейдж канала: live connection worker > listening из БД. */
+/**
+ * Бейдж канала в списке: SSOT = ответ API/БД (listening, providerStatus).
+ * Probe connection — только явный runtime (live / сеть / error).
+ * Transitional connected/connecting не перекрывают БД (чужой probe / ложный TCP).
+ */
 export function resolveChannelIngestDisplay(input: {
   listening: boolean;
   providerStatus: string | null | undefined;
   connection: IngestProviderConnectionSnapshot | null | undefined;
 }): IngestProviderDisplayStatus {
-  const live = resolveIngestConnectionDisplay(input.connection);
-  if (live) return live;
+  const phase = input.connection?.phase;
+  const runtimeProbe =
+    phase === "live" ||
+    phase === "error" ||
+    phase === "disconnected" ||
+    phase === "reconnecting";
+  if (runtimeProbe) {
+    const fromProbe = resolveIngestConnectionDisplay(input.connection);
+    if (fromProbe) return fromProbe;
+  }
 
   if (input.listening) {
     return {
       kind: "ok",
       label: "слушается",
       pulse: true,
-      tip: "Provider active + binding enabled",
+      tip: "БД: channel enabled + provider active + binding enabled",
     };
   }
   if (input.providerStatus === "error") {
@@ -441,13 +453,12 @@ export function resolveIngestProviderDisplayStatus(
     };
   }
 
+  // Probe перекрывает БД только при живом duty / явной сетевой аварии — не connected/connecting.
   const liveConnection = resolveIngestConnectionDisplay(ctx.connection);
   if (
     liveConnection &&
     ctx.connection &&
-    ["connecting", "reconnecting", "connected", "disconnected", "error", "live"].includes(
-      ctx.connection.phase,
-    )
+    ["reconnecting", "disconnected", "error", "live"].includes(ctx.connection.phase)
   ) {
     if (ctx.connection.phase !== "live" || provider.status === "active") {
       return liveConnection;

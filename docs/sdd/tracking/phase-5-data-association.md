@@ -1,6 +1,6 @@
 # Phase 5 — Data Association (ADR-015)
 
-> **Superseded**: селектор алгоритма (gnn/pdaf/jpdaf) и offline auto-tune удалены — единственный алгоритм `nextgen-gravity`, см. `packages/shared/src/domain/tracking/nextgen/`.
+> **Superseded**: селектор алгоритма (gnn/pdaf/jpdaf) и offline auto-tune удалены — единственный алгоритм `nextgen-gravity`, см. `packages/shared/src/domain/tracking/nextgen/`.
 
 База: [ADR-015](../../adr-015-data-association-reuse-and-locus.md) · supersede частично [phase-1c](./phase-1c-attention-assign.md) (gate + consume).
 

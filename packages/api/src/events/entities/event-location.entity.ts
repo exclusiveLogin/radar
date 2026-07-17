@@ -5,7 +5,8 @@
  * table: mat_parse_location
  * purpose: Где на карте показать событие: ссылка на region/place + координаты/точность; один parsed_event может иметь несколько кандидатов локации.
  * @see ../../../../../docs/domain/persistence-map.md#EventLocationEntity
- * @see ../../../../../docs/database-table-naming.md`n * @see ../../../../../docs/domain/how-it-works.md#parse-flow
+ * @see ../../../../../docs/database-table-naming.md
+ * @see ../../../../../docs/domain/how-it-works.md#parse-flow
  * ---
  */
 import { Column, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from "typeorm";

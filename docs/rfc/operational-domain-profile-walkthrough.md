@@ -75,7 +75,8 @@
 | Место | Что не так | Пример |
 |-------|------------|--------|
 | `extractEventType.ts` | 30+ regex в коде | «фиксация … бпла» → `fixation` |
-| `event-type.ts` | закрытый enum типов | добавить `new_type` = правка shared + деплой |
+| `event-type.ts` | закрытый enum типов | добавить 
+ew_type` = правка shared + деплой |
 | `event-heatmap.ts` | 5 типов для кнопок heatmap | захардкожено, не из словаря |
 | `geoCatalog.ts` | обрезка «БПЛА \| опасность \| …» | лексика домена в geo |
 | Tracking (план) | uav/rocket/balloon в коде | должно быть из конфига |

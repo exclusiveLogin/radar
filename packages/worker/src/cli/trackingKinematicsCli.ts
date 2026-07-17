@@ -234,6 +234,8 @@ async function main(): Promise<void> {
   const nearKm = Number(readStringFlag(flags, ["near-km"]) ?? "250");
 
   const runtime = await createWorkerCompositionRoot({
+    workerRole: "tracking",
+    bootCaps: ["tracking"],
     storageMode: WorkerStorageMode.Db,
     startIngestParseDaemon: false,
   });

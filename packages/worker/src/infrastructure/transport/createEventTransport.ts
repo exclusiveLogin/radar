@@ -1,6 +1,6 @@
-﻿import type { DataSource } from "typeorm";
+import type { DataSource } from "typeorm";
 import type { DeploymentManifest, DeploymentTransport } from "@radar/shared";
-import { InProcessEventTransport, resolveRmqConsumerSuffix } from "@radar/shared";
+import { resolveRmqConsumerSuffix } from "@radar/shared";
 import type { IEventTransport } from "@radar/shared";
 import type { WorkerRole } from "../config/workerRole.js";
 import { createPgTransportDedup } from "./pgTransportDedup.js";
@@ -11,26 +11,22 @@ export type CreateEventTransportInput = {
   workerRole: WorkerRole;
   /** PG dedup L2 для RMQ consumer. */
   dataSource?: DataSource;
-  /** API всегда rmq для admin/control; worker role=all может быть in-process для cascade. */
+  /** API всегда rmq для admin/control. */
   forceRmq?: boolean;
 };
 
-/** Fail-fast: split role без rmq. */
-export function assertTransportCompatible(role: WorkerRole, transport: DeploymentTransport): void {
-  if (role !== "all" && transport.kind === "in-process") {
-    throw new Error(`RADAR_WORKER_ROLE=${role} requires transport.kind=rmq`);
+/** Fail-fast: worker всегда RMQ (in-process только для unit-тестов через force — запрещён). */
+export function assertTransportCompatible(_role: WorkerRole, transport: DeploymentTransport): void {
+  if (transport.kind === "in-process") {
+    throw new Error("Worker requires transport.kind=rmq (in-process monolith removed)");
   }
 }
 
 export function createEventTransport(input: CreateEventTransportInput): IEventTransport {
-  const { transport, workerRole, forceRmq = false, dataSource } = input;
+  const { transport, workerRole, dataSource } = input;
   assertTransportCompatible(workerRole, transport);
-  const useRmq = forceRmq || transport.kind === "rmq" || workerRole !== "all";
-  if (useRmq) {
-    const pgDedup = transport.rmq.dedupTable && dataSource ? createPgTransportDedup(dataSource) : undefined;
-    return createRmqEventTransport(transport.rmq, pgDedup, resolveRmqConsumerSuffix(workerRole));
-  }
-  return new InProcessEventTransport();
+  const pgDedup = transport.rmq.dedupTable && dataSource ? createPgTransportDedup(dataSource) : undefined;
+  return createRmqEventTransport(transport.rmq, pgDedup, resolveRmqConsumerSuffix(workerRole));
 }
 
 export function resolveTransportFromManifest(manifest: DeploymentManifest): DeploymentTransport {

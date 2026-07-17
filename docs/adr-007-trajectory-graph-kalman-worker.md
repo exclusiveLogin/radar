@@ -1,46 +1,48 @@
-﻿> **Имена таблиц:** актуальные — [database-table-naming.md](./database-table-naming.md). Ниже — исторический контекст.`n`n# ADR-007: Р¤РѕРЅРѕРІР°СЏ СЃР±РѕСЂРєР° РіСЂР°С„Р° С‚СЂР°РµРєС‚РѕСЂРёР№ (Kalman worker)
+﻿> **Имена таблиц:** актуальные — [database-table-naming.md](./database-table-naming.md). Ниже — исторический контекст.
 
-Р”Р°С‚Р°: 2026-06-12  
-РЎС‚Р°С‚СѓСЃ: **РџСЂРµРґР»РѕР¶РµРЅРѕ**
+# ADR-007: Фоновая сборка графа траекторий (Kalman worker)
 
-РЎРІСЏР·Р°РЅРѕ: [ADR-008](./adr-008-kinematic-vs-static-events.md), [ADR-009](./adr-009-osint-pre-collapse.md), [roadmap](./roadmap-tracking-forecasting.md)
+Дата: 2026-06-12  
+Статус: **Предложено**
 
----
-
-## РљРѕРЅС‚РµРєСЃС‚
-
-OSINT-РїРѕС‚РѕРє РґР°С‘С‚ РґРѕ ~150k РіРµРѕС‚РѕС‡РµРє Р±РµР· СЃС‚Р°Р±РёР»СЊРЅС‹С… object ID (Р±РѕСЂС‚РѕРІС‹С… РЅРѕРјРµСЂРѕРІ). РўРѕС‡РєРё РїСЂРёС…РѕРґСЏС‚ РёР· СЂР°Р·РЅС‹С… Telegram-РєР°РЅР°Р»РѕРІ СЃ СЂР°Р·РЅС‹Рј lag Рё С‚РѕС‡РЅРѕСЃС‚СЊСЋ. Operational fold ([ADR-006](./adr-006-map-read-line-fold.md)) РѕС‚РІРµС‡Р°РµС‚ РЅР° РІРѕРїСЂРѕСЃ В«РєР°РєРѕР№ СЃС‚Р°С‚СѓСЃ СЂРµРіРёРѕРЅР° СЃРµР№С‡Р°СЃВ», РЅРѕ РЅРµ СЃС‚СЂРѕРёС‚ РЅРµРїСЂРµСЂС‹РІРЅС‹Рµ С‚СЂР°РµРєС‚РѕСЂРёРё РґРІРёР¶СѓС‰РёС…СЃСЏ С†РµР»РµР№.
-
-РџСЂРѕР±Р»РµРјС‹ Р±РµР· tracking-РґРѕРјРµРЅР°:
-
-- Р СѓС‡РЅР°СЏ СЂР°Р·РјРµС‚РєР° В«СЌС‚Рѕ РѕРґРЅР° Рё С‚Р° Р¶Рµ С†РµР»СЊВ» РЅРµ РјР°СЃС€С‚Р°Р±РёСЂСѓРµС‚СЃСЏ.
-- РЎРєРѕСЂРѕСЃС‚СЊ Рё РєСѓСЂСЃ РЅРµР»СЊР·СЏ РІС‹С‡РёСЃР»РёС‚СЊ РёР· РѕРґРёРЅРѕС‡РЅС‹С… С‚РѕС‡РµРє Р±РµР· РјРѕРґРµР»Рё РґРІРёР¶РµРЅРёСЏ.
-- РџСЂРѕРіРЅРѕР· В«РіРґРµ С†РµР»СЊ СЃРµР№С‡Р°СЃВ» РЅРµРІРѕР·РјРѕР¶РµРЅ РїСЂРё РїР°СѓР·Рµ РІ РЅР°Р±Р»СЋРґРµРЅРёСЏС….
+Связано: [ADR-008](./adr-008-kinematic-vs-static-events.md), [ADR-009](./adr-009-osint-pre-collapse.md), [roadmap](./roadmap-tracking-forecasting.md)
 
 ---
 
-## Р РµС€РµРЅРёРµ
+## Контекст
 
-### Background worker РІ `packages/worker`
+OSINT-поток даёт до ~150k геоточек без стабильных object ID (бортовых номеров). Точки приходят из разных Telegram-каналов с разным lag и точностью. Operational fold ([ADR-006](./adr-006-map-read-line-fold.md)) отвечает на вопрос «какой статус региона сейчас», но не строит непрерывные траектории движущихся целей.
 
-Р¤РѕРЅРѕРІС‹Р№ job (РЅРµ РЅР° write-line parse) РІС‹РїРѕР»РЅСЏРµС‚ РїР°Р№РїР»Р°Р№РЅ:
+Проблемы без tracking-домена:
+
+- Ручная разметка «это одна и та же цель» не масштабируется.
+- Скорость и курс нельзя вычислить из одиночных точек без модели движения.
+- Прогноз «где цель сейчас» невозможен при паузе в наблюдениях.
+
+---
+
+## Решение
+
+### Background worker в `packages/worker`
+
+Фоновый job (не на write-line parse) выполняет пайплайн:
 
 ```text
 load mat_parse_location (window)
   в†’ pre-collapse (ADR-009)
   в†’ kinematic/static routing (ADR-008)
-  в†’ spatio-temporal linking (РїСЂРµРґРѕРє в†’ РїРѕС‚РѕРјРѕРє)
+  → spatio-temporal linking (предок → потомок)
   в†’ Kalman correct/predict per track
   в†’ persist trajectory_*
 ```
 
-**РџСЂРёРЅС†РёРїС‹:**
+**Принципы:**
 
-- **Spatio-Temporal Clustering** вЂ” СЃРІСЏР·СЊ С‚РѕС‡РµРє РїРѕ Р±Р»РёР·РѕСЃС‚Рё РІ РїСЂРѕСЃС‚СЂР°РЅСЃС‚РІРµ Рё РІСЂРµРјРµРЅРё.
-- **Kalman Filtering** вЂ” СЃРѕСЃС‚РѕСЏРЅРёРµ `[x, y, vx, vy]`; РјР°С‚СЂРёС†Р° С€СѓРјР° РїСЂРѕС†РµСЃСЃР° Q РјР°СЃС€С‚Р°Р±РёСЂСѓРµС‚СЃСЏ РѕС‚ `dtВі`, `dtвЃґ`.
-- **Directed graph** вЂ” СѓР·Р»С‹ (`mat_track_node`) Рё СЂС‘Р±СЂР° parentв†’child РІРЅСѓС‚СЂРё С‚СЂРµРєР°.
+- **Spatio-Temporal Clustering** — связь точек по близости в пространстве и времени.
+- **Kalman Filtering** — состояние `[x, y, vx, vy]`; матрица шума процесса Q масштабируется от `dt³`, `dt⁴`.
+- **Directed graph** — узлы (`mat_track_node`) и рёбра parent→child внутри трека.
 
-### РҐСЂР°РЅРµРЅРёРµ (РїСЂРµРґР»РѕР¶РµРЅРёРµ)
+### Хранение (предложение)
 
 ```sql
 mat_track (
@@ -50,7 +52,7 @@ mat_track (
   last_at         timestamptz,
   last_lat        numeric,
   last_lon        numeric,
-  velocity_ms     numeric,    -- |v| РёР· Kalman
+  velocity_ms     numeric,    -- |v| из Kalman
   bearing_deg     numeric,
   node_count      int,
   created_at      timestamptz,
@@ -60,43 +62,43 @@ mat_track (
 mat_track_node (
   id              uuid PK,
   track_id        uuid FK в†’ mat_track,
-  seq             int,        -- РїРѕСЂСЏРґРѕРє РІ С‚СЂРµРєРµ
+  seq             int,        -- порядок в треке
   occurred_at     timestamptz,
   lat             numeric,
   lon             numeric,
   mode            text,       -- correct | attach_only (ADR-008)
-  event_location_id uuid FK,  -- nullable РґР»СЏ synthetic nodes
+  event_location_id uuid FK,  -- nullable для synthetic nodes
   kalman_state    jsonb,     -- { x, y, vx, vy, P: number[4][4] }
   source_refs     jsonb,      -- [{ rawMessageId, parsedEventId, text }]
   created_at      timestamptz
 )
 ```
 
-РРЅРґРµРєСЃС‹: `(track_id, seq)`, `(occurred_at)`, `(event_location_id)` unique where not null.
+Рндексы: `(track_id, seq)`, `(occurred_at)`, `(event_location_id)` unique where not null.
 
-### SSOT Р»РѕРіРёРєРё
+### SSOT логики
 
-`packages/shared/src/domain/tracking/` вЂ” pure functions:
+`packages/shared/src/domain/tracking/` — pure functions:
 
-- `linkNodes(candidates)` вЂ” spatio-temporal graph
-- `kalmanStep(state, observation, dt)` вЂ” РѕР±С‘СЂС‚РєР° РЅР°Рґ `kalman-filter`
-- `buildTrack(nodes)` вЂ” Р°РіСЂРµРіР°С†РёСЏ РјРµС‚Р°РґР°РЅРЅС‹С… С‚СЂРµРєР°
+- `linkNodes(candidates)` — spatio-temporal graph
+- `kalmanStep(state, observation, dt)` — обёртка над `kalman-filter`
+- `buildTrack(nodes)` — агрегация метаданных трека
 
-Worker вЂ” РѕСЂРєРµСЃС‚СЂР°С‚РѕСЂ; API вЂ” read adapter.
+Worker — оркестратор; API — read adapter.
 
 ### API (read-side)
 
-| Endpoint | РќР°Р·РЅР°С‡РµРЅРёРµ |
+| Endpoint | Назначение |
 |----------|------------|
-| `GET /map/tracks` | РЎРїРёСЃРѕРє С‚СЂРµРєРѕРІ Р·Р° РїРµСЂРёРѕРґ / bbox / `asOf` |
-| `GET /map/tracks/:id` | РџРѕР»РЅС‹Р№ С‚СЂРµРє СЃ nodes Рё Kalman snapshot |
+| `GET /map/tracks` | Список треков за период / bbox / `asOf` |
+| `GET /map/tracks/:id` | Полный трек с nodes и Kalman snapshot |
 
 Query: `since`, `until`, `asOf`, `bbox`, `status`, `limit`.
 
-### Zod-СЃРєРµР»РµС‚С‹ РєРѕРЅС‚СЂР°РєС‚РѕРІ (РѕРїРёСЃР°РЅРёРµ, СЂРµР°Р»РёР·Р°С†РёСЏ вЂ” С„Р°Р·Р° 1)
+### Zod-скелеты контрактов (описание, реализация — фаза 1)
 
 ```typescript
-/** РЎР»РѕР№ СЃРµРіРјРµРЅС‚Р° С‚СЂРµРєР° РґР»СЏ Kill/Pass (ADR-010). */
+/** Слой сегмента трека для Kill/Pass (ADR-010). */
 type TrackLayer = "body" | "kill" | "pass";
 
 type TrajectoryNode = {
@@ -117,34 +119,34 @@ type TrajectoryTrack = {
   velocityMs: number | null;
   bearingDeg: number | null;
   nodes: TrajectoryNode[];
-  /** Р—Р°РїРѕР»РЅСЏРµС‚СЃСЏ ADR-010. */
+  /** Заполняется ADR-010. */
   segments?: Array<{ layer: TrackLayer; fromSeq: number; toSeq: number }>;
 };
 ```
 
 ---
 
-## РќРµ РґРµР»Р°РµРј
+## Не делаем
 
-- Realtime Kalman РЅР° write-line parse вЂ” С‚РѕР»СЊРєРѕ batch/РёРЅРєСЂРµРјРµРЅС‚Р°Р»СЊРЅС‹Р№ worker.
-- РР·РјРµРЅРµРЅРёРµ operational fold РёР»Рё `mat_parse_event` schema РЅР° РїРµСЂРІРѕРј СЌС‚Р°РїРµ.
-- Р–С‘СЃС‚РєР°СЏ РїСЂРёРІСЏР·РєР° Рє Р±РѕСЂС‚РѕРІРѕРјСѓ РЅРѕРјРµСЂСѓ вЂ” С‚СЂРµРє = emergent cluster.
+- Realtime Kalman на write-line parse — только batch/инкрементальный worker.
+- Рзменение operational fold или `mat_parse_event` schema на первом этапе.
+- Жёсткая привязка к бортовому номеру — трек = emergent cluster.
 
 ---
 
-## РџРѕСЃР»РµРґСЃС‚РІРёСЏ
+## Последствия
 
-| РџР»СЋСЃ | РњРёРЅСѓСЃ |
+| Плюс | Минус |
 |------|-------|
-| РђРІС‚РѕРјР°С‚РёР·Р°С†РёСЏ Р±РµР· object ID | РќРѕРІС‹Рµ С‚Р°Р±Р»РёС†С‹ + worker job |
-| РћСЃРЅРѕРІР° РґР»СЏ РїСЂРѕРіРЅРѕР·Р° Рё Kill/Pass | РќСѓР¶РµРЅ checkpoint/rebuild РїСЂРё СЃРјРµРЅРµ Р°Р»РіРѕСЂРёС‚РјР° |
-| Р§РёСЃС‚РѕРµ СЂР°Р·РґРµР»РµРЅРёРµ РѕС‚ fold | Р›Р°С‚РµРЅС‚РЅРѕСЃС‚СЊ: С‚СЂРµРєРё РѕС‚СЃС‚Р°СЋС‚ РѕС‚ live ingest |
+| Автоматизация без object ID | Новые таблицы + worker job |
+| Основа для прогноза и Kill/Pass | Нужен checkpoint/rebuild при смене алгоритма |
+| Чистое разделение от fold | Латентность: треки отстают от live ingest |
 
 ---
 
-## РљСЂРёС‚РµСЂРёРё РїСЂРёРЅСЏС‚РёСЏ
+## Критерии принятия
 
-- Worker РїРµСЂРµСЃРѕР±РёСЂР°РµС‚ С‚СЂРµРєРё РёР· `mat_parse_location` РёРґРµРјРїРѕС‚РµРЅС‚РЅРѕ (re-run safe).
-- API РѕС‚РґР°С‘С‚ `TrajectoryTrack` РІР°Р»РёРґРёСЂСѓРµРјС‹Р№ Zod.
-- Unit-С‚РµСЃС‚С‹ РЅР° link + Kalman step РІ `@radar/shared`.
+- Worker пересобирает треки из `mat_parse_location` идемпотентно (re-run safe).
+- API отдаёт `TrajectoryTrack` валидируемый Zod.
+- Unit-тесты на link + Kalman step в `@radar/shared`.
 

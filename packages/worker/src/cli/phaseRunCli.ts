@@ -32,6 +32,8 @@ export async function runPhaseCli(): Promise<void> {
   const runtime = await createWorkerCompositionRoot({
     storageMode: WorkerStorageMode.Db,
     startIngestParseDaemon: false,
+    workerRole: "parse",
+    bootCaps: ["parse", "geo"],
   });
   if (!runtime.dataSource || !runtime.phaseRunner || !runtime.workerRepos) {
     console.error("parse-engine:phase:run: нужен RADAR_STORAGE_MODE=db");

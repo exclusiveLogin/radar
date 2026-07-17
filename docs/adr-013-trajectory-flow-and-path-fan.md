@@ -101,7 +101,7 @@ type SegmentKey = {
 ### Алгоритм rollup (v1)
 
 1. После persist/rebuild L1: `SELECT` все `mat_track_node` с `place_id IS NOT NULL`, упорядоченные `(track_id, seq)`.
-2. Для каждой пары `(node_i, node_{i+1})` где оба имеют `place_id` и `node_i.place_id ≠ node_{i+1}.place_id`:
+2. Для каждой пары `(node_i, node_{i+1})` где оба имеют `place_id` и `node_i.place_id ≠ node_{i+1}.place_id`:
    - построить `SegmentKey`;
    - `count += 1`;
    - `lastSeenAt = max(lastSeenAt, node_{i+1}.occurred_at)`;
@@ -200,7 +200,9 @@ UI: толщина линии ∝ `weight` (см. [Feature: flow corridors](./fe
 
 1. Взять **anchor** = `place_id` последнего node (или explicit `anchorPlaceId`).
 2. Найти все **historical** треки (status любой, `occurred_at <= asOf`), содержащие node с этим `place_id`.
-3. Для каждого такого трека извлечь **suffix**: anchor → следующие `n` nodes (default `n=5`, tunable) или до `SUFFIX_MAX_MS`.
+3. Для каждого такого трека извлечь **suffix**: anchor → следующие 
+` nodes (default 
+=5`, tunable) или до `SUFFIX_MAX_MS`.
 4. Нормализовать suffix в **path signature** — цепочка `place_id[]` (или hash).
 5. Агрегировать: `pathSignature → { count, coordinates[] }`.
 6. Отдать top-K paths (default K=10) с `count` для толщины линии.
@@ -250,7 +252,8 @@ trajectory_place_index (
 | `GET /map/tracks/:id/path-fan` | fan от last node active-трека |
 | `GET /map/tracks/path-fan?anchorPlaceId=` | fan от произвольного place |
 
-Query: `asOf`, `n` (suffix length), `topK`, `threatProfile`, `since`, `until`, `minCount`.
+Query: `asOf`, 
+` (suffix length), `topK`, `threatProfile`, `since`, `until`, `minCount`.
 
 Response:
 
@@ -389,7 +392,8 @@ Z-order снизу вверх: flow → fan → tracks → ellipse.
 1. `MIN_SEGMENT_COUNT`: 2 vs 3 на prod noise.
 2. Recency weight: `weight = count` vs exponential decay по `last_seen_at`.
 3. Self-loop edges (`place_id` одинаковый, coords чуть сдвинулись) — skip или отдельный тип «loiter»?
-4. Path fan: фиксированные `n` nodes vs `SUFFIX_MAX_MS` — что primary?
+4. Path fan: фиксированные 
+` nodes vs `SUFFIX_MAX_MS` — что primary?
 5. Materialized rollup vs on-read для MVP на ~150k nodes/month.
 6. Объединять Kill/Pass segments с flow layer в unified `GET /map/tracks/layers` или отдельные endpoints.
 

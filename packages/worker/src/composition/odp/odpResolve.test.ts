@@ -3,7 +3,7 @@ import test from "node:test";
 import { DEFAULT_DEPLOYMENT_MANIFEST } from "@radar/shared";
 import { odpResolve } from "./odpResolve.js";
 
-test("odpResolve maps schedulingImpl to runner-platform/legacy runtime", () => {
+test("odpResolve maps schedulingImpl to runner-platform runtime", () => {
   const manifest = {
     ...DEFAULT_DEPLOYMENT_MANIFEST,
     runners: {
@@ -19,9 +19,9 @@ test("odpResolve maps schedulingImpl to runner-platform/legacy runtime", () => {
         {
           pipelineKey: "parse" as const,
           label: "p",
-          host: "phase" as const,
+          host: "parse" as const,
           spawn: "in-process" as const,
-          schedulingImpl: "legacy" as const,
+          schedulingImpl: "runner-platform" as const,
           enabled: true,
         },
       ],
@@ -42,19 +42,19 @@ test("odpResolve maps schedulingImpl to runner-platform/legacy runtime", () => {
     {
       pipelineKey: "parse",
       label: "p",
-      runtime: "legacy",
-      host: "phase",
+      runtime: "runner-platform",
+      host: "parse",
       spawn: "in-process",
-      schedulingImpl: "legacy",
+      schedulingImpl: "runner-platform",
     },
   ]);
 });
 
-test("odpResolve defaults to deployment manifest (all legacy by default)", () => {
+test("odpResolve defaults to deployment manifest runners", () => {
   const resolved = odpResolve(DEFAULT_DEPLOYMENT_MANIFEST);
   const keys = resolved.map((r) => r.pipelineKey).sort();
   assert.deepEqual(keys, ["geo-enrich", "parse", "tracking"]);
   for (const entry of resolved) {
-    assert.equal(entry.runtime, "legacy", `${entry.pipelineKey} must default to legacy runtime`);
+    assert.equal(entry.runtime, "runner-platform", `${entry.pipelineKey} must be runner-platform`);
   }
 });

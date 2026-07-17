@@ -2,6 +2,8 @@ import type { IngestConnectionPhase, IngestProviderConnectionSnapshot } from "@r
 
 /** Runtime-снимок live-соединения ingest-провайдера (probe /status, не PostgreSQL). */
 const byProviderId = new Map<string, IngestProviderConnectionSnapshot>();
+/** Провайдеры, у которых startDuty уже прошёл — TCP reconnect не должен откатывать в connected. */
+const dutyActive = new Set<string>();
 
 /** SSOT фаз connecting/reconnecting/live для админки и worker probe. */
 export const ingestConnectionStatus = {
@@ -20,12 +22,28 @@ export const ingestConnectionStatus = {
     });
   },
 
+  get(providerId: string): IngestProviderConnectionSnapshot | undefined {
+    return byProviderId.get(providerId);
+  },
+
+  /** Live duty поднят (после успешного startDuty). */
+  setDutyActive(providerId: string, active: boolean): void {
+    if (active) dutyActive.add(providerId);
+    else dutyActive.delete(providerId);
+  },
+
+  isDutyActive(providerId: string): boolean {
+    return dutyActive.has(providerId);
+  },
+
   clear(providerId: string): void {
     byProviderId.delete(providerId);
+    dutyActive.delete(providerId);
   },
 
   clearAll(): void {
     byProviderId.clear();
+    dutyActive.clear();
   },
 
   list(): IngestProviderConnectionSnapshot[] {

@@ -12,14 +12,11 @@ import { phaseManifestEntrySchema } from "../schemas/enrichment/phase.js";
 
 /** Worker-role, на котором исполняется pipeline (см. RADAR_WORKER_ROLE). */
 export const deploymentHostSchema = z.enum([
-  "all",
   "ingest",
   "backfill",
   "parse",
   "geo",
   "tracking",
-  /** @deprecated — use parse/geo */
-  "phase",
 ]);
 export type DeploymentHost = z.infer<typeof deploymentHostSchema>;
 
@@ -34,7 +31,7 @@ export type SchedulingImpl = z.infer<typeof schedulingImplSchema>;
 export const deploymentPipelineEntrySchema = z.object({
   pipelineKey: pipelineKeySchema,
   label: z.string(),
-  host: deploymentHostSchema.default("all"),
+  host: deploymentHostSchema,
   spawn: deploymentSpawnSchema.default("in-process"),
   schedulingImpl: schedulingImplSchema.default("runner-platform"),
   enabled: z.boolean().default(true),
@@ -47,9 +44,6 @@ export const deploymentRunnersSchema = z.object({
 export type DeploymentRunners = z.infer<typeof deploymentRunnersSchema>;
 
 export const deploymentProcessSchema = z.object({
-  role: z
-    .enum(["all", "ingest", "backfill", "parse", "geo", "tracking", "phase"])
-    .default("all"),
   storageMode: z.enum(["memory", "db", "fs"]).default("db"),
 });
 export type DeploymentProcess = z.infer<typeof deploymentProcessSchema>;
@@ -91,7 +85,7 @@ export const deploymentTransportRmqSchema = z.object({
 export type DeploymentTransportRmq = z.infer<typeof deploymentTransportRmqSchema>;
 
 export const deploymentTransportSchema = z.object({
-  kind: deploymentTransportKindSchema.default("in-process"),
+  kind: deploymentTransportKindSchema.default("rmq"),
   rmq: deploymentTransportRmqSchema.default({}),
 });
 export type DeploymentTransport = z.infer<typeof deploymentTransportSchema>;
@@ -110,7 +104,7 @@ export type DeploymentManifest = z.infer<typeof deploymentManifestSchema>;
 /** Дефолтный manifest — parity с docker split roles. */
 export const DEFAULT_DEPLOYMENT_MANIFEST: DeploymentManifest = deploymentManifestSchema.parse({
   version: 1,
-  process: { role: "all", storageMode: "db" },
+  process: { storageMode: "db" },
   runners: {
     pipelines: [
       {
@@ -219,7 +213,7 @@ export const DEFAULT_DEPLOYMENT_MANIFEST: DeploymentManifest = deploymentManifes
     compose: { apiPort: 3000, webPort: 5173 },
   },
   transport: {
-    kind: "in-process",
+    kind: "rmq",
     rmq: {
       url: "amqp://radar:radar@127.0.0.1:5672/radar",
       exchange: "radar.events",

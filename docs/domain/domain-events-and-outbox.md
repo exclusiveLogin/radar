@@ -33,7 +33,7 @@ Consumer → transport.subscribe / subscribeSignal
 ```
 
 - Topic SSOT: `packages/shared/src/transport/topicCatalog.ts`
-- Адаптеры: `InProcessTransport` (dev `--full` cascade) | `RmqTransport` (docker/split)
+- Адаптеры: `InProcessTransport` (legacy; worker RMQ-only) | `RmqTransport` (docker/split)
 - In-process bus остаётся для **внутрипроцессных** подписчиков (parse attempt log, metrics); cross-process — только RMQ.
 
 ### Outbox (audit, не transport)

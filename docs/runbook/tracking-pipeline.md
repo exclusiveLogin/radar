@@ -10,7 +10,7 @@ npm run radar -- stack db:up
 npm run radar -- stack migrate
 
 # 3. Сборка + dev (UI + API + worker с TrackingRebuildDaemon)
-npm run radar -- stack dev --full
+npm run radar -- stack dev
 
 # 4. Включить пайплайн
 npm run radar -- tracking enable -- --on
@@ -38,8 +38,8 @@ npm run radar -- tracking rebuild -- --since=2024-01-01T00:00:00Z
 ## Worker
 
 ```powershell
-# host dev (--full): worker role=all, tracking daemon внутри
-npm run radar -- stack dev --full
+# host dev (--full): worker role=<ingest|backfill|parse|geo|tracking>, tracking daemon внутри
+npm run radar -- stack dev
 
 # docker app profile: отдельный контейнер worker-tracking (обязателен для треков!)
 # docker compose --profile app up worker-tracking
@@ -66,13 +66,13 @@ Env override: `WORKER__tracking__enabled`, `WORKER__tracking__intervalMs`.
 
 `RADAR_WORKER_ROLE=tracking` — только tracking daemon (host dev).
 
-**Важно:** в `docker-compose.app.yml` ingest/backfill/phase **не** гоняют треки — нужен `worker-tracking` или host `stack dev --full`.
+**Важно:** в `docker-compose.app.yml` ingest/backfill/phase **не** гоняют треки — нужен `worker-tracking` или host `stack dev`.
 
 ## Диагностика
 
-- `npm run radar -- tracking status` — JSON watermark + counts
-- `npm run radar -- tracking tick` — один тик daemon (ручной прогон)
-- `npm run radar -- tracking enable -- --on` — включить пайплайн в БД
+- `npm run radar -- tracking status` — JSON watermark + counts
+- `npm run radar -- tracking tick` — один тик daemon (ручной прогон)
+- `npm run radar -- tracking enable -- --on` — включить пайплайн в БД
 - WS `/ws/admin` → `tracking-status`
 - Таблицы: `mat_track`, `mat_track_node`, `state_track_pipeline`
 

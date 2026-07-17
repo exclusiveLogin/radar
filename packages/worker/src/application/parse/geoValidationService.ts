@@ -31,6 +31,11 @@ import {
 import {
   isGarbageIngestPlaceName,
 } from "../../domain/parsing/channelCityListPromo.js";
+import {
+  normalizeGeoLabel,
+  sourceToProvider,
+  toTrustState,
+} from "../../domain/geo/geoValidationTrust.js";
 
 export type GeoValidationResult = {
   decision: "matched_existing" | "created_new" | "rejected";
@@ -53,62 +58,7 @@ export type GeoValidationContext = {
   localityAnchors?: LocalityAnchor[];
 };
 
-const TRUSTED_PROVIDERS = new Set<PlaceProvider>([
-  "catalog",
-  "dadata",
-  "operator",
-  "system",
-]);
-
-function normalize(value: string): string {
-  return value
-    .toLowerCase()
-    .replace(/ё/g, "е")
-    .trim()
-    .replace(/[^\p{L}\p{N}]+/gu, " ")
-    .replace(/\s+/g, " ");
-}
-
-function sourceToProvider(source: EventLocation["source"]): PlaceProvider {
-  switch (source) {
-    case "db":
-      return "catalog";
-    case "cache":
-      return "system";
-    case "dadata":
-      return "dadata";
-    case "nominatim":
-      return "nominatim";
-    case "llm":
-      return "llm";
-  }
-}
-
-function toTrustState(
-  provider: PlaceProvider,
-  confidence: number | undefined,
-): {
-  trustState: PlaceRecord["trustState"];
-  isTrusted: boolean;
-  trustScore: number;
-} {
-  const scoreByProvider: Record<PlaceProvider, number> = {
-    catalog: 1,
-    dadata: 0.95,
-    nominatim: 0.8,
-    llm: 0.55,
-    operator: 1,
-    system: 0.7,
-  };
-  const trustScore = confidence ?? scoreByProvider[provider];
-  const isTrusted = TRUSTED_PROVIDERS.has(provider) || trustScore >= 0.9;
-  const trustState: PlaceRecord["trustState"] = isTrusted
-    ? "verified"
-    : trustScore >= 0.7
-      ? "partially_verified"
-      : "unverified";
-  return { trustState, isTrusted, trustScore };
-}
+// trust helpers: domain/geo/geoValidationTrust
 
 /** Подставляет regionId и канонический ISO в локацию после резолва региона. */
 function withResolvedRegion(
@@ -208,7 +158,7 @@ export class GeoValidationService {
   /** Матч субъекта через place(kind=region) + place_aliases. */
   private async resolveRegionByAlias(text: string | undefined): Promise<RegionRecord | null> {
     if (!text?.trim()) return null;
-    const aliasMatches = await this.aliases.findByAlias(normalize(text));
+    const aliasMatches = await this.aliases.findByAlias(normalizeGeoLabel(text));
     for (const row of aliasMatches) {
       const place = await this.places.findById(row.placeId);
       if (!place || place.kind !== "region") continue;
@@ -487,7 +437,7 @@ export class GeoValidationService {
 
     const matchLabel = normalizePlaceMatchLabel(placeName);
 
-    const aliasMatches = await this.aliases.findByAlias(normalize(matchLabel));
+    const aliasMatches = await this.aliases.findByAlias(normalizeGeoLabel(matchLabel));
     for (const row of aliasMatches) {
       const place = await this.places.findById(row.placeId);
       if (!place || place.kind === "region") {

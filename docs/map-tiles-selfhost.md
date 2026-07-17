@@ -10,7 +10,7 @@ SSOT манифеста: **`data/geo/tiles.manifest.json`** (Zod: `geoBasemapMan
 | Сценарий | Решение |
 |----------|---------|
 | Быстрый dev без офлайн-карты | CDN: `openfreemap` / `carto` (дефолт) |
-| Офлайн / стабильная подложка | `cold:up -Tiles` или `npm run tiles:sync` |
+| Офлайн / стабильная подложка | `cold:up -Tiles` или `npm run tiles:sync` |
 | Docker dev с картой | `tiles` profile + `VITE_MAP_BASEMAP_STYLE=local` |
 
 ---

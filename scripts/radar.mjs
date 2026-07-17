@@ -40,12 +40,12 @@ function splitPass(rest) {
 const TOPICS = {
   stack: `
 stack — инфраструктура и dev
-  up              docker + dev:app
-  dev [--full]    UI+API [+worker] (host, HMR)
+  up              docker + UI/API (без workers)
+  dev [--app-only]    host: UI+API + 5 workers (или --app-only без workers)
   cold-up         первый холодный старт (-Geo -Tiles -Verbose)
   bootstrap       seed phase_definitions из deployment.manifest (-apply-config)
-  docker-dev      dev hot-reload (profile app)
-  docker-prod     prod images (profile prod, baked dist)
+  docker-dev      Docker: api/web + 5 worker-ролей (profile app)
+  docker-prod     Docker prod: baked dist + nginx + 5 roles (profile prod)
   docker-prod:assets-check  проверка runtime-файлов в prod-контейнерах
   tiles:prepare   download+merge+build+verify (без TileServer)
   tiles:sync      build pipeline + restart TileServer (--no-restart)
@@ -137,7 +137,7 @@ radar — операции Radar (корень репо)
 Домены: stack pipeline ingest parse geo phase system map tracking data dev
 
 Примеры:
-  npm run radar -- stack dev --full
+  npm run radar -- stack dev
   npm run radar -- pipeline status
   npm run radar -- pipeline parity
   npm run radar -- ingest backfill -- --all-bindings --batch-size=100
@@ -154,7 +154,11 @@ radar — операции Radar (корень репо)
 const ACTIONS = {
   stack: {
     up: () => npm('up'),
-    dev: (pass) => (pass.includes('--full') ? npm('dev', pass.filter((a) => a !== '--full')) : npm('dev:app', pass)),
+    dev: (pass) => {
+      const appOnly = pass.includes('--app-only');
+      const rest = pass.filter((a) => a !== '--full' && a !== '--app-only');
+      return npm(appOnly ? 'dev:app' : 'dev', rest);
+    },
     'cold-up': (pass) => nodeScript('scripts/cold-up.mjs', pass),
     bootstrap: (pass) => nodeScript('scripts/stack-bootstrap.mjs', pass),
     "db:up": () => npm('db:up'),

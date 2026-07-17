@@ -24,12 +24,11 @@ export type RuntimeResolverInput = {
   workerRole: WorkerRole;
 };
 
-/** host=all | host=role | role=all (монолит). */
+/** host === workerRole (split roles only). */
 export function hostMatchesPipeline(
   pipelineHost: DeploymentPipelineEntry["host"],
   workerRole: WorkerRole,
 ): boolean {
-  if (pipelineHost === "all" || workerRole === "all") return true;
   return pipelineHost === workerRole;
 }
 

@@ -501,7 +501,7 @@ Extend `MapQueryService.getEventsHeatmapGeoJson` + `eventHeatmapQuerySchema`.
 - [ ] GF-01..GF-05 pass
 - [ ] API Swagger updated
 - [ ] Heatmap filters backward compatible
-- [ ] `npm run typecheck` + lint monorepo
+- [ ] `npm run typecheck` + lint monorepo
 - [ ] Docs: phase-commands entry for CLI
 
 ---

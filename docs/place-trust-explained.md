@@ -72,7 +72,8 @@ flowchart LR
 - какими источниками подтверждено.
 
 Рекомендуемое производное поле:
-- `needsAttention = !isTrusted || trustState === "unverified"`
+- 
+eedsAttention = !isTrusted || trustState === "unverified"`
 
 Пользовательская логика:
 - есть warning -> это не обязательно ошибка, это «требует подтверждения»;
@@ -90,7 +91,7 @@ flowchart LR
 По умолчанию:
 - `catalog = 1.00`
 - `dadata = 0.95`
-- `nominatim = 0.80`
+- `nominatim = 0.80`
 - `llm = 0.55`
 - `operator = 1.00`
 - `system = 0.70`
@@ -109,4 +110,5 @@ flowchart LR
 Realtime должен быть быстрым. LLM может дать ранний кандидат, Dadata и другие провайдеры подтверждают позже.
 
 ### Можно ли скрывать неподтвержденные места?
-Да. Для этого используются `trustState/isTrusted` и `needsAttention` в read-side.
+Да. Для этого используются `trustState/isTrusted` и 
+eedsAttention` в read-side.

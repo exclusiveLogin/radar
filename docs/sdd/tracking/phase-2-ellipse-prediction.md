@@ -150,7 +150,8 @@ JOIN LATERAL (
 WHERE t.status = 'active';
 ```
 
-Filter `n.occurred_at <= :asOf` for Time Machine consistency.
+Filter 
+.occurred_at <= :asOf` for Time Machine consistency.
 
 ---
 

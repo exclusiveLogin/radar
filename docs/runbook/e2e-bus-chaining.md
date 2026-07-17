@@ -11,7 +11,7 @@ $env:DEPLOY__runners__pipelines__parse__schedulingImpl="runner-platform"
 $env:DEPLOY__runners__pipelines__geo-enrich__schedulingImpl="runner-platform"
 $env:DEPLOY__runners__pipelines__tracking__schedulingImpl="runner-platform"
 $env:WORKER__tracking__enabled="true"
-npm run radar -- stack dev --full
+npm run radar -- stack dev
 ```
 
 ---

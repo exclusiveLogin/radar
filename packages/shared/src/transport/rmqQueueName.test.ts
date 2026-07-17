@@ -18,11 +18,10 @@ test("rmqQueueName builds per-role queue", () => {
 });
 
 test("resolveRmqConsumerSuffix maps roles", () => {
-  assert.equal(resolveRmqConsumerSuffix("all"), "monolith");
   assert.equal(resolveRmqConsumerSuffix("parse"), "parse");
   assert.equal(resolveRmqConsumerSuffix("geo"), "geo");
+  assert.equal(resolveRmqConsumerSuffix("tracking"), "tracking");
   assert.equal(resolveRmqConsumerSuffix("api"), "api");
-  assert.equal(resolveRmqConsumerSuffix("phase"), "parse");
 });
 
 test("phase scope and pipeline suffixes", () => {

@@ -31,7 +31,7 @@ RADAR_SESSIONS_DIR=.radar/sessions
 
 ```powershell
 npm run radar -- help
-npm run radar -- stack dev --full
+npm run radar -- stack dev
 npm run radar -- parse run                    # reparse после ingest
 npm run radar -- pipeline status
 npm run radar -- geo catalog:import

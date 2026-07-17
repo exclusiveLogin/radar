@@ -3,22 +3,18 @@ import test from "node:test";
 import { DEFAULT_DEPLOYMENT_MANIFEST } from "@radar/shared";
 import { hostMatchesPipeline, resolveRuntimePipelines } from "./RuntimeResolver.js";
 
-test("hostMatchesPipeline: role split vs monolith", () => {
+test("hostMatchesPipeline: exact role match only", () => {
   assert.equal(hostMatchesPipeline("tracking", "tracking"), true);
-  assert.equal(hostMatchesPipeline("tracking", "phase"), false);
-  assert.equal(hostMatchesPipeline("tracking", "all"), true);
-  assert.equal(hostMatchesPipeline("all", "phase"), true);
+  assert.equal(hostMatchesPipeline("tracking", "parse"), false);
+  assert.equal(hostMatchesPipeline("parse", "geo"), false);
 });
 
 test("resolveRuntimePipelines filters by workerRole", () => {
-  const phase = resolveRuntimePipelines({
+  const parse = resolveRuntimePipelines({
     manifest: DEFAULT_DEPLOYMENT_MANIFEST,
-    workerRole: "phase",
+    workerRole: "parse",
   });
-  assert.deepEqual(
-    phase.map((p) => p.entry.pipelineKey).sort(),
-    ["geo-enrich", "parse"],
-  );
+  assert.deepEqual(parse.map((p) => p.entry.pipelineKey), ["parse"]);
 
   const tracking = resolveRuntimePipelines({
     manifest: DEFAULT_DEPLOYMENT_MANIFEST,

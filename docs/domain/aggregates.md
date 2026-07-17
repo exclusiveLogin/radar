@@ -6,7 +6,7 @@
 
 ## Как читать таблицу
 
-- **aggregateId** — обычно PK строки (uuid), иногда `null` для `system`.
+- **aggregateId** — обычно PK строки (uuid), иногда `null` для `system`.
 - **Создаёт событие** — кто вызывает `publish` / `append` с этим типом.
 
 ---
@@ -22,7 +22,7 @@
 | `geo_sync` | `log_geo_sync` (audit) | id строки audit | `GeoSyncCompleted`, `GeoSyncFailed` | `GeoSyncApplyService` (API, outbox) |
 | `channel` | `channels` | (зарезервировано в enum) | — | *в коде присвоений не найдено* |
 | `session_slot` | (volume, не ORM) | (зарезервировано) | `SessionSlot*` в enum | *publish не найден* |
-| `system` | — | `null` | `MetricSampleEmitted`, … | *зарезервировано* |
+| `system` | — | `null` | `MetricSampleEmitted`, … | *зарезервировано* |
 
 Enum SSOT: `packages/shared/src/schemas/events/domain-event.ts`.
 

@@ -1,9 +1,5 @@
 import { canonicalRegionCode, isGeoEnrichEligibleKind, type IPlaceAliasRepository, type IPlaceEnrichmentJobRepository, type IPlaceRepository, type IRegionRepository, type PlaceContribution, type PlaceEnrichmentJobRecord, type PlaceEnrichmentProvider, type PlaceRecord, type WorkItemResult, buildCatalogPlaceGeocodeQuery, parseRegionViewbox, resolveNominatimCountryCode } from "@radar/shared";
-import { DadataEnricher } from "../../infrastructure/enrichers/dadataEnricher.js";
-import { loadDadataToken } from "../../infrastructure/enrichers/dadataConfig.js";
-import { LlmEnricher } from "../../infrastructure/enrichers/llmEnricher.js";
-import { loadLlmRuntimeConfig } from "../../infrastructure/enrichers/llmRuntimeConfig.js";
-import { NominatimEnricher } from "../../infrastructure/enrichers/nominatimEnricher.js";
+import type { PlaceEnrichmentEnrichers } from "./placeGeoEnricherPort.js";
 import {
   isGarbageIngestPlaceName,
   normalizePlaceLabelForGeocode,
@@ -31,27 +27,28 @@ function toTrust(score: number): {
 }
 
 export class PlaceEnrichmentRunner {
-  private dadataEnricher: DadataEnricher | undefined;
-  private readonly nominatim = new NominatimEnricher();
-  private readonly llm = new LlmEnricher(loadLlmRuntimeConfig());
-
   constructor(
     private readonly jobs: IPlaceEnrichmentJobRepository,
     private readonly places: IPlaceRepository,
     private readonly aliases: IPlaceAliasRepository,
     private readonly regions: IRegionRepository,
+    private readonly enrichers: PlaceEnrichmentEnrichers,
   ) {}
 
-  /** Токен из .env после loadRootEnv (не при импорте модуля). */
-  private getDadata(): DadataEnricher {
-    if (!this.dadataEnricher) {
-      this.dadataEnricher = new DadataEnricher(loadDadataToken());
-    }
-    return this.dadataEnricher;
+  private getDadata() {
+    return this.enrichers.getDadata();
+  }
+
+  private get nominatim() {
+    return this.enrichers.nominatim;
+  }
+
+  private get llm() {
+    return this.enrichers.llm;
   }
 
   private isDadataSuggestionsBlocked(provider: PlaceEnrichmentProvider): boolean {
-    return provider === "dadata" && this.getDadata().isSuggestionsBlocked();
+    return provider === "dadata" && Boolean(this.getDadata().isSuggestionsBlocked?.());
   }
 
   /** Мусорный place: не дергаем внешний API, помечаем провайдера в evidence — без повторного catch-up. */

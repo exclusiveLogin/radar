@@ -1,6 +1,6 @@
 # Backfill V2 — автоматическая докачка истории
 
-**CLI:** [`radar-cli.md`](./radar-cli.md) — `npm run radar -- ingest backfill`, `ingest session:*`, `stack migrate`.
+**CLI:** [`radar-cli.md`](./radar-cli.md) — `npm run radar -- ingest backfill`, `ingest session:*`, `stack migrate`.
 
 Документ для **бизнеса** (что получаем в продукте) и **разработки** (как устроено в коде).  
 Связанные материалы: [ingest-providers.md](./ingest-providers.md), [domain/how-it-works.md](./domain/how-it-works.md#ingest-flow), [domain/contexts/ingest.md](./domain/contexts/ingest.md).
@@ -16,9 +16,9 @@
 | # | Что нужно | Зачем |
 |---|-----------|--------|
 | 1 | PostgreSQL, `DATABASE_URL` в `.env` | Задачи, `mat_ingest_raw`, parse |
-| 2 | `npm run radar -- stack migrate` | Таблица `job_ingest_backfill` и остальное |
+| 2 | `npm run radar -- stack migrate` | Таблица `job_ingest_backfill` и остальное |
 | 3 | `TELEGRAM_API_ID`, `TELEGRAM_API_HASH` | MTProto (история **не** через bot token) |
-| 4 | User-сессия на диске | `npm run radar -- ingest session:deploy` → слот = `credentialRefs.mtprotoSessionSlot` |
+| 4 | User-сессия на диске | `npm run radar -- ingest session:deploy` → слот = `credentialRefs.mtprotoSessionSlot` |
 | 5 | Provider + binding в БД | Manifest import или Admin API; binding с **user MTProto** (`user_mtproto_channel` / `group`) |
 | 6 | Provider `status = active` (для live; backfill job — отдельно) | Live опционален; backfill идёт по job |
 
@@ -190,7 +190,7 @@ npm run radar -- ingest backfill -- --all-bindings --batch-size=100
 ┌─────────────────────────────────────┬──────────────────────────────────────┐
 │ Backfill V2 (рекомендуется)         │ CLI chunk (разовый ручной проход)    │
 ├─────────────────────────────────────┼──────────────────────────────────────┤
-│ Задача в БД → демон worker          │ `npm run radar -- ingest backfill`   │
+│ Задача в БД → демон worker          │ `npm run radar -- ingest backfill`   │
 │ Поток iterMessages + чекпоинты      │ Одна пачка getMessages (batch)       │
 │ До конца истории / по стратегии     │ `--all-bindings` — все каналы сразу  │
 └─────────────────────────────────────┴──────────────────────────────────────┘

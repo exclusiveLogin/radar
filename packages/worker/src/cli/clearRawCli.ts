@@ -37,6 +37,8 @@ async function main(): Promise<void> {
   printPlan();
 
   const runtime = await createWorkerCompositionRoot({
+    workerRole: "parse",
+    bootCaps: ["ingest","parse"],
     storageMode: WorkerStorageMode.Db,
     startIngestParseDaemon: false,
   });

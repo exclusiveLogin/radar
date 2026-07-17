@@ -14,7 +14,7 @@ PowerShell, корень репо. Нужны `DATABASE_URL`, `RADAR_STORAGE_MOD
 ```powershell
 npm run radar -- help
 npm run radar -- stack cold-up              # первый раз
-npm run radar -- stack dev --full           # UI+API+worker
+npm run radar -- stack dev           # UI+API+worker
 npm run radar -- stack dev                  # UI+API без worker
 npm run radar -- stack migrate
 npm run radar -- pipeline status
@@ -33,13 +33,13 @@ Legacy-алиасы — [`radar-cli.md`](./radar-cli.md) (единая табл�
 ## Запуск dev-стека
 
 ```
-npm run radar -- stack dev --full    # shared + api + web + worker
+npm run radar -- stack dev    # shared + api + web + worker
 npm run radar -- stack dev           # только shared + api + web
 ```
 
 - Первый старт: **~40–90 с** (predev собирает все пакеты)
 - Worker стартует после `/api/ready` — не закрывай терминал раньше
-- Ошибка «API dist не найден»: api ещё не собрался; перезапусти `npm run radar -- stack dev --full`
+- Ошибка «API dist не найден»: api ещё не собрался; перезапусти `npm run radar -- stack dev`
 
 | URL | |
 |-----|---|
@@ -128,7 +128,7 @@ npm run radar -- phase clear all
 
 ```powershell
 npm run radar -- stack migrate
-npm run radar -- stack dev --full
+npm run radar -- stack dev
 ```
 
 ---

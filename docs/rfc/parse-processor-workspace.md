@@ -173,7 +173,7 @@ type ParseWorkspace = {
 ```
 
 Каждый processor:
-- читает `groomedText`, `blocks`, уже заполненные `namespaces` и `candidates`;
+- читает `groomedText`, `blocks`, уже заполненные `namespaces` и `candidates`;
 - пишет **только свой slice** (как шаг geo-pipeline).
 
 **Registry:** `processorId → ProcessorImpl` + `processorRegistryRevision` для версионирования прогонов.
@@ -200,7 +200,7 @@ type ParseWorkspace = {
 1. Читает **`groomedText`** (promo/footer уже вырезаны grooming).
 2. Full-text scan по индексу имён/stem из DB — **без** построчного noise-skip.
 3. На каждый hit: resolve с `regionScope` (region из текста) или `kindFloor=city` без scope (ADR-012 §2).
-4. Сырая канальная подпись — только в `matchedText`, не в `name`.
+4. Сырая канальная подпись — только в `matchedText`, не в `name`.
 
 ### Geo-topography collapse (ADR-012 §8)
 
@@ -235,7 +235,8 @@ Processors привязывают traits к candidates через `anchor.span` 
 | `strict` | fixation, attention, danger, pvo_work, intercept, impact… | region или place |
 | `region_only` | cleared, mass_warning… | субъект / список |
 | `macro_ok` | pvo_report, strategic… | macroZone / regions в extras |
-| `none` | служебные | без гео |
+| 
+one` | служебные | без гео |
 
 Finalizer применяет policy **per candidate**, не per raw.
 

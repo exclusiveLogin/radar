@@ -139,6 +139,8 @@ async function main(): Promise<void> {
 
   const placeCache = new JsonPlaceCacheRepository(resolveJsonPlaceCachePath());
   const runtime = await createWorkerCompositionRoot({
+    workerRole: "parse",
+    bootCaps: ["parse"],
     storageMode: options.storageMode,
     placeCacheRepository: placeCache,
     startIngestParseDaemon: false,

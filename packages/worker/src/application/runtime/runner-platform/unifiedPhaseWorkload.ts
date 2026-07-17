@@ -1,5 +1,5 @@
 /**
- * Unified phase workload вЂ” schedule/wake + РѕРґРёРЅ drainOnce РЅР° С‚РёРє (ADR-025).
+ * Unified phase workload — schedule/wake + один drainOnce на тик (ADR-025).
  */
 import type {
   IPhaseCoverageRepository,
@@ -11,13 +11,13 @@ import type {
   PlaceEnrichmentProvider,
 } from "@radar/shared";
 import { createWorkbook, resolveGeoEnrichmentProvider } from "@radar/shared";
-import type { PlaceEnrichmentRunner } from "../geo-parse/placeEnrichmentRunner.js";
-import type { PhaseRunner } from "../phases/phaseRunner.js";
+import type { PlaceEnrichmentRunner } from "../../geo-parse/placeEnrichmentRunner.js";
+import type { PhaseRunner } from "../../phases/phaseRunner.js";
 import { buildPhaseDriver, triggerModeToSchedule } from "./phaseDriver.js";
 import { createUnifiedRunner } from "./unifiedRunner.js";
-import type { JobKernelObsConfig } from "../runtime/runner-platform/jobKernel.js";
-import { createWorkload, type Workload } from "../runtime/workload/createWorkload.js";
-import { createTelemetryBus, type TelemetryBus } from "../runtime/runner-platform/telemetryBus.js";
+import type { JobKernelObsConfig } from "./jobKernel.js";
+import { createWorkload, type Workload } from "../workload/createWorkload.js";
+import { createTelemetryBus, type TelemetryBus } from "./telemetryBus.js";
 
 export const UNIFIED_PHASE_PIPELINE_KEY = "unified-phase";
 
@@ -95,7 +95,7 @@ export function createUnifiedPhaseWorkload(
           reset: async () => {},
         },
         loadSlice: async () => {
-          // Mutex = job SKIP LOCKED, не active phase_run (live ids не ждут catch-up).
+          // Mutex = job SKIP LOCKED, не active phase_run (live ids из самого catch-up).
           await deps.phaseRuns.failStaleActiveRuns(phase.id, STALE_RUN_MS);
 
           if (phase.scope === "geoParse") {

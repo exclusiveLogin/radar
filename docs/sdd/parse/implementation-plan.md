@@ -88,10 +88,11 @@ npm run parse-engine:rebuild -w @radar/worker
 
 ### Сборка и тесты
 
-- [ ] `npm run build -w @radar/shared`
-- [ ] `npm run build -w @radar/worker`
-- [ ] `npm run typecheck -w @radar/worker`
-- [ ] `node --import tsx --test packages/worker/src/domain/parse/ParseFinalizerService.test.ts packages/worker/src/domain/parse/parseWorkspace.golden.test.ts packages/worker/src/application/handlers/parseRawMessageHandler.enrich.test.ts`
+- [ ] `npm run build -w @radar/shared`
+- [ ] `npm run build -w @radar/worker`
+- [ ] `npm run typecheck -w @radar/worker`
+- [ ] 
+ode --import tsx --test packages/worker/src/domain/parse/ParseFinalizerService.test.ts packages/worker/src/domain/parse/parseWorkspace.golden.test.ts packages/worker/src/application/handlers/parseRawMessageHandler.enrich.test.ts`
 
 ### БД (staging / local db)
 

@@ -19,10 +19,42 @@ until pg_isready -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" >/dev/n
 done
 echo "[entrypoint] Postgres готов."
 
-if [ ! -d node_modules ] || [ ! -f node_modules/.package-lock.json ]; then
-  echo "[entrypoint] npm ci..."
-  npm ci
-fi
+# Общий volume radar_node_modules: параллельный npm ci ломает пакеты (Nest/@types/telegram).
+# Lock НЕЛЬЗЯ класть в node_modules — npm ci сносит каталог и срывает flock.
+# /tmp у контейнеров разный. SSOT lock — bind-mount репо: /app/.radar/…
+NPM_CI_LOCK="${NPM_CI_LOCK:-/app/.radar/npm-ci.lock}"
+
+node_modules_ok() {
+  [ -d node_modules ] \
+    && [ -f node_modules/.package-lock.json ] \
+    && cmp -s package-lock.json node_modules/.package-lock.json 2>/dev/null \
+    && [ -f node_modules/@nestjs/common/package.json ] \
+    && [ -f node_modules/@types/node/package.json ] \
+    && [ -f node_modules/typescript/lib/lib.es5.d.ts ] \
+    && [ -f node_modules/telegram/sessions/StringSession.d.ts ]
+}
+
+ensure_node_modules() {
+  # Всегда через flock: иначе check→install race между api/web/workers.
+  mkdir -p "$(dirname "$NPM_CI_LOCK")"
+  echo "[entrypoint] ensure node_modules (flock ${NPM_CI_LOCK})..."
+  (
+    flock -w 600 9 || {
+      echo "[entrypoint] flock timeout на npm ci" >&2
+      exit 1
+    }
+    if node_modules_ok; then
+      echo "[entrypoint] node_modules ok"
+      exit 0
+    fi
+    echo "[entrypoint] npm ci..."
+    npm ci
+    if ! node_modules_ok; then
+      echo "[entrypoint] npm ci завершился, но node_modules всё ещё неполный" >&2
+      exit 1
+    fi
+  ) 9>"$NPM_CI_LOCK"
+}
 
 wait_for_file() {
   path="$1"

@@ -36,14 +36,24 @@ function buildDeps(
       failStaleActiveRuns: async () => 0,
       findActiveForPhase: async () => null,
       create: async () => ({ id: "run-1" }) as never,
+      updateStats: async () => undefined,
+      updateStatus: async () => undefined,
     } as unknown as IPhaseRunRepository,
     coverage: {
       countByStatus: async () => ({ pending: 1, processing: 0, done: 0, failed: 0 }),
+      enqueueCatchUp: async () => ({ enqueued: 1 }),
+      claimBatch: async (phaseId: string) => [
+        { id: `cov-${phaseId}`, rawMessageId: `raw-${phaseId}`, phaseId },
+      ],
+      markDone: async () => undefined,
+      markFailed: async () => undefined,
     } as unknown as IPhaseCoverageRepository,
+    placeJobs: {
+      countByStatus: async () => ({ pending: 0, processing: 0, done: 0, failed: 0 }),
+    } as never,
     runner: {
-      runDrain: async (input: { phase: PhaseDefinitionRecord }) => {
-        drainCalls.push(input.phase.id);
-        return { claimed: 1, processed: 1, ok: 1, failed: 0 };
+      handleParseTask: async (phase: PhaseDefinitionRecord) => {
+        drainCalls.push(phase.id);
       },
     } as unknown as PhaseRunner,
   };
@@ -55,7 +65,7 @@ test("start() creates a workload per enabled phase and ticks it immediately", as
   const registry = new ParseRunnerRegistry(deps);
 
   registry.start();
-  await sleep(10);
+  await sleep(50);
   await registry.stop();
 
   assert.deepEqual(new Set(drainCalls), new Set(["llm", "dadata"]));
@@ -67,12 +77,12 @@ test("enqueueAll() wakes every currently-registered workload (Wave 6 chaining)",
   const registry = new ParseRunnerRegistry(deps);
 
   registry.start();
-  await sleep(10);
+  await sleep(50);
   const callsAfterStart = drainCalls.length;
   assert.ok(callsAfterStart >= 1, "start() must tick the workload at least once");
 
   registry.enqueueAll();
-  await sleep(10);
+  await sleep(50);
   await registry.stop();
 
   assert.ok(drainCalls.length > callsAfterStart, "enqueueAll() must trigger another tick");
@@ -85,18 +95,19 @@ test("refresh() drops workloads for phases no longer enabled and adds new ones",
   const registry = new ParseRunnerRegistry(deps);
 
   registry.start();
-  await sleep(10);
+  await sleep(50);
   assert.ok(drainCalls.includes("llm"));
 
   phases = [fakePhase("nominatim")];
-  await (registry as unknown as { refresh: () => Promise<void> }).refresh();
-  // refresh() itself starts the new workload (immediate tick) — reset before the explicit wake below.
+  await registry.refresh();
   drainCalls.length = 0;
 
   registry.enqueueAll();
-  await sleep(10);
+  await sleep(50);
   await registry.stop();
 
-  assert.ok(drainCalls.length > 0 && drainCalls.every((id) => id === "nominatim"),
-    "llm workload must be stopped and removed, only nominatim ticks");
+  assert.ok(
+    drainCalls.length > 0 && drainCalls.every((id) => id === "nominatim"),
+    "llm workload must be stopped and removed, only nominatim ticks",
+  );
 });

@@ -11,6 +11,8 @@ const EVENT_AT_SQL = "COALESCE(el.occurred_at, rm.posted_at, pe.parsed_at)";
 async function main(): Promise<void> {
   loadRootEnv(MONOREPO_ROOT);
   const runtime = await createWorkerCompositionRoot({
+    workerRole: "tracking",
+    bootCaps: ["tracking"],
     storageMode: WorkerStorageMode.Db,
     startIngestParseDaemon: false,
   });

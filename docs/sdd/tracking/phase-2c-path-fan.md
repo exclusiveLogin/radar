@@ -118,7 +118,8 @@ export function extractPathSuffixes(
 Rules:
 
 - Find **first** occurrence of anchor in track where `occurredAt <= asOf` (v1)
-- Take up to `n` nodes **after** anchor (including anchor as [0])
+- Take up to 
+` nodes **after** anchor (including anchor as [0])
 - Skip tracks with suffix length < 2 places
 
 ### 4.3 `aggregatePathFan.ts`

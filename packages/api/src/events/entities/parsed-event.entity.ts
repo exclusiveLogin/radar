@@ -5,7 +5,8 @@
  * table: mat_parse_event
  * purpose: Структурированное оповещение для карты/ленты после parse (тип угрозы, severity) — 1:1 с успешным разбором raw; не дублирует сырой текст.
  * @see ../../../../../docs/domain/persistence-map.md#ParsedEventEntity
- * @see ../../../../../docs/database-table-naming.md`n * @see ../../../../../docs/domain/how-it-works.md#parse-flow
+ * @see ../../../../../docs/database-table-naming.md
+ * @see ../../../../../docs/domain/how-it-works.md#parse-flow
  * @see ../../../../../docs/domain/aggregates.md
  * ---
  */

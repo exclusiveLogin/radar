@@ -163,7 +163,7 @@ flowchart TB
 | Kalman | `kalmanStep.ts` | unit: dt, Q scale |
 | Build track | `buildTrackMetadata.ts` | unit: velocity, bearing, status |
 
-**DoD:** `npm test` green; нет I/O в domain.
+**DoD:** `npm test` green; нет I/O в domain.
 
 #### T1.2 — БД и миграции
 

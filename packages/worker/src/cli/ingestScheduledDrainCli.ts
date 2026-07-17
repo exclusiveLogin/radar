@@ -10,6 +10,8 @@ async function main(): Promise<void> {
   const phaseFilter = readStringFlag(parseLongFlagsMap(process.argv), ["phase"])?.trim();
 
   const runtime = await createWorkerCompositionRoot({
+    workerRole: "ingest",
+    bootCaps: ["ingest"],
     storageMode: WorkerStorageMode.Db,
     startIngestParseDaemon: false,
   });

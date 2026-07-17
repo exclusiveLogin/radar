@@ -104,7 +104,7 @@ Wire в `useGeoMapLifecycle` → `mapApi.eventsHeatmap({ period, eventType, ... 
 - [ ] UI: селект типа в панели heatmap
 - [ ] Без фильтра — поведение идентично текущему
 - [ ] Zod schema + Swagger обновлены
-- [ ] `npm run typecheck` зелёный
+- [ ] `npm run typecheck` зелёный
 
 ---
 

@@ -99,7 +99,7 @@ new TripsLayer({
 - [ ] TripsLayer overlay на MapLibre без артефактов
 - [ ] Цвет меняется при движении ползунка
 - [ ] Старые треки fade out, не перекрывают свежие
-- [ ] `npm run build` web проходит
+- [ ] `npm run build` web проходит
 
 ---
 

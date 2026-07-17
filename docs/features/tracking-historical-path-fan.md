@@ -98,7 +98,8 @@ new PathLayer({
 
 | Param | Default | Описание |
 |-------|---------|----------|
-| `n` | 5 | длина suffix в nodes |
+| 
+` | 5 | длина suffix в nodes |
 | `topK` | 10 | max веток |
 | `minCount` | 2 | скрыть редкие пути |
 | `threatProfile` | inherit from track | фильтр истории |
@@ -108,7 +109,8 @@ new PathLayer({
 ## Панель / controls
 
 - Toggle «Вероятностные пути» (`tracks_path_fan`) — default on при selected active track
-- Slider `n` (3–8) — advanced panel v2
+- Slider 
+` (3–8) — advanced panel v2
 
 ---
 

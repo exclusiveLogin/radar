@@ -6,7 +6,7 @@ Draft (Future) — **не реализуем горизонтальное мас
 
 ## Context
 
-Сейчас live ingest и backfill истории могут жить в одном worker-процессе (`RADAR_WORKER_ROLE=all` или совмещённый контейнер):
+Сейчас live ingest и backfill истории могут жить в одном worker-процессе (`RADAR_WORKER_ROLE=ingest` или совмещённый контейнер):
 
 | Поток | Источник | Hot path |
 |-------|----------|----------|

@@ -97,6 +97,7 @@ export class IngestOrchestrator {
           await adapter.startDuty(providerBindings, sink);
           await this.providers.updateStatus(provider.id, "active", null);
           workerRuntimeStatus.clearError();
+          ingestConnectionStatus.setDutyActive(provider.id, true);
           ingestConnectionStatus.set({
             providerId: provider.id,
             providerKey: provider.key,

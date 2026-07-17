@@ -2,7 +2,8 @@
  * Постановка и статус разовой докачки истории (диапазон дат/id), инициируемой из admin/CLI.
  * Сами сообщения попадают в `mat_ingest_raw` с `ingest_mode=backfill`; эта таблица — учёт операции, не лог чата.
  * @see ../../../../../docs/domain/persistence-map.md#IngestBackfillJobEntity
- * @see ../../../../../docs/database-table-naming.md`n * @see ../../../../../docs/domain/contexts/ingest.md
+ * @see ../../../../../docs/database-table-naming.md
+ * @see ../../../../../docs/domain/contexts/ingest.md
  */
 import {
   Column,

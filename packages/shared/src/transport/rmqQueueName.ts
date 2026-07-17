@@ -21,20 +21,16 @@ export const PIPELINE_RMQ_QUEUE_SUFFIX = {
 } as const;
 
 export type RmqConsumerRole =
-  | "all"
   | "ingest"
   | "backfill"
   | "parse"
   | "geo"
   | "tracking"
-  | "phase"
   | "api";
 
 /** SSOT: RADAR_WORKER_ROLE / API → суффикс consumer-очереди. */
 export function resolveRmqConsumerSuffix(role: RmqConsumerRole): string {
   if (role === "api") return "api";
-  if (role === "all") return "monolith";
-  if (role === "phase") return "parse";
   return role;
 }
 

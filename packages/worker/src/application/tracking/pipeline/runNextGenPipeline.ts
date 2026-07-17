@@ -41,15 +41,15 @@ export function buildTracksViaNextGenPipeline(
 ): {
   tracks: TrajectoryTrack[];
   cluster: TrackingClusterStepStats;
-  phase2: NextGenStep2Stats;
-  phase3: NextGenStep3Stats;
+  step2: NextGenStep2Stats;
+  step3: NextGenStep3Stats;
 } {
   const payload = createTrackingStepPayload({ candidates, kin, profile, config, seedTracks });
   const result = runTrackingSteps(manifest, NEXTGEN_STEP_REGISTRY, payload, { flowMap });
   return {
     tracks: result.tracks,
     cluster: result.clusterStats,
-    phase2: result.step2Stats,
-    phase3: result.step3Stats,
+    step2: result.step2Stats,
+    step3: result.step3Stats,
   };
 }

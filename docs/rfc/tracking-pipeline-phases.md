@@ -42,7 +42,7 @@
 - Worker материализует треки в БД из исторических facts
 - API отдаёт GeoJSON/JSON треков с nodes и velocity
 - Heatmap фильтруется по `event_type` / `eventCategory`
-- `npm run typecheck` и `npm run lint` зелёные
+- `npm run typecheck` и `npm run lint` зелёные
 - **Без** UI слоя треков и Deck.gl
 
 **Коммит:** отдельный, только tracking MVP backend + heatmap filter.

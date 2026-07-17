@@ -31,7 +31,9 @@ npm run radar -- stack docker-prod
 | Dockerfile | `Dockerfile.dev` | `Dockerfile.api/worker/web` |
 | Код | bind-mount `.:/app` | запечён в image |
 | dist | `dev:prepare` на хосте | build в multi-stage |
-| api/web | `nest watch` / `vite dev` | `node dist` / nginx static |
+| api/web | 
+est watch` / `vite dev` | 
+ode dist` / nginx static |
 
 ---
 
@@ -96,7 +98,7 @@ npm run docker:prod:assets-check
 
 ### docker:dev
 
-`profile app`: bind-mount `.:/app` — **все** ассеты с хоста. Отдельно смонтированы только sessions и `node_modules`.
+`profile app`: bind-mount `.:/app` — **все** ассеты с хоста. Отдельно смонтированы только sessions и `node_modules`.
 
 ### Известные ограничения prod
 

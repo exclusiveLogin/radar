@@ -27,6 +27,8 @@ async function main(): Promise<void> {
   const providerFilter = readStringFlag(flags, ["provider"])?.trim();
 
   const runtime = await createWorkerCompositionRoot({
+    workerRole: "geo",
+    bootCaps: ["geo"],
     storageMode: WorkerStorageMode.Db,
     startIngestParseDaemon: false,
   });

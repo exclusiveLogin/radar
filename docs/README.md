@@ -31,7 +31,7 @@
 ### Частые команды (корень репо)
 
 ```powershell
-npm run radar -- stack dev --full
+npm run radar -- stack dev
 npm run radar -- stack migrate
 npm run radar -- geo catalog:import
 npm run radar -- ingest backfill -- --all-bindings --batch-size=100

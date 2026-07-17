@@ -2,7 +2,7 @@
 
 **SSOT radar ↔ legacy:** [`radar-cli.md`](./radar-cli.md).
 
-**Полный wipe БД:** `npm run radar -- system wipe -- --confirm` (алиас: `npm run system:wipe -- --confirm`).
+**Полный wipe БД:** `npm run radar -- system wipe -- --confirm` (алиас: `npm run system:wipe -- --confirm`).
 
 > Старое имя `vendor-ingest-parse-geo` — legacy-артефакт пайплайна; **диск vendor не трогает**. Используйте **`system wipe`**.
 
@@ -54,13 +54,13 @@ Legacy-алиасы: `parse-engine:system:wipe` → `system:wipe`; `vendor-inges
 
 | Задача | Команда |
 |--------|---------|
-| Первый раз на машине | `npm run radar -- stack cold-up` |
-| Docker + UI/API | `npm run radar -- stack up` |
-| Полный dev (+ worker) | `npm run radar -- stack dev --full` |
-| После `git pull` | `npm run radar -- stack migrate` |
-| Rebuild пакетов | `npm run build` |
-| Telegram session | `npm run radar -- ingest session:deploy` |
-| Проверка session | `npm run radar -- ingest session:probe` |
+| Первый раз на машине | `npm run radar -- stack cold-up` |
+| Docker + UI/API | `npm run radar -- stack up` |
+| Полный dev (+ worker) | `npm run radar -- stack dev` |
+| После `git pull` | `npm run radar -- stack migrate` |
+| Rebuild пакетов | `npm run build` |
+| Telegram session | `npm run radar -- ingest session:deploy` |
+| Проверка session | `npm run radar -- ingest session:probe` |
 
 ---
 
@@ -144,7 +144,7 @@ npm run radar -- ingest session:deploy
 npm run radar -- ingest manifest:import
 npm run radar -- phase manifest:import
 npm run radar -- geo catalog:import
-npm run radar -- stack dev --full
+npm run radar -- stack dev
 ```
 
 Runbook с FK и сценариями B/C: [runbook/geo-clean-rebuild.md](./runbook/geo-clean-rebuild.md).

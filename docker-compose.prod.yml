@@ -158,13 +158,14 @@ services:
     volumes:
       - ./data/tiles/output:/data:ro
       - ./docker/tiles/stub-config.json:/stub/config.json:ro
-    entrypoint: ["/bin/sh", "-c"]
+    # Не вызывать node напрямую — иначе минуем Xvfb из docker-entrypoint.sh → "Failed to open X display".
+    entrypoint: ["/bin/bash", "-c"]
     command:
       - >-
         if [ -f /data/config.json ]; then CONFIG=/data/config.json;
         else echo "[tiles] stub until stack tiles:sync"; CONFIG=/stub/config.json;
         fi;
-        exec node /usr/src/app/src/main.js --config "$$CONFIG"
+        exec /usr/src/app/docker-entrypoint.sh --config "$$CONFIG"
     networks:
       - radar_net
 

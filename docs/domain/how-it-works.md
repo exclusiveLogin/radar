@@ -301,8 +301,10 @@ Polling (`hybrid schedule`) — резерв. E2E runbook: [e2e-bus-chaining.md]
 
 1. `createWorkerDataSource()` — один TypeORM `DataSource`.
 2. `createWorkerDbRepositories(dataSource)` — репозитории на этот же source.
-3. `new InProcessEventBus()`, подписки (`RawMessageIngested` → parse, метрики).
-4. `new OutboxRelay(dataSource, bus)` + `start()` — poll раз в 1s.
+3. 
+ew InProcessEventBus()`, подписки (`RawMessageIngested` → parse, метрики).
+4. 
+ew OutboxRelay(dataSource, bus)` + `start()` — poll раз в 1s.
 5. Handlers, parse pipeline, опционально `IngestOrchestrator`.
 
 **Не делается:** единая транзакция на весь use case; прокидывание `EntityManager` в handlers.
@@ -331,7 +333,8 @@ Polling (`hybrid schedule`) — резерв. E2E runbook: [e2e-bus-chaining.md]
 
 | Вопрос | Ответ |
 |--------|--------|
-| Где создаётся агрегат? | Не `new Aggregate()` — запись в таблицу + `aggregateId` в событии |
+| Где создаётся агрегат? | Не 
+ew Aggregate()` — запись в таблицу + `aggregateId` в событии |
 | Composition root = UoW? | Нет, только wiring |
 | Все события в outbox? | Нет — worker пишет в in-memory bus |
 | Parse идёт после commit ingest? | В worker — да, синхронно в том же процессе после `upsert` |

@@ -18,7 +18,6 @@ import type {
   PhaseRunStats,
   PhaseTrigger,
 } from "@radar/shared";
-import { resolveGeoEnrichmentProvider } from "@radar/shared";
 import type { PlaceEnrichmentRunner } from "../geo-parse/placeEnrichmentRunner.js";
 import { ParseRawMessageHandler } from "../handlers/parseRawMessageHandler.js";
 import { createParseWorkspaceStack } from "../parse/createParseWorkspaceStack.js";
@@ -282,7 +281,7 @@ export class PhaseRunner {
     }
   }
 
-  /** Drain geoParse: catch-up place jobs + батчи PlaceEnrichmentRunner. */
+  /** Drain geoParse — вынесен в geo-parse tooling. */
   private async runGeoDrain(input: {
     phase: PhaseDefinitionRecord;
     runId: string;
@@ -294,103 +293,19 @@ export class PhaseRunner {
     if (!runner) {
       throw new Error("placeEnrichmentRunner not configured");
     }
-    const provider = resolveGeoEnrichmentProvider(input.phase);
-    if (!provider) {
-      throw new Error(`geo phase ${input.phase.id} has no provider enricher`);
-    }
-    if (input.placeIds?.length) {
-      for (const placeId of input.placeIds) {
-        await this.deps.placeEnrichmentJobs.enqueue(placeId, provider);
-      }
-    }
-
-    const run = await this.resolveRunForTick({
-      phase: input.phase,
-      trigger: input.trigger,
-      existingRunId: input.runId,
-    });
-    await this.deps.phaseRuns.appendLog(run.id, {
-      at: new Date().toISOString(),
-      level: "info",
-      message: `${input.trigger} geo drain provider=${provider}`,
-    });
-
-    let totals: PhaseRunStats = { claimed: 0, processed: 0, ok: 0, failed: 0 };
-    try {
-      for (;;) {
-        const control = await this.resolveRunContinuation(run.id);
-        if (control === "cancel") {
-          await this.finalizeRun(run.id, "canceled", totals);
-          return totals;
-        }
-        if (control === "pause") {
-          await this.finalizeRun(run.id, "paused", totals);
-          return totals;
-        }
-
-        const batch = input.placeIds?.length
-          ? await runner.runBatch(provider, input.batchSize, { phaseId: input.phase.id }, input.placeIds)
-          : await runner.runBatch(provider, input.batchSize, { phaseId: input.phase.id });
-        totals.claimed = (totals.claimed ?? 0) + batch.claimed;
-        totals.processed = (totals.processed ?? 0) + batch.processed;
-        totals.ok = (totals.ok ?? 0) + batch.processed;
-        totals.failed = (totals.failed ?? 0) + batch.failed;
-
-        if (input.placeIds?.length) {
-          await this.finalizeRun(run.id, "completed", totals);
-          return totals;
-        }
-
-        const jobCounts = await this.deps.placeEnrichmentJobs.countByStatus(provider);
-        totals.pendingRemaining = jobCounts.pending + jobCounts.processing;
-        totals.totalKnown =
-          (totals.ok ?? 0) +
-          (totals.failed ?? 0) +
-          totals.pendingRemaining;
-        await this.deps.phaseRuns.updateStats(run.id, totals);
-        await this.deps.phaseRuns.appendLog(run.id, {
-          at: new Date().toISOString(),
-          level: "info",
-          message: `geo batch claimed=${batch.claimed} ok=${batch.processed} failed=${batch.failed} pending=${totals.pendingRemaining ?? 0}`,
-        });
-
-        if (batch.claimed === 0) {
-          const counts = await this.deps.placeEnrichmentJobs.countByStatus(provider);
-          totals.pendingRemaining = counts.pending + counts.processing;
-          totals.totalKnown =
-            (totals.ok ?? 0) + (totals.failed ?? 0) + totals.pendingRemaining;
-          const idleOutcome = await this.resolveRunContinuation(run.id);
-          const status =
-            idleOutcome === "cancel"
-              ? "canceled"
-              : idleOutcome === "pause"
-                ? "paused"
-                : "completed";
-          await this.finalizeRun(run.id, status, totals);
-          return totals;
-        }
-      }
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      await this.deps.phaseRuns.appendLog(run.id, {
-        at: new Date().toISOString(),
-        level: "error",
-        message,
-      });
-      await this.deps.phaseRuns.updateStatus(run.id, "failed", { error: message });
-      throw err;
-    }
+    const { runGeoPhaseDrain } = await import("../geo-parse/runGeoPhaseDrain.js");
+    return runGeoPhaseDrain(
+      {
+        placeEnrichmentRunner: runner,
+        placeEnrichmentJobs: this.deps.placeEnrichmentJobs,
+        phaseRuns: this.deps.phaseRuns,
+        resolveRunForTick: (args) => this.resolveRunForTick(args),
+        resolveRunContinuation: (runId) => this.resolveRunContinuation(runId),
+        finalizeRun: (runId, status, stats) => this.finalizeRun(runId, status, stats),
+      },
+      input,
+    );
   }
-
-  /** @deprecated используй runDrain */
-  async runManualRunDrain(input: {
-    phase: PhaseDefinitionRecord;
-    runId: string;
-    batchSize: number;
-  }): Promise<PhaseRunStats> {
-    return this.runDrain({ ...input, trigger: "manual" });
-  }
-
   /** Полный тик scheduled/manual: claim → run → finalize run. */
   async runPhaseTick(input: {
     phase: PhaseDefinitionRecord;

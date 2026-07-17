@@ -9,7 +9,7 @@ npm run radar -- help [stack|pipeline|ingest|parse|geo|phase|map|tracking|data|d
 
 **SSOT таблиц «radar ↔ legacy»** — только этот файл. Остальные доки ссылаются сюда, не дублируют.
 
-Старые `npm run parse-engine:*` / `worker:*` / `dev` остаются алиасами; новый код и runbook — через `radar`.
+Старые `npm run parse-engine:*` / `worker:*` / `dev` остаются алиасами; новый код и runbook — через `radar`.
 
 ---
 
@@ -17,18 +17,18 @@ npm run radar -- help [stack|pipeline|ingest|parse|geo|phase|map|tracking|data|d
 
 | Задача | Команда |
 |--------|---------|
-| Первый запуск | `npm run radar -- stack cold-up` |
-| Dev UI+API+worker | `npm run radar -- stack dev --full` |
-| Миграции после pull | `npm run radar -- stack migrate` |
-| **Треки: миграция + dev** | `stack migrate` → `stack dev --full` → Admin **Треки** → ВКЛ |
-| **Треки: статус** | `npm run radar -- tracking status` |
-| **Треки: rebuild** | `npm run radar -- tracking rebuild -- --since=2024-01-01T00:00:00Z` |
-| Импорт geo-каталога | `npm run radar -- geo catalog:import` |
-| Backfill архива | `npm run radar -- ingest backfill -- --all-bindings --batch-size=100` |
-| **Reparse / карта после ingest** | `npm run radar -- parse run` (сброс parsed внутри, reset не нужен) |
+| Первый запуск | `npm run radar -- stack cold-up` |
+| Dev UI+API+worker | `npm run radar -- stack dev` |
+| Миграции после pull | `npm run radar -- stack migrate` |
+| **Треки: миграция + dev** | `stack migrate` → `stack dev` → Admin **Треки** → ВКЛ |
+| **Треки: статус** | `npm run radar -- tracking status` |
+| **Треки: rebuild** | `npm run radar -- tracking rebuild -- --since=2024-01-01T00:00:00Z` |
+| Импорт geo-каталога | `npm run radar -- geo catalog:import` |
+| Backfill архива | `npm run radar -- ingest backfill -- --all-bindings --batch-size=100` |
+| **Reparse / карта после ingest** | `npm run radar -- parse run` (сброс parsed внутри, reset не нужен) |
 | **После deploy P6 (ADR-012)** | `stack migrate` → restart worker → `parse run` → `pipeline parity` |
-| Сброс parsed без reparse | `npm run radar -- pipeline reset` → `stack dev` / catch-up |
-| Статус очередей | `npm run radar -- pipeline status` |
+| Сброс parsed без reparse | `npm run radar -- pipeline reset` → `stack dev` / catch-up |
+| Статус очередей | `npm run radar -- pipeline status` |
 | Чистая система | **[cold-start.md](./cold-start.md)** — шаги 0→6 |
 
 Полный справочник — § [Справочник по доменам](#справочник-по-доменам). Сценарии wipe — [phase-commands.md](./phase-commands.md). Runbook — [runbook/geo-clean-rebuild.md](./runbook/geo-clean-rebuild.md).
@@ -69,7 +69,7 @@ npm run radar -- help [stack|pipeline|ingest|parse|geo|phase|map|tracking|data|d
 
 ## Справочник по доменам
 
-В колонке **radar** — действие после `npm run radar --`. В **legacy** — старый `npm run …`.
+В колонке **radar** — действие после `npm run radar --`. В **legacy** — старый `npm run …`.
 
 ### stack — запуск и инфра
 
@@ -77,7 +77,7 @@ npm run radar -- help [stack|pipeline|ingest|parse|geo|phase|map|tracking|data|d
 |-------|--------|------------|
 | `stack cold-up` | `cold:up` | Docker + install + migrate + dev:app |
 | `stack up` | `up` | Docker + dev:app |
-| `stack dev --full` | `dev` | UI + API + worker |
+| `stack dev` | `dev` | UI + API + worker |
 | `stack dev` | `dev:app` | UI + API без worker |
 | `stack db:up` / `db:down` | `db:up` / `db:down` | Postgres compose |
 | `stack migrate` | `migration:run` | Миграции БД |
@@ -228,7 +228,8 @@ Runbook: [runbook/tracking-pipeline.md](./runbook/tracking-pipeline.md).
 
 | radar | legacy | Назначение |
 |-------|--------|------------|
-| `dev ws-smoke` | `node scripts/ws-smoke.mjs` | Проверка WS карты |
+| `dev ws-smoke` | 
+ode scripts/ws-smoke.mjs` | Проверка WS карты |
 | `dev heap:diff` | `heap:snapshot:diff` | Diff heap snapshots |
 
 ---
@@ -252,7 +253,7 @@ Runbook: [runbook/tracking-pipeline.md](./runbook/tracking-pipeline.md).
 ```powershell
 # Первый запуск
 npm run radar -- stack cold-up
-npm run radar -- stack dev --full
+npm run radar -- stack dev
 
 # Geo rebuild
 npm run radar -- geo catalog:import
@@ -297,7 +298,7 @@ npm run radar -- pipeline drain
 
 ```powershell
 # Терминал 1 — приложение
-npm run radar -- stack dev --full
+npm run radar -- stack dev
 
 # Терминал 2 — свои тайлы (sync один раз, потом только up)
 npm run radar -- stack tiles:sync -- --verbose

@@ -45,6 +45,8 @@ async function main(): Promise<void> {
   }
 
   const runtime = await createWorkerCompositionRoot({
+    workerRole: "ingest",
+    bootCaps: ["ingest"],
     storageMode: WorkerStorageMode.Db,
     startIngestParseDaemon: false,
   });

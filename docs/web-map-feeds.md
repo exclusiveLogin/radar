@@ -22,7 +22,8 @@ Poll: сообщения ~20 с, лента изменений ~15 с (`startMes
 - **1 строка = 1 raw_message** (без дублей от N `mat_parse_event` на один raw).
 - Без фильтра «только с loc» — в ленте и шум, и неразобранное, и mass-clear без EL.
 - Поля `MessageFeedItem`:
-  - `contentKind` — `event` \| `noise` \| `meta` (эвристика `classifyContentKind` в `@radar/shared`, считается на API).
+  - `contentKind` — `event` \| 
+oise` \| `meta` (эвристика `classifyContentKind` в `@radar/shared`, считается на API).
   - `parsedEventCount`, `hasLocations` — агрегат по active `mat_parse_event`.
   - `eventType`, `stateLevel`, `regionCodes` — сводка parse (если есть).
 
@@ -53,7 +54,8 @@ Poll: сообщения ~20 с, лента изменений ~15 с (`startMes
 
 | Слой | Логика |
 |------|--------|
-| **Карта** | LastWinner fold на `now` / `asOf` — побеждает более новый факт (clear после raise → green). |
+| **Карта** | LastWinner fold на 
+ow` / `asOf` — побеждает более новый факт (clear после raise → green). |
 | **Лента изменений** | Хронология **событий с loc**, не текущий winner. |
 | **Сообщения** | Хронология **raw**, не fold. |
 

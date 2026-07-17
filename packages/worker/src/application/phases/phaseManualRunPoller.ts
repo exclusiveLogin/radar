@@ -77,10 +77,11 @@ export class PhaseManualRunPoller {
         return;
       }
 
-      await this.runner.runManualRunDrain({
+      await this.runner.runDrain({
         phase,
         runId: run.id,
         batchSize: phase.policy.batchSize,
+        trigger: "manual",
       });
     } catch (err) {
       console.error(`PhaseManualRunPoller[${run.id}]:`, err);

@@ -1,44 +1,46 @@
-﻿> **Имена таблиц:** актуальные — [database-table-naming.md](./database-table-naming.md). Ниже — исторический контекст.`n`n# ADR-010: Kill / Pass вЂ” СЌС„С„РµРєС‚РёРІРЅРѕСЃС‚СЊ РїРµСЂРµС…РІР°С‚Р° (read-side СЃР»РѕРё)
+﻿> **Имена таблиц:** актуальные — [database-table-naming.md](./database-table-naming.md). Ниже — исторический контекст.
 
-Р”Р°С‚Р°: 2026-06-12  
-РЎС‚Р°С‚СѓСЃ: **РџСЂРµРґР»РѕР¶РµРЅРѕ**
+# ADR-010: Kill / Pass — эффективность перехвата (read-side слои)
 
-РЎРІСЏР·Р°РЅРѕ: [ADR-007](./adr-007-trajectory-graph-kalman-worker.md), [roadmap](./roadmap-tracking-forecasting.md), [ADR-014 В§ D6](./adr-014-operational-domain-profile.md#api-read-side-decoupling-С„Р°Р·Р°-d6)
+Дата: 2026-06-12  
+Статус: **Предложено**
 
----
-
-## РљРѕРЅС‚РµРєСЃС‚
-
-Operational РєР°СЂС‚Р° РїРѕРєР°Р·С‹РІР°РµС‚ С„Р°РєС‚С‹ Рё Р»РµРЅС‚Сѓ macro-РѕС‚С‡С‘С‚РѕРІ (`pvo_report`), РЅРѕ РЅРµ РѕС‚РІРµС‡Р°РµС‚ РЅР° РІРѕРїСЂРѕСЃ: **РіРґРµ РїРµСЂРµС…РІР°С‚ СЂРµР°Р»СЊРЅРѕ РѕСЃС‚Р°РЅР°РІР»РёРІР°РµС‚ С†РµР»Рё, Р° РіРґРµ РїСЂРѕРїСѓСЃРєР°РµС‚?** Р‘СѓРјР°Р¶РЅС‹Р№ СЂР°РґРёСѓСЃ РїРѕСЂР°Р¶РµРЅРёСЏ РєРѕРјРїР»РµРєСЃР° С‡Р°СЃС‚Рѕ РЅРµ СЃРѕРІРїР°РґР°РµС‚ СЃ OSINT-РЅР°Р±Р»СЋРґРµРЅРёСЏРјРё.
-
-**РџСЂРёРЅС†РёРїС‹:** Kill Chain Analysis, Spatio-Temporal Interference.
-
-**Value:** РѕС‡РµРЅСЊ РІС‹СЃРѕРєР°СЏ вЂ” С‡РёСЃС‚Р°СЏ РІРѕРµРЅРЅР°СЏ Р°РЅР°Р»РёС‚РёРєР°, РєРѕСЂРёРґРѕСЂС‹ РїСЂРѕСЂС‹РІР°.
+Связано: [ADR-007](./adr-007-trajectory-graph-kalman-worker.md), [roadmap](./roadmap-tracking-forecasting.md), [ADR-014 § D6](./adr-014-operational-domain-profile.md#api-read-side-decoupling-фаза-d6)
 
 ---
 
-## Р РµС€РµРЅРёРµ
+## Контекст
 
-### РўСЂРё read-side СЃР»РѕСЏ
+Operational карта показывает факты и ленту macro-отчётов (`pvo_report`), но не отвечает на вопрос: **где перехват реально останавливает цели, а где пропускает?** Бумажный радиус поражения комплекса часто не совпадает с OSINT-наблюдениями.
 
-| РЎР»РѕР№ | ID | РЎРѕРґРµСЂР¶Р°РЅРёРµ |
+**Принципы:** Kill Chain Analysis, Spatio-Temporal Interference.
+
+**Value:** очень высокая — чистая военная аналитика, коридоры прорыва.
+
+---
+
+## Решение
+
+### Три read-side слоя
+
+| Слой | ID | Содержание |
 |------|-----|------------|
-| Report density heatmap | `pvo_heatmap` | РџР»РѕС‚РЅРѕСЃС‚СЊ `pvo_report` / air_defense СЃРѕР±С‹С‚РёР№ (в†’ D6: generic filter) |
-| Kill | `kill` | Terminal nodes С‚СЂРµРєРѕРІ РІ Р·РѕРЅРµ РїРµСЂРµС…РІР°С‚Р° (РїРѕРґС‚РІРµСЂР¶РґС‘РЅРЅС‹Рµ СЃР±РёС‚РёСЏ) |
-| Pass | `pass` | РЎРµРіРјРµРЅС‚С‹ С‚СЂРµРєРѕРІ, РїСЂРѕС€РµРґС€РёРµ Р·РѕРЅСѓ Рё РїСЂРѕРґРѕР»Р¶РёРІС€РёРµ РґРІРёР¶РµРЅРёРµ |
+| Report density heatmap | `pvo_heatmap` | Плотность `pvo_report` / air_defense событий (→ D6: generic filter) |
+| Kill | `kill` | Terminal nodes треков в зоне перехвата (подтверждённые сбития) |
+| Pass | `pass` | Сегменты треков, прошедшие зону и продолжившие движение |
 
-### РљР»Р°СЃСЃРёС„РёРєР°С†РёСЏ СЃРµРіРјРµРЅС‚РѕРІ
+### Классификация сегментов
 
-Р’С…РѕРґ:
+Вход:
 
 - `mat_track` + `mat_track_node` ([ADR-007](./adr-007-trajectory-graph-kalman-worker.md))
-- Р—РѕРЅС‹ РїРµСЂРµС…РІР°С‚Р°: buffer РІРѕРєСЂСѓРі report-С‚РѕС‡РµРє + РѕРїС†РёРѕРЅР°Р»СЊРЅРѕ РїРѕР»РёРіРѕРЅС‹ РїРѕРєСЂС‹С‚РёСЏ (v2)
+- Зоны перехвата: buffer вокруг report-точек + опционально полигоны покрытия (v2)
 
-РџСЂР°РІРёР»Р° v1:
+Правила v1:
 
-1. **Kill:** РїРѕСЃР»РµРґРЅРёР№ kinematic node С‚СЂРµРєР° (`correct`) РїРѕРїР°РґР°РµС‚ РІ Р·РѕРЅСѓ Рё С‚СЂРµРє `closed` Р±РµР· РІС‹С…РѕРґР° РёР· Р·РѕРЅС‹ РІ С‚РµС‡РµРЅРёРµ `KILL_CONFIRM_WINDOW` (default 30 min).
-2. **Pass:** СЃСѓС‰РµСЃС‚РІСѓРµС‚ СЃРµРіРјРµРЅС‚ `[node_i в†’ node_{i+1}]`, РіРґРµ `node_i` РІРЅСѓС‚СЂРё Р·РѕРЅС‹, `node_{i+1}` СЃРЅР°СЂСѓР¶Рё, Рё С‚СЂРµРє РїСЂРѕРґРѕР»Р¶Р°РµС‚СЃСЏ в‰Ґ 2 nodes РїРѕСЃР»Рµ РІС‹С…РѕРґР°.
-3. **Body:** РѕСЃС‚Р°Р»СЊРЅС‹Рµ СЃРµРіРјРµРЅС‚С‹ С‚СЂРµРєР°.
+1. **Kill:** последний kinematic node трека (`correct`) попадает в зону и трек `closed` без выхода из зоны в течение `KILL_CONFIRM_WINDOW` (default 30 min).
+2. **Pass:** существует сегмент `[node_i → node_{i+1}]`, где `node_i` внутри зоны, `node_{i+1}` снаружи, и трек продолжается ≥ 2 nodes после выхода.
+3. **Body:** остальные сегменты трека.
 
 ```typescript
 type TrackLayer = "body" | "kill" | "pass";
@@ -52,12 +54,12 @@ type TrackSegment = {
 };
 ```
 
-### API РєРѕРЅС‚СЂР°РєС‚
+### API контракт
 
-| Endpoint | РћС‚РІРµС‚ |
+| Endpoint | Ответ |
 |----------|-------|
 | `GET /map/tracks/layers?layer=kill\|pass\|pvo_heatmap` | GeoJSON FeatureCollection |
-| `GET /map/tracks/:id` | `segments[]` СЃ `layer` (embedded) |
+| `GET /map/tracks/:id` | `segments[]` с `layer` (embedded) |
 
 Query: `since`, `until`, `asOf`, `bbox`, `limit`.
 
@@ -76,44 +78,44 @@ Query: `since`, `until`, `asOf`, `bbox`, `limit`.
 
 ### Report density heatmap
 
-Р Р°СЃС€РёСЂРµРЅРёРµ СЃСѓС‰РµСЃС‚РІСѓСЋС‰РµРіРѕ heatmap-РїР°С‚С‚РµСЂРЅР° ([event-heatmap.ts](../packages/shared/src/schemas/map/event-heatmap.ts)):
+Расширение существующего heatmap-паттерна ([event-heatmap.ts](../packages/shared/src/schemas/map/event-heatmap.ts)):
 
-- Р¤РёР»СЊС‚СЂ: С‡РµСЂРµР· `status_dictionary.feed_kind` / `eventCategory` (РЅРµ hardcode РІ SQL вЂ” ADR-014 D6)
-- РћС‚РґРµР»СЊРЅС‹Р№ endpoint РёР»Рё `layer=pvo_heatmap` РЅР° unified layers API
+- Фильтр: через `status_dictionary.feed_kind` / `eventCategory` (не hardcode в SQL — ADR-014 D6)
+- Отдельный endpoint или `layer=pvo_heatmap` на unified layers API
 
-### Р’С‹С‡РёСЃР»РµРЅРёРµ
+### Вычисление
 
-- Batch job РІ tracking worker (РїРѕСЃР»Рµ rebuild С‚СЂРµРєРѕРІ) РёР»Рё on-read СЃ РєРµС€РµРј.
-- v1: **materialized** `trajectory_segments` table (РѕРїС†РёРѕРЅР°Р»СЊРЅРѕ) РґР»СЏ РїСЂРѕРёР·РІРѕРґРёС‚РµР»СЊРЅРѕСЃС‚Рё.
-
----
-
-## Р—Р°РІРёСЃРёРјРѕСЃС‚Рё
-
-- ADR-007 вЂ” РіРѕС‚РѕРІС‹Рµ С‚СЂРµРєРё
-- Macro feed (`GET /map/event-feed` РїРѕСЃР»Рµ D6) вЂ” РёСЃС‚РѕС‡РЅРёРє С„Р°РєС‚РѕРІ, РЅРµ РґСѓР±Р»РёСЂРѕРІР°С‚СЊ write-path
+- Batch job в tracking worker (после rebuild треков) или on-read с кешем.
+- v1: **materialized** `trajectory_segments` table (опционально) для производительности.
 
 ---
 
-## РќРµ РґРµР»Р°РµРј
+## Зависимости
 
-- РћС†РµРЅРєСѓ С‚РёРїР° С†РµР»Рё РЅР° РїРµСЂРІРѕРј СЌС‚Р°РїРµ
-- 3D Р·РѕРЅС‹ вЂ” С‚РѕР»СЊРєРѕ 2D buffer v1
+- ADR-007 — готовые треки
+- Macro feed (`GET /map/event-feed` после D6) — источник фактов, не дублировать write-path
 
 ---
 
-## РџРѕСЃР»РµРґСЃС‚РІРёСЏ
+## Не делаем
 
-| РџР»СЋСЃ | РњРёРЅСѓСЃ |
+- Оценку типа цели на первом этапе
+- 3D зоны — только 2D buffer v1
+
+---
+
+## Последствия
+
+| Плюс | Минус |
 |------|-------|
-| Р РµР°Р»СЊРЅР°СЏ, Р° РЅРµ Р±СѓРјР°Р¶РЅР°СЏ РєР°СЂС‚РёРЅР° РїРµСЂРµС…РІР°С‚Р° | РљР°С‡РµСЃС‚РІРѕ Р·Р°РІРёСЃРёС‚ РѕС‚ РїРѕР»РЅРѕС‚С‹ macro-РѕС‚С‡С‘С‚РѕРІ |
-| РђРІС‚РѕРјР°С‚РёС‡РµСЃРєРёРµ РєРѕСЂРёРґРѕСЂС‹ РїСЂРѕСЂС‹РІР° | False kill РїСЂРё РіСЂСѓР±РѕР№ РіРµРѕР»РѕРєР°С†РёРё |
+| Реальная, а не бумажная картина перехвата | Качество зависит от полноты macro-отчётов |
+| Автоматические коридоры прорыва | False kill при грубой геолокации |
 
 ---
 
-## РљСЂРёС‚РµСЂРёРё РїСЂРёРЅСЏС‚РёСЏ
+## Критерии принятия
 
-- API РѕС‚РґР°С‘С‚ С‚СЂРё СЃР»РѕСЏ, РІР°Р»РёРґРёСЂСѓРµРјС‹Рµ Zod
-- Golden fixture: С‚СЂРµРє С‡РµСЂРµР· Р·РѕРЅСѓ в†’ segment `pass`
-- Golden fixture: С‚СЂРµРє РѕР±СЂС‹РІР°РµС‚СЃСЏ РІ Р·РѕРЅРµ в†’ node `kill`
+- API отдаёт три слоя, валидируемые Zod
+- Golden fixture: трек через зону в†’ segment `pass`
+- Golden fixture: трек обрывается в зоне в†’ node `kill`
 

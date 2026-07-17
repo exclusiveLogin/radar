@@ -88,7 +88,10 @@ function wireMtprotoClientErrorHandler(
   };
 }
 
-/** События TCP/MTProto для админки: connecting/reconnecting/disconnected. */
+/**
+ * События TCP/MTProto для админки.
+ * Не откатывать `live` в transitional `connected` — GramJS шлёт connected и после startDuty, и после reconnect.
+ */
 function wireMtprotoConnectionState(
   client: TelegramClient,
   provider: { id: string; key: string },
@@ -97,6 +100,20 @@ function wireMtprotoConnectionState(
     if (!(update instanceof UpdateConnectionState)) return;
 
     if (update.state === UpdateConnectionState.connected) {
+      // Duty уже идёт — TCP up снова = live; иначе transitional connected.
+      if (ingestConnectionStatus.isDutyActive(provider.id)) {
+        const current = ingestConnectionStatus.get(provider.id);
+        ingestConnectionStatus.set({
+          providerId: provider.id,
+          providerKey: provider.key,
+          phase: "live",
+          detail:
+            current?.phase === "reconnecting"
+              ? "MTProto reconnected, live"
+              : (current?.detail ?? "Слушает каналы"),
+        });
+        return;
+      }
       ingestConnectionStatus.set({
         providerId: provider.id,
         providerKey: provider.key,
