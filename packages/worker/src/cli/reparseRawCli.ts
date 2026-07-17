@@ -1,6 +1,7 @@
 import { MONOREPO_ROOT } from "@repo/root";
 import { createWorkerCompositionRoot } from "../application/createWorkerCompositionRoot.js";
 import { runFullReparseLikeIngest } from "../application/phases/reparseOrchestrator.js";
+import { createPhaseOperationalDeps } from "../application/phases/phaseOperationalDeps.js";
 import { WorkerStorageMode } from "../infrastructure/persistence/storageMode.js";
 import { loadRootEnv } from "../infrastructure/config/loadRootEnv.js";
 import { notifyMapPushSnapshot } from "../infrastructure/notifyMapPushSnapshot.js";
@@ -24,7 +25,7 @@ async function main(): Promise<void> {
     startIngestParseDaemon: false,
   });
 
-  if (!runtime.dataSource || !runtime.phaseRunner || !runtime.workerRepos || !runtime.coverageEnqueuer) {
+  if (!runtime.operationalSql || !runtime.phaseRunner || !runtime.workerRepos || !runtime.coverageEnqueuer) {
     console.error("reparseRawCli: нужен RADAR_STORAGE_MODE=db");
     process.exit(1);
   }
@@ -40,15 +41,14 @@ async function main(): Promise<void> {
     "reparse: остановите stack dev / worker с IngestParseDaemon — параллельный llm-drain даёт duplicate workspace.",
   );
 
-  const countRows = (await runtime.dataSource.query(
+  const countRows = await runtime.operationalSql.query<{ count: number }>(
     `SELECT COUNT(*)::int AS count FROM mat_ingest_raw`,
-  )) as Array<{ count: number }>;
+  );
   const total = countRows[0]?.count ?? 0;
   const progress = createProgress("reparse:ingest-flow", total);
 
   const result = await runFullReparseLikeIngest({
-    dataSource: runtime.dataSource,
-    repos,
+    deps: createPhaseOperationalDeps(runtime.operationalSql, repos),
     forceLocks,
     ingestFlow: {
       rawMessages: repos.rawMessages,

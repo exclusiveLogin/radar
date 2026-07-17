@@ -12,7 +12,7 @@ import {
   InMemoryParsedEventRepository,
   InMemoryPlaceRepository,
   InMemoryRegionRepository,
-} from "../../application/handlers/inMemoryRepositories.js";
+} from "../../infrastructure/testing/inMemoryRepositories.js";
 import { ParseRawMessageHandler } from "../../application/handlers/parseRawMessageHandler.js";
 import { createParseWorkspaceMessageService } from "../../application/parse/createParseWorkspaceMessageService.js";
 import { createTestGeoValidation } from "../../application/parse/createTestGeoValidation.js";
@@ -49,6 +49,7 @@ async function buildHandler(input: {
     parsedEvents: input.parsedEvents,
     eventLocations: input.eventLocations,
     messageParseWorkspaces: input.workspaces,
+    externalEnricher: { enrich: async () => {} },
   });
   return new ParseRawMessageHandler(
     workspaceService,

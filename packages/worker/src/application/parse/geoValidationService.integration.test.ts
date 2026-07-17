@@ -6,7 +6,7 @@ import {
   InMemoryPlaceAliasRepository,
   InMemoryPlaceRepository,
   InMemoryRegionRepository,
-} from "../handlers/inMemoryRepositories.js";
+} from "../../infrastructure/testing/inMemoryRepositories.js";
 
 test("geo validation keeps monotonic merge across lower and higher contributions", async () => {
   const regions = new InMemoryRegionRepository();

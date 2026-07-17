@@ -26,6 +26,7 @@ import {
   placesResponseSchema,
   regionGeometrySchema,
 } from "./map.dto";
+import { MapMessageFeedQueryService } from "./map-message-feed-query.service";
 import { MapQueryService } from "./map-query.service";
 import { MapRealtimeBroadcastService } from "./map-realtime-broadcast.service";
 import { MapTracksService } from "./map-tracks.service";
@@ -60,6 +61,7 @@ function parseHeatmapEventTypes(raw: string | undefined): EventType[] | undefine
 export class MapController {
   constructor(
     private readonly map: MapQueryService,
+    private readonly messageFeedQuery: MapMessageFeedQueryService,
     private readonly mapRealtime: MapRealtimeBroadcastService,
     private readonly mapTracks: MapTracksService,
   ) {}
@@ -260,7 +262,7 @@ export class MapController {
     @Param("code") code: string,
     @Query("statusEventAt") statusEventAt?: string,
   ) {
-    const message = await this.map.getRegionSourceMessage(code, { statusEventAt });
+    const message = await this.messageFeedQuery.getRegionSourceMessage(code, { statusEventAt });
     return sourceMessageResponseSchema.parse({ message });
   }
 
@@ -269,7 +271,7 @@ export class MapController {
   @ApiParam({ name: "placeId", description: "placeId (UUID)" })
   @ApiResponse({ status: 200, description: "{ message: SourceMessage | null }" })
   async placeSourceMessage(@Param("placeId") placeId: string) {
-    const message = await this.map.getPlaceSourceMessage(placeId);
+    const message = await this.messageFeedQuery.getPlaceSourceMessage(placeId);
     return sourceMessageResponseSchema.parse({ message });
   }
 
@@ -296,7 +298,7 @@ export class MapController {
   @ApiResponse({ status: 200, description: "{ items: MessageFeedItem[] }" })
   async recentMessages(@Query("limit") limit?: string) {
     return messageFeedResponseSchema.parse({
-      items: await this.map.getRecentMessages(parseLimit(limit, 80)),
+      items: await this.messageFeedQuery.getRecentMessages(parseLimit(limit, 80)),
     });
   }
 
@@ -307,7 +309,7 @@ export class MapController {
   @ApiResponse({ status: 200, description: "{ items: StateChangeEvent[] }" })
   async recentStateChangeEvents(@Query("limit") limit?: string) {
     return stateChangeEventsResponseSchema.parse({
-      items: await this.map.getRecentStateChangeEvents(parseLimit(limit, 80)),
+      items: await this.messageFeedQuery.getRecentStateChangeEvents(parseLimit(limit, 80)),
     });
   }
 

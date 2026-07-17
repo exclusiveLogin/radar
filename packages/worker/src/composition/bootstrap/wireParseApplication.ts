@@ -19,6 +19,7 @@ import { createParsePipeline } from "../../application/parse/createParsePipeline
 import type { ParsePipelineWorkerConfig } from "../../application/parse/createParsePipeline.js";
 import { ParseWorkerPool } from "../../application/parse/parseWorkerPool.js";
 import { createParseWorkspaceMessageService } from "../../application/parse/createParseWorkspaceMessageService.js";
+import { createParseExternalEnricher } from "./createParseExternalEnricher.js";
 import { createParseWorkerPoolObs } from "../../application/runtime/observability/parseWorkerPoolObs.js";
 import { createPlaceScanService } from "../../infrastructure/place-scan/createPlaceScanService.js";
 import { TransportEventPublisher } from "../../infrastructure/transport/transportEventPublisher.js";
@@ -123,6 +124,7 @@ export async function wireParseApplication(
     parsedEvents: persistence.parsedEvents,
     eventLocations: persistence.eventLocations,
     messageParseWorkspaces: persistence.messageParseWorkspaces,
+    externalEnricher: createParseExternalEnricher(),
   });
   const parseRawMessageHandler = new ParseRawMessageHandler(
     workspaceService,

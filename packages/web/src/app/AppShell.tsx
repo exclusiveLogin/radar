@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { LiveBadge, LiveClock, ThemeToggle } from "../shared/ds";
 import { startMapStore } from "../shared/state/mapStore";
 import "../shared/state/timelineStore";
-import { startMapStateEffects } from "../shared/state/mapStateEffects";
+import { startMapLiveReplayEffects } from "../shared/state/mapLiveReplayEffects";
 import { startTrackStoreEffects } from "../shared/state/trackStoreEffects";
 import { startMessagesStore } from "../shared/state/messagesStore";
 import { startStateChangesFeedStore } from "../shared/state/stateChangesFeedStore";
@@ -41,7 +41,7 @@ export function AppShell() {
 
   useEffect(() => {
     startMapStore();
-    startMapStateEffects();
+    startMapLiveReplayEffects();
     startTrackStoreEffects();
     startProvidersStore();
     startMessagesStore();

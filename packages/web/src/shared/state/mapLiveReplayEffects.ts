@@ -1,3 +1,9 @@
+/**
+ * Координация live/replay-карты.
+ *
+ * `mapStore` хранит режим и fold-state, этот модуль владеет HTTP-эффектом
+ * перехода между режимами. Рендер MapLibre сюда не проникает.
+ */
 import { from, of } from "rxjs";
 import { catchError, distinctUntilChanged, finalize, switchMap, tap } from "rxjs/operators";
 import { mapApi } from "../api/mapApi";
@@ -24,7 +30,7 @@ async function loadMapSnapshot(asOf: string | null): Promise<void> {
  * Реактивная загрузка fold-state при scrub таймлайна.
  * switchMap отменяет устаревшие запросы при быстром перемещении ползунка.
  */
-export function startMapStateEffects(): void {
+export function startMapLiveReplayEffects(): void {
   if (effectsStarted) return;
   effectsStarted = true;
 

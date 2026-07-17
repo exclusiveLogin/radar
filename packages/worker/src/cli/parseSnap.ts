@@ -11,7 +11,7 @@ import {
   InMemoryPlaceAliasRepository,
   InMemoryPlaceRepository,
   InMemoryRegionRepository,
-} from "../application/handlers/inMemoryRepositories.js";
+} from "../infrastructure/testing/inMemoryRepositories.js";
 import { loadRootEnv } from "../infrastructure/config/loadRootEnv.js";
 import { resolveInputPath } from "./cliPaths.js";
 import { splitMessageBlocks } from "../domain/parsing/index.js";

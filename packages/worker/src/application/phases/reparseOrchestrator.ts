@@ -1,16 +1,14 @@
 import { resolveRawMessagePostedAtOrder } from "@radar/shared";
-import type { DataSource } from "typeorm";
-import type { WorkerDbRepositories } from "../../infrastructure/persistence/workerDbRepos.types.js";
 import type { PhaseIngestFlowDeps } from "./phaseIngestFlow.js";
 import { runPostIngestPhaseFlow } from "./phaseIngestFlow.js";
 import { MapStateFullReset } from "../map-state/mapStateFullReset.js";
-import { clearParseLayerArtifacts, clearParsedArtifacts } from "./pipelineOperationalReset.js";
+import { clearParseLayerArtifacts } from "./pipelineOperationalReset.js";
+import type { PhaseOperationalDeps } from "./phaseOperationalDeps.js";
 
 export { clearParsedArtifacts } from "./pipelineOperationalReset.js";
 
 export type FullReparseInput = {
-  dataSource: DataSource;
-  repos: WorkerDbRepositories;
+  deps: PhaseOperationalDeps;
   ingestFlow: PhaseIngestFlowDeps;
   onMessage?: (index: number, total: number, rawMessageId: string) => void;
   /** По умолчанию true — при lock timeout закрываем блокирующие dev/API сессии. */
@@ -31,27 +29,27 @@ export type FullReparseResult = {
  * затем planPending(ids) по каждому raw (без inline handle).
  */
 export async function runFullReparseLikeIngest(input: FullReparseInput): Promise<FullReparseResult> {
-  const ingestPhases = await input.repos.phaseDefinitions.listEnabled(undefined, "ingestParse");
+  const ingestPhases = await input.deps.phaseDefinitions.listEnabled(undefined, "ingestParse");
   const phaseIds = ingestPhases.map((p) => p.id);
 
   const mapReset = new MapStateFullReset({
-    dataSource: input.dataSource,
+    operationalSql: input.deps.operationalSql,
   });
   const mapResetResult = await mapReset.run(new Date(), "reparse:invalidate");
 
-  const parseLayer = await clearParseLayerArtifacts(input.dataSource, {
+  const parseLayer = await clearParseLayerArtifacts(input.deps.operationalSql, {
     forceLocks: input.forceLocks,
   });
 
   // Не открываем очередь до конца bulk plan — иначе daemon гоняется с CLI.
   if (phaseIds.length > 0) {
-    await input.repos.phaseCoverage.clearQueuedWork(phaseIds);
+    await input.deps.phaseCoverage.clearQueuedWork(phaseIds);
   }
 
   const postedOrder = resolveRawMessagePostedAtOrder();
-  const rows = (await input.dataSource.query(
+  const rows = await input.deps.operationalSql.query<{ id: string }>(
     `SELECT id FROM mat_ingest_raw ORDER BY posted_at ${postedOrder}`,
-  )) as Array<{ id: string }>;
+  );
 
   let index = 0;
   for (const row of rows) {
@@ -62,9 +60,9 @@ export async function runFullReparseLikeIngest(input: FullReparseInput): Promise
 
   let phasesInvalidated = 0;
   if (phaseIds.length > 0) {
-    phasesInvalidated = await input.repos.phaseCoverage.invalidateForPhases(phaseIds);
+    phasesInvalidated = await input.deps.phaseCoverage.invalidateForPhases(phaseIds);
     for (const phaseId of phaseIds) {
-      await input.repos.phaseCoverage.enqueueCatchUp(phaseId);
+      await input.deps.phaseCoverage.enqueueCatchUp(phaseId);
     }
   }
 

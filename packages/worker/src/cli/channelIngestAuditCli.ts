@@ -11,7 +11,7 @@ import { MONOREPO_ROOT } from "@repo/root";
 import type { ClassifiedPost } from "@radar/shared";
 import { createParsePipeline } from "../application/parse/createParsePipeline.js";
 import { loadIngestParsePhases } from "../application/parse/loadIngestParsePhases.js";
-import { InMemoryRegionRepository } from "../application/handlers/inMemoryRepositories.js";
+import { InMemoryRegionRepository } from "../infrastructure/testing/inMemoryRepositories.js";
 import { classifyContentKind } from "../domain/parsing/classifyContentKind.js";
 import { RuleBasedEventClassifier } from "../infrastructure/classifiers/ruleBasedEventClassifier.js";
 import { loadRootEnv } from "../infrastructure/config/loadRootEnv.js";

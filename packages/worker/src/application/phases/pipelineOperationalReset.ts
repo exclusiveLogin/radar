@@ -1,15 +1,15 @@
-import type { DataSource } from "typeorm";
-import type { WorkerDbRepositories } from "../../infrastructure/persistence/workerDbRepos.types.js";
 import { truncateTableCounted } from "../archive/wipeTableSql.js";
 import { MapStateFullReset } from "../map-state/mapStateFullReset.js";
 import { sortPhasesByOrder } from "./phaseOrder.js";
+import type { PhaseOperationalDeps } from "./phaseOperationalDeps.js";
+import type { OperationalSql } from "./operationalSql.port.js";
 import { stopAllActivePhaseRuns } from "./stopAllActivePhaseRuns.js";
 
 export const PIPELINE_RESET_REASON = "pipeline:operational-reset";
 
 /** TRUNCATE work_parse_message + mat_parse_event (+ CASCADE). Контур rebuild/reparse. @see ../parse/parseWorkspaceRunModes.ts */
 export async function clearParseLayerArtifacts(
-  dataSource: DataSource,
+  sql: OperationalSql,
   options: { forceLocks?: boolean } = {},
 ): Promise<{
   workspacesDeleted: number;
@@ -18,11 +18,11 @@ export async function clearParseLayerArtifacts(
   const forceLocks = options.forceLocks !== false;
   const truncateOpts = { forceLocks };
   const workspacesDeleted = await truncateTableCounted(
-    dataSource,
+    sql,
     "work_parse_message",
     truncateOpts,
   );
-  const parsedEventsDeleted = await truncateTableCounted(dataSource, "mat_parse_event", {
+  const parsedEventsDeleted = await truncateTableCounted(sql, "mat_parse_event", {
     cascade: true,
     ...truncateOpts,
   });
@@ -30,14 +30,13 @@ export async function clearParseLayerArtifacts(
 }
 
 /** @deprecated Используйте clearParseLayerArtifacts */
-export async function clearParsedArtifacts(dataSource: DataSource): Promise<number> {
-  const result = await clearParseLayerArtifacts(dataSource);
+export async function clearParsedArtifacts(sql: OperationalSql): Promise<number> {
+  const result = await clearParseLayerArtifacts(sql);
   return result.parsedEventsDeleted;
 }
 
 export type PipelineOperationalResetInput = {
-  dataSource: DataSource;
-  repos: WorkerDbRepositories;
+  deps: PhaseOperationalDeps;
   /** После сброса — pending catch-up для enabled eager+scheduled (для worker:dev). */
   enqueueCatchUp?: boolean;
   /** По умолчанию true; false — не рвать dev/API сессии (запуск из админки). */
@@ -62,43 +61,42 @@ export type PipelineOperationalResetResult = {
 export async function runPipelineOperationalReset(
   input: PipelineOperationalResetInput,
 ): Promise<PipelineOperationalResetResult> {
-  const { dataSource, repos } = input;
+  const { operationalSql } = input.deps;
   const truncateOpts = { forceLocks: input.forceLocks !== false };
 
   const mapReset = new MapStateFullReset({
-    dataSource,
+    operationalSql,
   });
   const map = await mapReset.run(new Date(), PIPELINE_RESET_REASON);
 
-  const { parsedEventsDeleted } = await clearParseLayerArtifacts(dataSource, truncateOpts);
+  const { parsedEventsDeleted } = await clearParseLayerArtifacts(operationalSql, truncateOpts);
   const parseAttemptsDeleted = await truncateTableCounted(
-    dataSource,
+    operationalSql,
     "log_parse_attempt",
     truncateOpts,
   );
 
-  const allPhaseIds = (await repos.phaseDefinitions.listAll()).map((p) => p.id);
+  const allPhaseIds = (await input.deps.phaseDefinitions.listAll()).map((p) => p.id);
   const coverageInvalidated =
     allPhaseIds.length > 0
-      ? await repos.phaseCoverage.invalidateForPhases(allPhaseIds)
+      ? await input.deps.phaseCoverage.invalidateForPhases(allPhaseIds)
       : 0;
 
   const { phaseRunsClosed, processingReleased: coverageProcessingToPending } =
     await stopAllActivePhaseRuns({
-      dataSource,
-      repos,
+      deps: input.deps,
       reason: PIPELINE_RESET_REASON,
     });
 
   const catchUpByPhase: Record<string, number> = {};
   if (input.enqueueCatchUp !== false) {
     const enabledAuto = sortPhasesByOrder(
-      (await repos.phaseDefinitions.listEnabled(undefined, "ingestParse")).filter(
+      (await input.deps.phaseDefinitions.listEnabled(undefined, "ingestParse")).filter(
         (p) => p.trigger === "eager" || p.trigger === "scheduled",
       ),
     );
     for (const phase of enabledAuto) {
-      const { enqueued } = await repos.phaseCoverage.enqueueCatchUp(phase.id);
+      const { enqueued } = await input.deps.phaseCoverage.enqueueCatchUp(phase.id);
       catchUpByPhase[phase.id] = enqueued;
     }
   }

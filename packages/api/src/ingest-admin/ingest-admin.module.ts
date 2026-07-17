@@ -8,6 +8,7 @@ import {
   RawMessageEntity,
 } from "../ingest/entities";
 import { IngestAdminController } from "./ingest-admin.controller";
+import { ingestAdminDependenciesProvider } from "./ingest-admin.providers";
 import { IngestAdminService } from "./ingest-admin.service";
 
 @Module({
@@ -21,6 +22,6 @@ import { IngestAdminService } from "./ingest-admin.service";
     ]),
   ],
   controllers: [IngestAdminController],
-  providers: [IngestAdminService],
+  providers: [ingestAdminDependenciesProvider, IngestAdminService],
 })
 export class IngestAdminModule {}

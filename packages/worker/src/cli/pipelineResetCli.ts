@@ -4,6 +4,7 @@ import {
   PIPELINE_RESET_REASON,
   runPipelineOperationalReset,
 } from "../application/phases/pipelineOperationalReset.js";
+import { createPhaseOperationalDeps } from "../application/phases/phaseOperationalDeps.js";
 import { WorkerStorageMode } from "../infrastructure/persistence/storageMode.js";
 import { loadRootEnv } from "../infrastructure/config/loadRootEnv.js";
 import { notifyMapPushSnapshot } from "../infrastructure/notifyMapPushSnapshot.js";
@@ -61,14 +62,13 @@ async function main(): Promise<void> {
     placeScan: buildTestPlaceScanService([]),
   });
 
-  if (!runtime.dataSource || !runtime.workerRepos) {
+  if (!runtime.operationalSql || !runtime.workerRepos) {
     console.error("parse-engine:reset: нужен RADAR_STORAGE_MODE=db и DATABASE_URL");
     process.exit(1);
   }
 
   const result = await runPipelineOperationalReset({
-    dataSource: runtime.dataSource,
-    repos: runtime.workerRepos,
+    deps: createPhaseOperationalDeps(runtime.operationalSql, runtime.workerRepos),
     enqueueCatchUp: !noCatchUp,
     forceLocks,
   });

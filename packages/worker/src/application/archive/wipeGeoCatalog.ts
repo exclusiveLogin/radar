@@ -1,4 +1,4 @@
-import type { DataSource } from "typeorm";
+import type { OperationalSql } from "../phases/operationalSql.port.js";
 import {
   countTableRows,
   runSqlOptional,
@@ -33,7 +33,7 @@ const CATALOG_TABLES = [
  * Полный сброс гео-справочника: places, geo_feature, regions.
  */
 export async function wipeGeoCatalog(
-  dataSource: DataSource,
+  sql: OperationalSql,
   options: { includeRegions?: boolean } & WipeStepOptions = {},
 ): Promise<WipeGeoCatalogResult> {
   const includeRegions = options.includeRegions !== false;
@@ -44,27 +44,27 @@ export async function wipeGeoCatalog(
     log?.detail("places.geo_feature_id, geometry_artifact_key → NULL");
     log?.detail("mat_parse_location.place_id → NULL");
     await runSqlOptional(
-      dataSource,
+      sql,
       `UPDATE regions SET canonical_place_id = NULL WHERE canonical_place_id IS NOT NULL`,
       log,
     );
     await runSqlOptional(
-      dataSource,
+      sql,
       `UPDATE regions SET geometry_artifact_key = NULL WHERE geometry_artifact_key IS NOT NULL`,
       log,
     );
     await runSqlOptional(
-      dataSource,
+      sql,
       `UPDATE places SET geo_feature_id = NULL WHERE geo_feature_id IS NOT NULL`,
       log,
     );
     await runSqlOptional(
-      dataSource,
+      sql,
       `UPDATE places SET geometry_artifact_key = NULL WHERE geometry_artifact_key IS NOT NULL`,
       log,
     );
     await runSqlOptional(
-      dataSource,
+      sql,
       `UPDATE mat_parse_location SET place_id = NULL WHERE place_id IS NOT NULL`,
       log,
     );
@@ -76,16 +76,16 @@ export async function wipeGeoCatalog(
     : CATALOG_TABLES.filter((table) => table !== "regions");
 
   log?.detail(`снимок до TRUNCATE (${tables.length} таблиц)…`);
-  const placesDeleted = await countTableRows(dataSource, "places", log);
-  const aliasesDeleted = await countTableRows(dataSource, "place_aliases", log);
-  const geoFeaturesDeleted = await countTableRows(dataSource, "geo_feature", log);
-  const placeGeoLinksDeleted = await countTableRows(dataSource, "place_geo_link", log);
-  const geoDatasetFilesDeleted = await countTableRows(dataSource, "geo_dataset_file", log);
-  const regionAdjacencyDeleted = await countTableRows(dataSource, "region_adjacency", log);
+  const placesDeleted = await countTableRows(sql, "places", log);
+  const aliasesDeleted = await countTableRows(sql, "place_aliases", log);
+  const geoFeaturesDeleted = await countTableRows(sql, "geo_feature", log);
+  const placeGeoLinksDeleted = await countTableRows(sql, "place_geo_link", log);
+  const geoDatasetFilesDeleted = await countTableRows(sql, "geo_dataset_file", log);
+  const regionAdjacencyDeleted = await countTableRows(sql, "region_adjacency", log);
   const regionStateHistoryDeleted = 0;
   const regionStateActiveDeleted = 0;
   const regionsDeleted = includeRegions
-    ? await countTableRows(dataSource, "regions", log)
+    ? await countTableRows(sql, "regions", log)
     : 0;
 
   log?.detail(
@@ -93,7 +93,7 @@ export async function wipeGeoCatalog(
   );
 
   await runWipeStep(options, "geo-каталог (TRUNCATE CASCADE)", async () =>
-    truncateGroupCounted(dataSource, tables, {
+    truncateGroupCounted(sql, tables, {
       cascade: true,
       log,
       forceLocks: options.forceLocks,

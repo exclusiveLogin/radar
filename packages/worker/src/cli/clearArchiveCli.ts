@@ -7,6 +7,7 @@ import { WorkerStorageMode } from "../infrastructure/persistence/storageMode.js"
 import { hasAnyFlag, parseLongFlagsMap } from "./workerCliArgs.js";
 import { warnDeprecatedNpmScript } from "./deprecatedNpmScript.js";
 import { createWipeLogger } from "../application/archive/wipeLog.js";
+import { createPhaseOperationalDeps } from "../application/phases/phaseOperationalDeps.js";
 
 function printPlan(): void {
   console.log(`
@@ -58,14 +59,13 @@ async function main(): Promise<void> {
     storageMode: WorkerStorageMode.Db,
     startIngestParseDaemon: false,
   });
-  if (!runtime.dataSource || !runtime.workerRepos) {
+  if (!runtime.operationalSql || !runtime.workerRepos) {
     console.error("pipeline clear: нужен RADAR_STORAGE_MODE=db и DATABASE_URL");
     process.exit(1);
   }
 
   const result = await clearOperationalContent({
-    dataSource: runtime.dataSource,
-    repos: runtime.workerRepos,
+    deps: createPhaseOperationalDeps(runtime.operationalSql, runtime.workerRepos),
     forceLocks,
     log,
     onStep: {

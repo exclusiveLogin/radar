@@ -1,4 +1,4 @@
-import type { DataSource, EntityManager } from "typeorm";
+import type { OperationalSql } from "../phases/operationalSql.port.js";
 import type { WipeLogger } from "./wipeLog.js";
 import {
   formatBlockersForError,
@@ -48,19 +48,19 @@ export class WipeTableLockError extends Error {
 }
 
 async function withWipeSession<T>(
-  dataSource: DataSource,
+  sql: OperationalSql,
   lockTimeoutMs: number,
   log: WipeLogger | undefined,
-  run: (manager: EntityManager) => Promise<T>,
+  run: (transaction: OperationalSql) => Promise<T>,
 ): Promise<T> {
   log?.detail(`транзакция: lock_timeout=${lockTimeoutMs}ms, ожидание блокировки…`);
   try {
-    return await dataSource.transaction(async (manager) => {
-      await manager.query(`SET LOCAL lock_timeout = '${lockTimeoutMs}ms'`);
-      await manager.query(
+    return await sql.transaction(async (transaction) => {
+      await transaction.query(`SET LOCAL lock_timeout = '${lockTimeoutMs}ms'`);
+      await transaction.query(
         `SET LOCAL statement_timeout = '${Math.max(lockTimeoutMs * 4, 120_000)}ms'`,
       );
-      return run(manager);
+      return run(transaction);
     });
   } catch (error) {
     if (isLockTimeoutError(error)) {
@@ -72,33 +72,34 @@ async function withWipeSession<T>(
 
 /** Есть ли таблица в public (стенд без полного migration:run). */
 export async function tableExists(
-  dataSource: DataSource,
+  sql: OperationalSql,
   table: string,
 ): Promise<boolean> {
-  const rows = (await dataSource.query(
+  const rows = await sql.query<{ exists: boolean }>(
     `SELECT to_regclass($1) IS NOT NULL AS exists`,
     [`public.${table}`],
-  )) as Array<{ exists: boolean }>;
+  );
   return rows[0]?.exists ?? false;
 }
 
 /** COUNT(*) до wipe. */
 export async function countTableRows(
-  dataSource: DataSource,
+  sql: OperationalSql,
   table: string,
   log?: WipeLogger,
 ): Promise<number> {
-  if (!(await tableExists(dataSource, table))) {
+  if (!(await tableExists(sql, table))) {
     log?.detail(`COUNT ${table}: таблица отсутствует → 0`);
     return 0;
   }
   log?.detail(`COUNT ${table}…`);
-  const rows = (await withWipeSession(
-    dataSource,
+  const rows = await withWipeSession(
+    sql,
     DEFAULT_LOCK_TIMEOUT_MS,
     log,
-    (manager) => manager.query(`SELECT COUNT(*)::int AS count FROM ${quoteTable(table)}`),
-  )) as Array<{ count: number }>;
+    (transaction) =>
+      transaction.query<{ count: number }>(`SELECT COUNT(*)::int AS count FROM ${quoteTable(table)}`),
+  );
   const count = rows[0]?.count ?? 0;
   log?.detail(`COUNT ${table} = ${count}`);
   return count;
@@ -114,19 +115,19 @@ export type TruncateOptions = {
 };
 
 async function runTruncateSql(
-  dataSource: DataSource,
+  sqlExecutor: OperationalSql,
   sql: string,
   lockTimeoutMs: number,
   log: WipeLogger | undefined,
 ): Promise<void> {
-  await withWipeSession(dataSource, lockTimeoutMs, log, async (manager) => {
-    await manager.query(sql);
+  await withWipeSession(sqlExecutor, lockTimeoutMs, log, async (transaction) => {
+    await transaction.query(sql);
   });
 }
 
 /** TRUNCATE одной или нескольких таблиц; CASCADE снимает зависимые FK. */
 export async function truncateTables(
-  dataSource: DataSource,
+  sqlExecutor: OperationalSql,
   tables: string[],
   options: TruncateOptions = {},
 ): Promise<void> {
@@ -135,7 +136,7 @@ export async function truncateTables(
   const missing: string[] = [];
 
   for (const table of tables) {
-    if (await tableExists(dataSource, table)) {
+    if (await tableExists(sqlExecutor, table)) {
       existing.push(table);
     } else {
       missing.push(table);
@@ -158,23 +159,23 @@ export async function truncateTables(
   log?.sql(sql);
 
   try {
-    await runTruncateSql(dataSource, sql, lockTimeoutMs, log);
+    await runTruncateSql(sqlExecutor, sql, lockTimeoutMs, log);
     log?.detail(`TRUNCATE ok: ${existing.join(", ")}`);
   } catch (error) {
     if (error instanceof WipeTableLockError && options.forceLocks) {
       log?.line("lock timeout — снимаем блокировки и повторяем TRUNCATE…");
-      await terminateTableLockBlockers(dataSource, existing, log);
+      await terminateTableLockBlockers(sqlExecutor, existing, log);
       try {
-        await runTruncateSql(dataSource, sql, lockTimeoutMs, log);
+        await runTruncateSql(sqlExecutor, sql, lockTimeoutMs, log);
         log?.detail(`TRUNCATE ok (retry): ${existing.join(", ")}`);
         return;
       } catch (retryError) {
-        const blockers = await listTableLockBlockers(dataSource, existing);
+        const blockers = await listTableLockBlockers(sqlExecutor, existing);
         throw new WipeTableLockError(existing, retryError, blockers);
       }
     }
     if (error instanceof WipeTableLockError) {
-      const blockers = await listTableLockBlockers(dataSource, existing);
+      const blockers = await listTableLockBlockers(sqlExecutor, existing);
       throw new WipeTableLockError(existing, error.cause, blockers);
     }
     throw error;
@@ -183,49 +184,49 @@ export async function truncateTables(
 
 /** TRUNCATE с опциональным COUNT до очистки. */
 export async function truncateTablesCounted(
-  dataSource: DataSource,
+  sql: OperationalSql,
   tables: string[],
   options: TruncateOptions = {},
 ): Promise<number> {
   let total = 0;
   if (options.countBefore) {
     for (const table of tables) {
-      total += await countTableRows(dataSource, table, options.log);
+      total += await countTableRows(sql, table, options.log);
     }
   }
-  await truncateTables(dataSource, tables, options);
+  await truncateTables(sql, tables, options);
   return total;
 }
 
 /** @deprecated используй truncateTablesCounted */
 export async function truncateGroupCounted(
-  dataSource: DataSource,
+  sql: OperationalSql,
   tables: string[],
   options: TruncateOptions = {},
 ): Promise<number> {
-  return truncateTablesCounted(dataSource, tables, options);
+  return truncateTablesCounted(sql, tables, options);
 }
 
 /** TRUNCATE одной таблицы. */
 export async function truncateTableCounted(
-  dataSource: DataSource,
+  sql: OperationalSql,
   table: string,
   options: TruncateOptions = {},
 ): Promise<number> {
-  return truncateTablesCounted(dataSource, [table], options);
+  return truncateTablesCounted(sql, [table], options);
 }
 
 /** UPDATE без RETURNING; ошибки глотаем (опциональные колонки/таблицы). */
 export async function runSqlOptional(
-  dataSource: DataSource,
+  sqlExecutor: OperationalSql,
   sql: string,
   log?: WipeLogger,
 ): Promise<void> {
   log?.detail("UPDATE (unlink FK)…");
   log?.sql(sql.trim().replace(/\s+/g, " "));
   try {
-    await withWipeSession(dataSource, DEFAULT_LOCK_TIMEOUT_MS, log, (manager) =>
-      manager.query(sql),
+    await withWipeSession(sqlExecutor, DEFAULT_LOCK_TIMEOUT_MS, log, (transaction) =>
+      transaction.query(sql),
     );
     log?.detail("UPDATE ok");
   } catch (error) {

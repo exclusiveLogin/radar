@@ -1,6 +1,5 @@
-import type { DataSource } from "typeorm";
-import type { WorkerDbRepositories } from "../../../infrastructure/persistence/workerDbRepos.types.js";
 import { clearOperationalContent } from "../../archive/clearOperationalContent.js";
+import type { PhaseOperationalDeps } from "../phaseOperationalDeps.js";
 import type { WipeStepOptions } from "../../archive/wipeStepReporter.js";
 import type { PhaseMutationResult } from "./phaseLifecycle.types.js";
 
@@ -10,8 +9,7 @@ import type { PhaseMutationResult } from "./phaseLifecycle.types.js";
  */
 export async function wipeIngestPhase(
   input: {
-    dataSource: DataSource;
-    repos: WorkerDbRepositories;
+    deps: PhaseOperationalDeps;
     dryRun: boolean;
   } & WipeStepOptions,
 ): Promise<PhaseMutationResult> {
@@ -26,8 +24,7 @@ export async function wipeIngestPhase(
   }
 
   const r = await clearOperationalContent({
-    dataSource: input.dataSource,
-    repos: input.repos,
+    deps: input.deps,
     reason: "ingest:wipe",
     onStep: input.onStep,
   });

@@ -38,7 +38,6 @@ export type {
   LlmChatRole,
 } from "./llmChatClient";
 export type {
-  IDomainEventRepository,
   IDomainEventOutbox,
   IEventLocationRepository,
   IIngestCursorRepository,
@@ -50,17 +49,36 @@ export type {
   ParseAttemptInput,
   IRawMessageTelegramExtensionRepository,
   IChannelRepository,
+  ChannelRecord,
+  IRawMessageRepository,
   IParsedEventRepository,
   ParsedEventRecord,
   IMessageParseWorkspaceRepository,
   MessageParseWorkspaceRecord,
+  EventEvidenceRecord,
+  IEventEvidenceRepository,
+} from "./ingest-repositories";
+export type {
   IPlaceAliasRepository,
   IPlaceCacheRepository,
   IPlaceRepository,
-  IRawMessageRepository,
   IRegionRepository,
   IStatusDictionaryRepository,
   ISyncAuditRepository,
+  PlaceAliasRecord,
+  PlaceCacheHit,
+  PlaceCacheProvider,
+  PlaceCachePutMeta,
+  PlaceContribution,
+  PlaceProvider,
+  PlaceRecord,
+  RegionRecord,
+  StatusDictionaryRecord,
+  IPlaceEnrichmentJobRepository,
+  PlaceEnrichmentJobRecord,
+  PlaceEnrichmentProvider,
+} from "./geo-repositories";
+export type {
   IEnrichmentQueueRepository,
   IPhaseCoverageRepository,
   PhaseCoverageTask,
@@ -71,15 +89,6 @@ export type {
   EnrichmentTaskStatus,
   IPhaseDefinitionRepository,
   PhaseDefinitionRecord,
-  ChannelRecord,
-  PlaceAliasRecord,
-  PlaceCacheHit,
-  PlaceCacheProvider,
-  PlaceCachePutMeta,
-  PlaceContribution,
-  PlaceProvider,
-  PlaceRecord,
-  RegionRecord,
-  StatusDictionaryRecord,
-} from "./repositories";
+} from "./phase-repositories";
+export type { IDomainEventRepository } from "./event-repositories";
 export type { IObservabilityRecorder } from "./observability-recorder";

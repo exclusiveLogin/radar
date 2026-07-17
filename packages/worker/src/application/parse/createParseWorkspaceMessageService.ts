@@ -12,6 +12,7 @@ import {
   ParseWorkspaceMessageService,
   type StoredParseWorkspace,
 } from "./ParseWorkspaceMessageService.js";
+import type { ParseExternalEnricher } from "./parseExternalEnricher.js";
 import { ParseWorkspacePersistService } from "./ParseWorkspacePersistService.js";
 
 export type ParseWorkspaceMessageServiceDeps = {
@@ -22,6 +23,7 @@ export type ParseWorkspaceMessageServiceDeps = {
   parsedEvents: IParsedEventRepository;
   eventLocations: IEventLocationRepository;
   messageParseWorkspaces: IMessageParseWorkspaceRepository;
+  externalEnricher?: ParseExternalEnricher;
 };
 
 /**
@@ -58,5 +60,6 @@ export function createParseWorkspaceMessageService(
     validation: deps.validation,
     persist,
     loadStoredWorkspace,
+    externalEnricher: deps.externalEnricher,
   });
 }

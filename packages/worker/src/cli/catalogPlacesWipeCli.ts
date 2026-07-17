@@ -1,5 +1,6 @@
 import { MONOREPO_ROOT } from "@repo/root";
 import { wipePlacesCatalog } from "../application/archive/wipePlacesCatalog.js";
+import { createPhaseOperationalDeps } from "../application/phases/phaseOperationalDeps.js";
 import { createWorkerCompositionRoot } from "../application/createWorkerCompositionRoot.js";
 import { loadRootEnv } from "../infrastructure/config/loadRootEnv.js";
 import { WorkerStorageMode } from "../infrastructure/persistence/storageMode.js";
@@ -33,14 +34,13 @@ async function main(): Promise<void> {
     storageMode: WorkerStorageMode.Db,
     startIngestParseDaemon: false,
   });
-  if (!runtime.dataSource || !runtime.workerRepos) {
+  if (!runtime.operationalSql || !runtime.workerRepos) {
     console.error("catalog:wipe: нужен RADAR_STORAGE_MODE=db");
     process.exit(1);
   }
 
   const result = await wipePlacesCatalog({
-    dataSource: runtime.dataSource,
-    repos: runtime.workerRepos,
+    deps: createPhaseOperationalDeps(runtime.operationalSql, runtime.workerRepos),
   });
 
   console.log("catalog:wipe done:");

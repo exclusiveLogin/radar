@@ -480,7 +480,7 @@ export class InMemoryPlaceRepository implements IPlaceRepository {
     stem: string,
     opts: FindByStemGlobalOptions,
   ): Promise<PlaceRecord[]> {
-    let matches: PlaceRecord[] = [];
+    const matches: PlaceRecord[] = [];
     for (const row of this.rows.values()) {
       if ((row.nameStem ?? placeStem(row.name)) !== stem) continue;
       if (opts.regionId && row.regionId !== opts.regionId) continue;

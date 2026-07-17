@@ -1,4 +1,4 @@
-import type { RegionRecord } from "../ports/repositories";
+import type { RegionRecord } from "../ports/geo-repositories";
 
 /**
  * Двухзначный префикс субъекта РФ из кода LLM или полного kladr_id (7300000000000 → 73).

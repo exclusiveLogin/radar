@@ -1,14 +1,12 @@
-import type { DataSource } from "typeorm";
-import type { WorkerDbRepositories } from "../../../infrastructure/persistence/workerDbRepos.types.js";
 import type { WipeStepOptions } from "../../archive/wipeStepReporter.js";
+import type { PhaseOperationalDeps } from "../phaseOperationalDeps.js";
 import { wipeIngestPhase } from "./ingestPhase.js";
 import type { PhaseMutationResult } from "./phaseLifecycle.types.js";
 
 /** ingest-parse:wipe = ingest:wipe (raw + все производные parse). */
 export async function wipeIngestParsePhase(
   input: {
-    dataSource: DataSource;
-    repos: WorkerDbRepositories;
+    deps: PhaseOperationalDeps;
     dryRun: boolean;
   } & WipeStepOptions,
 ): Promise<PhaseMutationResult> {

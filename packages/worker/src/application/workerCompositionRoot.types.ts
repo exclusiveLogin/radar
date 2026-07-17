@@ -3,7 +3,6 @@ import type {
   IObservabilityRecorder,
   IPlaceCacheRepository,
   IPlaceScanPort,
-  InProcessEventBus,
   PhaseDefinitionRecord,
 } from "@radar/shared";
 import type { DataSource } from "typeorm";
@@ -12,6 +11,7 @@ import type { PipelineLauncher } from "../composition/runtime/index.js";
 import type { DomainCap, WorkerRole } from "../infrastructure/config/workerRole.js";
 import type { WorkerStorageMode } from "../infrastructure/persistence/storageMode.js";
 import type { WorkerDbRepositories } from "../infrastructure/persistence/workerDbRepos.types.js";
+import type { InProcessEventBus } from "../infrastructure/events/inProcessEventBus.js";
 import type { PlaceEnrichmentRunner } from "./geo-parse/placeEnrichmentRunner.js";
 import type { IngestRawMessageHandler } from "./handlers/ingestRawMessageHandler.js";
 import type { ParseRawMessageHandler } from "./handlers/parseRawMessageHandler.js";
@@ -20,6 +20,7 @@ import type { IngestOrchestrator } from "./ingest/ingestOrchestrator.js";
 import type { CoverageEnqueuer } from "./phases/coverageEnqueuer.js";
 import type { PhaseRunSession } from "./phases/phaseRunSession.js";
 import type { PhaseRunner } from "./phases/phaseRunner.js";
+import type { OperationalSql } from "./phases/operationalSql.port.js";
 import type { IngestParsePhaseSelection } from "./parse/loadIngestParsePhases.js";
 import type { ParsePhaseTool } from "./parse/parsePhaseTool.js";
 import type { ParsePipelineService } from "./parse/parsePipelineService.js";
@@ -78,6 +79,7 @@ export type WorkerCompositionRoot = {
   phasePlatform: PhasePlatformDeps | undefined;
   coverageEnqueuer: CoverageEnqueuer | undefined;
   workerRepos: WorkerDbRepositories | undefined;
+  operationalSql: OperationalSql | undefined;
   dataSource: DataSource | undefined;
   shutdown: (() => Promise<void>) | undefined;
 };

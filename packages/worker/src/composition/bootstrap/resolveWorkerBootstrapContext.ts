@@ -5,7 +5,6 @@
  * purpose: Разрешает неизменяемый контекст запуска worker.
  * ---
  */
-import { InProcessEventBus } from "@radar/shared";
 import { loadDeploymentManifest } from "@radar/shared/deployment/deploymentManifest.loader.js";
 import { loadWorkerRuntimeManifest } from "@radar/shared/manifest/domains/workerRuntime.loader.js";
 import { MONOREPO_ROOT } from "@repo/root";
@@ -23,6 +22,7 @@ import {
 import {
   resolveWorkerStorageModeFromEnv,
 } from "../../infrastructure/persistence/storageMode.js";
+import { InProcessEventBus } from "../../infrastructure/events/inProcessEventBus.js";
 
 /** Создаёт общие значения, используемые всеми bootstrap slices. */
 export function resolveWorkerBootstrapContext(options: WorkerCompositionOptions) {

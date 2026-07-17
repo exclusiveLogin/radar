@@ -5,7 +5,6 @@
   drainTopicForPhaseScope,
   listRadarTopicRoutingKeys,
 } from "./topicCatalog.js";
-export { InProcessEventTransport } from "./inProcessEventTransport.js";
 export {
   createCompositeTransportDedup,
   createLruTransportDedup,

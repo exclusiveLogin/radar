@@ -9,7 +9,6 @@ import type {
   IEventTransport,
   IObservabilityRecorder,
   IPhaseDefinitionRepository,
-  InProcessEventBus,
 } from "@radar/shared";
 import {
   PIPELINE_RMQ_QUEUE_SUFFIX,
@@ -27,6 +26,7 @@ import {
   hasCap,
   type DomainCap,
 } from "../../infrastructure/config/workerRole.js";
+import type { InProcessEventBus } from "../../infrastructure/events/inProcessEventBus.js";
 import type { WorkerLifecycle } from "../lifecycle/WorkerLifecycle.js";
 import type { PipelineWakePort } from "../runtime/PipelineLauncherRegistry.js";
 

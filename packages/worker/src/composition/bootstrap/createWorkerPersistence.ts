@@ -22,9 +22,11 @@ import type {
   IRegionRepository,
 } from "@radar/shared";
 import type { DataSource } from "typeorm";
+import type { OperationalSql } from "../../application/phases/operationalSql.port.js";
 import { ParseAttemptWriter } from "../../application/subscribers/index.js";
 import { createEventTransport } from "../../infrastructure/transport/createEventTransport.js";
 import { createWorkerDataSource } from "../../infrastructure/persistence/createWorkerDataSource.js";
+import { TypeOrmOperationalSql } from "../../infrastructure/persistence/typeOrmOperationalSql.js";
 import {
   InMemoryEventEvidenceRepository,
   InMemoryEventLocationRepository,
@@ -34,7 +36,7 @@ import {
   InMemoryPlaceRepository,
   InMemoryRawMessageRepository,
   InMemoryRegionRepository,
-} from "../../application/handlers/inMemoryRepositories.js";
+} from "../../infrastructure/testing/inMemoryRepositories.js";
 import { createWorkerDbRepositories } from "../../infrastructure/persistence/workerDbRepos.js";
 import type { WorkerDbRepositories } from "../../infrastructure/persistence/workerDbRepos.types.js";
 import { WorkerStorageMode } from "../../infrastructure/persistence/storageMode.js";
@@ -55,6 +57,7 @@ export async function createWorkerPersistence(
   >,
 ) {
   let dataSource: DataSource | undefined;
+  let operationalSql: OperationalSql | undefined;
   let workerRepos: WorkerDbRepositories | undefined;
   let rawMessages: IRawMessageRepository = new InMemoryRawMessageRepository();
   let parsedEvents: IParsedEventRepository = new InMemoryParsedEventRepository();
@@ -74,6 +77,7 @@ export async function createWorkerPersistence(
 
   if (context.storageMode === WorkerStorageMode.Db) {
     dataSource = await createWorkerDataSource();
+    operationalSql = new TypeOrmOperationalSql(dataSource);
     eventTransport = createEventTransport({
       transport: context.deploymentManifest.transport,
       workerRole: context.workerRole,
@@ -117,6 +121,7 @@ export async function createWorkerPersistence(
 
   return {
     dataSource,
+    operationalSql,
     workerRepos,
     eventTransport,
     rawMessages,

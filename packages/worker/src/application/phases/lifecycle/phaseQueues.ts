@@ -1,6 +1,5 @@
-import type { DataSource } from "typeorm";
-import type { WorkerDbRepositories } from "../../../infrastructure/persistence/workerDbRepos.types.js";
 import { stopAllActivePhaseRuns } from "../stopAllActivePhaseRuns.js";
+import type { PhaseOperationalDeps } from "../phaseOperationalDeps.js";
 import type { PhaseMutationResult } from "./phaseLifecycle.types.js";
 
 export type PhaseQueueScope = "ingest" | "geo" | "all";
@@ -9,8 +8,7 @@ export type PhaseQueueScope = "ingest" | "geo" | "all";
  * phase:*:clear — только очереди и активные runs, без удаления raw/places.
  */
 export async function clearPhaseQueues(input: {
-  dataSource: DataSource;
-  repos: WorkerDbRepositories;
+  deps: PhaseOperationalDeps;
   scope: PhaseQueueScope;
   dryRun: boolean;
 }): Promise<PhaseMutationResult> {
@@ -37,14 +35,13 @@ export async function clearPhaseQueues(input: {
   const clearIngest = input.scope === "ingest" || input.scope === "all";
 
   const ingestPhaseIds = clearIngest
-    ? (await input.repos.phaseDefinitions.listAll())
+    ? (await input.deps.phaseDefinitions.listAll())
         .filter((p) => p.scope === "ingestParse")
         .map((p) => p.id)
     : [];
 
   const toStop = await stopAllActivePhaseRuns({
-    dataSource: input.dataSource,
-    repos: input.repos,
+    deps: input.deps,
     reason: `${phaseLabel}:clear`,
     ingestPhaseIds,
     clearGeoJobs: clearGeo,

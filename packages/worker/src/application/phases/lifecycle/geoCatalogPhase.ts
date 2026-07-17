@@ -1,6 +1,6 @@
-import type { DataSource } from "typeorm";
 import { wipeGeoCatalog } from "../../archive/wipeGeoCatalog.js";
 import type { WipeStepOptions } from "../../archive/wipeStepReporter.js";
+import type { OperationalSql } from "../operationalSql.port.js";
 import type { PhaseMutationResult } from "./phaseLifecycle.types.js";
 
 /**
@@ -9,7 +9,7 @@ import type { PhaseMutationResult } from "./phaseLifecycle.types.js";
  */
 export async function wipeGeoCatalogPhase(
   input: {
-    dataSource: DataSource;
+    operationalSql?: OperationalSql;
     dryRun: boolean;
   } & WipeStepOptions,
 ): Promise<PhaseMutationResult> {
@@ -26,7 +26,11 @@ export async function wipeGeoCatalogPhase(
     };
   }
 
-  const r = await wipeGeoCatalog(input.dataSource, {
+  if (!input.operationalSql) {
+    throw new Error("geo-catalog:wipe requires OperationalSql outside dry-run.");
+  }
+
+  const r = await wipeGeoCatalog(input.operationalSql, {
     includeRegions: true,
     onStep: input.onStep,
     log: input.log,

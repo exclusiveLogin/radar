@@ -217,7 +217,6 @@ export {
   defaultTopicForEvent,
   drainTopicForPhaseScope,
   listRadarTopicRoutingKeys,
-  InProcessEventTransport,
   createCompositeTransportDedup,
   createLruTransportDedup,
   rmqTopicSlug,
@@ -348,7 +347,6 @@ export {
   type WorkbookInstance,
   type RunControlSignal as WorkbookRunControlSignal,
 } from "./domain/workbook";
-export { InProcessEventBus } from "./events/inProcessEventBus";
 export { mergePlaceContribution, monotonicTrustState } from "./ports/placeContributionMerge";
 export { mergeContribution } from "./domain/mergeContribution";
 export type { ProvenanceAccumulator } from "./domain/mergeContribution";
@@ -510,12 +508,14 @@ export { resolveGeoEnrichmentProvider } from "./domain/phases/phaseGeoProvider";
 export { phaseRunsOverviewSchema, type PhaseRunsOverview } from "./schemas/enrichment/phase-admin";
 export { SourceUniquenessRegistry } from "./ports/source-uniqueness";
 export type {
-  EventEvidenceRecord,
-  IEventEvidenceRepository,
   IPlaceEnrichmentJobRepository,
   PlaceEnrichmentJobRecord,
   PlaceEnrichmentProvider,
-} from "./ports/repositories";
+} from "./ports/geo-repositories";
+export type {
+  EventEvidenceRecord,
+  IEventEvidenceRepository,
+} from "./ports/ingest-repositories";
 export type { IObservabilityRecorder } from "./ports/observability-recorder";
 export type {
   HostSnapshot,

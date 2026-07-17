@@ -1,23 +1,23 @@
 import type {
   FinalizeContext,
   FinalizeResult,
+  GeoEnrichmentArtifact,
   IPlaceRepository,
   IRegionRepository,
   IPlaceScanPort,
   ParseWorkspace,
 } from "@radar/shared";
-import { normalizeParseWorkspace } from "@radar/shared";
 import type { GeoValidationService } from "./geoValidationService.js";
 import { planFinalize } from "../../domain/parse/ParseFinalizerService.js";
 import { buildMaterializedEventLocations } from "../../domain/parse/buildMaterializedEventLocations.js";
 import { runParseWorkspaceOrchestrator } from "../../domain/parse/ParseWorkspaceOrchestrator.js";
 import type { ParseEnricherId } from "../../domain/parse/parseEnricherRegistry.js";
-import { invokeExternalParseEnricher } from "../../domain/parse/invokeExternalParseEnricher.js";
 import {
   parsePipelineRevisionHash,
   runParseEnricher,
 } from "../../domain/parse/parseEnricherRunner.js";
-import { ParseWorkspacePersistService } from "./ParseWorkspacePersistService.js";
+import type { ParseExternalEnricher } from "./parseExternalEnricher.js";
+import type { ParseWorkspacePersistService } from "./ParseWorkspacePersistService.js";
 import {
   type ParseWorkspaceRunKind,
   phaseEnrichersToRun,
@@ -39,6 +39,7 @@ export type WorkspaceHandleDeps = {
   validation: GeoValidationService;
   persist: ParseWorkspacePersistService;
   loadStoredWorkspace: (rawMessageId: string) => Promise<StoredParseWorkspace | null>;
+  externalEnricher?: ParseExternalEnricher;
 };
 
 const DEFAULT_ENRICHERS: ParseEnricherId[] = ["catalog"];
@@ -50,7 +51,7 @@ export type ParseWorkspaceRunInput = {
   /** rebuild | phase_enrich | heal — см. parseWorkspaceRunModes.ts */
   runKind?: ParseWorkspaceRunKind;
   geoContext?: {
-    initialArtifact?: import("@radar/shared").GeoEnrichmentArtifact;
+    initialArtifact?: GeoEnrichmentArtifact;
     enrichers?: ParseEnricherId[];
   };
   orphanPolicy?: FinalizeContext["orphanPolicy"];
@@ -172,7 +173,10 @@ export class ParseWorkspaceMessageService {
   private async runEnrichers(workspace: ParseWorkspace, enrichers: ParseEnricherId[]): Promise<void> {
     for (const enricherId of enrichers) {
       if (enricherId === "catalog") continue;
-      await invokeExternalParseEnricher(enricherId, workspace);
+      if (!this.deps.externalEnricher) {
+        throw new Error(`External parse enricher is not configured: ${enricherId}`);
+      }
+      await this.deps.externalEnricher.enrich(enricherId, workspace);
       runParseEnricher(enricherId, { workspace, placeScan: this.deps.placeScan });
     }
   }

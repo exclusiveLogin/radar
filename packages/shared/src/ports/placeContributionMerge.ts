@@ -5,7 +5,7 @@
  * @see ../../../../docs/domain/model-style.md
  */
 import { isDeepStrictEqual } from "node:util";
-import type { PlaceContribution, PlaceRecord } from "./repositories";
+import type { PlaceContribution, PlaceRecord } from "./geo-repositories";
 
 const TRUST_STATE_RANK: Record<NonNullable<PlaceRecord["trustState"]>, number> = {
   rejected: 0,

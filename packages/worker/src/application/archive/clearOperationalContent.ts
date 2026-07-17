@@ -1,6 +1,5 @@
-import type { DataSource } from "typeorm";
-import type { WorkerDbRepositories } from "../../infrastructure/persistence/workerDbRepos.types.js";
 import { stopAllActivePhaseRuns } from "../phases/stopAllActivePhaseRuns.js";
+import type { PhaseOperationalDeps } from "../phases/phaseOperationalDeps.js";
 import { clearIngestOperationalState } from "./clearIngestOperationalState.js";
 import { clearOperationalMapState } from "./clearOperationalMapState.js";
 import { clearRawArchive } from "./clearRawArchive.js";
@@ -35,19 +34,18 @@ const truncateOpts = (ctx: WipeStepOptions) => ({
  */
 export async function clearOperationalContent(
   input: {
-    dataSource: DataSource;
-    repos: WorkerDbRepositories;
+    deps: PhaseOperationalDeps;
     reason?: string;
   } & WipeStepOptions,
 ): Promise<ClearOperationalContentResult> {
   const reason = input.reason ?? CLEAR_OPERATIONAL_CONTENT_REASON;
-  const { dataSource, repos } = input;
+  const { operationalSql } = input.deps;
   const forceLocks = input.forceLocks !== false;
 
   if (forceLocks) {
     await runWipeStep(input, "закрытие прочих подключений к БД", async () => {
       input.log?.detail("pg_terminate_backend для dev/API/worker (не текущая сессия)");
-      return terminateOtherDatabaseBackends(dataSource, input.log);
+      return terminateOtherDatabaseBackends(operationalSql, input.log);
     });
   }
 
@@ -56,8 +54,7 @@ export async function clearOperationalContent(
   await runWipeStep(input, "остановка log_parse_phase_run + очередей", async () => {
     input.log?.detail("cancel active log_parse_phase_run, clear queue_parse_coverage + geo jobs");
     const stopped = await stopAllActivePhaseRuns({
-      dataSource,
-      repos,
+      deps: input.deps,
       reason,
     });
     phaseRunsStopped = stopped.phaseRunsClosed;
@@ -70,7 +67,7 @@ export async function clearOperationalContent(
 
   let map = { placesCleared: 0, regionsCleared: 0 };
   await runWipeStep(input, "map-state (no-op, facts via mat_parse_event wipe)", async () => {
-    map = await clearOperationalMapState(dataSource, reason, truncateOpts(input));
+    map = await clearOperationalMapState(operationalSql, reason, truncateOpts(input));
     return -1;
   });
 
@@ -78,28 +75,28 @@ export async function clearOperationalContent(
     input,
     "mat_parse_event + evloc (TRUNCATE CASCADE)",
     () =>
-      truncateTableCounted(dataSource, "mat_parse_event", {
+      truncateTableCounted(operationalSql, "mat_parse_event", {
         cascade: true,
         ...truncateOpts(input),
       }),
   );
 
   const parseAttemptsDeleted = await runWipeStep(input, "log_parse_attempt", () =>
-    truncateTableCounted(dataSource, "log_parse_attempt", truncateOpts(input)),
+    truncateTableCounted(operationalSql, "log_parse_attempt", truncateOpts(input)),
   );
 
   const eventEvidenceDeleted = await runWipeStep(input, "mat_parse_evidence", () =>
-    truncateTableCounted(dataSource, "mat_parse_evidence", truncateOpts(input)),
+    truncateTableCounted(operationalSql, "mat_parse_evidence", truncateOpts(input)),
   );
 
   const placeEnrichmentJobsDeleted = await runWipeStep(
     input,
     "job_geo_place_enrich",
-    () => truncateTableCounted(dataSource, "job_geo_place_enrich", truncateOpts(input)),
+    () => truncateTableCounted(operationalSql, "job_geo_place_enrich", truncateOpts(input)),
   );
 
   const phaseRunsDeleted = await runWipeStep(input, "log_parse_phase_run", () =>
-    truncateTableCounted(dataSource, "log_parse_phase_run", truncateOpts(input)),
+    truncateTableCounted(operationalSql, "log_parse_phase_run", truncateOpts(input)),
   );
 
   let ingest = {
@@ -112,7 +109,7 @@ export async function clearOperationalContent(
   let domainEventsDeleted = 0;
   await runWipeStep(input, "ingest cursors/backfill", async () => {
     input.log?.detail("TRUNCATE job_ingest_backfill, state_ingest_cursor; clear provider errors");
-    ingest = await clearIngestOperationalState(dataSource, {
+    ingest = await clearIngestOperationalState(operationalSql, {
       includeDomainEvents: false,
       log: input.log,
     });
@@ -123,13 +120,13 @@ export async function clearOperationalContent(
   });
 
   domainEventsDeleted = await runWipeStep(input, "event_outbox", () =>
-    truncateTableCounted(dataSource, "event_outbox", truncateOpts(input)),
+    truncateTableCounted(operationalSql, "event_outbox", truncateOpts(input)),
   );
   ingest.domainEventsDeleted = domainEventsDeleted;
 
   const rawMessagesDeleted = await runWipeStep(input, "mat_ingest_raw", async () => {
     input.log?.detail("TRUNCATE mat_ingest_raw CASCADE (force, parsed уже пуст)");
-    const raw = await clearRawArchive(dataSource, { force: true, log: input.log });
+    const raw = await clearRawArchive(operationalSql, { force: true, log: input.log });
     return raw.rawMessagesDeleted;
   });
 

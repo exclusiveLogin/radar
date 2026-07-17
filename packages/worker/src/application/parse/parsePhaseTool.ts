@@ -20,6 +20,7 @@ import { createParseWorkspaceMessageService } from "./createParseWorkspaceMessag
 import type { ParsePhaseContext } from "./parsePhaseContext.js";
 import { resolvePhaseRunKind } from "./parseWorkspaceRunModes.js";
 import type { GeoValidationService } from "./geoValidationService.js";
+import type { ParseExternalEnricher } from "./parseExternalEnricher.js";
 
 export type ParsePhaseToolDeps = {
   rawMessages: IRawMessageRepository;
@@ -32,6 +33,7 @@ export type ParsePhaseToolDeps = {
   validation: GeoValidationService;
   placeScan: IPlaceScanPort;
   events: IEventPublisher;
+  externalEnricher: ParseExternalEnricher;
 };
 
 /** Инструмент: одна задача (coverage task) → материализация parse. */
@@ -57,6 +59,7 @@ export function createParsePhaseTool(deps: ParsePhaseToolDeps): ParsePhaseTool {
       parsedEvents: deps.parsedEvents,
       eventLocations: deps.eventLocations,
       messageParseWorkspaces: deps.messageParseWorkspaces,
+      externalEnricher: deps.externalEnricher,
     });
     return new ParseRawMessageHandler(
       workspaceService,

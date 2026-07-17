@@ -1,4 +1,4 @@
-import type { DataSource } from "typeorm";
+import type { OperationalSql } from "../phases/operationalSql.port.js";
 import type { WipeLogger } from "./wipeLog.js";
 import type { TruncateOptions } from "./wipeTableSql.js";
 
@@ -12,7 +12,7 @@ export type ClearOperationalMapStateResult = {
  * Состояние карты живёт в mat_parse_location; сброс — через TRUNCATE mat_parse_event.
  */
 export async function clearOperationalMapState(
-  _dataSource: DataSource,
+  _sql: OperationalSql,
   reason: string,
   options: Pick<TruncateOptions, "log" | "forceLocks"> = {},
 ): Promise<ClearOperationalMapStateResult> {

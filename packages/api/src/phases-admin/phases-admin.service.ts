@@ -1,14 +1,12 @@
-﻿import { join } from "node:path";
-import { createRequire } from "node:module";
-import {
+﻿import {
   BadRequestException,
   Injectable,
   NotFoundException,
   OnModuleDestroy,
   OnModuleInit,
 } from "@nestjs/common";
+import { Inject } from "@nestjs/common";
 import { MapRealtimeBroadcastService } from "../map/map-realtime-broadcast.service";
-import { InjectDataSource } from "@nestjs/typeorm";
 import {
   drainTopicForPhaseScope,
   manualRunScopeSchema,
@@ -21,18 +19,14 @@ import {
   type PhaseRunsOverview,
 } from "@radar/shared";
 import { DataSource } from "typeorm";
-import { createApiEventTransport } from "../infrastructure/transport/createEventTransport.js";
 import { TypeOrmPhaseCoverageRepository } from "../infrastructure/persistence/typeorm-phase-coverage.repository";
 import { TypeOrmPhaseDefinitionRepository } from "../infrastructure/persistence/typeorm-phase-definition.repository";
 import { TypeOrmPhaseRunRepository } from "../infrastructure/persistence/typeorm-phase-run.repository";
 import { TypeOrmPlaceEnrichmentJobRepository } from "../infrastructure/persistence/typeorm-place-enrichment-job.repository";
-import { MONOREPO_ROOT } from "../monorepo-root.js";
-
-const nodeRequire = createRequire(__filename);
-
-type DeploymentManifestModule = {
-  loadDeploymentManifest: (opts: { repoRoot: string }) => import("@radar/shared").DeploymentManifest;
-};
+import {
+  PHASES_ADMIN_DEPENDENCIES,
+  type PhasesAdminDependencies,
+} from "./phases-admin.providers";
 
 const STOP_ALL_ACTIVE_RUNS_REASON = "admin:stop-all-active-runs";
 
@@ -43,6 +37,7 @@ function emptyJobCounts(): PhaseRunsOverview["geo"]["byPhase"][0]["jobs"] {
 /** Админка parse-engine: ingestParse (coverage) и geoParse (place jobs) раздельно. */
 @Injectable()
 export class PhasesAdminService implements OnModuleInit, OnModuleDestroy {
+  private readonly dataSource: DataSource;
   private readonly phases: TypeOrmPhaseDefinitionRepository;
   private readonly coverage: TypeOrmPhaseCoverageRepository;
   private readonly runs: TypeOrmPhaseRunRepository;
@@ -50,21 +45,20 @@ export class PhasesAdminService implements OnModuleInit, OnModuleDestroy {
   private transport!: IEventTransport;
 
   constructor(
-    @InjectDataSource() private readonly dataSource: DataSource,
+    @Inject(PHASES_ADMIN_DEPENDENCIES)
+    deps: PhasesAdminDependencies,
     private readonly mapRealtime: MapRealtimeBroadcastService,
   ) {
-    this.phases = new TypeOrmPhaseDefinitionRepository(dataSource);
-    this.coverage = new TypeOrmPhaseCoverageRepository(dataSource);
-    this.runs = new TypeOrmPhaseRunRepository(dataSource);
-    this.placeJobs = new TypeOrmPlaceEnrichmentJobRepository(dataSource);
+    this.dataSource = deps.dataSource;
+    this.phases = deps.phases;
+    this.coverage = deps.coverage;
+    this.runs = deps.runs;
+    this.placeJobs = deps.placeJobs;
+    this.transport = deps.transport;
   }
 
   /** RMQ transport для admin/control сигналов (start/stop lifecycle). */
   async onModuleInit(): Promise<void> {
-    const loaderPath = join(MONOREPO_ROOT, "packages/shared/dist/deployment/deploymentManifest.loader.js");
-    const { loadDeploymentManifest } = nodeRequire(loaderPath) as DeploymentManifestModule;
-    const manifest = loadDeploymentManifest({ repoRoot: MONOREPO_ROOT });
-    this.transport = createApiEventTransport(manifest.transport, this.dataSource);
     await this.transport.start();
   }
 
@@ -153,7 +147,7 @@ export class PhasesAdminService implements OnModuleInit, OnModuleDestroy {
     return { ok: true, cleared, runsCanceled };
   }
 
-  /** Р СѓС‡РЅРѕР№ retry: failed jobs geo-С„Р°Р·С‹ в†’ pending (РѕРґРЅР° РїРѕРїС‹С‚РєР° РїРѕ СѓРјРѕР»С‡Р°РЅРёСЋ, Р±РµР· auto re-queue). */
+  /** Ручной retry: failed geo jobs → pending без автоматической повторной постановки. */
   async resetFailedJobs(phaseId: string): Promise<{ ok: true; reset: number }> {
     const phase = await this.getPhase(phaseId);
     if (phase.scope !== "geoParse") {
@@ -395,10 +389,7 @@ export class PhasesAdminService implements OnModuleInit, OnModuleDestroy {
     return { ok: true, reset };
   }
 
-  /**
-   * Р Р°Р·РѕСЃР»Р°С‚СЊ Р°РєС‚СѓР°Р»СЊРЅС‹Р№ snapshot РєР°СЂС‚С‹ РІСЃРµРј WS-РєР»РёРµРЅС‚Р°Рј.
-   * Р’С‹Р·С‹РІР°РµС‚СЃСЏ РёР· AdminGateway РїСЂРё РѕР±РЅР°СЂСѓР¶РµРЅРёРё Р·Р°РІРµСЂС€С‘РЅРЅРѕР№ phase run.
-   */
+  /** Рассылает актуальный map snapshot после завершения phase run. */
   async pushMapSnapshot(): Promise<void> {
     await this.mapRealtime.pushSnapshotToClients();
   }

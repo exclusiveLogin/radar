@@ -1,4 +1,4 @@
-import type { PlaceRecord } from "./repositories.js";
+import type { PlaceRecord } from "./geo-repositories.js";
 
 /** Запись каталога для in-memory geo scan (read-side). */
 export type PlaceScanEntry = {

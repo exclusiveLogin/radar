@@ -8,7 +8,7 @@ const ENRICHER = "dadata";
 
 /**
  * Dadata enricher processor: namespace slice + append geo-candidates из artifact.dadata.
- * HTTP вызов — в invokeExternalParseEnricher.
+ * HTTP вызов — в composition parse external enricher.
  */
 export function runDadataProcessor(workspace: ParseWorkspace): void {
   const artifact = workspace.namespaces.geoArtifact as GeoEnrichmentArtifact | undefined;

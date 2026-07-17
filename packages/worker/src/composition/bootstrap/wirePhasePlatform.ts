@@ -13,6 +13,7 @@ import { CoverageEnqueuer } from "../../application/phases/coverageEnqueuer.js";
 import { PhaseRunner } from "../../application/phases/phaseRunner.js";
 import { createPhaseRunSession } from "../../application/phases/phaseRunSession.js";
 import { createParsePhaseTool } from "../../application/parse/parsePhaseTool.js";
+import { createParseExternalEnricher } from "./createParseExternalEnricher.js";
 import type { PhasePlatformDeps } from "../../application/runtime/runner-platform/phasePlatformDeps.js";
 import type { WorkerDbRepositories } from "../../infrastructure/persistence/workerDbRepos.types.js";
 import type { resolveWorkerBootstrapContext } from "./resolveWorkerBootstrapContext.js";
@@ -83,6 +84,7 @@ export async function wirePhasePlatform(
         validation: parseApplication.validation,
         placeScan: parseApplication.placeScan,
         events: new TransportEventPublisher(eventTransport),
+        externalEnricher: createParseExternalEnricher(),
       })
     : undefined;
   const phaseRunSession =

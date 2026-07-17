@@ -1,4 +1,4 @@
-import type { RegionRecord } from "../../ports/repositories";
+import type { RegionRecord } from "../../ports/geo-repositories";
 
 const SUBJECT_TYPE_TOKENS = new Set([
   "область",

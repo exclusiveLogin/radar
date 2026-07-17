@@ -40,7 +40,7 @@ export const lastSnapshotAt$ = new BehaviorSubject<string | null>(null);
 /** Маркер исторического просмотра; live WS игнорируется пока !== null. */
 export const historicalAsOf$ = new BehaviorSubject<string | null>(null);
 
-/** true пока mapStateEffects грузит fold-state (scrub / live-return). */
+/** true пока mapLiveReplayEffects грузит fold-state (scrub / live-return). */
 export const mapHistoricalLoading$ = new BehaviorSubject(false);
 
 /**
@@ -92,7 +92,7 @@ function refreshMapViewAnchor(): void {
   mapViewAnchor$.next(resolveMapViewAnchorMs());
 }
 
-/** Установить asOf — REST загрузка в mapStateEffects (switchMap). */
+/** Установить asOf — REST загрузка в mapLiveReplayEffects (switchMap). */
 export function setHistoricalAsOf(iso: string | null): void {
   if (iso === historicalAsOf$.value) return;
   if (iso) beforeHistoricalSetHook?.(iso);
@@ -109,7 +109,7 @@ export function clearHistoricalView(): void {
   setHistoricalAsOf(null);
 }
 
-/** Применить REST-снапшот (mapStateEffects / ручной refetch). */
+/** Применить REST-снапшот (mapLiveReplayEffects / ручной refetch). */
 export function applyMapSnapshot(
   regions: MapRegionSnapshot[],
   places: MapPlaceSnapshot[],

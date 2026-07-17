@@ -1,17 +1,15 @@
-import type { DataSource } from "typeorm";
-import type { WorkerDbRepositories } from "../../../infrastructure/persistence/workerDbRepos.types.js";
 import { clearOperationalMapState } from "../../archive/clearOperationalMapState.js";
 import { truncateTableCounted } from "../../archive/wipeTableSql.js";
 import { clearParsedArtifacts } from "../pipelineOperationalReset.js";
 import { stopAllActivePhaseRuns } from "../stopAllActivePhaseRuns.js";
+import type { PhaseOperationalDeps } from "../phaseOperationalDeps.js";
 import type { PhaseMutationResult } from "./phaseLifecycle.types.js";
 
 /**
  * parse:wipe — срез после ingest: raw остаётся, parsed/evloc снимаются.
  */
 export async function wipeParsePhase(input: {
-  dataSource: DataSource;
-  repos: WorkerDbRepositories;
+  deps: PhaseOperationalDeps;
   dryRun: boolean;
 }): Promise<PhaseMutationResult> {
   if (input.dryRun) {
@@ -28,17 +26,16 @@ export async function wipeParsePhase(input: {
   }
 
   await stopAllActivePhaseRuns({
-    dataSource: input.dataSource,
-    repos: input.repos,
+    deps: input.deps,
     reason: "parse:wipe",
   });
 
-  await clearOperationalMapState(input.dataSource, "parse:wipe");
-  const parsedEvents = await clearParsedArtifacts(input.dataSource);
-  const parseAttempts = await truncateTableCounted(input.dataSource, "log_parse_attempt");
-  const eventEvidence = await truncateTableCounted(input.dataSource, "mat_parse_evidence");
+  await clearOperationalMapState(input.deps.operationalSql, "parse:wipe");
+  const parsedEvents = await clearParsedArtifacts(input.deps.operationalSql);
+  const parseAttempts = await truncateTableCounted(input.deps.operationalSql, "log_parse_attempt");
+  const eventEvidence = await truncateTableCounted(input.deps.operationalSql, "mat_parse_evidence");
   const enrichmentJobs = await truncateTableCounted(
-    input.dataSource,
+    input.deps.operationalSql,
     "job_geo_place_enrich",
   );
 

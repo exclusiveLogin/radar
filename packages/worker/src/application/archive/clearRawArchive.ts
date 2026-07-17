@@ -1,4 +1,4 @@
-import type { DataSource } from "typeorm";
+import type { OperationalSql } from "../phases/operationalSql.port.js";
 import type { WipeLogger } from "./wipeLog.js";
 import { countTableRows, truncateTableCounted } from "./wipeTableSql.js";
 
@@ -20,15 +20,15 @@ export class ClearRawArchiveBlockedError extends Error {
 }
 
 /** Сколько строк мешают удалению raw (FK RESTRICT на mat_parse_event). */
-export async function countRawArchiveBlockers(dataSource: DataSource): Promise<{
+export async function countRawArchiveBlockers(sql: OperationalSql): Promise<{
   parsedEvents: number;
   parseAttempts: number;
   rawMessages: number;
 }> {
   return {
-    parsedEvents: await countTableRows(dataSource, "mat_parse_event"),
-    parseAttempts: await countTableRows(dataSource, "log_parse_attempt"),
-    rawMessages: await countTableRows(dataSource, "mat_ingest_raw"),
+    parsedEvents: await countTableRows(sql, "mat_parse_event"),
+    parseAttempts: await countTableRows(sql, "log_parse_attempt"),
+    rawMessages: await countTableRows(sql, "mat_ingest_raw"),
   };
 }
 
@@ -36,11 +36,11 @@ export async function countRawArchiveBlockers(dataSource: DataSource): Promise<{
  * TRUNCATE mat_ingest_raw (+ mat_ingest_raw_tg, queue_parse_coverage CASCADE).
  */
 export async function clearRawArchive(
-  dataSource: DataSource,
+  sql: OperationalSql,
   options: { force?: boolean; log?: WipeLogger } = {},
 ): Promise<ClearRawArchiveResult> {
   const { log } = options;
-  const blockers = await countRawArchiveBlockers(dataSource);
+  const blockers = await countRawArchiveBlockers(sql);
   log?.detail(
     `raw blockers: mat_parse_event=${blockers.parsedEvents}, log_parse_attempt=${blockers.parseAttempts}, mat_ingest_raw=${blockers.rawMessages}`,
   );
@@ -49,7 +49,7 @@ export async function clearRawArchive(
     throw new ClearRawArchiveBlockedError(blockers.parsedEvents, blockers.parseAttempts);
   }
 
-  const rawMessagesDeleted = await truncateTableCounted(dataSource, "mat_ingest_raw", {
+  const rawMessagesDeleted = await truncateTableCounted(sql, "mat_ingest_raw", {
     cascade: true,
     log,
   });

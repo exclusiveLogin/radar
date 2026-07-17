@@ -6,7 +6,7 @@ import {
   InMemoryPlaceAliasRepository,
   InMemoryPlaceRepository,
   InMemoryRegionRepository,
-} from "../handlers/inMemoryRepositories.js";
+} from "../../infrastructure/testing/inMemoryRepositories.js";
 import { createParseWorkspaceMessageService } from "./createParseWorkspaceMessageService.js";
 import { createTestGeoValidation } from "./createTestGeoValidation.js";
 import { ParsePipelineService } from "./parsePipelineService.js";

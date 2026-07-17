@@ -5,7 +5,6 @@ import { In } from "typeorm";
 import type {
   MapRegionSnapshot,
   MapSnapshot,
-  MessageFeedItem,
   StateChangeEventItem,
   StateLevel,
   StatusDictionary,
@@ -13,17 +12,13 @@ import type {
   EventHeatmapPeriod,
   EventHeatmapResponse,
 } from "@radar/shared";
-import { STATE_LEVEL_RANK, classifyContentKind, eventHeatmapPeriodMs, extractMultipleFixationFlag, extractUncertainFlag, groomRawTextForDisplay } from "@radar/shared";
+import { STATE_LEVEL_RANK, eventHeatmapPeriodMs } from "@radar/shared";
 import type { EventType } from "@radar/shared";
 import { StatusDictionaryEntity } from "../events/entities";
 import { PlaceEntity, RegionEntity } from "../geo/entities";
 import { loadRegionAdjacency } from "./adjacency.loader";
-import type { SourceMessage } from "@radar/shared";
 import type { GeoRegionRef, PlaceRef } from "./map.dto";
-import {
-  RegionGeometryCatalog,
-  type RegionsGeoJsonLayer,
-} from "./region-geometry.catalog";
+import { MapGeoJsonQueryService } from "./map-geojson-query.service";
 import { MapSnapshotQueryService } from "./map-snapshot-query.service";
 
 type RegionStateLevel = MapRegionSnapshot["stateLevel"];
@@ -37,250 +32,22 @@ function toNumber(value: string | null): number | undefined {
 
 @Injectable()
 export class MapQueryService {
-  private catalogBound = false;
-
   constructor(
     @InjectDataSource() private readonly dataSource: DataSource,
     private readonly mapSnapshotQuery: MapSnapshotQueryService,
+    private readonly mapGeoJsonQuery: MapGeoJsonQueryService,
   ) {}
 
-  /**
-   * Активные полигоны районов: geo_feature мест из fold snapshot.
-   * Лёгкий ответ — безопасно грузить при каждом place-state WS-событии.
-   */
-  async getActiveDistrictsGeoJsonLayer(): Promise<{
-    type: "FeatureCollection";
-    features: Array<{
-      type: "Feature";
-      id: string;
-      properties: Record<string, string | number | null>;
-      geometry: Record<string, unknown>;
-    }>;
-  }> {
-    try {
-      const snapshot = await this.mapSnapshotQuery.getSnapshotAt(new Date());
-      const placeIds = snapshot.places.map((place) => place.placeId);
-      if (placeIds.length === 0) {
-        return { type: "FeatureCollection", features: [] };
-      }
-      return this.loadActiveDistrictsGeoJsonByPlaceIds(placeIds);
-    } catch (error) {
-      console.warn("[map] districts-active: fold недоступен (rebuild/heal), пустой слой", error);
-      return { type: "FeatureCollection", features: [] };
-    }
+  getActiveDistrictsGeoJsonLayer() {
+    return this.mapGeoJsonQuery.getActiveDistrictsGeoJsonLayer();
   }
 
-  /** Активные полигоны районов по списку placeId (fold read-line). */
-  private async loadActiveDistrictsGeoJsonByPlaceIds(placeIds: string[]): Promise<{
-    type: "FeatureCollection";
-    features: Array<{
-      type: "Feature";
-      id: string;
-      properties: Record<string, string | number | null>;
-      geometry: Record<string, unknown>;
-    }>;
-  }> {
-    const rows = (await this.dataSource.query(
-      `SELECT DISTINCT ON (gf.id)
-              gf.id,
-              gf.name,
-              gf.layer,
-              gf.name_stem,
-              gf.region_id,
-              gf.centroid_lat::float8 AS centroid_lat,
-              gf.centroid_lon::float8 AS centroid_lon,
-              r.iso AS region_iso,
-              gf.geometry
-       FROM geo_feature gf
-       INNER JOIN (
-         SELECT p.id AS place_id,
-                COALESCE(
-                  p.geo_feature_id,
-                  (
-                    SELECT l.geo_feature_id
-                    FROM place_geo_link l
-                    WHERE l.place_id = p.id
-                    ORDER BY l.priority ASC, l.geo_feature_id
-                    LIMIT 1
-                  )
-                ) AS gf_id
-         FROM places p
-         WHERE p.id = ANY($1::uuid[]) AND p.is_active = true
-       ) link ON link.gf_id = gf.id
-       LEFT JOIN regions r ON r.id = gf.region_id
-       WHERE gf.is_active = true
-         AND gf.geometry IS NOT NULL`,
-      [placeIds],
-    )) as Array<{
-      id: string;
-      name: string;
-      layer: string;
-      name_stem: string;
-      region_id: string | null;
-      centroid_lat: number | null;
-      centroid_lon: number | null;
-      region_iso: string | null;
-      geometry: Record<string, unknown>;
-    }>;
-
-    return this.toDistrictsFeatureCollection(rows);
+  getDistrictsGeoJsonLayer(input?: { regionId?: string; geoFeatureIds?: string[] }) {
+    return this.mapGeoJsonQuery.getDistrictsGeoJsonLayer(input);
   }
 
-  private toDistrictsFeatureCollection(
-    rows: Array<{
-      id: string;
-      name: string;
-      layer: string;
-      name_stem: string;
-      region_id: string | null;
-      centroid_lat: number | null;
-      centroid_lon: number | null;
-      region_iso: string | null;
-      geometry: Record<string, unknown>;
-    }>,
-  ): {
-    type: "FeatureCollection";
-    features: Array<{
-      type: "Feature";
-      id: string;
-      properties: Record<string, string | number | null>;
-      geometry: Record<string, unknown>;
-    }>;
-  } {
-    return {
-      type: "FeatureCollection",
-      features: rows.map((row) => ({
-        type: "Feature",
-        id: row.id,
-        properties: {
-          name: row.name,
-          nameStem: row.name_stem,
-          layer: row.layer,
-          regionId: row.region_id,
-          regionIso: row.region_iso,
-          centroidLat: row.centroid_lat,
-          centroidLon: row.centroid_lon,
-        },
-        geometry: row.geometry,
-      })),
-    };
-  }
-
-  /**
-   * Контуры районов и городских округов из geo_feature (layer=district/city_district).
-   * Используется для детализированной подсветки карты.
-   */
-  async getDistrictsGeoJsonLayer(input?: {
-    regionId?: string;
-    geoFeatureIds?: string[];
-  }): Promise<{
-    type: "FeatureCollection";
-    features: Array<{
-      type: "Feature";
-      id: string;
-      properties: Record<string, string | number | null>;
-      geometry: Record<string, unknown>;
-    }>;
-  }> {
-    const regionId = input?.regionId;
-    const geoFeatureIds = input?.geoFeatureIds?.filter(Boolean) ?? [];
-
-    if (!regionId && geoFeatureIds.length === 0) {
-      return { type: "FeatureCollection", features: [] };
-    }
-
-    if (geoFeatureIds.length > 0) {
-      const rows = (await this.dataSource.query(
-        `SELECT gf.id,
-                gf.name,
-                gf.layer,
-                gf.name_stem,
-                gf.region_id,
-                gf.centroid_lat::float8 AS centroid_lat,
-                gf.centroid_lon::float8 AS centroid_lon,
-                r.iso AS region_iso,
-                gf.geometry
-         FROM geo_feature gf
-         LEFT JOIN regions r ON r.id = gf.region_id
-         WHERE gf.id = ANY($1::uuid[])
-           AND gf.is_active = true
-           AND gf.geometry IS NOT NULL
-         ORDER BY r.iso, gf.name`,
-        [geoFeatureIds],
-      )) as Array<{
-        id: string;
-        name: string;
-        layer: string;
-        name_stem: string;
-        region_id: string | null;
-        centroid_lat: number | null;
-        centroid_lon: number | null;
-        region_iso: string | null;
-        geometry: Record<string, unknown>;
-      }>;
-      return this.toDistrictsFeatureCollection(rows);
-    }
-
-    const params: unknown[] = [["district", "city_district"]];
-    let regionFilter = "";
-
-    if (regionId) {
-      regionFilter = `AND gf.region_id = $${params.push(regionId)}`;
-    }
-
-    const rows = (await this.dataSource.query(
-      `SELECT gf.id,
-              gf.name,
-              gf.layer,
-              gf.name_stem,
-              gf.region_id,
-              gf.centroid_lat::float8 AS centroid_lat,
-              gf.centroid_lon::float8 AS centroid_lon,
-              r.iso AS region_iso,
-              gf.geometry
-       FROM geo_feature gf
-       LEFT JOIN regions r ON r.id = gf.region_id
-       WHERE gf.layer = ANY($1)
-         AND gf.is_active = true
-         AND gf.geometry IS NOT NULL
-         ${regionFilter}
-       ORDER BY r.iso, gf.name`,
-      params,
-    )) as Array<{
-      id: string;
-      name: string;
-      layer: string;
-      name_stem: string;
-      region_id: string | null;
-      centroid_lat: number | null;
-      centroid_lon: number | null;
-      region_iso: string | null;
-      geometry: Record<string, unknown>;
-    }>;
-
-    return {
-      type: "FeatureCollection",
-      features: rows.map((row) => ({
-        type: "Feature",
-        id: row.id,
-        properties: {
-          name: row.name,
-          nameStem: row.name_stem,
-          layer: row.layer,
-          regionId: row.region_id,
-          regionIso: row.region_iso,
-          centroidLat: row.centroid_lat,
-          centroidLon: row.centroid_lon,
-        },
-        geometry: row.geometry,
-      })),
-    };
-  }
-
-  /** Полигоны субъектов по ISO-кодам (без stateLevel). */
-  async getRegionsGeoJsonLayer(regionCodes: string[]): Promise<RegionsGeoJsonLayer> {
-    await this.ensureCatalogBound();
-    return RegionGeometryCatalog.getInstance().buildLayerByCodes(regionCodes);
+  getRegionsGeoJsonLayer(regionCodes: string[]) {
+    return this.mapGeoJsonQuery.getRegionsGeoJsonLayer(regionCodes);
   }
 
   async getRegionsStateAt(asOf: Date) {
@@ -289,23 +56,6 @@ export class MapQueryService {
 
   async getPlacesStateAt(asOf: Date, regionId?: string) {
     return this.mapSnapshotQuery.getPlacesStateAt(asOf, regionId);
-  }
-
-  /** Привязка файлов OSM к ISO регионов БД (один раз за процесс). */
-  private async ensureCatalogBound(): Promise<void> {
-    if (this.catalogBound) return;
-    const regions = await this.dataSource.getRepository(RegionEntity).find({
-      where: { isActive: true },
-    });
-    RegionGeometryCatalog.getInstance().bindRegions(
-      regions.map((region) => ({
-        iso: region.iso,
-        name: region.name,
-        nameWithType: region.nameWithType,
-        geometryArtifactKey: region.geometryArtifactKey,
-      })),
-    );
-    this.catalogBound = true;
   }
 
   /** Historical snapshot: fold фактов на маркер asOf (read-line, фаза 1). */
@@ -430,115 +180,6 @@ export class MapQueryService {
     }));
   }
 
-  /** Raw-сообщение winner-статуса региона; при statusEventAt — точный матч по occurred_at. */
-  async getRegionSourceMessage(
-    regionCode: string,
-    options?: { statusEventAt?: string },
-  ): Promise<SourceMessage | null> {
-    const atStatus = options?.statusEventAt?.trim() || null;
-    const primary = await this.queryRegionSourceMessage(regionCode, atStatus);
-    if (primary || !atStatus) return primary;
-    return this.queryRegionSourceMessage(regionCode, null);
-  }
-
-  /** Region-level EL (не place): последний или на маркер statusEventAt. */
-  private async queryRegionSourceMessage(
-    regionCode: string,
-    statusEventAt: string | null,
-  ): Promise<SourceMessage | null> {
-    const rows = (await this.dataSource.query(
-      `WITH hit AS (
-         SELECT rm.id AS raw_id,
-                pe.id AS parsed_id,
-                rm.raw_text,
-                rm.posted_at,
-                c.key AS channel_key,
-                COALESCE(el.occurred_at, rm.posted_at) AS event_at
-         FROM mat_ingest_raw rm
-         INNER JOIN channels c ON c.id = rm.channel_id
-         INNER JOIN mat_parse_event pe ON pe.raw_message_id = rm.id AND pe.is_active = true
-         INNER JOIN mat_parse_location el ON el.parsed_event_id = pe.id
-         INNER JOIN regions r ON r.id = el.region_id AND r.is_active = true
-         WHERE r.iso = $1
-           AND COALESCE(el.entity_kind, 'region') <> 'place'
-           AND ($2::timestamptz IS NULL
-                OR COALESCE(el.occurred_at, rm.posted_at) = $2::timestamptz)
-         ORDER BY COALESCE(el.occurred_at, rm.posted_at) DESC
-         LIMIT 1
-       )
-       SELECT hit.raw_text,
-              hit.posted_at,
-              hit.channel_key,
-              COALESCE(
-                array_agg(DISTINCT r2.iso) FILTER (WHERE r2.iso IS NOT NULL),
-                '{}'
-              ) AS region_codes
-       FROM hit
-       INNER JOIN mat_parse_location el2 ON el2.parsed_event_id = hit.parsed_id
-       INNER JOIN regions r2 ON r2.id = el2.region_id AND r2.is_active = true
-       GROUP BY hit.raw_text, hit.posted_at, hit.channel_key`,
-      [regionCode, statusEventAt],
-    )) as Array<{
-      raw_text: string;
-      posted_at: Date;
-      channel_key: string;
-      region_codes: string[];
-    }>;
-
-    const row = rows[0];
-    if (!row) return null;
-    return {
-      rawText: row.raw_text,
-      displayText: groomRawTextForDisplay(row.raw_text),
-      postedAt: row.posted_at.toISOString(),
-      channelKey: row.channel_key,
-      regionCodes: row.region_codes ?? [],
-    };
-  }
-
-  /** Последнее raw-сообщение, привязанное к населённому пункту. */
-  async getPlaceSourceMessage(placeId: string): Promise<SourceMessage | null> {
-    const rows = (await this.dataSource.query(
-      `WITH hit AS (
-         SELECT rm.id AS raw_id, pe.id AS parsed_id, rm.raw_text, rm.posted_at, c.key AS channel_key
-         FROM mat_ingest_raw rm
-         INNER JOIN channels c ON c.id = rm.channel_id
-         INNER JOIN mat_parse_event pe ON pe.raw_message_id = rm.id AND pe.is_active = true
-         INNER JOIN mat_parse_location el ON el.parsed_event_id = pe.id
-         WHERE el.place_id = $1
-         ORDER BY rm.posted_at DESC
-         LIMIT 1
-       )
-       SELECT hit.raw_text,
-              hit.posted_at,
-              hit.channel_key,
-              COALESCE(
-                array_agg(DISTINCT r2.iso) FILTER (WHERE r2.iso IS NOT NULL),
-                '{}'
-              ) AS region_codes
-       FROM hit
-       INNER JOIN mat_parse_location el2 ON el2.parsed_event_id = hit.parsed_id
-       INNER JOIN regions r2 ON r2.id = el2.region_id AND r2.is_active = true
-       GROUP BY hit.raw_text, hit.posted_at, hit.channel_key`,
-      [placeId],
-    )) as Array<{
-      raw_text: string;
-      posted_at: Date;
-      channel_key: string;
-      region_codes: string[];
-    }>;
-
-    const row = rows[0];
-    if (!row) return null;
-    return {
-      rawText: row.raw_text,
-      displayText: groomRawTextForDisplay(row.raw_text),
-      postedAt: row.posted_at.toISOString(),
-      channelKey: row.channel_key,
-      regionCodes: row.region_codes ?? [],
-    };
-  }
-
   private async loadRegionNames(ids: string[]): Promise<Map<string, string>> {
     const unique = [...new Set(ids)];
     if (unique.length === 0) return new Map();
@@ -557,169 +198,6 @@ export class MapQueryService {
       red: "Опасность",
     };
     return titles[level];
-  }
-
-  /**
-   * Лента изменений: только parsed_event с mat_parse_location (ISO на карте).
-   * Одна строка = одно событие из одного raw, без дублей без региона.
-   */
-  async getRecentStateChangeEvents(
-    limit: number,
-  ): Promise<StateChangeEventItem[]> {
-    const rows = (await this.dataSource.query(
-      `SELECT pe.id AS parsed_event_id,
-              rm.id AS raw_message_id,
-              c.key AS channel_key,
-              c.title AS channel_title,
-              rm.posted_at,
-              rm.raw_text,
-              pe.event_type,
-              pe.extras->>'eventCategory' AS event_category,
-              pe.repeat,
-              COALESCE((pe.extras->>'uncertain')::boolean, false) AS uncertain,
-              COALESCE((pe.extras->>'multiple')::boolean, false) AS multiple,
-              COALESCE((pe.extras->>'mass')::boolean, false) AS mass,
-              sd.state_level,
-              array_agg(DISTINCT r.iso ORDER BY r.iso)
-                FILTER (WHERE r.iso IS NOT NULL) AS region_codes,
-              array_agg(DISTINCT r.name ORDER BY r.name)
-                FILTER (WHERE r.name IS NOT NULL) AS region_names
-       FROM mat_parse_event pe
-       INNER JOIN mat_ingest_raw rm ON rm.id = pe.raw_message_id
-       INNER JOIN channels c ON c.id = rm.channel_id
-       INNER JOIN mat_parse_location el ON el.parsed_event_id = pe.id
-       INNER JOIN regions r ON r.id = el.region_id AND r.is_active = true
-       LEFT JOIN status_dictionary sd
-         ON sd.code = pe.event_type AND sd.is_active = true
-       WHERE pe.is_active = true
-       GROUP BY pe.id, rm.id, c.key, c.title, rm.posted_at, rm.raw_text,
-                pe.event_type, pe.extras, pe.repeat, sd.state_level
-       ORDER BY rm.posted_at DESC
-       LIMIT $1`,
-      [limit],
-    )) as Array<{
-      parsed_event_id: string;
-      raw_message_id: string;
-      channel_key: string;
-      channel_title: string | null;
-      posted_at: Date;
-      raw_text: string;
-      event_type: string;
-      event_category: string | null;
-      repeat: boolean | null;
-      uncertain: boolean | null;
-      multiple: boolean | null;
-      mass: boolean | null;
-      state_level: StateLevel | null;
-      region_codes: string[];
-      region_names: string[];
-    }>;
-
-    return rows.map((row) => ({
-      parsedEventId: row.parsed_event_id,
-      rawMessageId: row.raw_message_id,
-      channelKey: row.channel_key,
-      channelTitle: row.channel_title ?? undefined,
-      postedAt: row.posted_at.toISOString(),
-      rawText: row.raw_text,
-      displayText: groomRawTextForDisplay(row.raw_text),
-      eventType: row.event_type,
-      eventCategory: row.event_category ?? undefined,
-      repeat: row.repeat ?? undefined,
-      uncertain: row.uncertain ? true : undefined,
-      multiple: row.multiple ? true : undefined,
-      mass: row.mass ? true : undefined,
-      stateLevel: (row.state_level ?? "grey") as StateLevel,
-      regionCodes: row.region_codes ?? [],
-      regionNames: row.region_names ?? [],
-    }));
-  }
-
-  /** Последние mat_ingest_raw всех каналов — 1 строка на raw, без фильтра по parse/loc. */
-  async getRecentMessages(limit: number): Promise<MessageFeedItem[]> {
-    const rows = (await this.dataSource.query(
-      `SELECT rm.id,
-              c.key AS channel_key,
-              c.title AS channel_title,
-              rm.posted_at,
-              rm.raw_text,
-              rm.ingest_mode,
-              COALESCE(stats.parsed_event_count, 0)::int AS parsed_event_count,
-              COALESCE(stats.location_count, 0)::int AS location_count,
-              stats.primary_event_type AS event_type,
-              stats.event_category,
-              stats.repeat,
-              stats.uncertain,
-              stats.multiple,
-              stats.mass,
-              stats.state_level,
-              COALESCE(stats.region_codes, '{}') AS region_codes
-       FROM mat_ingest_raw rm
-       INNER JOIN channels c ON c.id = rm.channel_id
-       LEFT JOIN LATERAL (
-         SELECT COUNT(DISTINCT pe.id)::int AS parsed_event_count,
-                COUNT(DISTINCT el.id)::int AS location_count,
-                (array_agg(pe.event_type ORDER BY pe.parsed_at DESC))[1] AS primary_event_type,
-                (array_agg(pe.extras->>'eventCategory' ORDER BY pe.parsed_at DESC))[1] AS event_category,
-                bool_or(pe.repeat) AS repeat,
-                bool_or(COALESCE((pe.extras->>'uncertain')::boolean, false)) AS uncertain,
-                bool_or(COALESCE((pe.extras->>'multiple')::boolean, false)) AS multiple,
-                bool_or(COALESCE((pe.extras->>'mass')::boolean, false)) AS mass,
-                (array_agg(sd.state_level ORDER BY pe.parsed_at DESC))[1] AS state_level,
-                array_agg(DISTINCT r.iso) FILTER (WHERE r.iso IS NOT NULL) AS region_codes
-         FROM mat_parse_event pe
-         LEFT JOIN status_dictionary sd ON sd.code = pe.event_type AND sd.is_active = true
-         LEFT JOIN mat_parse_location el ON el.parsed_event_id = pe.id
-         LEFT JOIN regions r ON r.id = el.region_id
-         WHERE pe.raw_message_id = rm.id AND pe.is_active = true
-       ) stats ON true
-       ORDER BY rm.posted_at DESC
-       LIMIT $1`,
-      [limit],
-    )) as Array<{
-      id: string;
-      channel_key: string;
-      channel_title: string | null;
-      posted_at: Date;
-      raw_text: string;
-      ingest_mode: MessageFeedItem["ingestMode"];
-      parsed_event_count: number;
-      location_count: number;
-      event_type: string | null;
-      event_category: string | null;
-      repeat: boolean | null;
-      uncertain: boolean | null;
-      multiple: boolean | null;
-      mass: boolean | null;
-      state_level: StateLevel | null;
-      region_codes: string[] | null;
-    }>;
-
-    return rows.map((row) => ({
-      id: row.id,
-      channelKey: row.channel_key,
-      channelTitle: row.channel_title ?? undefined,
-      postedAt: row.posted_at.toISOString(),
-      rawText: row.raw_text,
-      ingestMode: row.ingest_mode,
-      contentKind: classifyContentKind(row.raw_text),
-      parsedEventCount: row.parsed_event_count,
-      hasLocations: row.location_count > 0,
-      eventType: row.event_type ?? undefined,
-      eventCategory: row.event_category ?? undefined,
-      repeat: row.repeat ?? undefined,
-      uncertain:
-        row.uncertain || extractUncertainFlag(row.raw_text)
-          ? true
-          : undefined,
-      multiple:
-        row.multiple || extractMultipleFixationFlag(row.raw_text)
-          ? true
-          : undefined,
-      mass: row.mass ? true : undefined,
-      stateLevel: row.state_level ?? undefined,
-      regionCodes: row.region_codes ?? [],
-    }));
   }
 
   private toGeoRef(region: RegionEntity): GeoRegionRef {

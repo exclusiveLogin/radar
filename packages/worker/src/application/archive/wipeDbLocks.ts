@@ -1,4 +1,4 @@
-import type { DataSource } from "typeorm";
+import type { OperationalSql } from "../phases/operationalSql.port.js";
 import type { WipeLogger } from "./wipeLog.js";
 
 export type DbLockBlocker = {
@@ -11,14 +11,14 @@ export type DbLockBlocker = {
 
 /** Кто держит lock на таблицах public (кроме текущей сессии). */
 export async function listTableLockBlockers(
-  dataSource: DataSource,
+  sql: OperationalSql,
   tables: string[],
 ): Promise<DbLockBlocker[]> {
   if (tables.length === 0) {
     return [];
   }
 
-  const rows = (await dataSource.query(
+  const rows = await sql.query<DbLockBlocker>(
     `
     SELECT DISTINCT
       a.pid::int AS pid,
@@ -37,7 +37,7 @@ export async function listTableLockBlockers(
     ORDER BY a.pid
     `,
     [tables],
-  )) as DbLockBlocker[];
+  );
 
   return rows;
 }
@@ -56,11 +56,11 @@ function formatBlockers(blockers: DbLockBlocker[]): string {
 
 /** Завершить client-backend сессии на этих таблицах. */
 export async function terminateTableLockBlockers(
-  dataSource: DataSource,
+  sql: OperationalSql,
   tables: string[],
   log?: WipeLogger,
 ): Promise<number> {
-  const blockers = await listTableLockBlockers(dataSource, tables);
+  const blockers = await listTableLockBlockers(sql, tables);
   if (blockers.length === 0) {
     log?.detail(`блокеры для [${tables.join(", ")}]: не найдены`);
     return 0;
@@ -68,7 +68,7 @@ export async function terminateTableLockBlockers(
 
   log?.line(`блокируют TRUNCATE: ${formatBlockers(blockers)}`);
 
-  const terminated = (await dataSource.query(
+  const terminated = await sql.query<{ count: number }>(
     `
     SELECT COUNT(*)::int AS count
     FROM (
@@ -84,7 +84,7 @@ export async function terminateTableLockBlockers(
     ) t
     `,
     [tables],
-  )) as Array<{ count: number }>;
+  );
 
   const count = terminated[0]?.count ?? 0;
   log?.line(`pg_terminate_backend: ${count} сессий по таблицам [${tables.join(", ")}]`);
@@ -96,10 +96,10 @@ export async function terminateTableLockBlockers(
  * Для system:wipe --confirm — иначе TRUNCATE parsed/events часто ждёт lock.
  */
 export async function terminateOtherDatabaseBackends(
-  dataSource: DataSource,
+  sql: OperationalSql,
   log?: WipeLogger,
 ): Promise<number> {
-  const preview = (await dataSource.query(
+  const preview = await sql.query<{ pid: number; applicationName: string; state: string }>(
     `
     SELECT pid::int AS pid,
            COALESCE(application_name, '') AS "applicationName",
@@ -110,7 +110,7 @@ export async function terminateOtherDatabaseBackends(
       AND backend_type = 'client backend'
     ORDER BY pid
     `,
-  )) as Array<{ pid: number; applicationName: string; state: string }>;
+  );
 
   if (preview.length === 0) {
     log?.detail("других подключений к БД нет");
@@ -124,7 +124,7 @@ export async function terminateOtherDatabaseBackends(
         .join("; "),
   );
 
-  const terminated = (await dataSource.query(
+  const terminated = await sql.query<{ count: number }>(
     `
     SELECT COUNT(*)::int AS count
     FROM (
@@ -135,7 +135,7 @@ export async function terminateOtherDatabaseBackends(
         AND backend_type = 'client backend'
     ) t
     `,
-  )) as Array<{ count: number }>;
+  );
 
   const count = terminated[0]?.count ?? 0;
   log?.line(`pg_terminate_backend: закрыто ${count} подключений`);

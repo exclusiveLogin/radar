@@ -5,6 +5,7 @@ import {
   ClearRawArchiveBlockedError,
 } from "../application/archive/clearRawArchive.js";
 import { stopAllActivePhaseRuns } from "../application/phases/stopAllActivePhaseRuns.js";
+import { createPhaseOperationalDeps } from "../application/phases/phaseOperationalDeps.js";
 import { createWorkerCompositionRoot } from "../application/createWorkerCompositionRoot.js";
 import { loadRootEnv } from "../infrastructure/config/loadRootEnv.js";
 import { WorkerStorageMode } from "../infrastructure/persistence/storageMode.js";
@@ -42,12 +43,12 @@ async function main(): Promise<void> {
     storageMode: WorkerStorageMode.Db,
     startIngestParseDaemon: false,
   });
-  if (!runtime.dataSource || !runtime.workerRepos) {
+  if (!runtime.operationalSql || !runtime.workerRepos) {
     console.error("clear:raw: нужен RADAR_STORAGE_MODE=db и DATABASE_URL");
     process.exit(1);
   }
 
-  const before = await countRawArchiveBlockers(runtime.dataSource);
+  const before = await countRawArchiveBlockers(runtime.operationalSql);
   console.log(
     `До: raw=${before.rawMessages} mat_parse_event=${before.parsedEvents} log_parse_attempt=${before.parseAttempts}`,
   );
@@ -64,24 +65,21 @@ async function main(): Promise<void> {
     );
     console.log("parse-engine:clear:raw: сначала parse-engine:reset…");
     await stopAllActivePhaseRuns({
-      dataSource: runtime.dataSource,
-      repos: runtime.workerRepos,
+      deps: createPhaseOperationalDeps(runtime.operationalSql, runtime.workerRepos),
       reason: "clear:raw",
     });
     await runPipelineOperationalReset({
-      dataSource: runtime.dataSource,
-      repos: runtime.workerRepos,
+      deps: createPhaseOperationalDeps(runtime.operationalSql, runtime.workerRepos),
       enqueueCatchUp: false,
     });
   }
 
   try {
     await stopAllActivePhaseRuns({
-      dataSource: runtime.dataSource,
-      repos: runtime.workerRepos,
+      deps: createPhaseOperationalDeps(runtime.operationalSql, runtime.workerRepos),
       reason: "clear:raw",
     });
-    const result = await clearRawArchive(runtime.dataSource);
+    const result = await clearRawArchive(runtime.operationalSql);
     console.log(`\nУдалено mat_ingest_raw: ${result.rawMessagesDeleted}`);
   } catch (err) {
     if (err instanceof ClearRawArchiveBlockedError) {

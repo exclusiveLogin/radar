@@ -8,7 +8,7 @@ import {
   InMemoryParsedEventRepository,
   InMemoryPlaceRepository,
   InMemoryRegionRepository,
-} from "../../application/handlers/inMemoryRepositories.js";
+} from "../../infrastructure/testing/inMemoryRepositories.js";
 import { createTestGeoValidation } from "../../application/parse/createTestGeoValidation.js";
 import { ParseWorkspacePersistService } from "../../application/parse/ParseWorkspacePersistService.js";
 import { createTraitAttachment } from "./attachRule.js";

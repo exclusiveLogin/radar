@@ -74,6 +74,7 @@ export async function createWorkerCompositionRoot(
     phasePlatform: phaseApplication.phasePlatform,
     coverageEnqueuer: phaseApplication.coverageEnqueuer,
     workerRepos: persistence.workerRepos,
+    operationalSql: persistence.operationalSql,
     dataSource: persistence.dataSource,
     shutdown: persistence.shutdown,
   };
