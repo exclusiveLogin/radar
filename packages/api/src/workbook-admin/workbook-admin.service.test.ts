@@ -8,7 +8,7 @@ import type {
   TrackingStatusResponse,
 } from "@radar/shared";
 import { WorkbookAdminService } from "./workbook-admin.service.js";
-import type { TrackingAdminService } from "../tracking-admin/tracking-admin.service.js";
+import type { TrackingAdminQueryService } from "../tracking-admin/tracking-admin.service.js";
 import type { PhasesAdminService } from "../phases-admin/phases-admin.service.js";
 
 function fakePhase(overrides: Partial<PhaseDefinitionRecord>): PhaseDefinitionRecord {
@@ -46,7 +46,7 @@ function fakePhaseRun(overrides: Partial<PhaseRun>): PhaseRun {
 function fakeTrackingService(overrides: {
   status?: Partial<TrackingStatusResponse>;
   runs?: TrackingRebuildRun[];
-}): TrackingAdminService {
+}): TrackingAdminQueryService {
   return {
     getStatus: async () =>
       ({
@@ -57,7 +57,7 @@ function fakeTrackingService(overrides: {
         ...overrides.status,
       }) as unknown as TrackingStatusResponse,
     listRuns: async () => overrides.runs ?? [],
-  } as unknown as TrackingAdminService;
+  } as unknown as TrackingAdminQueryService;
 }
 
 function fakePhasesService(overrides: {

@@ -10,6 +10,7 @@ import {
   resolveJsonPlaceCachePath,
 } from "../infrastructure/persistence/index.js";
 import { loadRootEnv } from "../infrastructure/config/loadRootEnv.js";
+import { cliWorkerRuntime } from "./cliWorkerRuntime.js";
 import {
   parseLongFlagsMap,
   parseStorageModeFromMap,
@@ -140,14 +141,11 @@ async function main(): Promise<void> {
   ensureCleanOutdir(outdir);
 
   const placeCache = new JsonPlaceCacheRepository(resolveJsonPlaceCachePath());
-  const runtime = await createWorkerCompositionRoot({
-    workerRole: "parse",
-    bootCaps: ["parse"],
+  const runtime = await createWorkerCompositionRoot(cliWorkerRuntime("parse", ["parse"], {
     storageMode: options.storageMode,
     placeCacheRepository: placeCache,
-    startIngestParseDaemon: false,
     ingestParsePhaseSelection: options.ingestParsePhaseSelection,
-  });
+  }));
   if (!runtime.parsePipelineService) {
     throw new Error("parse stack не инициализирован (нужен cap parse).");
   }

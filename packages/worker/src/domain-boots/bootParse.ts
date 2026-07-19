@@ -1,8 +1,12 @@
+import type * as phaseIngestSubscriber from "../application/subscribers/phaseIngestSubscriber.js";
+import type * as phaseManualRunPoller from "../application/phases/phaseManualRunPoller.js";
+import type * as runtime from "../composition/runtime/index.js";
+
 /** Поднимает parse-подписчики и runner только для parse-capability. */
 export async function bootParse<T>(wire: (modules: {
-  phaseSubscriber: typeof import("../application/subscribers/phaseIngestSubscriber.js");
-  launcher: typeof import("../composition/runtime/index.js");
-  poller: typeof import("../application/phases/phaseManualRunPoller.js");
+  phaseSubscriber: typeof phaseIngestSubscriber;
+  launcher: typeof runtime;
+  poller: typeof phaseManualRunPoller;
 }) => T): Promise<T> {
   const [phaseSubscriber, launcher, poller] = await Promise.all([
     import("../application/subscribers/phaseIngestSubscriber.js"),

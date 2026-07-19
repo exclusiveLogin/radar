@@ -7,7 +7,7 @@ import {
 import type { PlaceCatalogHealScope } from "../domain/parsing/placeCatalogHealRule.js";
 import { createWorkerCompositionRoot } from "../application/createWorkerCompositionRoot.js";
 import { loadRootEnv } from "../infrastructure/config/loadRootEnv.js";
-import { WorkerStorageMode } from "../infrastructure/persistence/storageMode.js";
+import { cliWorkerRuntime } from "./cliWorkerRuntime.js";
 import { hasAnyFlag, parseLongFlagsMap, readStringFlag } from "./workerCliArgs.js";
 
 function resolveScope(flags: ReturnType<typeof parseLongFlagsMap>): PlaceCatalogHealScope {
@@ -56,12 +56,7 @@ async function main(): Promise<void> {
     process.exit(0);
   }
 
-  const runtime = await createWorkerCompositionRoot({
-    workerRole: "geo",
-    bootCaps: ["geo"],
-    storageMode: WorkerStorageMode.Db,
-    startIngestParseDaemon: false,
-  });
+  const runtime = await createWorkerCompositionRoot(cliWorkerRuntime("geo", ["geo"]));
   if (!runtime.dataSource || !runtime.workerRepos) {
     console.error("catalog:heal: нужен RADAR_STORAGE_MODE=db");
     process.exit(1);

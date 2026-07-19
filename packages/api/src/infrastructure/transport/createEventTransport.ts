@@ -1,11 +1,11 @@
-﻿import type { DataSource } from "typeorm";
+import type { DataSource } from "typeorm";
 import type { DeploymentTransport } from "@radar/shared";
 import { resolveRmqConsumerSuffix } from "@radar/shared";
 import type { IEventTransport } from "@radar/shared";
+import { createRmqEventTransport } from "@radar/transport-rmq";
 import { createPgTransportDedup } from "./pgTransportDedup.js";
-import { createRmqEventTransport } from "./rmqEventTransport.js";
 
-/** API: admin/control всегда через RMQ (dev --full: worker in-process, API rmq). */
+/** API admin/control publishes events through RMQ. */
 export function createApiEventTransport(
   transport: DeploymentTransport,
   dataSource?: DataSource,

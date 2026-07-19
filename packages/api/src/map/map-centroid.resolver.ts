@@ -1,4 +1,4 @@
-import type { RegionEntity } from "../geo/entities";
+import type { RegionEntity } from "@radar/persistence";
 
 function toNumber(value: string | null | undefined): number | undefined {
   if (value === null || value === undefined) return undefined;

@@ -1,6 +1,7 @@
 ﻿/**
  * SSOT terminal/retry policy для job UPSERT (parse + geo).
  */
+import { DEFAULT_PHASE_TERMINAL_POLICY } from "../schemas/enrichment/phaseTerminalPolicy.js";
 
 export type WorkQueueTerminalInput = {
   attempts: number;
@@ -17,5 +18,7 @@ export function resolveWorkQueueStatusAfterFailure(
   return "failed";
 }
 
-export const DEFAULT_MAX_ATTEMPTS = 3;
-export const DEFAULT_RETRY_FAILED = true;
+/** @deprecated Используйте DEFAULT_PHASE_TERMINAL_POLICY. */
+export const DEFAULT_MAX_ATTEMPTS = DEFAULT_PHASE_TERMINAL_POLICY.maxAttempts;
+/** @deprecated Используйте DEFAULT_PHASE_TERMINAL_POLICY. */
+export const DEFAULT_RETRY_FAILED = DEFAULT_PHASE_TERMINAL_POLICY.retryFailed;

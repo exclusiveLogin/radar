@@ -38,7 +38,6 @@ export type {
   LlmChatRole,
 } from "./llmChatClient";
 export type {
-  IDomainEventOutbox,
   IEventLocationRepository,
   IIngestCursorRepository,
   IIngestProviderRepository,

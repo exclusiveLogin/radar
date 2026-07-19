@@ -53,7 +53,7 @@ export class ParseWorkerPool {
     this.obs?.registerExecutors(this.poolSize);
   }
 
-  private spawnWorker(index: number): Worker {
+  private spawnWorker(_index: number): Worker {
     const execArgv = process.execArgv.filter((arg) => !arg.startsWith("--inspect"));
     return new Worker(resolveParseWorkerEntry(), {
       workerData: { config: this.workerConfig },

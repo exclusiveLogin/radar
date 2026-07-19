@@ -1,8 +1,8 @@
 import { MONOREPO_ROOT } from "@repo/root";
 import { createWorkerCompositionRoot } from "../application/createWorkerCompositionRoot.js";
-import { WorkerStorageMode } from "../infrastructure/persistence/storageMode.js";
 import { loadRootEnv } from "../infrastructure/config/loadRootEnv.js";
 import { createWorkerDbRepositories } from "../infrastructure/persistence/workerDbRepos.js";
+import { cliWorkerRuntime } from "./cliWorkerRuntime.js";
 import { createProgress } from "./progress.js";
 import {
   hasAnyFlag,
@@ -44,12 +44,7 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const runtime = await createWorkerCompositionRoot({
-    workerRole: "ingest",
-    bootCaps: ["ingest"],
-    storageMode: WorkerStorageMode.Db,
-    startIngestParseDaemon: false,
-  });
+  const runtime = await createWorkerCompositionRoot(cliWorkerRuntime("ingest", ["ingest"]));
 
   if (!runtime.ingestOrchestrator || !runtime.dataSource) {
     console.error("Ingest orchestrator доступен только в RADAR_STORAGE_MODE=db.");

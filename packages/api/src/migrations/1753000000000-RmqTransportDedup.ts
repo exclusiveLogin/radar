@@ -1,4 +1,4 @@
-﻿import type { MigrationInterface, QueryRunner } from "typeorm";
+import type { MigrationInterface, QueryRunner } from "typeorm";
 
 /** RMQ idempotency + transport audit (ADR-022). */
 export class RmqTransportDedup1753000000000 implements MigrationInterface {

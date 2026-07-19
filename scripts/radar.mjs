@@ -40,9 +40,11 @@ function splitPass(rest) {
 const TOPICS = {
   stack: `
 stack — инфраструктура и dev
-  up              docker + UI/API (без workers)
-  dev [--app-only]    host: UI+API + 5 workers (или --app-only без workers)
-  cold-up         первый холодный старт (-Geo -Tiles -Verbose)
+  up              infra:up + UI/API (без workers)
+  infra:up [--llm][--llm-ui]  Postgres+RMQ+Prometheus+Grafana (+ollama)
+  infra:down      остановить infra (включая llm/obs profiles)
+  dev [--app-only][--llm][--no-infra]  host app; infra поднимается сама
+  cold-up         первый холодный старт + migrate (+ -Geo -Tiles -Llm)
   bootstrap       seed phase_definitions из deployment.manifest (-apply-config)
   docker-dev      Docker: api/web + 5 worker-ролей (profile app)
   docker-prod     Docker prod: baked dist + nginx + 5 roles (profile prod)
@@ -53,7 +55,7 @@ stack — инфраструктура и dev
   tiles:down      остановить TileServer
   tiles:verify    проверка mbtiles + build.manifest
   tiles:download | tiles:merge | tiles:build  пошагово
-  db:up | db:down docker compose
+  db:up | db:down alias → infra:up / infra:down
   migrate         migration:run
 `,
   pipeline: `
@@ -161,8 +163,10 @@ const ACTIONS = {
     },
     'cold-up': (pass) => nodeScript('scripts/cold-up.mjs', pass),
     bootstrap: (pass) => nodeScript('scripts/stack-bootstrap.mjs', pass),
-    "db:up": () => npm('db:up'),
-    'db:down': () => npm('db:down'),
+    'infra:up': (pass) => npm('infra:up', pass),
+    'infra:down': () => npm('infra:down'),
+    "db:up": (pass) => npm('infra:up', pass),
+    'db:down': () => npm('infra:down'),
     migrate: () => npm('migration:run'),
     'docker-prod': (pass) => {
       console.log('\x1b[36m=== Radar: Docker prod (profile prod) ===\x1b[0m');

@@ -3,7 +3,7 @@
  * Подготовка basemap-артефактов без TileServer:
  * download → merge → build → verify.
  *
- * Потом отдельно: stack dev --full + stack tiles:up
+ * Потом отдельно: stack dev + stack tiles:up
  */
 import { createRootCliReporter, parseCliFlags } from './cli-reporter.mjs';
 import { runTilesBuildPipeline, tileServerUrl } from './tiles/pipeline.mjs';
@@ -16,7 +16,7 @@ reporter.log(
   '\x1b[90mТолько артефакты в data/tiles/. Сервер: npm run radar -- stack tiles:up\x1b[0m',
 );
 reporter.log(
-  '\x1b[90mDev: npm run radar -- stack dev --full (параллельно с tiles:up)\x1b[0m',
+  '\x1b[90mDev: npm run radar -- stack dev (параллельно с tiles:up)\x1b[0m',
 );
 
 const overall = reporter.startStage('tiles:prepare', 1);

@@ -6,7 +6,7 @@ import {
   isVendorCatalogPlace,
 } from "../domain/parsing/placeCatalogHealRule.js";
 import { loadRootEnv } from "../infrastructure/config/loadRootEnv.js";
-import { WorkerStorageMode } from "../infrastructure/persistence/storageMode.js";
+import { cliWorkerRuntime } from "./cliWorkerRuntime.js";
 
 export type PlaceCatalogAuditSnapshot = {
   activeTotal: number;
@@ -91,12 +91,7 @@ export async function snapshotPlaceCatalogAudit(
 
 async function main(): Promise<void> {
   loadRootEnv(MONOREPO_ROOT);
-  const runtime = await createWorkerCompositionRoot({
-    workerRole: "geo",
-    bootCaps: ["geo"],
-    storageMode: WorkerStorageMode.Db,
-    startIngestParseDaemon: false,
-  });
+  const runtime = await createWorkerCompositionRoot(cliWorkerRuntime("geo", ["geo"]));
   if (!runtime.dataSource || !runtime.workerRepos) {
     console.error("catalog:heal:audit: нужен RADAR_STORAGE_MODE=db");
     process.exit(1);

@@ -5,8 +5,8 @@ import type { DataSource } from "typeorm";
 import {
   EventLocationEntity,
   ParsedEventEntity,
-} from "../events/entities";
-import { GeoSyncLogEntity, RegionEntity } from "../geo/entities";
+} from "@radar/persistence";
+import { GeoSyncLogEntity, RegionEntity } from "@radar/persistence";
 import { listParseAttemptsForAdmin } from "./parse-attempt-admin.query";
 import { loadPhaseCoverageStats } from "./stats-overview.query";
 

@@ -17,7 +17,7 @@ import type { RawData, Server } from "ws";
 import { WorkerStatusService } from "../worker/worker-status.service";
 import { PhasesAdminService } from "../phases-admin/phases-admin.service";
 import { ParsePipelineAdminService } from "../parse-admin/parse-pipeline-admin.service";
-import { TrackingAdminService } from "../tracking-admin/tracking-admin.service";
+import { TrackingAdminQueryService } from "../tracking-admin/tracking-admin.service";
 import { ObservabilityAdminService } from "../observability-admin/observability-admin.service";
 import { listParseAttemptsSince } from "../read-side/parse-attempt-admin.query";
 import {
@@ -74,7 +74,7 @@ export class AdminGateway
     private readonly workerStatus: WorkerStatusService,
     private readonly phasesAdmin: PhasesAdminService,
     private readonly parsePipelineAdmin: ParsePipelineAdminService,
-    private readonly trackingAdmin: TrackingAdminService,
+    private readonly trackingAdmin: TrackingAdminQueryService,
     private readonly observabilityAdmin: ObservabilityAdminService,
   ) {}
 

@@ -32,6 +32,7 @@ import {
   type CreateIngestProvider,
   type CreateBackfillJob,
   type DomainEvent,
+  defaultTopicForEvent,
   type IngestBindingRecord,
   type IngestProviderRecord,
   type ManualIngestRequest,
@@ -43,7 +44,6 @@ import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { MANUAL_ADMIN_PROVIDER_KEY } from "./ingest-admin.constants";
 import { Inject } from "@nestjs/common";
-import { RADAR_TOPICS } from "@radar/shared";
 import {
   INGEST_ADMIN_DEPENDENCIES,
   type IngestAdminDependencies,
@@ -65,7 +65,7 @@ export class IngestAdminService implements OnModuleInit, OnModuleDestroy {
     private readonly deps: IngestAdminDependencies,
   ) {}
 
-  /** RMQ transport для RawMessageIngested (parse planPending). */
+  /** RMQ transport для admin ingest wake (confirm + retry, без outbox). */
   async onModuleInit(): Promise<void> {
     await this.deps.transport.start();
   }
@@ -136,9 +136,7 @@ export class IngestAdminService implements OnModuleInit, OnModuleDestroy {
     return ingestProviderRecordSchema.parse(await this.requireProvider(id));
   }
 
-  /**
-   * Ручной ingest: upsert mat_ingest_raw, RMQ RawMessageIngested (+ outbox audit).
-   */
+  /** Ручной ingest: raw DB → RMQ publishConfirmed (ошибка → UI, ретрай руками). */
   async manualIngest(body: unknown) {
     const input = manualIngestRequestSchema.parse(body) satisfies ManualIngestRequest;
     const { channelKey, binding } = await this.resolveManualChannel(input);
@@ -439,7 +437,8 @@ export class IngestAdminService implements OnModuleInit, OnModuleDestroy {
         materializationIds: [aggregateId],
       },
     };
-    await this.deps.transport.publish(RADAR_TOPICS.RAW_INGESTED, [event]);
-    await this.deps.outbox.append([event]);
+    const topic = defaultTopicForEvent(event.type);
+    if (!topic) return;
+    await this.deps.transport.publish(topic, [event]);
   }
 }

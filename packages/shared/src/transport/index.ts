@@ -18,4 +18,11 @@ export {
   resolveRmqQueueSuffixForPhaseScope,
   type RmqConsumerRole,
 } from "./rmqQueueName.js";
+export {
+  publishConfirmed,
+  publishWithConfirmRetry,
+  waitForPublishConfirm,
+  RmqPublishError,
+  RMQ_PUBLISH_MAX_ATTEMPTS,
+} from "./rmqPublisher.js";
 export type { RadarTopicRoutingKey } from "./topicCatalog.js";

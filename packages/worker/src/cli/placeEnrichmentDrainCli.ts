@@ -4,7 +4,7 @@ import { resolveGeoEnrichmentProvider } from "@radar/shared";
 import { createWorkerCompositionRoot } from "../application/createWorkerCompositionRoot.js";
 import { runGeoPhaseDrain } from "../application/geo-parse/runGeoPhaseDrain.js";
 import { loadRootEnv } from "../infrastructure/config/loadRootEnv.js";
-import { WorkerStorageMode } from "../infrastructure/persistence/storageMode.js";
+import { cliWorkerRuntime } from "./cliWorkerRuntime.js";
 import { parseLongFlagsMap, readStringFlag } from "./workerCliArgs.js";
 
 function resolveProvider(
@@ -27,12 +27,7 @@ async function main(): Promise<void> {
   const phaseFilter = readStringFlag(flags, ["phase"])?.trim();
   const providerFilter = readStringFlag(flags, ["provider"])?.trim();
 
-  const runtime = await createWorkerCompositionRoot({
-    workerRole: "geo",
-    bootCaps: ["geo"],
-    storageMode: WorkerStorageMode.Db,
-    startIngestParseDaemon: false,
-  });
+  const runtime = await createWorkerCompositionRoot(cliWorkerRuntime("geo", ["geo"]));
   if (!runtime.workerRepos || !runtime.placeEnrichmentRunner || !runtime.phaseRunSession) {
     throw new Error("parse-engine:geo:drain: требуется db mode + session");
   }

@@ -22,8 +22,8 @@ import {
   type MapEntityWinner,
   type VicinityScopeWinner,
 } from "@radar/shared";
-import { GeoFeatureEntity, PlaceEntity, RegionEntity } from "../geo/entities";
-import { StatusDictionaryEntity } from "../events/entities";
+import { GeoFeatureEntity, PlaceEntity, RegionEntity } from "@radar/persistence";
+import { StatusDictionaryEntity } from "@radar/persistence";
 import { resolvePlaceMapMarkerCoords, resolveRegionCentroid } from "./map-centroid.resolver";
 import { loadLayout } from "./layout.loader";
 import { MapFactsRepository } from "./map-facts.repository";

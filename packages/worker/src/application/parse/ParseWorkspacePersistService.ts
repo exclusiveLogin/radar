@@ -43,7 +43,7 @@ export class ParseWorkspacePersistService {
     context: FinalizeContext;
     postedAt: string;
     parserRevision: string;
-    locationsByCandidateId?: Record<string, import("@radar/shared").EventLocation[]>;
+    locationsByCandidateId?: Record<string, EventLocation[]>;
   }): Promise<FinalizeResult> {
     const plan = planFinalize({
       workspace: input.workspace,

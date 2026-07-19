@@ -3,19 +3,12 @@
  */
 import { MONOREPO_ROOT } from "@repo/root";
 import { createWorkerCompositionRoot } from "../application/createWorkerCompositionRoot.js";
-import { WorkerStorageMode } from "../infrastructure/persistence/storageMode.js";
 import { loadRootEnv } from "../infrastructure/config/loadRootEnv.js";
-
-const EVENT_AT_SQL = "COALESCE(el.occurred_at, rm.posted_at, pe.parsed_at)";
+import { cliWorkerRuntime } from "./cliWorkerRuntime.js";
 
 async function main(): Promise<void> {
   loadRootEnv(MONOREPO_ROOT);
-  const runtime = await createWorkerCompositionRoot({
-    workerRole: "tracking",
-    bootCaps: ["tracking"],
-    storageMode: WorkerStorageMode.Db,
-    startIngestParseDaemon: false,
-  });
+  const runtime = await createWorkerCompositionRoot(cliWorkerRuntime("tracking", ["tracking"]));
   const ds = runtime.dataSource;
   if (!ds) {
     console.error("Нет dataSource");

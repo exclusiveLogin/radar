@@ -6,7 +6,7 @@ import {
   IngestBindingEntity,
   IngestProviderEntity,
   RawMessageEntity,
-} from "../ingest/entities";
+} from "@radar/persistence";
 import { IngestAdminController } from "./ingest-admin.controller";
 import { ingestAdminDependenciesProvider } from "./ingest-admin.providers";
 import { IngestAdminService } from "./ingest-admin.service";

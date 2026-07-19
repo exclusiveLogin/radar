@@ -1,4 +1,4 @@
-import { MigrationInterface, QueryRunner } from "typeorm";
+import type { MigrationInterface, QueryRunner } from "typeorm";
 
 /** Переименовываем уровень 'yellow' → 'orange' в status_dictionary.
  *  'yellow' теперь зарезервирован исключительно для производных соседей (read-side). */

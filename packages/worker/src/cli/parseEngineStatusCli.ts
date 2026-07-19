@@ -1,7 +1,7 @@
 import { MONOREPO_ROOT } from "@repo/root";
 import { createWorkerCompositionRoot } from "../application/createWorkerCompositionRoot.js";
 import { loadRootEnv } from "../infrastructure/config/loadRootEnv.js";
-import { WorkerStorageMode } from "../infrastructure/persistence/storageMode.js";
+import { cliWorkerRuntime } from "./cliWorkerRuntime.js";
 
 type StatusScope = "all" | "ingest" | "geo" | "runs";
 
@@ -91,12 +91,7 @@ async function printActiveRuns(
 async function main(): Promise<void> {
   loadRootEnv(MONOREPO_ROOT);
   const scope = resolveScope(process.argv);
-  const runtime = await createWorkerCompositionRoot({
-    workerRole: "parse",
-    bootCaps: ["parse","geo"],
-    storageMode: WorkerStorageMode.Db,
-    startIngestParseDaemon: false,
-  });
+  const runtime = await createWorkerCompositionRoot(cliWorkerRuntime("parse", ["parse", "geo"]));
   if (!runtime.dataSource || !runtime.workerRepos) {
     throw new Error("parseEngineStatusCli: требуется db mode");
   }

@@ -295,7 +295,6 @@ export function afterStyleChange(
 ): void {
   let done = false;
   const timeoutMs = options?.timeoutMs ?? 5_000;
-  let timeoutSub: Subscription | undefined;
 
   const run = (): void => {
     if (done) return;
@@ -311,11 +310,7 @@ export function afterStyleChange(
     run();
   };
 
-  map.on("styledata", onStyleData);
-  map.on("load", onStyleData);
-  if (map.isStyleLoaded()) run();
-
-  timeoutSub = timer(timeoutMs).pipe(take(1)).subscribe(() => {
+  const timeoutSub: Subscription = timer(timeoutMs).pipe(take(1)).subscribe(() => {
     if (done) return;
     if (map.isStyleLoaded()) {
       run();
@@ -329,6 +324,10 @@ export function afterStyleChange(
     }
     run();
   });
+
+  map.on("styledata", onStyleData);
+  map.on("load", onStyleData);
+  if (map.isStyleLoaded()) run();
 }
 
 /**

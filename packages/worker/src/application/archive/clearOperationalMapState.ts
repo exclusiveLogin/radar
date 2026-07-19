@@ -1,5 +1,4 @@
 import type { OperationalSql } from "../phases/operationalSql.port.js";
-import type { WipeLogger } from "./wipeLog.js";
 import type { TruncateOptions } from "./wipeTableSql.js";
 
 export type ClearOperationalMapStateResult = {

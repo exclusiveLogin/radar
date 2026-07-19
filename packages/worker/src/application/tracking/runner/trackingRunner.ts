@@ -16,6 +16,8 @@ import type { DataSource } from "typeorm";
 import {
   H3VectorFlowMap,
   maxEpsilonTemporalMs,
+  orderTrackingCandidates,
+  resolveTrackingTemporalReplay,
   resolveDaemonBatchSize,
   createWorkbook,
 } from "@radar/shared";
@@ -24,10 +26,10 @@ import {
   ensureActiveTrackingRun,
   readTrackingPipelineState,
   readTrackingRunControl,
+  resetTrackingTemporalTail,
   resetTrackingWatermark,
 } from "../../../infrastructure/tracking/trackingPipelineStateRepository.js";
 import { loadCandidateWindow, runIncrementalBatch, countTrackingPipelineRemaining } from "../trackingRebuildService.js";
-import { takeTrackingWakeIds } from "../trackingWakePriority.js";
 import type { JobKernelObsPort } from "../../runtime/runner-platform/jobKernel.js";
 import { createWorkload, type Workload } from "../../runtime/workload/createWorkload.js";
 import { createTrackingMaterialize } from "./trackingMaterializationPorts.js";
@@ -123,17 +125,13 @@ export function createTrackingRunner(
 
     const until = new Date();
     const lookbackMs = maxEpsilonTemporalMs(state.config.profiles);
-    const { pending, window } = await loadCandidateWindow(ds, { until, lookbackMs });
-
-    // Wake с ids → приоритет в batch; без ids — обычный drain batchSize.
-    const wakeIds = new Set(takeTrackingWakeIds());
-    const orderedPending =
-      wakeIds.size === 0
-        ? pending
-        : [
-            ...pending.filter((c) => wakeIds.has(c.eventLocationId)),
-            ...pending.filter((c) => !wakeIds.has(c.eventLocationId)),
-          ];
+    let { pending, window } = await loadCandidateWindow(ds, { until, lookbackMs });
+    const replay = resolveTrackingTemporalReplay(pending, state.watermark, state.config.profiles);
+    if (replay) {
+      await resetTrackingTemporalTail(ds, replay.since);
+      flowFieldByRun.clear();
+      ({ pending, window } = await loadCandidateWindow(ds, { until, lookbackMs }));
+    }
 
     const run = await ensureActiveTrackingRun(ds, state, pending.length > 0);
     if (!run) return { slice: EMPTY_SLICE, isEmpty: true };
@@ -152,7 +150,8 @@ export function createTrackingRunner(
     if (control?.pause || control?.cancel) return { slice: EMPTY_SLICE, isEmpty: true };
 
     const batchSize = resolveDaemonBatchSize(state.config.batchSize);
-    const chunk = orderedPending.slice(0, batchSize);
+    // Wake только будит workload; порядок решений всегда определяется event-time.
+    const chunk = orderTrackingCandidates(pending).slice(0, batchSize);
     const totalCandidates = await countTrackingPipelineRemaining(ds, { until });
 
     const slice: TrackingRunnerSlice = {

@@ -7,11 +7,11 @@
  */
 import type { Provider } from "@nestjs/common";
 import { DataSource } from "typeorm";
-import { TypeOrmChannelRepository } from "../infrastructure/persistence/typeorm-channel.repository";
-import { TypeOrmDomainEventOutbox, TypeOrmRawMessageRepository } from "../infrastructure/persistence/typeorm-raw-message.repository";
-import { TypeOrmIngestBackfillJobRepository } from "../infrastructure/persistence/typeorm-ingest-backfill-job.repository";
-import { TypeOrmIngestBindingRepository } from "../infrastructure/persistence/typeorm-ingest-binding.repository";
-import { TypeOrmIngestProviderRepository } from "../infrastructure/persistence/typeorm-ingest-provider.repository";
+import { TypeOrmChannelRepository } from "@radar/persistence";
+import { TypeOrmRawMessageRepository } from "@radar/persistence";
+import { TypeOrmIngestBackfillJobRepository } from "@radar/persistence";
+import { TypeOrmIngestBindingRepository } from "@radar/persistence";
+import { TypeOrmIngestProviderRepository } from "@radar/persistence";
 import { createApiDeploymentEventTransport } from "../infrastructure/transport/create-api-deployment-event-transport";
 import type { IEventTransport } from "@radar/shared";
 
@@ -23,7 +23,6 @@ export type IngestAdminDependencies = {
   bindings: TypeOrmIngestBindingRepository;
   channels: TypeOrmChannelRepository;
   rawMessages: TypeOrmRawMessageRepository;
-  outbox: TypeOrmDomainEventOutbox;
   backfillJobs: TypeOrmIngestBackfillJobRepository;
   transport: IEventTransport;
 };
@@ -31,15 +30,17 @@ export type IngestAdminDependencies = {
 /** Собирает единственный набор concrete adapters для ingest admin use-case. */
 export const ingestAdminDependenciesProvider: Provider = {
   provide: INGEST_ADMIN_DEPENDENCIES,
-  useFactory: (dataSource: DataSource): IngestAdminDependencies => ({
-    dataSource,
-    providers: new TypeOrmIngestProviderRepository(dataSource),
-    bindings: new TypeOrmIngestBindingRepository(dataSource),
-    channels: new TypeOrmChannelRepository(dataSource),
-    rawMessages: new TypeOrmRawMessageRepository(dataSource),
-    outbox: new TypeOrmDomainEventOutbox(dataSource),
-    backfillJobs: new TypeOrmIngestBackfillJobRepository(dataSource),
-    transport: createApiDeploymentEventTransport(dataSource),
-  }),
+  useFactory: (dataSource: DataSource): IngestAdminDependencies => {
+    const transport = createApiDeploymentEventTransport(dataSource);
+    return {
+      dataSource,
+      providers: new TypeOrmIngestProviderRepository(dataSource),
+      bindings: new TypeOrmIngestBindingRepository(dataSource),
+      channels: new TypeOrmChannelRepository(dataSource),
+      rawMessages: new TypeOrmRawMessageRepository(dataSource),
+      backfillJobs: new TypeOrmIngestBackfillJobRepository(dataSource),
+      transport,
+    };
+  },
   inject: [DataSource],
 };

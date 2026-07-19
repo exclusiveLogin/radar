@@ -1,8 +1,8 @@
 import type { DataSource } from "typeorm";
 import { MONOREPO_ROOT } from "@repo/root";
 import { createWorkerCompositionRoot } from "../application/createWorkerCompositionRoot.js";
-import { WorkerStorageMode } from "../infrastructure/persistence/storageMode.js";
 import { loadRootEnv } from "../infrastructure/config/loadRootEnv.js";
+import { cliWorkerRuntime } from "./cliWorkerRuntime.js";
 import { createProgress } from "./progress.js";
 import { hasAnyFlag, parseLongFlagsMap, readStringFlag } from "./workerCliArgs.js";
 
@@ -67,12 +67,7 @@ async function main(): Promise<void> {
     process.exit(0);
   }
 
-  const runtime = await createWorkerCompositionRoot({
-    workerRole: "parse",
-    bootCaps: ["parse"],
-    storageMode: WorkerStorageMode.Db,
-    startIngestParseDaemon: false,
-  });
+  const runtime = await createWorkerCompositionRoot(cliWorkerRuntime("parse", ["parse"]));
   if (!runtime.dataSource || !runtime.workspaceService) {
     console.error("workspace:heal: нужен RADAR_STORAGE_MODE=db");
     process.exit(1);

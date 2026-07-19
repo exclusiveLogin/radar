@@ -1,18 +1,14 @@
 import type { DataSource } from "typeorm";
-import { PlaceEntity } from "../../geo/entities";
+import { PlaceEntity } from "@radar/persistence";
 import type { GeoProviderSnapshot } from "@radar/shared";
 import { GeoSyncApplyService } from "../geo-sync/geo-sync-apply.service";
 import { GeoSyncPlanService } from "../geo-sync/geo-sync-plan.service";
 import { OsmRussiaGeoImporter } from "../geo-import/osm-russia-geo.importer";
-import { TypeOrmDomainEventRepository } from "../../infrastructure/persistence/typeorm-domain-event.repository";
-import { TypeOrmPlaceAliasRepository } from "../../infrastructure/persistence/typeorm-place-alias.repository";
-import { TypeOrmPlaceRepository } from "../../infrastructure/persistence/typeorm-place.repository";
-import { TypeOrmRegionRepository } from "../../infrastructure/persistence/typeorm-region.repository";
-import { TypeOrmSyncAuditRepository } from "../../infrastructure/persistence/typeorm-sync-audit.repository";
 import { FrontlineCatalogProvider } from "../../infrastructure/geo-catalog/frontline-catalog.provider";
 import { RegionAdjacencyImporter } from "../../infrastructure/geo-catalog/region-adjacency.importer";
 import { StaticGeoProvider } from "../../infrastructure/geo-catalog/static-geo.provider";
 import { TabularCatalogProvider } from "../../infrastructure/geo-catalog/tabular-catalog.provider";
+import type { GeoSyncPersistenceDeps } from "../geo-sync/geo-sync-persistence-deps.port";
 import type {
   GeoCatalogStepStats,
   IGeoCatalogImportReporter,
@@ -28,6 +24,7 @@ export type GeoCatalogImportResult = {
 
 type CatalogImportDeps = {
   dataSource: DataSource;
+  persistence: GeoSyncPersistenceDeps;
   reporter?: IGeoCatalogImportReporter;
   persist?: IGeoSyncPersistReporter;
 };
@@ -43,11 +40,7 @@ export class GeoCatalogImportService {
 
   async run(mode: GeoCatalogImportMode): Promise<GeoCatalogImportResult> {
     const steps: GeoCatalogStepStats[] = [];
-    const regions = new TypeOrmRegionRepository(this.deps.dataSource);
-    const places = new TypeOrmPlaceRepository(this.deps.dataSource);
-    const aliases = new TypeOrmPlaceAliasRepository(this.deps.dataSource);
-    const audit = new TypeOrmSyncAuditRepository(this.deps.dataSource);
-    const events = new TypeOrmDomainEventRepository(this.deps.dataSource);
+    const { regions, places, aliases, audit, events } = this.deps.persistence;
 
     // [1/4] tabular
     steps.push(
@@ -104,11 +97,11 @@ export class GeoCatalogImportService {
     label: string;
     mode: GeoCatalogImportMode;
     snapshot: GeoProviderSnapshot;
-    regions: TypeOrmRegionRepository;
-    places: TypeOrmPlaceRepository;
-    aliases: TypeOrmPlaceAliasRepository;
-    audit: TypeOrmSyncAuditRepository;
-    events: TypeOrmDomainEventRepository;
+    regions: GeoSyncPersistenceDeps["regions"];
+    places: GeoSyncPersistenceDeps["places"];
+    aliases: GeoSyncPersistenceDeps["aliases"];
+    audit: GeoSyncPersistenceDeps["audit"];
+    events: GeoSyncPersistenceDeps["events"];
   }): Promise<GeoCatalogStepStats> {
     const started = Date.now();
     this.deps.reporter?.stepBegin(input.label, input.stepIndex + 1, STEP_LABELS.length);
@@ -191,7 +184,7 @@ export class GeoCatalogImportService {
   }
 
   /** Не запускаем geometry link на пустой БД places. */
-  private async assertPlacesReady(places: TypeOrmPlaceRepository): Promise<void> {
+  private async assertPlacesReady(places: GeoSyncPersistenceDeps["places"]): Promise<void> {
     const active = await places.listActive();
     const nonRegionPlaces = active.filter((place) => place.kind !== "region");
     if (nonRegionPlaces.length === 0) {

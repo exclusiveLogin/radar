@@ -1,4 +1,4 @@
-export * from "./trackingRunnerContracts.js";
+export type * from "./trackingRunnerContracts.js";
 export * from "./trackingMaterializationPorts.js";
 export * from "./trackingTelemetryBridge.js";
 export * from "./trackingRunner.js";

@@ -15,7 +15,7 @@ import { buildTestPlaceScanService } from "../domain/parse/geo/testPlaceScanFixt
 import { createWorkerCompositionRoot } from "../application/createWorkerCompositionRoot.js";
 import { loadRootEnv } from "../infrastructure/config/loadRootEnv.js";
 import { notifyMapPushSnapshot } from "../infrastructure/notifyMapPushSnapshot.js";
-import { WorkerStorageMode } from "../infrastructure/persistence/storageMode.js";
+import { cliWorkerRuntime } from "./cliWorkerRuntime.js";
 import { hasAnyFlag, parseLongFlagsMap, parsePositionalArgs } from "./workerCliArgs.js";
 
 /** Ключи полного wipe БД (ingest + places + geo-catalog). */
@@ -82,6 +82,23 @@ function warnDeprecatedFullWipeKey(phaseKey: string): void {
 }
 
 type PhaseDbCtx = { deps: PhaseOperationalDeps };
+
+function lifecycleRuntime(phaseKey: string) {
+  const extra = { placeScan: buildTestPlaceScanService([]) };
+  switch (phaseKey) {
+    case "ingest":
+      return cliWorkerRuntime("ingest", ["ingest"], extra);
+    case "parse":
+      return cliWorkerRuntime("parse", ["parse"], extra);
+    case "geo":
+    case "geo-catalog":
+      return cliWorkerRuntime("geo", ["geo"], extra);
+    case "ingest-parse":
+      return cliWorkerRuntime("parse", ["ingest", "parse"], extra);
+    default:
+      return cliWorkerRuntime("parse", ["ingest", "parse", "geo"], extra);
+  }
+}
 
 /** План или выполнение мутации фазы (dry-run не требует БД). */
 async function runPhaseMutation(
@@ -169,13 +186,7 @@ async function main(): Promise<void> {
     process.exit(0);
   }
 
-  const runtime = await createWorkerCompositionRoot({
-    workerRole: "parse",
-    bootCaps: ["parse","geo"],
-    storageMode: WorkerStorageMode.Db,
-    startIngestParseDaemon: false,
-    placeScan: buildTestPlaceScanService([]),
-  });
+  const runtime = await createWorkerCompositionRoot(lifecycleRuntime(phaseKey));
 
   if (!runtime.operationalSql || !runtime.workerRepos) {
     console.error("Нужен RADAR_STORAGE_MODE=db и DATABASE_URL");

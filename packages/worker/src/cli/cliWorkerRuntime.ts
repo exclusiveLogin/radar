@@ -8,7 +8,7 @@ export function cliWorkerRuntime(
   bootCaps?: readonly DomainCap[],
   extra?: Omit<
     WorkerCompositionOptions,
-    "storageMode" | "startIngestParseDaemon" | "workerRole" | "bootCaps"
+    "startIngestParseDaemon" | "workerRole" | "bootCaps"
   >,
 ): WorkerCompositionOptions {
   return {

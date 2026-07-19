@@ -2,9 +2,9 @@ import { MONOREPO_ROOT } from "@repo/root";
 import { createWorkerCompositionRoot } from "../application/createWorkerCompositionRoot.js";
 import { runFullReparseLikeIngest } from "../application/phases/reparseOrchestrator.js";
 import { createPhaseOperationalDeps } from "../application/phases/phaseOperationalDeps.js";
-import { WorkerStorageMode } from "../infrastructure/persistence/storageMode.js";
 import { loadRootEnv } from "../infrastructure/config/loadRootEnv.js";
 import { notifyMapPushSnapshot } from "../infrastructure/notifyMapPushSnapshot.js";
+import { cliWorkerRuntime } from "./cliWorkerRuntime.js";
 import { createProgress } from "./progress.js";
 import { hasAnyFlag, parseLongFlagsMap } from "./workerCliArgs.js";
 
@@ -18,12 +18,7 @@ async function main(): Promise<void> {
   const flags = parseLongFlagsMap(process.argv);
   const drainScheduled = hasAnyFlag(flags, ["drain-scheduled", "drainScheduled"]);
   const forceLocks = !hasAnyFlag(flags, ["no-force-locks", "noForceLocks"]);
-  const runtime = await createWorkerCompositionRoot({
-    workerRole: "parse",
-    bootCaps: ["parse","geo"],
-    storageMode: WorkerStorageMode.Db,
-    startIngestParseDaemon: false,
-  });
+  const runtime = await createWorkerCompositionRoot(cliWorkerRuntime("parse", ["parse", "geo"]));
 
   if (!runtime.operationalSql || !runtime.phaseRunner || !runtime.workerRepos || !runtime.coverageEnqueuer) {
     console.error("reparseRawCli: нужен RADAR_STORAGE_MODE=db");

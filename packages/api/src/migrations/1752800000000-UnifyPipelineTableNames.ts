@@ -1,8 +1,9 @@
-﻿import type { MigrationInterface, QueryRunner } from "typeorm";
+import type { MigrationInterface, QueryRunner } from "typeorm";
 
 /**
- * Epic G: 21x RENAME операционных таблиц. @see docs/rfc/adr-020-database-table-naming.md
- * enrichment_queue RENAME пропущен: таблица уже смержена в phase_coverage до Epic G (единая lineage queue).
+ * Renames pipeline tables under the Epic G naming convention.
+ * Moves the enrichment queue to queue_parse_coverage.
+ * @see docs/rfc/adr-020-database-table-naming.md
  */
 export class UnifyPipelineTableNames1752800000000 implements MigrationInterface {
   name = "UnifyPipelineTableNames1752800000000";

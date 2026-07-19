@@ -1,33 +1,37 @@
 #!/usr/bin/env node
 /**
- * Host dev-стек: prepare → concurrently (shared/api/web + 5 workers по ролям).
+ * Host dev-стек: infra → prepare → concurrently (shared/api/web + workers).
  * --app-only: без workers.
+ * --llm / --llm-ui: дополнительно ollama (+ open-webui).
+ * --no-infra: не трогать Docker (если infra уже поднята).
  */
 import { loadDeploymentManifest } from '@radar/shared/deployment/deploymentManifest.loader.js';
 import { spawn } from 'node:child_process';
 import { freeDevPorts } from './free-dev-ports.mjs';
 import { repoRoot, run } from './utils.mjs';
-
-function ensureObsDockerStack() {
-  const manifest = loadDeploymentManifest({ repoRoot });
-  const obs = manifest.infra.obs;
-  if (!obs.dockerize && !obs.dockerizeAll) return;
-  console.log('[obs] docker compose --profile obs up -d');
-  run('docker', ['compose', '--profile', 'obs', 'up', '-d']);
-  process.env.RADAR_OBS_SERVICE_URL = obs.serviceUrl;
-  process.env.OBS_PORT = String(obs.port);
-  process.env.OBS_HOST = obs.host;
-}
+import {
+  DEV_WORKER_COLORS,
+  DEV_WORKER_PROBE_ROLE,
+  DEV_WORKER_ROLES,
+  devWorkerProcessNames,
+} from './worker-roles.mjs';
 
 const argv = process.argv.slice(2);
 const appOnly = argv.includes('--app-only');
+const noInfra = argv.includes('--no-infra');
 const prepareArgs = argv.includes('--no-clean') ? ['--no-clean'] : [];
+const infraArgs = [
+  ...(argv.includes('--llm') ? ['--llm'] : []),
+  ...(argv.includes('--llm-ui') ? ['--llm-ui'] : []),
+];
 const sharedDist = 'file:packages/shared/dist/index.js';
 const workerParseDist =
   'file:packages/worker/dist/application/parse/parsePipeline.worker.js';
-const apiReady = 'http://127.0.0.1:3000/api/ready';
 const waitTimeoutMs = 120_000;
-const WORKER_ROLES = ['ingest', 'backfill', 'parse', 'geo', 'tracking'];
+
+const manifest = loadDeploymentManifest({ repoRoot });
+const apiPort = Number(process.env.PORT) || manifest.infra.compose.apiPort;
+const apiReady = `http://127.0.0.1:${apiPort}/api/ready`;
 
 const commands = [
   'npm run dev -w @radar/shared',
@@ -37,18 +41,17 @@ const commands = [
 
 if (!appOnly) {
   const workerWait = `npx wait-on -t ${waitTimeoutMs} ${apiReady} ${workerParseDist}`;
-  for (const role of WORKER_ROLES) {
-    const freeProbe = role === 'ingest' ? 'node scripts/free-worker-probe-port.mjs && ' : '';
+  for (const role of DEV_WORKER_ROLES) {
+    const freeProbe =
+      role === DEV_WORKER_PROBE_ROLE ? 'node scripts/free-worker-probe-port.mjs && ' : '';
     commands.push(`${freeProbe}${workerWait} && node scripts/run-worker-dev.mjs ${role}`);
   }
 }
 
-const names = appOnly
-  ? 'shared,api,web'
-  : 'shared,api,web,worker-ingest,worker-backfill,worker-parse,worker-geo,worker-tracking';
-const colors = appOnly
-  ? 'cyan,blue,magenta'
-  : 'cyan,blue,magenta,green,yellow,red,white,gray';
+const appNames = ['shared', 'api', 'web'];
+const appColors = ['cyan', 'blue', 'magenta'];
+const names = (appOnly ? appNames : [...appNames, ...devWorkerProcessNames()]).join(',');
+const colors = (appOnly ? appColors : [...appColors, ...DEV_WORKER_COLORS]).join(',');
 
 function spawnConcurrently() {
   const quoted = commands.map((cmd) => JSON.stringify(cmd)).join(' ');
@@ -65,10 +68,14 @@ async function main() {
   console.log('\x1b[36m=== Radar dev: bootstrap ===\x1b[0m');
   console.log(`Профиль: ${appOnly ? 'app-only (shared+api+web)' : 'full (5 workers by role)'}`);
   freeDevPorts();
-  ensureObsDockerStack();
+  if (!noInfra) {
+    run('node', ['scripts/infra-up.mjs', ...infraArgs]);
+  } else {
+    console.log('[infra] skipped (--no-infra)');
+  }
   run('node', ['scripts/dev-stack-prepare.mjs', ...prepareArgs]);
   console.log('\n\x1b[32mЗапуск процессов (web и workers после /api/ready)\x1b[0m');
-  console.log('\x1b[90mТолько UI: npm run dev:app\x1b[0m\n');
+  console.log('\x1b[90mТолько UI: npm run dev:app | без Docker: --no-infra | LLM: --llm\x1b[0m\n');
   spawnConcurrently();
 }
 

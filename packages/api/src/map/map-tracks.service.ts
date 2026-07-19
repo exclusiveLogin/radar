@@ -9,7 +9,7 @@
 import { Injectable } from "@nestjs/common";
 import { InjectDataSource } from "@nestjs/typeorm";
 import type { DataSource } from "typeorm";
-import { pgTimestampToIso } from "../infrastructure/persistence/typeorm-query-rows";
+import { pgTimestampToIso } from "@radar/persistence";
 import { TrackingL1ResetGate } from "../tracking/tracking-l1-reset.gate";
 import {
   buildTrackEdges,

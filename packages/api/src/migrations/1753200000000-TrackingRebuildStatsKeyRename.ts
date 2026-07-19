@@ -1,8 +1,8 @@
-﻿import type { MigrationInterface, QueryRunner } from "typeorm";
+import type { MigrationInterface, QueryRunner } from "typeorm";
 
 /**
- * job_track_rebuild.stats: legacy jsonb keys → текущий контракт.
- * phase* → step*, dedupClosureSize → candidateWindowSize, stage stdbscan/kalman → cluster/join.
+ * Renames legacy JSONB keys in job_track_rebuild.stats.
+ * phase* becomes step*, dedupClosureSize becomes candidateWindowSize, and stages become cluster/join.
  */
 export class TrackingRebuildStatsKeyRename1753200000000 implements MigrationInterface {
   name = "TrackingRebuildStatsKeyRename1753200000000";
@@ -77,7 +77,7 @@ export class TrackingRebuildStatsKeyRename1753200000000 implements MigrationInte
     `);
   }
 
-  /** Stage remap (stdbscan/kalman → cluster/join) необратим: иначе затронет новые runs. */
+  /** Reverts stage names for legacy rebuild runs. */
   public async down(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(`
       UPDATE job_track_rebuild

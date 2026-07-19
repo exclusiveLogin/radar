@@ -34,13 +34,3 @@ export function capsFor(role: WorkerRole, bootCaps?: readonly DomainCap[]): Read
 export function hasCap(caps: ReadonlySet<DomainCap>, cap: DomainCap): boolean {
   return caps.has(cap);
 }
-
-/** OutboxRelay отключён — RMQ-only. */
-export function roleRunsOutboxRelay(_role: WorkerRole): boolean {
-  return false;
-}
-
-/** Ingest публикует через IEventTransport, не outbox. */
-export function rolePublishesIngestToOutbox(_role: WorkerRole): boolean {
-  return false;
-}

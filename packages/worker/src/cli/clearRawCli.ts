@@ -8,7 +8,7 @@ import { stopAllActivePhaseRuns } from "../application/phases/stopAllActivePhase
 import { createPhaseOperationalDeps } from "../application/phases/phaseOperationalDeps.js";
 import { createWorkerCompositionRoot } from "../application/createWorkerCompositionRoot.js";
 import { loadRootEnv } from "../infrastructure/config/loadRootEnv.js";
-import { WorkerStorageMode } from "../infrastructure/persistence/storageMode.js";
+import { cliWorkerRuntime } from "./cliWorkerRuntime.js";
 import { hasAnyFlag, parseLongFlagsMap } from "./workerCliArgs.js";
 
 function printPlan(): void {
@@ -37,12 +37,7 @@ async function main(): Promise<void> {
 
   printPlan();
 
-  const runtime = await createWorkerCompositionRoot({
-    workerRole: "parse",
-    bootCaps: ["ingest","parse"],
-    storageMode: WorkerStorageMode.Db,
-    startIngestParseDaemon: false,
-  });
+  const runtime = await createWorkerCompositionRoot(cliWorkerRuntime("parse", ["ingest", "parse"]));
   if (!runtime.operationalSql || !runtime.workerRepos) {
     console.error("clear:raw: нужен RADAR_STORAGE_MODE=db и DATABASE_URL");
     process.exit(1);

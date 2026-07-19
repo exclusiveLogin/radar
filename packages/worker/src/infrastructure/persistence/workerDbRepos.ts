@@ -1,39 +1,55 @@
 import type { DataSource } from "typeorm";
-import type { ApiPersistenceModule, WorkerDbRepositories } from "./workerDbRepos.types.js";
-import { importApiDistModule } from "./resolveApiDistModule.js";
+import {
+  TypeOrmChannelRepository,
+  TypeOrmDomainEventRepository,
+  TypeOrmEnrichmentQueueRepository,
+  TypeOrmEventEvidenceRepository,
+  TypeOrmEventLocationRepository,
+  TypeOrmIngestBackfillJobRepository,
+  TypeOrmIngestBindingRepository,
+  TypeOrmIngestCursorRepository,
+  TypeOrmIngestProviderRepository,
+  TypeOrmMessageParseWorkspaceRepository,
+  TypeOrmParseAttemptRepository,
+  TypeOrmParsedEventRepository,
+  TypeOrmPhaseCoverageRepository,
+  TypeOrmPhaseDefinitionRepository,
+  TypeOrmPhaseRunRepository,
+  TypeOrmPlaceAliasRepository,
+  TypeOrmPlaceEnrichmentJobRepository,
+  TypeOrmPlaceRepository,
+  TypeOrmRawMessageRepository,
+  TypeOrmRegionRepository,
+  TypeOrmStatusDictionaryRepository,
+} from "@radar/persistence";
+import type { WorkerDbRepositories } from "./workerDbRepos.types.js";
 
-/** TypeORM repos из API persistence (`api/dist`, без Nest DI). */
+/** TypeORM-репозитории общего persistence package. */
 export async function createWorkerDbRepositories(
   dataSource: DataSource,
 ): Promise<WorkerDbRepositories> {
-  const persistence = (await importApiDistModule(
-    "infrastructure",
-    "persistence",
-    "index.js",
-  )) as ApiPersistenceModule;
-
   return {
-    rawMessages: new persistence.TypeOrmRawMessageRepository(dataSource),
-    parsedEvents: new persistence.TypeOrmParsedEventRepository(dataSource),
-    messageParseWorkspaces: new persistence.TypeOrmMessageParseWorkspaceRepository(dataSource),
-    eventLocations: new persistence.TypeOrmEventLocationRepository(dataSource),
-    eventEvidence: new persistence.TypeOrmEventEvidenceRepository(dataSource),
-    regions: new persistence.TypeOrmRegionRepository(dataSource),
-    places: new persistence.TypeOrmPlaceRepository(dataSource),
-    aliases: new persistence.TypeOrmPlaceAliasRepository(dataSource),
-    placeEnrichmentJobs: new persistence.TypeOrmPlaceEnrichmentJobRepository(dataSource),
-    cursors: new persistence.TypeOrmIngestCursorRepository(dataSource),
-    ingestProviders: new persistence.TypeOrmIngestProviderRepository(dataSource),
-    ingestBindings: new persistence.TypeOrmIngestBindingRepository(dataSource),
-    channels: new persistence.TypeOrmChannelRepository(dataSource),
-    backfillJobs: new persistence.TypeOrmIngestBackfillJobRepository(dataSource),
-    statusDictionary: new persistence.TypeOrmStatusDictionaryRepository(dataSource),
-    domainEvents: new persistence.TypeOrmDomainEventRepository(dataSource),
-    parseAttempts: new persistence.TypeOrmParseAttemptRepository(dataSource),
-    phaseCoverage: new persistence.TypeOrmPhaseCoverageRepository(dataSource),
-    enrichmentQueue: new persistence.TypeOrmEnrichmentQueueRepository(dataSource),
-    phaseDefinitions: new persistence.TypeOrmPhaseDefinitionRepository(dataSource),
-    phaseRuns: new persistence.TypeOrmPhaseRunRepository(dataSource),
+    rawMessages: new TypeOrmRawMessageRepository(dataSource),
+    parsedEvents: new TypeOrmParsedEventRepository(dataSource),
+    messageParseWorkspaces: new TypeOrmMessageParseWorkspaceRepository(dataSource),
+    eventLocations: new TypeOrmEventLocationRepository(dataSource),
+    eventEvidence: new TypeOrmEventEvidenceRepository(dataSource),
+    regions: new TypeOrmRegionRepository(dataSource),
+    places: new TypeOrmPlaceRepository(dataSource),
+    aliases: new TypeOrmPlaceAliasRepository(dataSource),
+    placeEnrichmentJobs: new TypeOrmPlaceEnrichmentJobRepository(dataSource),
+    cursors: new TypeOrmIngestCursorRepository(dataSource),
+    ingestProviders: new TypeOrmIngestProviderRepository(dataSource),
+    ingestBindings: new TypeOrmIngestBindingRepository(dataSource),
+    channels: new TypeOrmChannelRepository(dataSource),
+    backfillJobs: new TypeOrmIngestBackfillJobRepository(dataSource),
+    statusDictionary: new TypeOrmStatusDictionaryRepository(dataSource),
+    domainEvents: new TypeOrmDomainEventRepository(dataSource),
+    parseAttempts: new TypeOrmParseAttemptRepository(dataSource),
+    phaseCoverage: new TypeOrmPhaseCoverageRepository(dataSource),
+    enrichmentQueue: new TypeOrmEnrichmentQueueRepository(dataSource),
+    phaseDefinitions: new TypeOrmPhaseDefinitionRepository(dataSource),
+    phaseRuns: new TypeOrmPhaseRunRepository(dataSource),
   };
 }
 

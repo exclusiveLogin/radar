@@ -1,4 +1,4 @@
-import type { ParseWorkspace } from "@radar/shared";
+import type { GeoEnrichmentArtifact, ParseWorkspace } from "@radar/shared";
 import { listActiveCandidates } from "./parseProcessorContract.js";
 
 /**
@@ -6,15 +6,15 @@ import { listActiveCandidates } from "./parseProcessorContract.js";
  * если slice ещё не задан (phase_enrich после load из БД).
  */
 export function syncCatalogArtifactFromWorkspace(
-  artifact: import("@radar/shared").GeoEnrichmentArtifact,
+  artifact: GeoEnrichmentArtifact,
   workspace: ParseWorkspace,
 ): void {
   if (artifact.catalog?.regions?.length || artifact.catalog?.places?.length) {
     return;
   }
 
-  const regions: NonNullable<import("@radar/shared").GeoEnrichmentArtifact["catalog"]>["regions"] = [];
-  const places: NonNullable<import("@radar/shared").GeoEnrichmentArtifact["catalog"]>["places"] = [];
+  const regions: NonNullable<GeoEnrichmentArtifact["catalog"]>["regions"] = [];
+  const places: NonNullable<GeoEnrichmentArtifact["catalog"]>["places"] = [];
   const regionCodes = new Set<string>();
 
   for (const candidate of listActiveCandidates(workspace)) {

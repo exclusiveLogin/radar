@@ -1,8 +1,6 @@
 import type { EnricherId, GeoNode, ParseWorkspace } from "@radar/shared";
 import { buildCandidateMergeKey } from "@radar/shared";
 import { appendCandidate, listActiveCandidates } from "./parseProcessorContract.js";
-import { createTraitAttachment } from "./attachRule.js";
-import { EVENT_TYPE_TRAIT_KEY } from "./resolveEventTypeForCandidate.js";
 
 function findSpan(text: string, needle: string): { start: number; end: number; matchedText: string } {
   const lower = text.toLowerCase();

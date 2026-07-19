@@ -20,7 +20,7 @@ function retrySourcePush(
   onCommitted?: () => void,
 ): void {
   let settled = false;
-  let frameSub: Subscription | undefined;
+  let frameAttempts = 0;
 
   const onIdle = (): void => {
     attempt();
@@ -43,10 +43,13 @@ function retrySourcePush(
     return true;
   }
 
-  if (attempt()) return;
+  if (push()) {
+    settled = true;
+    onCommitted?.();
+    return;
+  }
 
-  let frameAttempts = 0;
-  frameSub = animationFrames().subscribe(() => {
+  const frameSub: Subscription = animationFrames().subscribe(() => {
     attempt();
     if (!settled && ++frameAttempts >= 60) cleanup();
   });

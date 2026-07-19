@@ -8,7 +8,7 @@
 import { Injectable } from "@nestjs/common";
 import { InjectDataSource } from "@nestjs/typeorm";
 import type { DataSource } from "typeorm";
-import { RegionEntity } from "../geo/entities";
+import { RegionEntity } from "@radar/persistence";
 import { RegionGeometryCatalog, type RegionsGeoJsonLayer } from "./region-geometry.catalog";
 import { MapSnapshotQueryService } from "./map-snapshot-query.service";
 

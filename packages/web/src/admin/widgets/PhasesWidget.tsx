@@ -206,7 +206,7 @@ export function PhasesWidget() {
               <PhaseRow
                 key={phase.id}
                 phaseId={phase.id}
-                trigger={phase.trigger}
+                trigger={phase.trigger ?? "manual"}
                 enabled={phase.enabled}
                 queueLabel="phase_coverage"
                 queue={row?.coverage ?? { pending: 0, processing: 0, done: 0, failed: 0 }}
@@ -233,7 +233,7 @@ export function PhasesWidget() {
               <PhaseRow
                 key={phase.id}
                 phaseId={phase.id}
-                trigger={phase.trigger}
+                trigger={phase.trigger ?? "manual"}
                 enabled={phase.enabled}
                 queueLabel={row?.provider ? `jobs:${row.provider}` : "jobs"}
                 queue={row?.jobs ?? { pending: 0, processing: 0, done: 0, failed: 0 }}

@@ -1,4 +1,4 @@
-import { createServer, type Server } from "node:http";
+import { createServer, type IncomingMessage, type Server } from "node:http";
 import {
   obsIngestBatchSchema,
   runtimeObservabilitySnapshotSchema,
@@ -11,7 +11,7 @@ export type ObsHttpServerHandle = {
 };
 
 /** Чтение JSON body из HTTP request. */
-async function readJsonBody(req: import("node:http").IncomingMessage): Promise<unknown> {
+async function readJsonBody(req: IncomingMessage): Promise<unknown> {
   const chunks: Buffer[] = [];
   for await (const chunk of req) {
     chunks.push(typeof chunk === "string" ? Buffer.from(chunk) : chunk);

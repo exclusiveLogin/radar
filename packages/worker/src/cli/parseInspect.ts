@@ -3,11 +3,11 @@ import * as path from "node:path";
 import { MONOREPO_ROOT } from "@repo/root";
 import {
   createWorkerCompositionRoot,
-  type WorkerCompositionOptions,
 } from "../application/createWorkerCompositionRoot.js";
 import { WorkerStorageMode } from "../infrastructure/persistence/storageMode.js";
 import { loadRootEnv } from "../infrastructure/config/loadRootEnv.js";
 import { resolveInputPath } from "./cliPaths.js";
+import { cliWorkerRuntime } from "./cliWorkerRuntime.js";
 import { splitMessageBlocks } from "../domain/parsing/index.js";
 import {
   parseLongFlagsMap,
@@ -70,13 +70,10 @@ function writeOut(outDir: string, name: string, content: string): void {
 export async function runParseInspect(argv: string[]): Promise<void> {
   const cli = parseInspectCli(argv);
   const source = resolveInputText(cli);
-  const runtime = await createWorkerCompositionRoot({
-    workerRole: "parse",
-    bootCaps: ["parse"],
+  const runtime = await createWorkerCompositionRoot(cliWorkerRuntime("parse", ["parse"], {
     storageMode: cli.storageMode,
-    startIngestParseDaemon: false,
     ingestParsePhaseSelection: cli.ingestParsePhaseSelection,
-  });
+  }));
   if (!runtime.parsePipelineService || !runtime.placeScan) {
     throw new Error("parse stack не инициализирован (нужен cap parse).");
   }

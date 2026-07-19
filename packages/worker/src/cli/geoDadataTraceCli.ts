@@ -3,8 +3,8 @@ import { createWorkerCompositionRoot } from "../application/createWorkerComposit
 import { DadataEnricher } from "../infrastructure/enrichers/dadataEnricher.js";
 import { loadDadataToken, isDadataConfigured } from "../infrastructure/enrichers/dadataConfig.js";
 import { loadRootEnv } from "../infrastructure/config/loadRootEnv.js";
-import { WorkerStorageMode } from "../infrastructure/persistence/storageMode.js";
-import { PlaceEnrichmentRunner } from "../application/geo-parse/placeEnrichmentRunner.js";
+import type { PlaceEnrichmentRunner } from "../application/geo-parse/placeEnrichmentRunner.js";
+import { cliWorkerRuntime } from "./cliWorkerRuntime.js";
 
 /**
  * Трассировка: реальный HTTP DaData для одного place из очереди geo-dadata.
@@ -14,12 +14,7 @@ async function main(): Promise<void> {
   const token = loadDadataToken();
   console.log("token present:", Boolean(token), "len:", token?.length ?? 0);
 
-  const runtime = await createWorkerCompositionRoot({
-    workerRole: "geo",
-    bootCaps: ["geo"],
-    storageMode: WorkerStorageMode.Db,
-    startIngestParseDaemon: false,
-  });
+  const runtime = await createWorkerCompositionRoot(cliWorkerRuntime("geo", ["geo"]));
   if (!runtime.dataSource || !runtime.workerRepos || !runtime.placeEnrichmentRunner) {
     throw new Error("db mode required");
   }

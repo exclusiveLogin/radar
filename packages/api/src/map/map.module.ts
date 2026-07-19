@@ -1,7 +1,7 @@
 import { Module } from "@nestjs/common";
 import { TypeOrmModule } from "@nestjs/typeorm";
-import { StatusDictionaryEntity } from "../events/entities";
-import { GeoFeatureEntity, PlaceEntity, PlaceGeoLinkEntity, RegionEntity } from "../geo/entities";
+import { StatusDictionaryEntity } from "@radar/persistence";
+import { GeoFeatureEntity, PlaceEntity, PlaceGeoLinkEntity, RegionEntity } from "@radar/persistence";
 import { MapController } from "./map.controller";
 import { MapGateway } from "./map.gateway";
 import { MapMessageFeedQueryService } from "./map-message-feed-query.service";

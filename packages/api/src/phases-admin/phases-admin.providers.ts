@@ -7,10 +7,10 @@
  */
 import type { Provider } from "@nestjs/common";
 import { DataSource } from "typeorm";
-import { TypeOrmPhaseCoverageRepository } from "../infrastructure/persistence/typeorm-phase-coverage.repository";
-import { TypeOrmPhaseDefinitionRepository } from "../infrastructure/persistence/typeorm-phase-definition.repository";
-import { TypeOrmPhaseRunRepository } from "../infrastructure/persistence/typeorm-phase-run.repository";
-import { TypeOrmPlaceEnrichmentJobRepository } from "../infrastructure/persistence/typeorm-place-enrichment-job.repository";
+import { TypeOrmPhaseCoverageRepository } from "@radar/persistence";
+import { TypeOrmPhaseDefinitionRepository } from "@radar/persistence";
+import { TypeOrmPhaseRunRepository } from "@radar/persistence";
+import { TypeOrmPlaceEnrichmentJobRepository } from "@radar/persistence";
 import { createApiDeploymentEventTransport } from "../infrastructure/transport/create-api-deployment-event-transport";
 import type { IEventTransport } from "@radar/shared";
 

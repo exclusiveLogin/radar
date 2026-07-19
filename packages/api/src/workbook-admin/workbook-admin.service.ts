@@ -12,21 +12,21 @@ import {
   type WorkloadStatus,
 } from "@radar/shared";
 import { PhasesAdminService } from "../phases-admin/phases-admin.service";
-import { TrackingAdminService } from "../tracking-admin/tracking-admin.service";
+import { TrackingAdminQueryService } from "../tracking-admin/tracking-admin.service";
 
 const RUN_HISTORY_LIMIT = 20;
 
 /**
  * Read-side агрегатор Workbook Registry / Active Workloads / Run History по всем
  * pipelineKey ("tracking"/"parse"/"geo-enrich"). Не дублирует SQL — читает только через уже
- * существующие admin-сервисы (TrackingAdminService/PhasesAdminService), которые сами читают
+ * существующие query-сервисы (TrackingAdminQueryService/PhasesAdminService), которые сами читают
  * signaling/materialization-таблицы (state_track_pipeline, job_track_rebuild,
  * phase_definitions, log_parse_phase_run). Runner-platform internals (jobKernel/workbook) отсюда не видны.
  */
 @Injectable()
 export class WorkbookAdminService {
   constructor(
-    private readonly tracking: TrackingAdminService,
+    private readonly tracking: TrackingAdminQueryService,
     private readonly phases: PhasesAdminService,
   ) {}
 

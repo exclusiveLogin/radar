@@ -2,11 +2,12 @@
 /** Dev-worker с явной RADAR_WORKER_ROLE (один процесс = одна роль). */
 import { spawn } from 'node:child_process';
 import { repoRoot } from './utils.mjs';
+import { DEV_WORKER_ROLES } from './worker-roles.mjs';
 
 const role = process.argv[2];
-const allowed = new Set(['ingest', 'backfill', 'parse', 'geo', 'tracking']);
+const allowed = new Set(DEV_WORKER_ROLES);
 if (!role || !allowed.has(role)) {
-  console.error(`Usage: node scripts/run-worker-dev.mjs <ingest|backfill|parse|geo|tracking>`);
+  console.error(`Usage: node scripts/run-worker-dev.mjs <${DEV_WORKER_ROLES.join('|')}>`);
   process.exit(1);
 }
 

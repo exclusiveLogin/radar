@@ -1,4 +1,4 @@
-﻿import {
+import {
   BadRequestException,
   Injectable,
   NotFoundException,
@@ -19,10 +19,10 @@ import {
   type PhaseRunsOverview,
 } from "@radar/shared";
 import { DataSource } from "typeorm";
-import { TypeOrmPhaseCoverageRepository } from "../infrastructure/persistence/typeorm-phase-coverage.repository";
-import { TypeOrmPhaseDefinitionRepository } from "../infrastructure/persistence/typeorm-phase-definition.repository";
-import { TypeOrmPhaseRunRepository } from "../infrastructure/persistence/typeorm-phase-run.repository";
-import { TypeOrmPlaceEnrichmentJobRepository } from "../infrastructure/persistence/typeorm-place-enrichment-job.repository";
+import { TypeOrmPhaseCoverageRepository } from "@radar/persistence";
+import { TypeOrmPhaseDefinitionRepository } from "@radar/persistence";
+import { TypeOrmPhaseRunRepository } from "@radar/persistence";
+import { TypeOrmPlaceEnrichmentJobRepository } from "@radar/persistence";
 import {
   PHASES_ADMIN_DEPENDENCIES,
   type PhasesAdminDependencies,
@@ -34,7 +34,7 @@ function emptyJobCounts(): PhaseRunsOverview["geo"]["byPhase"][0]["jobs"] {
   return { pending: 0, processing: 0, done: 0, failed: 0 };
 }
 
-/** Админка parse-engine: ingestParse (coverage) и geoParse (place jobs) раздельно. */
+/** Coordinates parse-engine coverage and geo-enrichment phases. */
 @Injectable()
 export class PhasesAdminService implements OnModuleInit, OnModuleDestroy {
   private readonly dataSource: DataSource;
@@ -57,7 +57,7 @@ export class PhasesAdminService implements OnModuleInit, OnModuleDestroy {
     this.transport = deps.transport;
   }
 
-  /** RMQ transport для admin/control сигналов (start/stop lifecycle). */
+  /** Starts RMQ transport for admin control signals. */
   async onModuleInit(): Promise<void> {
     await this.transport.start();
   }
@@ -105,7 +105,7 @@ export class PhasesAdminService implements OnModuleInit, OnModuleDestroy {
     return this.getPhase(id);
   }
 
-  /** РЎРЅСЏС‚СЊ pending/processing РѕС‡РµСЂРµРґРё С„Р°Р·С‹ (ingest coverage РёР»Рё geo jobs). */
+  /** Снять pending/processing очереди фазы (ingest coverage или geo jobs). */
   private async clearPhaseQueueForPhase(phase: PhaseDefinitionRecord): Promise<number> {
     if (phase.scope === "geoParse") {
       const provider = resolveGeoEnrichmentProvider(phase);
@@ -130,8 +130,8 @@ export class PhasesAdminService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
-   * РћС‡РёСЃС‚РёС‚СЊ РѕС‡РµСЂРµРґСЊ РѕРґРЅРѕР№ С„Р°Р·С‹ + РѕС‚РјРµРЅРёС‚СЊ РµС‘ runs.
-   * GeoParseDaemon РЅРµ СЃРѕР·РґР°С‘С‚ runs вЂ” Р±РµР· СЌС‚РѕРіРѕ В«CancelВ» РІ UI Р±РµСЃРїРѕР»РµР·РµРЅ.
+   * Очистить очередь одной фазы + отменить её runs.
+   * GeoParseDaemon не создаёт runs — без этого «Cancel» в UI бесполезен.
    */
   async clearPhaseQueue(phaseId: string): Promise<{
     ok: true;
@@ -147,7 +147,7 @@ export class PhasesAdminService implements OnModuleInit, OnModuleDestroy {
     return { ok: true, cleared, runsCanceled };
   }
 
-  /** Ручной retry: failed geo jobs → pending без автоматической повторной постановки. */
+  /** Resets failed geo jobs to pending for the configured provider. */
   async resetFailedJobs(phaseId: string): Promise<{ ok: true; reset: number }> {
     const phase = await this.getPhase(phaseId);
     if (phase.scope !== "geoParse") {
@@ -161,7 +161,7 @@ export class PhasesAdminService implements OnModuleInit, OnModuleDestroy {
     return { ok: true, reset };
   }
 
-  /** Catch-up: SQL enqueue + drain-сигнал worker по scope фазы. */
+  /** Enqueues catch-up work and wakes the appropriate worker. */
   private async enqueueCatchUpForPhase(
     phase: PhaseDefinitionRecord,
   ): Promise<{ enqueued: number }> {
@@ -177,12 +177,12 @@ export class PhasesAdminService implements OnModuleInit, OnModuleDestroy {
     return { enqueued };
   }
 
-  /** Включение/выключение фазы — control-сигнал runner. */
+  /** Publishes phase enablement changes to the runner. */
   private publishRunnerControl(phaseKey: string, enabled: boolean): Promise<void> {
     return this.transport.publishSignal(RADAR_TOPICS.RUNNER_CONTROL, { phaseKey, enabled });
   }
 
-  /** Полный или targeted drain очереди фазы через RMQ wake. */
+  /** Publishes a targeted or full drain signal. */
   private publishDrainForPhase(
     phase: PhaseDefinitionRecord,
     mode: "full" | "targeted" = "full",
@@ -389,7 +389,7 @@ export class PhasesAdminService implements OnModuleInit, OnModuleDestroy {
     return { ok: true, reset };
   }
 
-  /** Рассылает актуальный map snapshot после завершения phase run. */
+  /** Publishes a fresh map snapshot after a phase run. */
   async pushMapSnapshot(): Promise<void> {
     await this.mapRealtime.pushSnapshotToClients();
   }

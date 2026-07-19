@@ -14,6 +14,7 @@ import {
 } from "../infrastructure/testing/inMemoryRepositories.js";
 import { loadRootEnv } from "../infrastructure/config/loadRootEnv.js";
 import { resolveInputPath } from "./cliPaths.js";
+import { cliWorkerRuntime } from "./cliWorkerRuntime.js";
 import { splitMessageBlocks } from "../domain/parsing/index.js";
 import {
   parseLongFlagsMap,
@@ -80,13 +81,10 @@ function buildSummary(kinds: Array<"event" | "noise" | "meta">): Omit<ParseSumma
 }
 
 function buildRuntimeOptions(cli: ParsedCli): WorkerCompositionOptions {
-  return {
-    workerRole: "parse",
-    bootCaps: ["parse"],
+  return cliWorkerRuntime("parse", ["parse"], {
     storageMode: cli.storageMode,
-    startIngestParseDaemon: false,
     ingestParsePhaseSelection: cli.ingestParsePhaseSelection,
-  };
+  });
 }
 
 /** Опции переопределения контракта для прокси-обёрток (например, `:ollama`). */

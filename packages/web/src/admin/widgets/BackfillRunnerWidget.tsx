@@ -151,7 +151,7 @@ export function BackfillRunnerWidget() {
     setBulkBusy(true);
     setError(null);
     let created = 0;
-    let skipped = boundChannels.length - targets.length;
+    const skipped = boundChannels.length - targets.length;
 
     try {
       for (const ch of targets) {

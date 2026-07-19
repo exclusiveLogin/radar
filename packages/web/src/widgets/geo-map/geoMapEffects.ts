@@ -1,6 +1,7 @@
-import type { Subject } from "rxjs";
+import type { Observable, Subject } from "rxjs";
 import { combineLatest, EMPTY, merge, timer } from "rxjs";
-import { debounceTime, startWith, switchMap } from "rxjs/operators";import { mapApi } from "../../shared/api/mapApi";
+import { debounceTime, startWith, switchMap } from "rxjs/operators";
+import { mapApi } from "../../shared/api/mapApi";
 import {
   hasActiveHeatmapEventTypesFilter,
   HEATMAP_LIVE_POLL_MS,
@@ -29,7 +30,7 @@ export type GeoMapEffectSignals = {
 
 function heatmapFetchPhase$(
   signals: GeoMapEffectSignals,
-): import("rxjs").Observable<FetchPhase<HeatmapFetchData>> {
+): Observable<FetchPhase<HeatmapFetchData>> {
   return combineLatest([
     geoMapLayers$,
     heatmapPeriod$,

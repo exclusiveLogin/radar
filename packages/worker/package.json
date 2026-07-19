@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "predev": "npm run build -w @radar/shared && npm run build -w @radar/observability && npm run build -w @radar/api && npm run build -w @repo/root && npm run build -w @radar/worker",
+    "predev": "npm run build -w @radar/shared && npm run build -w @radar/observability && npm run build -w @radar/persistence && npm run build -w @repo/root && npm run build -w @radar/worker",
     "prestart": "npm run predev",
     "dev": "tsx watch src/index.ts",
     "start": "tsx src/index.ts",
@@ -13,8 +13,8 @@
     "parse:snap:ollama": "tsx src/cli/parseSnapOllama.ts",
     "parse:inspect": "tsx src/cli/parseInspect.ts",
     "prebuild": "npm run build -w @repo/root",
-    "build": "tsc -p tsconfig.json",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.build.json --noEmit",
     "lint": "eslint \"src/**/*.ts\" --max-warnings 0",
     "parse:report": "tsx src/cli/parseReport.ts",
     "worker:session:deploy": "tsx src/cli/sessionCli.ts deploy",
@@ -66,13 +66,15 @@
     "tracking:enable": "tsx src/cli/trackingCli.ts enable",
     "tracking:tick": "tsx src/cli/trackingTickCli.ts",
     "verify:parse-threads": "tsx scripts/verify-parse-threads.mjs",
-    "verify:bootstrap": "tsx scripts/verify-worker-bootstrap.mjs"
+    "verify:bootstrap": "tsx scripts/verify-worker-bootstrap.mjs",
+    "verify:persistence-boundary": "node scripts/verify-persistence-boundary.mjs"
   },
   "dependencies": {
     "@radar/observability": "*",
+    "@radar/persistence": "*",
     "@radar/shared": "*",
+    "@radar/transport-rmq": "*",
     "@repo/root": "*",
-    "amqplib": "^2.0.1",
     "cli-progress": "^3.12.0",
     "dotenv": "^16.4.7",
     "pg": "^8.13.1",
@@ -81,7 +83,6 @@
     "typeorm": "^0.3.20"
   },
   "devDependencies": {
-    "@types/amqplib": "^0.10.8",
     "@types/cli-progress": "^3.11.6",
     "@types/node": "^22.10.2",
     "tsx": "^4.19.2",

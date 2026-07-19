@@ -3,7 +3,7 @@ import { clearOperationalContent } from "../application/archive/clearOperational
 import { createWorkerCompositionRoot } from "../application/createWorkerCompositionRoot.js";
 import { loadRootEnv } from "../infrastructure/config/loadRootEnv.js";
 import { notifyMapPushSnapshot } from "../infrastructure/notifyMapPushSnapshot.js";
-import { WorkerStorageMode } from "../infrastructure/persistence/storageMode.js";
+import { cliWorkerRuntime } from "./cliWorkerRuntime.js";
 import { hasAnyFlag, parseLongFlagsMap } from "./workerCliArgs.js";
 import { warnDeprecatedNpmScript } from "./deprecatedNpmScript.js";
 import { createWipeLogger } from "../application/archive/wipeLog.js";
@@ -53,12 +53,7 @@ async function main(): Promise<void> {
     log.line("без forceLocks: остановите npm run dev / worker вручную");
   }
 
-  const runtime = await createWorkerCompositionRoot({
-    workerRole: "parse",
-    bootCaps: ["parse"],
-    storageMode: WorkerStorageMode.Db,
-    startIngestParseDaemon: false,
-  });
+  const runtime = await createWorkerCompositionRoot(cliWorkerRuntime("parse", ["parse"]));
   if (!runtime.operationalSql || !runtime.workerRepos) {
     console.error("pipeline clear: нужен RADAR_STORAGE_MODE=db и DATABASE_URL");
     process.exit(1);

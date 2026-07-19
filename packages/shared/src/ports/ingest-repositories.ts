@@ -5,7 +5,6 @@
  * purpose: Контракты хранения источников, сообщений и результатов парсинга.
  * ---
  */
-import type { DomainEvent } from "../schemas/events/domain-event";
 import type { EventLocation } from "../schemas/ingest/event-location";
 import type {
   CreateIngestBinding,
@@ -185,10 +184,6 @@ export interface IParseAttemptRepository {
 
 export interface IRawMessageTelegramExtensionRepository {
   findDuplicate(chatId: string, messageId: string, editDate: string | null): Promise<string | null>;
-}
-
-export interface IDomainEventOutbox {
-  append(events: DomainEvent[]): Promise<void>;
 }
 
 export type EventEvidenceRecord = {

@@ -26,8 +26,8 @@ import {
 } from "@radar/shared";
 import { createWorkerCompositionRoot } from "../application/createWorkerCompositionRoot.js";
 import { loadTrackingCandidates } from "../application/tracking/loadTrackingCandidates.js";
-import { WorkerStorageMode } from "../infrastructure/persistence/storageMode.js";
 import { loadRootEnv } from "../infrastructure/config/loadRootEnv.js";
+import { cliWorkerRuntime } from "./cliWorkerRuntime.js";
 import { parseLongFlagsMap, readStringFlag } from "./workerCliArgs.js";
 
 type Transition = {
@@ -157,7 +157,6 @@ function analyzeProfile(
 
   const dists = transitions.map(t => t.distM).sort((a, b) => a - b);
   const gaps = transitions.map(t => t.gapMs).sort((a, b) => a - b);
-  const vels = transitions.map(t => t.velocityMs).sort((a, b) => a - b);
   const zeroMoves = transitions.filter(t => t.distM < 100).length;
 
   console.log(`\nДистанция между точками (км):  p50=${fmtKm(percentile(dists, 50))} p90=${fmtKm(percentile(dists, 90))} max=${fmtKm(dists[dists.length - 1]!)}`);
@@ -213,7 +212,6 @@ function analyzeProfile(
 
   // Диагноз
   console.log(`\n--- Диагноз ---`);
-  const overGap = gaps.filter(g => g > kin.maxGapMs).length;
   const overLink = dists.filter(d => d > kin.maxLinkDistanceM).length;
   if (zeroMoves / transitions.length > 0.7) {
     console.log("⚠ Большинство переходов нулевые: гео привязано к centroid места → треки стационарны, линий не будет.");
@@ -233,12 +231,7 @@ async function main(): Promise<void> {
   const hours = Number(readStringFlag(flags, ["hours"]) ?? "24");
   const nearKm = Number(readStringFlag(flags, ["near-km"]) ?? "250");
 
-  const runtime = await createWorkerCompositionRoot({
-    workerRole: "tracking",
-    bootCaps: ["tracking"],
-    storageMode: WorkerStorageMode.Db,
-    startIngestParseDaemon: false,
-  });
+  const runtime = await createWorkerCompositionRoot(cliWorkerRuntime("tracking", ["tracking"]));
   const ds = runtime.dataSource;
   if (!ds) {
     console.error("Нужен RADAR_STORAGE_MODE=db");

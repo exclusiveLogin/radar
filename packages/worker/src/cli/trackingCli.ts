@@ -14,18 +14,13 @@ import {
   countTrackingCandidates,
   runTrackingRebuild,
 } from "../application/tracking/trackingRebuildService.js";
-import { WorkerStorageMode } from "../infrastructure/persistence/storageMode.js";
 import { loadRootEnv } from "../infrastructure/config/loadRootEnv.js";
+import { cliWorkerRuntime } from "./cliWorkerRuntime.js";
 import { hasAnyFlag, parseLongFlagsMap } from "./workerCliArgs.js";
 
 async function openDb() {
   loadRootEnv(MONOREPO_ROOT);
-  const runtime = await createWorkerCompositionRoot({
-    workerRole: "tracking",
-    bootCaps: ["tracking"],
-    storageMode: WorkerStorageMode.Db,
-    startIngestParseDaemon: false,
-  });
+  const runtime = await createWorkerCompositionRoot(cliWorkerRuntime("tracking", ["tracking"]));
   if (!runtime.dataSource) {
     console.error("Нужен RADAR_STORAGE_MODE=db и DATABASE_URL");
     process.exit(1);

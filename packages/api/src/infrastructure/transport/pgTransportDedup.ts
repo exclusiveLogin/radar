@@ -1,7 +1,7 @@
-﻿import type { DataSource } from "typeorm";
+import type { DataSource } from "typeorm";
 import type { ITransportDedup } from "@radar/shared";
 
-/** PG L2 dedup — INSERT ON CONFLICT для transport_dedup. */
+/** Claims transport events through PostgreSQL conflict-safe deduplication. */
 export function createPgTransportDedup(dataSource: DataSource): ITransportDedup {
   return {
     async tryClaim(eventId: string): Promise<boolean> {

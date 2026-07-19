@@ -14,8 +14,8 @@ import type {
 } from "@radar/shared";
 import { STATE_LEVEL_RANK, eventHeatmapPeriodMs } from "@radar/shared";
 import type { EventType } from "@radar/shared";
-import { StatusDictionaryEntity } from "../events/entities";
-import { PlaceEntity, RegionEntity } from "../geo/entities";
+import { StatusDictionaryEntity } from "@radar/persistence";
+import { PlaceEntity, RegionEntity } from "@radar/persistence";
 import { loadRegionAdjacency } from "./adjacency.loader";
 import type { GeoRegionRef, PlaceRef } from "./map.dto";
 import { MapGeoJsonQueryService } from "./map-geojson-query.service";

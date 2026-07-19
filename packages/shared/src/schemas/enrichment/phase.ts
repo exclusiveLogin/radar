@@ -4,6 +4,7 @@
  */
 import { z } from "zod";
 import { radarTopicRoutingKeySchema } from "../../transport/topicCatalog.js";
+import { DEFAULT_PHASE_TERMINAL_POLICY } from "./phaseTerminalPolicy.js";
 
 export const enricherIdSchema = z.enum([
   "catalog",
@@ -46,9 +47,9 @@ export const phasePolicySchema = z.object({
   subscribeTopic: radarTopicRoutingKeySchema.optional(),
   publishTopic: radarTopicRoutingKeySchema.optional(),
   /** Максимум попыток claim→handle до terminal failed. */
-  maxAttempts: z.number().int().positive().default(3),
+  maxAttempts: z.number().int().positive().default(DEFAULT_PHASE_TERMINAL_POLICY.maxAttempts),
   /** После failed — вернуть в pending до исчерпания maxAttempts. */
-  retryFailed: z.boolean().default(true),
+  retryFailed: z.boolean().default(DEFAULT_PHASE_TERMINAL_POLICY.retryFailed),
 });
 export type PhasePolicy = z.infer<typeof phasePolicySchema>;
 

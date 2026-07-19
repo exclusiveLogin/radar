@@ -8,7 +8,7 @@ import {
 } from "../application/parse/placeCatalogSweep.js";
 import { isGarbageIngestPlaceName } from "../domain/parsing/channelCityListPromo.js";
 import { loadRootEnv } from "../infrastructure/config/loadRootEnv.js";
-import { WorkerStorageMode } from "../infrastructure/persistence/storageMode.js";
+import { cliWorkerRuntime } from "./cliWorkerRuntime.js";
 import { hasAnyFlag, parseLongFlagsMap, readStringFlag } from "./workerCliArgs.js";
 
 function resolveLimit(flags: ReturnType<typeof parseLongFlagsMap>): number | undefined {
@@ -110,12 +110,7 @@ async function main(): Promise<void> {
     process.exit(0);
   }
 
-  const runtime = await createWorkerCompositionRoot({
-    workerRole: "geo",
-    bootCaps: ["geo"],
-    storageMode: WorkerStorageMode.Db,
-    startIngestParseDaemon: false,
-  });
+  const runtime = await createWorkerCompositionRoot(cliWorkerRuntime("geo", ["geo"]));
   if (!runtime.dataSource || !runtime.workerRepos) {
     console.error("catalog:sweep: нужен RADAR_STORAGE_MODE=db");
     process.exit(1);

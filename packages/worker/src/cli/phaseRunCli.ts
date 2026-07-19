@@ -7,9 +7,8 @@
  */
 import { MONOREPO_ROOT } from "@repo/root";
 import { createWorkerCompositionRoot } from "../application/createWorkerCompositionRoot.js";
-import { createWorkerDbRepositories } from "../infrastructure/persistence/workerDbRepos.js";
-import { WorkerStorageMode } from "../infrastructure/persistence/storageMode.js";
 import { loadRootEnv } from "../infrastructure/config/loadRootEnv.js";
+import { cliWorkerRuntime } from "./cliWorkerRuntime.js";
 import { createProgress } from "./progress.js";
 import { hasAnyFlag, parseLongFlagsMap, readStringFlag } from "./workerCliArgs.js";
 
@@ -29,12 +28,7 @@ export async function runPhaseCli(): Promise<void> {
   const watch = hasAnyFlag(map, ["watch"]);
   const watchIdleMs = Number(readStringFlag(map, ["watch-idle-ms"]) ?? "5000");
 
-  const runtime = await createWorkerCompositionRoot({
-    storageMode: WorkerStorageMode.Db,
-    startIngestParseDaemon: false,
-    workerRole: "parse",
-    bootCaps: ["parse", "geo"],
-  });
+  const runtime = await createWorkerCompositionRoot(cliWorkerRuntime("parse", ["parse", "geo"]));
   if (!runtime.dataSource || !runtime.phaseRunner || !runtime.workerRepos) {
     console.error("parse-engine:phase:run: нужен RADAR_STORAGE_MODE=db");
     process.exit(1);

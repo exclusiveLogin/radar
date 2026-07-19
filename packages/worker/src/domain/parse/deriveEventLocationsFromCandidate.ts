@@ -1,4 +1,4 @@
-import type { EventCandidate, EventLocation, IRegionRepository, ParseWorkspace } from "@radar/shared";
+import type { EventCandidate, EventLocation, IRegionRepository, ParseWorkspace, RegionRecord } from "@radar/shared";
 import {
   canonicalRegionCode,
   normalizeRegionCodeAlias,
@@ -16,7 +16,7 @@ function resolveAnchorRegionCode(candidate: EventCandidate): string | undefined 
 async function resolveRegionForCandidate(
   regions: IRegionRepository,
   candidate: EventCandidate,
-): Promise<import("@radar/shared").RegionRecord | null> {
+): Promise<RegionRecord | null> {
   const code = resolveAnchorRegionCode(candidate);
   if (code) {
     const byCode = await regions.findByCode(code);

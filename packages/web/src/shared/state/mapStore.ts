@@ -71,7 +71,6 @@ let adjacency: Record<string, string[]> = {};
 let regionNamesByCode: Map<string, string> = new Map();
 
 let started = false;
-let liveAnchorSub: { unsubscribe(): void } | undefined;
 
 /** Хук перед установкой asOf (подгонка окна таймлайна). */
 let beforeHistoricalSetHook: ((iso: string) => void) | null = null;
@@ -125,7 +124,7 @@ export function startMapStore(): void {
   started = true;
 
   historicalAsOf$.subscribe(() => refreshMapViewAnchor());
-  liveAnchorSub = timer(60_000, 60_000)
+  timer(60_000, 60_000)
     .pipe(filter(() => historicalAsOf$.value === null))
     .subscribe(() => refreshMapViewAnchor());
 

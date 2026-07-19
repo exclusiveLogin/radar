@@ -2,9 +2,9 @@ import type { DataSource } from "typeorm";
 import type { DeploymentManifest, DeploymentTransport } from "@radar/shared";
 import { resolveRmqConsumerSuffix } from "@radar/shared";
 import type { IEventTransport } from "@radar/shared";
+import { createRmqEventTransport } from "@radar/transport-rmq";
 import type { WorkerRole } from "../config/workerRole.js";
 import { createPgTransportDedup } from "./pgTransportDedup.js";
-import { createRmqEventTransport } from "./rmqEventTransport.js";
 
 export type CreateEventTransportInput = {
   transport: DeploymentTransport;

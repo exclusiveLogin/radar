@@ -1,5 +1,3 @@
-import type { z } from "zod";
-
 /** Путь к массиву → поле-ключ для merge/overlay (напр. runners.pipelines → pipelineKey). */
 export type ManifestArrayKeys = Record<string, string>;
 

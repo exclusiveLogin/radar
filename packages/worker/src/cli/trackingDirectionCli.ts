@@ -11,8 +11,8 @@
  */
 import { MONOREPO_ROOT } from "@repo/root";
 import { createWorkerCompositionRoot } from "../application/createWorkerCompositionRoot.js";
-import { WorkerStorageMode } from "../infrastructure/persistence/storageMode.js";
 import { loadRootEnv } from "../infrastructure/config/loadRootEnv.js";
+import { cliWorkerRuntime } from "./cliWorkerRuntime.js";
 import { parseLongFlagsMap, readStringFlag } from "./workerCliArgs.js";
 
 type TrackDirRow = {
@@ -34,12 +34,7 @@ async function main(): Promise<void> {
   const profile = readStringFlag(flags, ["profile"]);
   const top = Number(readStringFlag(flags, ["top"]) ?? "15");
 
-  const runtime = await createWorkerCompositionRoot({
-    workerRole: "tracking",
-    bootCaps: ["tracking"],
-    storageMode: WorkerStorageMode.Db,
-    startIngestParseDaemon: false,
-  });
+  const runtime = await createWorkerCompositionRoot(cliWorkerRuntime("tracking", ["tracking"]));
   const ds = runtime.dataSource;
   if (!ds) {
     console.error("Нужен RADAR_STORAGE_MODE=db");

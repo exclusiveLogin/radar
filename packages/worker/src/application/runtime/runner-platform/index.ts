@@ -6,7 +6,7 @@
  *          домены (tracking/parse/geo-enrich) импортируют только отсюда.
  * ---
  */
-export * from "./runnerContracts.js";
+export type * from "./runnerContracts.js";
 export * from "./cursorEngine.js";
 export * from "./lockEngine.js";
 export * from "./scheduleEngine.js";

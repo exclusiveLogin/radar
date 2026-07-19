@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from "@nestjs/common";
+import { Injectable } from "@nestjs/common";
 import { InjectDataSource } from "@nestjs/typeorm";
 import {
   DEFAULT_TRACKING_STEP_MANIFEST,
@@ -24,10 +24,14 @@ import {
 import type { DataSource } from "typeorm";
 import { randomUUID } from "crypto";
 import { TrackingL1ResetGate } from "../tracking/tracking-l1-reset.gate";
+import type {
+  TrackingAdminCommandPort,
+  TrackingRebuildMode,
+} from "../application/tracking-admin/tracking-admin-commands";
 import {
   pgTimestampToIso,
   pgTimestampToIsoOptional,
-} from "../infrastructure/persistence/typeorm-query-rows";
+} from "@radar/persistence";
 
 type PipelineRow = {
   enabled: boolean;
@@ -57,9 +61,9 @@ const EVENT_AT_SQL = "COALESCE(el.occurred_at, rm.posted_at, pe.parsed_at)";
 
 const NOT_PROCESSED_SQL = TRACKING_PIPELINE_NOT_PROCESSED_SQL;
 
-/** Админка пайплайна треков: статус, runs, управление daemon. */
+/** PostgreSQL adapter read-модели и команд tracking admin. */
 @Injectable()
-export class TrackingAdminService {
+export class TrackingAdminQueryService implements TrackingAdminCommandPort {
   constructor(
     @InjectDataSource() private readonly ds: DataSource,
     private readonly l1ResetGate: TrackingL1ResetGate,
@@ -151,7 +155,7 @@ export class TrackingAdminService {
   }
 
   /** Необработанные pipeline-точки (SSOT: worker countTrackingPipelineRemaining). */
-  private async countUnconsumedPipeline(until: Date): Promise<number> {
+  private async countUnconsumedPipelineAt(until: Date): Promise<number> {
     return withPgContendedReadRetry(async () => {
       const targetIn = trackingTargetEventTypesSqlIn();
 
@@ -183,124 +187,63 @@ export class TrackingAdminService {
     return rows.map(mapRunRow);
   }
 
-  async getConfig(): Promise<TrackingPipelineConfig> {
+  async readConfig(): Promise<TrackingPipelineConfig> {
     const [state] = await this.ds.query<PipelineRow[]>(
       `SELECT config FROM state_track_pipeline WHERE id = 'default'`,
     );
     return mergeConfig(state?.config);
   }
 
-  async patchConfig(body: unknown): Promise<TrackingPipelineConfig> {
-    const patch = trackingPipelineConfigSchema.partial().parse(body);
-    const current = await this.getConfig();
-    const next = trackingPipelineConfigSchema.parse({
-      ...current,
-      ...patch,
-      profiles: patch.profiles
-        ? mergeProfileOverrides(current.profiles, patch.profiles)
-        : current.profiles,
-    });
+  async saveConfig(next: TrackingPipelineConfig): Promise<void> {
     await this.ds.query(
       `UPDATE state_track_pipeline SET config = $1::jsonb, updated_at = now() WHERE id = 'default'`,
       [JSON.stringify(next)],
     );
-    return next;
   }
 
-  async patchEnabled(enabled: boolean): Promise<{ ok: true; enabled: boolean }> {
+  async setPipelineEnabled(enabled: boolean): Promise<void> {
     await this.ds.query(
       `UPDATE state_track_pipeline SET enabled = $1, updated_at = now() WHERE id = 'default'`,
       [enabled],
     );
-    if (enabled) {
-      const until = new Date();
-      const remaining = await this.countUnconsumedPipeline(until);
-      if (remaining > 0) {
-        const runId = await this.resolveControllableRunId();
-        if (!runId) {
-          const id = await this.createRun("incremental");
-          await this.bindActiveRun(id);
-        }
-      }
-    }
-    return { ok: true, enabled };
   }
 
-  async rebuild(): Promise<{ ok: true; runId: string }> {
+  async countUnconsumedPipeline(): Promise<number> {
+    return this.countUnconsumedPipelineAt(new Date());
+  }
+
+  async isPipelineEnabled(): Promise<boolean> {
+    const [state] = await this.ds.query<{ enabled: boolean }[]>(
+      `SELECT enabled FROM state_track_pipeline WHERE id = 'default'`,
+    );
+    return state?.enabled === true;
+  }
+
+  async resetPipeline(): Promise<void> {
     await this.resetInternal();
-    try {
-      const runId = await this.createRun("full_rebuild");
-      await this.ds.query(
-        `UPDATE state_track_pipeline SET active_run_id = $1, enabled = true, updated_at = now() WHERE id = 'default'`,
-        [runId],
-      );
-      return { ok: true, runId };
-    } catch (err) {
-      await this.ensurePipelineEnabled();
-      throw err;
-    }
   }
 
-  /**
-   * Soft rebuild: truncate L1 + consumed, watermark с нуля, config не трогаем.
-   * Worker заново: Phase W (magnet/gravity/corridor из mat_parse_location) → Phase A (GNN assign).
-   */
-  async softRebuild(): Promise<{ ok: true; runId: string }> {
-    await this.softResetInternal();
-    try {
-      const runId = await this.createRun("soft_rebuild");
-      await this.ds.query(
-        `UPDATE state_track_pipeline SET active_run_id = $1, enabled = true, updated_at = now() WHERE id = 'default'`,
-        [runId],
-      );
-      return { ok: true, runId };
-    } catch (err) {
-      await this.ensurePipelineEnabled();
-      throw err;
-    }
-  }
-
-  async reset(): Promise<{ ok: true }> {
-    await this.resetInternal();
-    return { ok: true };
-  }
-
-  async pause(): Promise<{ ok: true }> {
-    let runId = await this.resolveControllableRunId();
-    if (!runId) {
-      const [{ enabled }] = await this.ds.query<{ enabled: boolean }[]>(
-        `SELECT enabled FROM state_track_pipeline WHERE id = 'default'`,
-      );
-      if (!enabled) throw new BadRequestException("pipeline disabled");
-      runId = await this.createRun("incremental");
-      await this.bindActiveRun(runId);
-    }
-    await this.setRunControl(runId, { pause: true });
+  async activateRun(runId: string): Promise<void> {
     await this.ds.query(
-      `UPDATE job_track_rebuild SET status = 'paused' WHERE id = $1`,
+      `UPDATE state_track_pipeline SET active_run_id = $1, enabled = true, updated_at = now() WHERE id = 'default'`,
       [runId],
     );
-    return { ok: true };
   }
 
-  async resume(): Promise<{ ok: true }> {
-    const runId = await this.resolveControllableRunId();
-    if (!runId) throw new BadRequestException("no pausable run");
+  async setRunPaused(runId: string, paused: boolean): Promise<void> {
+    await this.setRunControl(runId, { pause: paused });
+    await this.ds.query(
+      `UPDATE job_track_rebuild SET status = $1 WHERE id = $2`,
+      [paused ? "paused" : "running", runId],
+    );
+  }
+
+  async getRunStatus(runId: string): Promise<string | null> {
     const run = await this.loadRun(runId);
-    if (!run || run.status !== "paused") {
-      throw new BadRequestException("run is not paused");
-    }
-    await this.setRunControl(runId, { pause: false });
-    await this.ds.query(
-      `UPDATE job_track_rebuild SET status = 'running' WHERE id = $1`,
-      [runId],
-    );
-    return { ok: true };
+    return run?.status ?? null;
   }
 
-  async cancel(): Promise<{ ok: true }> {
-    const runId = await this.resolveControllableRunId();
-    if (!runId) throw new BadRequestException("no active run");
+  async cancelRun(runId: string): Promise<void> {
     await this.setRunControl(runId, { cancel: true });
     await this.ds.query(
       `UPDATE job_track_rebuild SET status = 'cancelled', finished_at = now() WHERE id = $1`,
@@ -309,35 +252,11 @@ export class TrackingAdminService {
     await this.ds.query(
       `UPDATE state_track_pipeline SET active_run_id = NULL, updated_at = now() WHERE id = 'default'`,
     );
-    return { ok: true };
   }
 
   // ─────────────────────────────────────────────────────────────────────────
 
-  private async ensurePipelineEnabled(): Promise<void> {
-    await this.ds.query(
-      `UPDATE state_track_pipeline SET enabled = true, updated_at = now() WHERE id = 'default'`,
-    );
-  }
-
   private async resetInternal(): Promise<void> {
-    await this.runL1Reset(async () => {
-      await this.cancelActiveRuns();
-      await this.ds.query(
-        `UPDATE state_track_pipeline
-         SET enabled = false, active_run_id = NULL, updated_at = now()
-         WHERE id = 'default'`,
-      );
-      await this.waitTrackingMutationsIdle(45_000);
-      await this.waitL1ReadsIdle(8_000);
-      await this.terminateL1WriteBlockers();
-      await sleepMs(300);
-      await this.truncateTracksQueueInternal();
-    });
-  }
-
-  /** Truncate L1 + consumed и watermark без выключения enabled (soft rebuild). */
-  private async softResetInternal(): Promise<void> {
     await this.runL1Reset(async () => {
       await this.cancelActiveRuns();
       await this.ds.query(
@@ -493,8 +412,8 @@ export class TrackingAdminService {
     );
   }
 
-  private async createRun(
-    mode: "incremental" | "full_rebuild" | "soft_rebuild",
+  async createRun(
+    mode: "incremental" | TrackingRebuildMode,
   ): Promise<string> {
     const id = randomUUID();
     const rebuildGen = randomUUID();
@@ -509,15 +428,8 @@ export class TrackingAdminService {
     return id;
   }
 
-  private async bindActiveRun(runId: string): Promise<void> {
-    await this.ds.query(
-      `UPDATE state_track_pipeline SET active_run_id = $1, updated_at = now() WHERE id = 'default'`,
-      [runId],
-    );
-  }
-
   /** running/paused run: active_run_id или последний controllable run в БД. */
-  private async resolveControllableRunId(): Promise<string | null> {
+  async findControllableRunId(): Promise<string | null> {
     const [state] = await this.ds.query<{ active_run_id: string | null }[]>(
       `SELECT active_run_id FROM state_track_pipeline WHERE id = 'default'`,
     );
@@ -685,7 +597,7 @@ export class TrackingAdminService {
 
     const totalTargetCandidates = Number(targetCount);
     const nodesInTracks = Number(nodes);
-    const unconsumedPipeline = await this.countUnconsumedPipeline(until);
+    const unconsumedPipeline = await this.countUnconsumedPipelineAt(until);
     const candidateWindowSize = await this.countCandidateWindowSize(until, config, unconsumedPipeline);
     const effectiveBatchSize = resolveDaemonBatchSize(config.batchSize);
     const percentNodesInTracks =
@@ -794,19 +706,6 @@ function isWatermark(value: unknown): value is TrackingWatermark {
 
 function mergeConfig(raw: unknown): TrackingPipelineConfig {
   return trackingPipelineConfigSchema.parse({ ...DEFAULT_CONFIG, ...(raw as object) });
-}
-
-/** Глубокий merge overrides по профилям — patch одного профиля не затирает остальные. */
-function mergeProfileOverrides(
-  current: TrackingPipelineConfig["profiles"],
-  patch: NonNullable<TrackingPipelineConfig["profiles"]>,
-): TrackingPipelineConfig["profiles"] {
-  const merged = { ...current };
-  for (const [key, profilePatch] of Object.entries(patch)) {
-    const profile = key as keyof typeof patch;
-    merged[profile] = { ...merged[profile], ...profilePatch };
-  }
-  return merged;
 }
 
 function mapRunRow(row: RunRow): TrackingRebuildRun {

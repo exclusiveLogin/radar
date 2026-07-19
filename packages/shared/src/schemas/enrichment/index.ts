@@ -8,6 +8,9 @@ export {
   PRECISION_RANK,
 } from "./provenance";
 export {
+  DEFAULT_PHASE_TERMINAL_POLICY,
+} from "./phaseTerminalPolicy";
+export {
   enricherIdSchema,
   phaseTriggerSchema,
   phaseTriggerModeSchema,

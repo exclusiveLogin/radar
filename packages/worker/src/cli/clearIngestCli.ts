@@ -2,7 +2,7 @@ import { MONOREPO_ROOT } from "@repo/root";
 import { clearIngestOperationalState } from "../application/archive/clearIngestOperationalState.js";
 import { createWorkerCompositionRoot } from "../application/createWorkerCompositionRoot.js";
 import { loadRootEnv } from "../infrastructure/config/loadRootEnv.js";
-import { WorkerStorageMode } from "../infrastructure/persistence/storageMode.js";
+import { cliWorkerRuntime } from "./cliWorkerRuntime.js";
 import { hasAnyFlag, parseLongFlagsMap } from "./workerCliArgs.js";
 
 function printPlan(): void {
@@ -36,12 +36,7 @@ async function main(): Promise<void> {
     process.exit(0);
   }
 
-  const runtime = await createWorkerCompositionRoot({
-    workerRole: "ingest",
-    bootCaps: ["ingest"],
-    storageMode: WorkerStorageMode.Db,
-    startIngestParseDaemon: false,
-  });
+  const runtime = await createWorkerCompositionRoot(cliWorkerRuntime("ingest", ["ingest"]));
   if (!runtime.dataSource) {
     console.error("clear:ingest: нужен RADAR_STORAGE_MODE=db и DATABASE_URL");
     process.exit(1);

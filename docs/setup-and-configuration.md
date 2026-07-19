@@ -30,7 +30,7 @@ npm run radar -- stack dev
 | Шаг | Что делает |
 |-----|------------|
 | `cold-up` | Docker (Postgres + Adminer + pgAdmin), `npm install`, build shared, **миграции** |
-| `stack dev` | API :3000 + Web :5173 (без worker) |
+| `stack dev` | API :3000 + Web :5173 + 5 worker-ролей |
 
 **Проверка:**
 
@@ -40,13 +40,10 @@ npm run radar -- stack dev
 | http://127.0.0.1:3000/api/ready | БД доступна |
 | http://127.0.0.1:8080 | Adminer (`db` / `POSTGRES_*` из `.env`) |
 
-**Полный стек (worker на хосте):**
+**Только API и Web:**
 
 ```powershell
-npm run radar -- stack dev
-# или отдельно:
-$env:RADAR_STORAGE_MODE="db"
-npm run worker:dev
+npm run radar -- stack dev --app-only
 ```
 
 ---
@@ -55,7 +52,7 @@ npm run worker:dev
 
 ```powershell
 npm run radar -- stack up          # Docker + API + Web
-npm run radar -- stack dev  # + worker (если нужен ingest/parse)
+npm run radar -- stack dev --app-only  # только API + Web
 ```
 
 Docker-вариант (всё в compose): [docker-dev-stack.md](docker-dev-stack.md)

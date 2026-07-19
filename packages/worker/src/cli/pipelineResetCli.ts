@@ -5,10 +5,10 @@ import {
   runPipelineOperationalReset,
 } from "../application/phases/pipelineOperationalReset.js";
 import { createPhaseOperationalDeps } from "../application/phases/phaseOperationalDeps.js";
-import { WorkerStorageMode } from "../infrastructure/persistence/storageMode.js";
 import { loadRootEnv } from "../infrastructure/config/loadRootEnv.js";
 import { notifyMapPushSnapshot } from "../infrastructure/notifyMapPushSnapshot.js";
 import { buildTestPlaceScanService } from "../domain/parse/geo/testPlaceScanFixture.js";
+import { cliWorkerRuntime } from "./cliWorkerRuntime.js";
 import { hasAnyFlag, parseLongFlagsMap } from "./workerCliArgs.js";
 import { warnDeprecatedNpmScript } from "./deprecatedNpmScript.js";
 
@@ -53,14 +53,10 @@ async function main(): Promise<void> {
     process.exit(0);
   }
 
-  const runtime = await createWorkerCompositionRoot({
-    workerRole: "parse",
-    bootCaps: ["parse","geo"],
-    storageMode: WorkerStorageMode.Db,
-    startIngestParseDaemon: false,
+  const runtime = await createWorkerCompositionRoot(cliWorkerRuntime("parse", ["parse", "geo"], {
     // Сброс не парсит сообщения — geo scan из БД не нужен.
     placeScan: buildTestPlaceScanService([]),
-  });
+  }));
 
   if (!runtime.operationalSql || !runtime.workerRepos) {
     console.error("parse-engine:reset: нужен RADAR_STORAGE_MODE=db и DATABASE_URL");

@@ -17,6 +17,12 @@ export type {
 
 export type { ProfileKinematics } from "./profileKinematics";
 export { PROFILE_KINEMATICS, resolveProfileKinematics, maxEpsilonTemporalMs } from "./profileKinematics";
+export {
+  orderTrackingCandidates,
+  resolveTrackingTemporalReplay,
+  trackingReplayLookbackMs,
+} from "./temporalReplay";
+export type { TrackingTemporalReplay } from "./temporalReplay";
 
 export {
   TRACKING_PIPELINE_TYPES,

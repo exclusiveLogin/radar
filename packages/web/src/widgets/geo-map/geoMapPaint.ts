@@ -1,4 +1,5 @@
 import type { MapPlaceSnapshot, MapRegionSnapshot, MapVicinityScopeSnapshot, StateLevel } from "@radar/shared";
+import type { Point } from "geojson";
 import {
   resolveThreatVisual,
   shouldShowRegionThreatMarker,
@@ -308,7 +309,7 @@ export function regionThreatMarkersCollection(
   regions: Map<string, MapRegionSnapshot>,
   derivedCodes: Set<string>,
   now = Date.now(),
-): GeoJsonCollection {
+): GeoJsonCollection<Point> {
   return {
     type: "FeatureCollection",
     features: regionThreatMarkersToFeatures(regions, derivedCodes, now),

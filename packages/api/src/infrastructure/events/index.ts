@@ -1,6 +1,6 @@
-// --- runtime exports (schemas, functions, classes) ---
-export { OutboxRelay } from "./outboxRelay";
-export { PostgresOutboxPublisher } from "./postgresOutboxPublisher";
-
-// --- type-only exports ---
+/**
+ * Event-delivery adapters.
+ * OutboxRelay снят с hot path: transport = RMQ publishConfirmed.
+ * Таблица event_outbox остаётся как dormant audit/journal (geo-sync append).
+ */
 export {};

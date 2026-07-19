@@ -2,7 +2,7 @@ import { MONOREPO_ROOT } from "@repo/root";
 import { resolveGeoEnrichmentProvider } from "@radar/shared";
 import { createWorkerCompositionRoot } from "../application/createWorkerCompositionRoot.js";
 import { loadRootEnv } from "../infrastructure/config/loadRootEnv.js";
-import { WorkerStorageMode } from "../infrastructure/persistence/storageMode.js";
+import { cliWorkerRuntime } from "./cliWorkerRuntime.js";
 import { hasAnyFlag, parseLongFlagsMap } from "./workerCliArgs.js";
 
 const DEFAULT_ORPHAN_RUN_MS = 120_000;
@@ -16,12 +16,7 @@ function resolveOrphanRunMs(): number {
 async function main(): Promise<void> {
   loadRootEnv(MONOREPO_ROOT);
   const force = hasAnyFlag(parseLongFlagsMap(process.argv), ["force"]);
-  const runtime = await createWorkerCompositionRoot({
-    workerRole: "geo",
-    bootCaps: ["geo"],
-    storageMode: WorkerStorageMode.Db,
-    startIngestParseDaemon: false,
-  });
+  const runtime = await createWorkerCompositionRoot(cliWorkerRuntime("geo", ["geo"]));
   if (!runtime.dataSource || !runtime.workerRepos) {
     console.error("geo:recover: нужен RADAR_STORAGE_MODE=db");
     process.exit(1);

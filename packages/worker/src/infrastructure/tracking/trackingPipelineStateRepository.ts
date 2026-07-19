@@ -176,6 +176,35 @@ export async function resetTrackingWatermark(ds: DataSource): Promise<void> {
   );
 }
 
+/**
+ * Возвращает late-event temporal tail в единственный event-time поток.
+ * Водяной знак пересчитается после replay; точки до границы остаются неизменным префиксом.
+ */
+export async function resetTrackingTemporalTail(ds: DataSource, since: Date): Promise<void> {
+  const boundary = since.toISOString();
+  await ds.transaction(async manager => {
+    await manager.query(
+      `DELETE FROM mat_track
+       WHERE last_at >= $1`,
+      [boundary],
+    );
+    await manager.query(
+      `DELETE FROM state_track_consumed consumed
+       USING mat_parse_location location
+       JOIN mat_parse_event event ON event.id = location.parsed_event_id
+       LEFT JOIN mat_ingest_raw raw_message ON raw_message.id = event.raw_message_id
+       WHERE consumed.event_location_id = location.id
+         AND COALESCE(location.occurred_at, raw_message.posted_at, event.parsed_at) >= $1`,
+      [boundary],
+    );
+    await manager.query(
+      `UPDATE state_track_pipeline
+       SET watermark = '{}'::jsonb, updated_at = now()
+       WHERE id = 'default'`,
+    );
+  });
+}
+
 function isWatermark(value: unknown): value is TrackingWatermark {
   if (!value || typeof value !== "object") return false;
   const w = value as Record<string, unknown>;

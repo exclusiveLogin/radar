@@ -7,11 +7,7 @@ import {
   FrontlineCatalogProvider,
   TabularCatalogProvider,
 } from "../../infrastructure/geo-catalog";
-import { TypeOrmDomainEventRepository } from "../../infrastructure/persistence/typeorm-domain-event.repository";
-import { TypeOrmPlaceAliasRepository } from "../../infrastructure/persistence/typeorm-place-alias.repository";
-import { TypeOrmPlaceRepository } from "../../infrastructure/persistence/typeorm-place.repository";
-import { TypeOrmRegionRepository } from "../../infrastructure/persistence/typeorm-region.repository";
-import { TypeOrmSyncAuditRepository } from "../../infrastructure/persistence/typeorm-sync-audit.repository";
+import { createGeoSyncPersistenceDeps } from "../../infrastructure/geo-sync/createGeoSyncPersistenceDeps";
 import {
   createGeoSyncPersistReporter,
   createGeoSyncSnapshotReporter,
@@ -53,11 +49,7 @@ async function run(): Promise<void> {
   const mode = parseMode();
   await withDataSource(dataSource, async () => {
     const provider = buildGeoProvider();
-    const regions = new TypeOrmRegionRepository(dataSource);
-    const places = new TypeOrmPlaceRepository(dataSource);
-    const aliases = new TypeOrmPlaceAliasRepository(dataSource);
-    const audit = new TypeOrmSyncAuditRepository(dataSource);
-    const events = new TypeOrmDomainEventRepository(dataSource);
+    const { regions, places, aliases, audit, events } = createGeoSyncPersistenceDeps(dataSource);
     const planner = new GeoSyncPlanService(provider, regions, places, aliases);
 
     if (mode === "apply") {
