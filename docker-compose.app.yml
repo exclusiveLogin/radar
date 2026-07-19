@@ -1,7 +1,8 @@
 # Overlay: api + web + worker-роли (dev hot-reload). База — docker-compose.yml
+# Порядок: npm-ci → api → web/workers. Без entrypoint-ретраев.
 name: radar
 
-x-app-build: &app-build
+x-app: &app
   build:
     context: .
     dockerfile: docker/Dockerfile.dev
@@ -13,29 +14,68 @@ x-app-build: &app-build
     - radar_node_modules:/app/node_modules
   networks:
     - radar_net
+  restart: "no"
 
-x-rmq-transport: &rmq-transport
+x-rmq: &rmq
   DEPLOY__transport__kind: rmq
   DEPLOY__transport__rmq__url: amqp://${RMQ_USER:-radar}:${RMQ_PASSWORD:-radar}@rabbitmq:5672/${RMQ_VHOST:-radar}
 
+x-db-url: &db-url
+  DATABASE_URL: postgresql://${POSTGRES_USER:-radar}:${POSTGRES_PASSWORD:-radar}@db:5432/${POSTGRES_DB:-radar}
+
+x-worker: &worker
+  <<: *app
+  profiles: ["app"]
+  depends_on:
+    npm-ci:
+      condition: service_completed_successfully
+    db:
+      condition: service_healthy
+    rabbitmq:
+      condition: service_healthy
+    api:
+      condition: service_healthy
+  environment:
+    <<: [*db-url, *rmq]
+    RADAR_STORAGE_MODE: db
+    WORKER_PROBE_ENABLED: "0"
+  command: ["npm", "run", "dev", "-w", "@radar/worker", "--ignore-scripts"]
+
 services:
+  # Один раз наполняет общий volume node_modules под текущий package-lock.
+  npm-ci:
+    <<: *app
+    profiles: ["app"]
+    command:
+      - sh
+      - -c
+      - |
+        mark=node_modules/.radar-package-lock.json
+        if [ -f "$$mark" ] && cmp -s package-lock.json "$$mark"; then
+          echo "[npm-ci] node_modules ok"
+          exit 0
+        fi
+        echo "[npm-ci] npm ci..."
+        npm ci
+        cp package-lock.json "$$mark"
+
   api:
-    <<: *app-build
+    <<: *app
     profiles: ["app"]
     depends_on:
+      npm-ci:
+        condition: service_completed_successfully
       db:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-radar}:${POSTGRES_PASSWORD:-radar}@db:5432/${POSTGRES_DB:-radar}
-      <<: *rmq-transport
+      <<: [*db-url, *rmq]
       PORT: "3000"
       WORKER_PROBE_TARGETS: http://worker-ingest:3010/status
     ports:
       - "${API_PORT:-3000}:3000"
     command: ["npm", "run", "dev", "-w", "@radar/api"]
-    restart: unless-stopped
     healthcheck:
       test:
         [
@@ -48,9 +88,11 @@ services:
       start_period: 120s
 
   web:
-    <<: *app-build
+    <<: *app
     profiles: ["app"]
     depends_on:
+      npm-ci:
+        condition: service_completed_successfully
       api:
         condition: service_healthy
     environment:
@@ -62,21 +104,11 @@ services:
     ports:
       - "${WEB_PORT:-5173}:5173"
     command: ["npm", "run", "dev", "-w", "@radar/web", "--", "--host", "0.0.0.0"]
-    restart: unless-stopped
 
   worker-ingest:
-    <<: *app-build
-    profiles: ["app"]
-    depends_on:
-      db:
-        condition: service_healthy
-      rabbitmq:
-        condition: service_healthy
-      api:
-        condition: service_healthy
+    <<: *worker
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-radar}:${POSTGRES_PASSWORD:-radar}@db:5432/${POSTGRES_DB:-radar}
-      <<: *rmq-transport
+      <<: [*db-url, *rmq]
       RADAR_STORAGE_MODE: db
       RADAR_WORKER_ROLE: ingest
       WORKER_PROBE_HOST: 0.0.0.0
@@ -85,26 +117,14 @@ services:
     volumes:
       - .:/app
       - radar_node_modules:/app/node_modules
-      # Тот же путь, что session:deploy на хосте (RADAR_SESSIONS_DIR=.radar/sessions)
       - ./.radar/sessions:/var/radar/sessions
     ports:
       - "${WORKER_PROBE_PORT:-3010}:3010"
-    command: ["npm", "run", "dev", "-w", "@radar/worker", "--ignore-scripts"]
-    restart: unless-stopped
 
   worker-backfill:
-    <<: *app-build
-    profiles: ["app"]
-    depends_on:
-      db:
-        condition: service_healthy
-      rabbitmq:
-        condition: service_healthy
-      api:
-        condition: service_healthy
+    <<: *worker
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-radar}:${POSTGRES_PASSWORD:-radar}@db:5432/${POSTGRES_DB:-radar}
-      <<: *rmq-transport
+      <<: [*db-url, *rmq]
       RADAR_STORAGE_MODE: db
       RADAR_WORKER_ROLE: backfill
       WORKER_PROBE_ENABLED: "0"
@@ -113,32 +133,20 @@ services:
       - .:/app
       - radar_node_modules:/app/node_modules
       - ./.radar/sessions:/var/radar/sessions
-    command: ["npm", "run", "dev", "-w", "@radar/worker", "--ignore-scripts"]
-    restart: unless-stopped
 
   worker-parse:
-    <<: *app-build
-    profiles: ["app"]
-    depends_on:
-      db:
-        condition: service_healthy
-      rabbitmq:
-        condition: service_healthy
-      api:
-        condition: service_healthy
+    <<: *worker
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-radar}:${POSTGRES_PASSWORD:-radar}@db:5432/${POSTGRES_DB:-radar}
-      <<: *rmq-transport
+      <<: [*db-url, *rmq]
       RADAR_STORAGE_MODE: db
       RADAR_WORKER_ROLE: parse
       WORKER_PROBE_ENABLED: "0"
-    command: ["npm", "run", "dev", "-w", "@radar/worker", "--ignore-scripts"]
-    restart: unless-stopped
 
   worker-geo:
-    <<: *app-build
-    profiles: ["app"]
+    <<: *worker
     depends_on:
+      npm-ci:
+        condition: service_completed_successfully
       db:
         condition: service_healthy
       rabbitmq:
@@ -148,37 +156,20 @@ services:
       ollama:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-radar}:${POSTGRES_PASSWORD:-radar}@db:5432/${POSTGRES_DB:-radar}
-      <<: *rmq-transport
+      <<: [*db-url, *rmq]
       RADAR_STORAGE_MODE: db
       RADAR_WORKER_ROLE: geo
       WORKER_PROBE_ENABLED: "0"
-      # В контейнере — сервис compose, не 127.0.0.1 с хоста (.env)
       RADAR_LLM_BASE_URL: http://ollama:11434/v1
-    command: ["npm", "run", "dev", "-w", "@radar/worker", "--ignore-scripts"]
-    restart: unless-stopped
 
   worker-tracking:
-    <<: *app-build
-    profiles: ["app"]
-    depends_on:
-      db:
-        condition: service_healthy
-      rabbitmq:
-        condition: service_healthy
-      api:
-        condition: service_healthy
+    <<: *worker
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-radar}:${POSTGRES_PASSWORD:-radar}@db:5432/${POSTGRES_DB:-radar}
-      <<: *rmq-transport
+      <<: [*db-url, *rmq]
       RADAR_STORAGE_MODE: db
       RADAR_WORKER_ROLE: tracking
       WORKER_PROBE_ENABLED: "0"
-    command: ["npm", "run", "dev", "-w", "@radar/worker", "--ignore-scripts"]
-    restart: unless-stopped
 
-  # TileServer GL: тот же bind-mount что tiles:sync/build (data/tiles/output).
-  # До init — stub config; после init — restart подхватывает config.json + mbtiles.
   tiles:
     image: maptiler/tileserver-gl:latest
     profiles: ["app"]
@@ -188,7 +179,6 @@ services:
     volumes:
       - ./data/tiles/output:/data:ro
       - ./docker/tiles/stub-config.json:/stub/config.json:ro
-    # Не вызывать node напрямую — иначе минуем Xvfb из docker-entrypoint.sh → "Failed to open X display".
     entrypoint: ["/bin/bash", "-c"]
     command:
       - >-

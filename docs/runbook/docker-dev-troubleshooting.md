@@ -34,12 +34,12 @@ npm run radar -- stack tiles:merge -- --verbose
 **Проверка:**
 
 ```powershell
-docker compose -f docker-compose.yml -f docker-compose.tiles.yml --profile tiles ps
+docker compose -f docker-compose.yml -f docker-compose.app.yml --profile tiles ps
 curl.exe -s http://127.0.0.1:8081/health
 Test-Path data/tiles/output/config.json
 ```
 
-**Fix:** `npm run tiles:sync` или `npm run tiles:up`. Временно — CDN basemap в `.env`.
+**Fix:** `npm run tiles:sync` или `npm run tiles:up`. Временно — CDN basemap в `.env`.
 
 ---
 
@@ -51,27 +51,27 @@ Test-Path data/tiles/output/config.json
 
 ---
 
-## Worker: «Модуль API не найден … persistence/index.js»
+## API/Worker: Cannot find module `@radar/persistence` / `@radar/transport-rmq`
 
-**Симптом:** `worker-ingest` падает до старта, `packages/api/dist/infrastructure/persistence/index.js` отсутствует.
+**Симптом:** нет `packages/persistence/dist` / `transport-rmq/dist`, или пустой `radar_node_modules`.
 
-**Причина:** гонка — worker стартовал раньше полной сборки API на общем volume.
+**Порядок:** `npm run docker:dev` = `dev:prepare` (libs) → compose `npm-ci` → `api` → web/workers.
 
-**Политика:** clean+build — **`npm run dev:prepare`** до `stack dev` / `docker:dev`; runtime dist не трогают.
-
-**Fix:** пересобрать образы и поднять заново (entrypoint ждёт `persistence/index.js` + `/api/ready`):
+**Fix:**
 
 ```powershell
-docker compose -f docker-compose.yml -f docker-compose.app.yml --profile app up -d --build
+docker compose -f docker-compose.yml -f docker-compose.app.yml --profile app down
+docker volume rm radar_radar_node_modules
+npm run docker:dev
 ```
 
-Workers ждут `api: service_healthy`.
+Сервисы с `restart: "no"` — при ошибке не крутятся в рестарте; чини шаг (`prepare` / `npm-ci` / api).
 
 ---
 
 **Симптом:** Vite/worker перезапускаются с задержкой, CPU idle.
 
-**Fix:** `CHOKIDAR_USEPOLLING=1` (уже в compose). Использовать WSL2 backend Docker Desktop. `node_modules` — только в volume `radar_node_modules`.
+**Fix:** `CHOKIDAR_USEPOLLING=1` (уже в compose). Использовать WSL2 backend Docker Desktop. `node_modules` — только в volume `radar_node_modules`.
 
 ---
 

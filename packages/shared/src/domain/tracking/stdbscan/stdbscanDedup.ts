@@ -13,21 +13,18 @@
  *          Noise-точки (не попавшие ни в один кластер) идут в Kalman как есть.
  * ---
  */
-import { haversineDistanceM } from "../haversine";
 import { observationCovarianceMeters } from "../observationCovariance";
 import type { TrackingCandidate } from "../types";
+import {
+  findStdbscanNeighbors,
+  type StdbscanClusterParams,
+} from "./stdbscanNeighbors";
 
 export type StdbscanDedupResult = {
   /** Дедуплицированные кандидаты (winners + noise), отсортированы по occurredAt. */
   deduplicated: TrackingCandidate[];
   /** Число схлопнутых точек (не вошедших в финальный набор). */
   collapsedCount: number;
-};
-
-type ClusterParams = {
-  epsilonSpatialM: number;
-  epsilonTemporalMs: number;
-  minPts: number;
 };
 
 const UNASSIGNED = -1;
@@ -44,7 +41,7 @@ const NOISE = 0;
  */
 export function stdbscanDedup(
   candidates: TrackingCandidate[],
-  params: ClusterParams,
+  params: StdbscanClusterParams,
 ): StdbscanDedupResult {
   const n = candidates.length;
   if (n === 0) return { deduplicated: [], collapsedCount: 0 };
@@ -55,7 +52,7 @@ export function stdbscanDedup(
   for (let i = 0; i < n; i++) {
     if (labels[i] !== UNASSIGNED) continue;
 
-    const neighbors = getNeighbors(candidates, i, params);
+    const neighbors = findStdbscanNeighbors(candidates, i, params);
 
     // Стандартный DBSCAN: minPts включает саму точку → нужно minPts-1 соседей
     if (neighbors.length < params.minPts - 1) {
@@ -73,7 +70,7 @@ export function stdbscanDedup(
       if (labels[j] !== UNASSIGNED) continue;
 
       labels[j] = clusterCount;
-      const jNeighbors = getNeighbors(candidates, j, params);
+      const jNeighbors = findStdbscanNeighbors(candidates, j, params);
       if (jNeighbors.length >= params.minPts - 1) {
         for (const jn of jNeighbors) {
           if (!seeds.includes(jn)) seeds.push(jn);
@@ -121,29 +118,6 @@ export function stdbscanDedup(
   result.sort((a, b) => a.occurredAt.getTime() - b.occurredAt.getTime());
 
   return { deduplicated: result, collapsedCount };
-}
-
-/** Возвращает индексы кандидатов в ε-окрестности точки i. */
-function getNeighbors(
-  candidates: TrackingCandidate[],
-  i: number,
-  params: ClusterParams,
-): number[] {
-  const ci = candidates[i];
-  const neighbors: number[] = [];
-
-  for (let j = 0; j < candidates.length; j++) {
-    if (i === j) continue;
-    const cj = candidates[j];
-
-    const dtMs = Math.abs(ci.occurredAt.getTime() - cj.occurredAt.getTime());
-    if (dtMs > params.epsilonTemporalMs) continue;
-
-    const dist = haversineDistanceM(ci.lat, ci.lon, cj.lat, cj.lon);
-    if (dist <= params.epsilonSpatialM) neighbors.push(j);
-  }
-
-  return neighbors;
 }
 
 /** Выбирает наиточнейшую точку кластера (argmin sigma). */

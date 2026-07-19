@@ -5,19 +5,11 @@ import type {
   StateLevel,
   Warning,
 } from "@radar/shared";
+import { STATE_LEVEL_RANK } from "@radar/shared";
 import { LEVEL_COLORS, LEVEL_LABELS } from "../config/mapConfig.service";
 import type { DonutSegment } from "../ds/Donut";
 
 const ALL_LEVELS: StateLevel[] = ["red", "orange", "yellow", "green", "grey"];
-
-/** Числовой вес уровня: чем выше — тем опаснее. */
-const LEVEL_SEVERITY: Record<StateLevel, number> = {
-  grey: 0,
-  green: 1,
-  yellow: 2,
-  orange: 3,
-  red: 4,
-};
 
 /**
  * Эффективный уровень места с учётом регионального контекста.
@@ -29,7 +21,7 @@ export function effectivePlaceLevel(
   placeLevel: StateLevel,
   regionLevel: StateLevel,
 ): StateLevel {
-  return LEVEL_SEVERITY[regionLevel] > LEVEL_SEVERITY[placeLevel]
+  return STATE_LEVEL_RANK[regionLevel] > STATE_LEVEL_RANK[placeLevel]
     ? regionLevel
     : placeLevel;
 }

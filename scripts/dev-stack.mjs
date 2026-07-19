@@ -24,9 +24,8 @@ const infraArgs = [
   ...(argv.includes('--llm') ? ['--llm'] : []),
   ...(argv.includes('--llm-ui') ? ['--llm-ui'] : []),
 ];
-const sharedDist = 'file:packages/shared/dist/index.js';
-const workerParseDist =
-  'file:packages/worker/dist/application/parse/parsePipeline.worker.js';
+const libsReady =
+  'file:packages/shared/dist/index.js file:packages/persistence/dist/index.js file:packages/transport-rmq/dist/index.js';
 const waitTimeoutMs = 120_000;
 
 const manifest = loadDeploymentManifest({ repoRoot });
@@ -35,12 +34,12 @@ const apiReady = `http://127.0.0.1:${apiPort}/api/ready`;
 
 const commands = [
   'npm run dev -w @radar/shared',
-  `npx wait-on -t ${waitTimeoutMs} ${sharedDist} && npm run dev -w @radar/api`,
+  `npx wait-on -t ${waitTimeoutMs} ${libsReady} && npm run dev -w @radar/api`,
   `npx wait-on -t ${waitTimeoutMs} ${apiReady} && npm run dev -w @radar/web`,
 ];
 
 if (!appOnly) {
-  const workerWait = `npx wait-on -t ${waitTimeoutMs} ${apiReady} ${workerParseDist}`;
+  const workerWait = `npx wait-on -t ${waitTimeoutMs} ${apiReady} ${libsReady}`;
   for (const role of DEV_WORKER_ROLES) {
     const freeProbe =
       role === DEV_WORKER_PROBE_ROLE ? 'node scripts/free-worker-probe-port.mjs && ' : '';

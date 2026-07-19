@@ -94,7 +94,13 @@ DRY smell сами по себе.
 | P1 | Полный `RmqEventTransport` продублирован в `api` и `worker`: topology exchange/DLX/queue, `ack`/`nack`, dedup, shutdown и serialisation. | Устранено: `@radar/transport-rmq` — единственный runtime-adapter; локальны только factory и PG dedup. | `packages/transport-rmq/src/index.ts`; consumers — API и worker factories. | Выполнено: queue names, DLQ, dedup и graceful shutdown перенесены без изменения. |
 | P1 | Geo-catalog composition вручную создаёт один набор TypeORM repositories в `GeoCatalogImportService`, `scripts/geo-sync/cli` и seed/import entry points. | Устранено для полного geo-sync набора; entry points с подмножеством остаются отдельными. | `createGeoSyncPersistenceDeps`; consumers — catalog import и geo-sync CLI. | Выполнено: use-case получает порты, CLI output не менялся. |
 | P2 | Дефолты terminal policy заданы дважды: `phasePolicySchema` (`maxAttempts: 3`, `retryFailed: true`) и `workQueueTerminalPolicy` (`DEFAULT_*`). | Устранено: schema и terminal resolver используют один `DEFAULT_PHASE_TERMINAL_POLICY`. | `schemas/enrichment/phaseTerminalPolicy.ts`; consumers — manifest normalisation и terminal resolver. | Выполнено: проверена граница `attempts = maxAttempts - 1`. |
+| P2 | Ранг `StateLevel` задан в web `LEVEL_SEVERITY` и shared `STATE_LEVEL_RANK`. | Устранено: web читает shared rank, поэтому эскалация place повторяет доменную шкалу. | `packages/shared/src/schemas/geo/state-level.ts`; consumer — `effectivePlaceLevel`. | Выполнено: только read-side consumer; контракт не менялся. |
+| P2 | Поиск ε-соседей ST-DBSCAN скопирован в dedup и magnetize. | Устранено: обе фазы используют одну пространственно-временную окрестность. | `packages/shared/src/domain/tracking/stdbscan/stdbscanNeighbors.ts`; consumers — dedup и magnetize. | Выполнено: алгоритм и параметры не менялись. |
 | P2 | Retry budget для contended PostgreSQL read задаётся литералами в `mapFactsLoader` и `tracking-admin`, поверх общего `withPgContendedReadRetry`. | Семантика retry уже единая, но `3/60`, `3/120`, `3/200` не имеют именованной policy. Это риск неявного drift, не доказанный behavioral bug. | Оставить algorithm в `shared`; при подтверждении SLO — package-local named policies рядом с read-model owner, не глобальный default. Consumers — только соответствующие map/tracking queries. | Низкий, но требует согласовать latency/lock budget; не переносить автоматически. |
+| P3 | Tracking pipeline remaining count повторён в worker и API admin. | SQL совпадает, но API добавляет contention retry, а worker читает напрямую. | Пока нет: `TRACKING_PIPELINE_NOT_PROCESSED_SQL` покрывает условие, не query policy. | Next: узкий query port в persistence после решения о retry budget. |
+| P3 | Temporal `EVENT_AT_SQL` повторён в tracking и map read queries. | Tracking учитывает `pe.parsed_at`; map feed — нет. | Нет: это разные read-модели, совпадает лишь часть SQL. | Next: сначала разделить contracts tracking/read-side, не выносить общий литерал. |
+| P3 | Publish `RawMessage*` events реализован в ingest worker и API manual ingest. | Topic/type совпадают, payload разный: worker содержит ingest context, API — phase wake ids. | Частично: topic catalog и hash есть в shared; payload contract не согласован. | Next: согласовать payload, затем решать о factory. |
+| P3 | SQL pipeline state повторён в worker repository и API tracking admin. | API дополняет запросы metrics, terminate blockers и lite mode. | Нет узкого persistence port для admin read/command boundary. | Next: выделить port в `@radar/persistence` отдельной поставкой. |
 
 ### Исключено намеренно
 - **Outbox и RMQ publish:** hot path — только RMQ `publishConfirmed`. Таблица
@@ -107,6 +113,9 @@ DRY smell сами по себе.
 - **Retry/error semantics:** Nominatim 429 backoff, PostgreSQL contention retry и RMQ
   publisher confirm retry имеют разные failure domains. Объединять можно только
   механизм ожидания, но не policy.
+- **Трёхчасовые окна:** calm visibility, fade длительность и critical panel имеют
+  одинаковое число, но разные владельцы и последствия. Общая константа создала бы
+  ложную связь между domain visibility и presentation.
 - **Composition providers:** `ingest-admin` и `phases-admin` используют один
   `createApiDeploymentEventTransport`; одинаковые provider arrays отражают разные
   use-case dependency sets, а не повторное решение.
@@ -124,9 +133,13 @@ DRY smell сами по себе.
 4. **Skipped — PostgreSQL contention retry budgets:** литералы имеют общую механику,
    но отражают разные latency/lock budgets map и tracking. Без согласованного SLO
    перенос в общую policy изменил бы поведение, поэтому кандидат остаётся в backlog.
+5. **State level rank:** web удалил локальную шкалу и использует
+   `STATE_LEVEL_RANK` из shared.
+6. **ST-DBSCAN neighbourhood:** dedup и magnetize используют
+   `findStdbscanNeighbors`; параметры также определены один раз.
 
 ## Validation
 
 - Inventory reflects the current working-tree ownership moves from Waves 1–6.
 - Wave 5 keeps TypeORM and transaction mechanics in worker infrastructure; application lifecycle use cases depend only on `OperationalSql`.
-- Wave 8 is documentation-only: production code, plan file and public contracts were not changed.
+- Wave 8/9 changes preserve public contracts; plan file was not changed.

@@ -1,9 +1,7 @@
 #!/usr/bin/env node
 /**
- * Pre-stack bootstrap (host dev + docker:dev): clean dist → full build → потом процессы/compose.
- * Контейнеры и watch-режим dist не сносят.
- *
- * Флаги: --no-clean — build без rm.
+ * Pre-stack: собрать только library packages с dist (watch api/web/worker их читают).
+ * Флаг: --no-clean — не удалять dist перед build.
  */
 import { existsSync, rmSync } from 'node:fs';
 import { run } from './utils.mjs';
@@ -11,32 +9,35 @@ import { run } from './utils.mjs';
 const argv = process.argv.slice(2);
 const cleanDist = !argv.includes('--no-clean');
 
-const DIST_DIRS = ['packages/api/dist', 'packages/worker/dist'];
-
-const BUILD_CHAIN = [
+/** Пакеты с main/types → dist; api/web/worker в docker:dev идут через nest/tsx watch. */
+const LIBS = [
   '@radar/shared',
   '@radar/observability',
+  '@radar/persistence',
+  '@radar/transport-rmq',
   '@repo/root',
-  '@radar/api',
-  '@radar/worker',
+];
+
+const DIST_DIRS = [
+  'packages/shared/dist',
+  'packages/observability/dist',
+  'packages/persistence/dist',
+  'packages/transport-rmq/dist',
 ];
 
 function main() {
-  console.log('\x1b[36m=== dev:prepare (pre-stack) ===\x1b[0m');
+  console.log('\x1b[36m=== dev:prepare (libs) ===\x1b[0m');
 
   if (cleanDist) {
-    console.log('[dev:prepare] clean dist...');
     for (const rel of DIST_DIRS) {
       if (existsSync(rel)) {
         rmSync(rel, { recursive: true, force: true });
         console.log(`[dev:prepare] removed ${rel}`);
       }
     }
-  } else {
-    console.log('[dev:prepare] --no-clean: dist не трогаем');
   }
 
-  for (const ws of BUILD_CHAIN) {
+  for (const ws of LIBS) {
     console.log(`[dev:prepare] build ${ws}...`);
     run('npm', ['run', 'build', '-w', ws]);
   }
