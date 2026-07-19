@@ -21,6 +21,7 @@
 | **[runbook/prod-cutover.md](./runbook/prod-cutover.md)** | Prod cutover + Discovery monitoring |
 | **[map-tiles-selfhost.md](./map-tiles-selfhost.md)** | Self-host OSM basemap, `cold-up -Tiles` |
 | [architecture-layers-and-wiring.md](./architecture-layers-and-wiring.md) | Полная схема слоёв, DIP/wiring |
+| [architecture/deferred-improvements.md](./architecture/deferred-improvements.md) | Отложенные архитектурные доработки и границы scope |
 | [plan.md](./plan.md) | Продуктовое видение и roadmap |
 | [rfc/master-implementation-roadmap.md](./rfc/master-implementation-roadmap.md) | Parse + ODP + Tracking — единая карта |
 | [sdd/README.md](./sdd/README.md) | SDD — пошаговые спецификации |
