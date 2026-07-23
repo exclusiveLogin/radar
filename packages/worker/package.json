@@ -63,6 +63,7 @@
     "tracking:reset": "tsx src/cli/trackingCli.ts reset",
     "tracking:kinematics": "tsx src/cli/trackingKinematicsCli.ts",
     "tracking:direction": "tsx src/cli/trackingDirectionCli.ts",
+    "tracking:research": "tsx src/cli/trackingResearchCli.ts",
     "tracking:enable": "tsx src/cli/trackingCli.ts enable",
     "tracking:tick": "tsx src/cli/trackingTickCli.ts",
     "verify:parse-threads": "tsx scripts/verify-parse-threads.mjs",

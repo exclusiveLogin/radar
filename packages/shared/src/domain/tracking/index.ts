@@ -178,3 +178,8 @@ export {
   type TrackingL1TransactionRunner,
 } from "./trackingDbLock";
 export * from "./nextgen/index";
+export {
+  evaluateNextGenLinkWithReason,
+  type NextGenLinkDecision,
+  type NextGenLinkRejectReason,
+} from "./nextgen/nextgenKalmanLink";

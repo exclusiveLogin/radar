@@ -43,6 +43,19 @@ export interface NextGenStep3Stats {
   rejectKalmanInnovation: number;
 }
 
+/** Решение Ф3, принятое в момент greedy joining. */
+export type NextGenAcceptedLink = {
+  trackId: string;
+  fromEventLocationId: string;
+  toEventLocationId: string;
+  occurredAt: Date;
+  gapMs: number;
+  distanceM: number;
+  velocityMs: number;
+  alignment: number | null;
+  cost: number;
+};
+
 export class NextGenStep3 {
   /**
    * Forward pass: ноды батча по времени → лучший open-трек (min evaluateNextGenLink) или seed.
@@ -57,7 +70,11 @@ export class NextGenStep3 {
     profile: ThreatProfile,
     minBackboneNodes: number = DEFAULT_MIN_BACKBONE_NODES,
     seedTracks: readonly NextGenSeedTrack[] = [],
-  ): { tracks: TrajectoryTrack[]; stats: NextGenStep3Stats } {
+  ): {
+    tracks: TrajectoryTrack[];
+    acceptedLinks: NextGenAcceptedLink[];
+    stats: NextGenStep3Stats;
+  } {
     const sorted = [...nodes].sort(
       (a, b) => a.occurredAt.getTime() - b.occurredAt.getTime(),
     );
@@ -71,6 +88,7 @@ export class NextGenStep3 {
     }));
 
     const used = new Set<string>();
+    const acceptedLinks: NextGenAcceptedLink[] = [];
     const stats: NextGenStep3Stats = {
       linksConsidered: 0,
       linksAccepted: 0,
@@ -93,6 +111,7 @@ export class NextGenStep3 {
 
       let bestTrack: NextGenOpenTrack | null = null;
       let bestCost = Number.POSITIVE_INFINITY;
+      let bestAlignment: number | null = null;
 
       for (const track of openTracks) {
         const tail = track.nodes[track.nodes.length - 1]!;
@@ -126,12 +145,27 @@ export class NextGenStep3 {
         }
         if (decision.link.cost < bestCost) {
           bestCost = decision.link.cost;
+          bestAlignment = decision.link.alignment;
           bestTrack = track;
         }
       }
 
       if (bestTrack) {
+        const tail = bestTrack.nodes[bestTrack.nodes.length - 1]!;
+        const gapMs = node.occurredAt.getTime() - tail.occurredAt.getTime();
+        const distanceM = haversineDistanceM(tail.lat, tail.lon, node.lat, node.lon);
         appendNodeToOpenTrack(bestTrack, node, kin);
+        acceptedLinks.push({
+          trackId: bestTrack.trackId,
+          fromEventLocationId: eventIdFromNode(tail),
+          toEventLocationId: node.eventLocationId,
+          occurredAt: node.occurredAt,
+          gapMs,
+          distanceM,
+          velocityMs: distanceM / (gapMs / 1_000),
+          alignment: bestAlignment,
+          cost: bestCost,
+        });
         touchedTrackIds.add(bestTrack.trackId);
         stats.linksAccepted += 1;
       } else {
@@ -149,6 +183,7 @@ export class NextGenStep3 {
       tracks: openTracks
       .filter(t => t.nodes.length > 0 && touchedTrackIds.has(t.trackId))
       .map(t => toTrajectoryTrack(t, profile, kin, rebuildAt, minBackboneNodes)),
+      acceptedLinks,
       stats,
     };
   }

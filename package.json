@@ -126,6 +126,7 @@
     "tracking:status": "npm run tracking:status -w @radar/worker",
     "tracking:rebuild": "npm run tracking:rebuild -w @radar/worker --",
     "tracking:reset": "npm run tracking:reset -w @radar/worker --",
+    "tracking:research": "npm run tracking:research -w @radar/worker --",
     "tracking:enable": "npm run tracking:enable -w @radar/worker --"
   },
   "devDependencies": {
