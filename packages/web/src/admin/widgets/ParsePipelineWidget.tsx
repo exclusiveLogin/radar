@@ -17,10 +17,10 @@ const STATUS_LABEL: Record<string, string> = {
 
 const KIND_LABEL: Record<string, string> = {
   reset: "Pipeline reset",
-  reparse: "Parse reparse",
+  catchup: "Parse catch-up",
 };
 
-/** Операции parse pipeline: reset и full reparse без CLI. */
+/** Операции parse pipeline: destructive reset и безопасный catch-up очереди. */
 export function ParsePipelineWidget() {
   const status = useObservable(parsePipelineStatus$, null);
   const [busy, setBusy] = useState(false);
@@ -45,8 +45,8 @@ export function ParsePipelineWidget() {
   return (
     <Panel title="Parse pipeline">
       <p style={{ fontSize: 12, color: "var(--text-muted)", margin: "0 0 10px" }}>
-        Аналог CLI: <code>pipeline reset</code> и <code>parse run</code>. На время reparse
-        лучше остановить worker с IngestParseDaemon.
+        Catch-up добавляет только отсутствующие raw в очередь и разбирает их батчами без очистки
+        таблиц.
       </p>
 
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
@@ -72,33 +72,33 @@ export function ParsePipelineWidget() {
           onClick={() => {
             if (
               !window.confirm(
-                "Parse reparse: полный перепарс raw + drain scheduled (долго). Продолжить?",
+                "Parse catch-up: поставить необработанные raw в очередь и разобрать батчами?",
               )
             ) {
               return;
             }
-            void run(() => adminApi.parsePipelineReparse());
+            void run(() => adminApi.parsePipelineCatchUp());
           }}
         >
-          Reparse
+          Catch-up
         </Button>
         <span style={{ color: "var(--text-muted)", fontSize: 12 }}>
           {status?.kind ? KIND_LABEL[status.kind] ?? status.kind : "—"} ·{" "}
           {STATUS_LABEL[status?.status ?? "idle"] ?? status?.status}
         </span>
-        {status?.kind === "reparse" && (
+        {status?.kind === "catchup" && (
           <span>
             {processed.toLocaleString()} / {total.toLocaleString()} ({percent.toFixed(1)}%)
           </span>
         )}
-        {status?.kind === "reparse" && (
+        {status?.kind === "catchup" && (
           <span style={{ color: "var(--text-muted)", fontSize: 12 }}>
             ok {status.ok.toLocaleString()} · fail {status.failed.toLocaleString()}
           </span>
         )}
       </div>
 
-      {status?.kind === "reparse" && (
+      {status?.kind === "catchup" && (
         <div
           style={{
             marginTop: 8,

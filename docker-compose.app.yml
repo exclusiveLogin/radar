@@ -23,6 +23,9 @@ x-rmq: &rmq
 x-db-url: &db-url
   DATABASE_URL: postgresql://${POSTGRES_USER:-radar}:${POSTGRES_PASSWORD:-radar}@db:5432/${POSTGRES_DB:-radar}
 
+x-api-url: &api-url
+  RADAR_API_URL: http://api:3000
+
 x-worker-probe: &worker-probe
   WORKER_PROBE_HOST: 0.0.0.0
   WORKER_PROBE_PORT: "3010"
@@ -40,8 +43,9 @@ x-worker: &worker
     api:
       condition: service_healthy
   environment:
-    <<: [*db-url, *rmq]
+    <<: [*db-url, *rmq, *api-url]
     RADAR_STORAGE_MODE: db
+    RADAR_API_URL: http://api:3000
   command: ["npm", "run", "dev", "-w", "@radar/worker", "--ignore-scripts"]
   healthcheck:
     test:
@@ -85,6 +89,7 @@ services:
     environment:
       <<: [*db-url, *rmq]
       PORT: "3000"
+      RADAR_STORAGE_MODE: db
       WORKER_PROBE_TARGETS: http://worker-ingest:3010/status
     ports:
       - "${API_PORT:-3000}:3000"
@@ -131,7 +136,7 @@ services:
   worker-ingest:
     <<: *worker
     environment:
-      <<: [*worker-probe, *db-url, *rmq]
+      <<: [*worker-probe, *db-url, *rmq, *api-url]
       RADAR_STORAGE_MODE: db
       RADAR_WORKER_ROLE: ingest
       RADAR_SESSIONS_DIR: /var/radar/sessions
@@ -145,7 +150,7 @@ services:
   worker-backfill:
     <<: *worker
     environment:
-      <<: [*worker-probe, *db-url, *rmq]
+      <<: [*worker-probe, *db-url, *rmq, *api-url]
       RADAR_STORAGE_MODE: db
       RADAR_WORKER_ROLE: backfill
       RADAR_SESSIONS_DIR: /var/radar/sessions
@@ -157,7 +162,7 @@ services:
   worker-parse:
     <<: *worker
     environment:
-      <<: [*worker-probe, *db-url, *rmq]
+      <<: [*worker-probe, *db-url, *rmq, *api-url]
       RADAR_STORAGE_MODE: db
       RADAR_WORKER_ROLE: parse
 
@@ -175,7 +180,7 @@ services:
       ollama:
         condition: service_healthy
     environment:
-      <<: [*worker-probe, *db-url, *rmq]
+      <<: [*worker-probe, *db-url, *rmq, *api-url]
       RADAR_STORAGE_MODE: db
       RADAR_WORKER_ROLE: geo
       RADAR_LLM_BASE_URL: http://ollama:11434/v1
@@ -183,7 +188,7 @@ services:
   worker-tracking:
     <<: *worker
     environment:
-      <<: [*worker-probe, *db-url, *rmq]
+      <<: [*worker-probe, *db-url, *rmq, *api-url]
       RADAR_STORAGE_MODE: db
       RADAR_WORKER_ROLE: tracking
 

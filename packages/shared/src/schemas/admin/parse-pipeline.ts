@@ -4,12 +4,12 @@
  * kind: schema
  * domain: admin
  * tooling: zod
- * purpose: Статус операций parse pipeline (reset / reparse) из админки.
+ * purpose: Статус операций parse pipeline (reset / catch-up) из админки.
  * ---
  */
 import { z } from "zod";
 
-export const parsePipelineJobKindSchema = z.enum(["reset", "reparse"]);
+export const parsePipelineJobKindSchema = z.enum(["reset", "catchup"]);
 export type ParsePipelineJobKind = z.infer<typeof parsePipelineJobKindSchema>;
 
 export const parsePipelineJobStatusSchema = z.enum([

@@ -8,6 +8,20 @@ import { cliWorkerRuntime } from "./cliWorkerRuntime.js";
 import { createProgress } from "./progress.js";
 import { hasAnyFlag, parseLongFlagsMap } from "./workerCliArgs.js";
 
+const REPARSE_PROGRESS_PREFIX = "[reparse-progress] ";
+
+type ReparseProgress = {
+  processed: number;
+  ok: number;
+  failed: number;
+};
+
+/** Передаёт API точный результат drain текущего reparse, без чужих worker-attempts. */
+function reportProgress(progress: ReparseProgress): void {
+  if (process.env.RADAR_REPARSE_PROGRESS !== "1") return;
+  console.log(`${REPARSE_PROGRESS_PREFIX}${JSON.stringify(progress)}`);
+}
+
 /**
  * Полный reparse: сброс карты + wipe parsed/workspace + ingest-поток по всем raw.
  * Сброс внутри runFullReparseLikeIngest — отдельный pipeline reset перед этим не нужен.
@@ -70,17 +84,38 @@ async function main(): Promise<void> {
 
   if (drainScheduled) {
     const scheduledIngest = await repos.phaseDefinitions.listEnabled(undefined, "ingestParse");
+    let completed: ReparseProgress = { processed: 0, ok: 0, failed: 0 };
+
     for (const phase of scheduledIngest) {
       const run = await repos.phaseRuns.create({
         phaseId: phase.id,
         trigger: "manual",
       });
-      await runtime.phaseRunner.runDrain({
+      let phaseProgress: ReparseProgress = { processed: 0, ok: 0, failed: 0 };
+      const result = await runtime.phaseRunner.runDrain({
         phase,
         runId: run.id,
         trigger: "manual",
         batchSize: 50,
+        onProgress: (stats) => {
+          phaseProgress = {
+            processed: stats.processed,
+            ok: stats.ok,
+            failed: stats.failed,
+          };
+          reportProgress({
+            processed: completed.processed + phaseProgress.processed,
+            ok: completed.ok + phaseProgress.ok,
+            failed: completed.failed + phaseProgress.failed,
+          });
+        },
       });
+      completed = {
+        processed: completed.processed + result.processed,
+        ok: completed.ok + result.ok,
+        failed: completed.failed + result.failed,
+      };
+      reportProgress(completed);
     }
     const scheduledGeo = await repos.phaseDefinitions.listEnabled("scheduled", "geoParse");
     const { runGeoPhaseDrain } = await import("../application/geo-parse/runGeoPhaseDrain.js");

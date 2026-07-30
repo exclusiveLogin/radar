@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
   NotFoundException,
   OnModuleDestroy,
   OnModuleInit,
@@ -29,6 +30,7 @@ import {
 } from "./phases-admin.providers";
 
 const STOP_ALL_ACTIVE_RUNS_REASON = "admin:stop-all-active-runs";
+const CATCH_UP_TAKEOVER_REASON = "admin:catch-up-takeover";
 
 function emptyJobCounts(): PhaseRunsOverview["geo"]["byPhase"][0]["jobs"] {
   return { pending: 0, processing: 0, done: 0, failed: 0 };
@@ -37,6 +39,7 @@ function emptyJobCounts(): PhaseRunsOverview["geo"]["byPhase"][0]["jobs"] {
 /** Coordinates parse-engine coverage and geo-enrichment phases. */
 @Injectable()
 export class PhasesAdminService implements OnModuleInit, OnModuleDestroy {
+  private readonly logger = new Logger(PhasesAdminService.name);
   private readonly dataSource: DataSource;
   private readonly phases: TypeOrmPhaseDefinitionRepository;
   private readonly coverage: TypeOrmPhaseCoverageRepository;
@@ -175,6 +178,52 @@ export class PhasesAdminService implements OnModuleInit, OnModuleDestroy {
     }
     await this.publishDrainForPhase(phase, "full", { catchUp: true });
     return { enqueued };
+  }
+
+  /**
+   * Передаёт enabled ingestParse-фазы durable manual run.
+   * Worker poller сам выполняет такой run батчами до опустошения очереди.
+   */
+  async catchUpEnabledIngestPhases(): Promise<{
+    enqueued: number;
+    queued: number;
+    failed: number;
+    phaseIds: string[];
+  }> {
+    const phases = await this.phases.listEnabled(undefined, "ingestParse");
+    let enqueued = 0;
+    let queued = 0;
+    let failed = 0;
+
+    for (const phase of phases) {
+      await this.cancelActiveRunsForPhase(phase.id, CATCH_UP_TAKEOVER_REASON);
+      await this.coverage.resetProcessingForPhase(phase.id);
+      enqueued += (await this.coverage.enqueueCatchUp(phase.id)).enqueued;
+      await this.runs.create({ phaseId: phase.id, trigger: "manual" });
+      const counts = await this.coverage.countByStatus(phase.id);
+      queued += counts.pending + counts.processing;
+      failed += counts.failed;
+    }
+
+    return { enqueued, queued, failed, phaseIds: phases.map((phase) => phase.id) };
+  }
+
+  /** Текущее состояние выбранных ingestParse-очередей. */
+  async getIngestQueueCounts(phaseIds: string[]): Promise<{
+    pending: number;
+    processing: number;
+    done: number;
+    failed: number;
+  }> {
+    const total = { pending: 0, processing: 0, done: 0, failed: 0 };
+    for (const phaseId of phaseIds) {
+      const counts = await this.coverage.countByStatus(phaseId);
+      total.pending += counts.pending;
+      total.processing += counts.processing;
+      total.done += counts.done;
+      total.failed += counts.failed;
+    }
+    return total;
   }
 
   /** Publishes phase enablement changes to the runner. */

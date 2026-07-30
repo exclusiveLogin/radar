@@ -53,7 +53,7 @@ export async function stopAllActivePhaseRuns(input: {
       : await input.deps.placeEnrichmentJobs.clearQueuedWork();
 
   const closedRows = await input.deps.operationalSql.query<{ id: string }>(
-    `UPDATE log_parse_phase_run SET
+    `UPDATE log_phase_run SET
        status = 'canceled',
        control = 'cancel',
        finished_at = now(),

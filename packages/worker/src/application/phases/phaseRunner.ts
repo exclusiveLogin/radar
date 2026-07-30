@@ -10,6 +10,12 @@ import type { ParsePhaseTool } from "../parse/parsePhaseTool.js";
 import { prerequisitePhaseIds } from "./phaseOrder.js";
 import type { PhaseRunSession } from "./phaseRunSession.js";
 
+const DRAIN_IDLE_POLL_MS = 250;
+
+function waitForDrainProgress(): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, DRAIN_IDLE_POLL_MS));
+}
+
 export type PhaseRunnerDeps = {
   parseTool: ParsePhaseTool;
   session: PhaseRunSession;
@@ -34,6 +40,7 @@ export class PhaseRunner {
     runId: string;
     trigger: PhaseTrigger;
     tasks: PhaseCoverageTask[];
+    onProgress?: (stats: PhaseRunStats) => void;
   }): Promise<PhaseRunStats> {
     const stats: PhaseRunStats = {
       claimed: input.tasks.length,
@@ -60,18 +67,19 @@ export class PhaseRunner {
         stats.failed += 1;
       }
       stats.processed += 1;
-
-      const counts = await this.deps.coverage.countByStatus(input.phase.id);
-      stats.pendingRemaining = counts.pending + counts.processing;
-      stats.totalKnown =
-        counts.pending + counts.processing + counts.done + counts.failed;
-      await this.deps.session.phaseRuns.updateStats(input.runId, stats);
-      await this.deps.session.phaseRuns.appendLog(input.runId, {
-        at: new Date().toISOString(),
-        level: "info",
-        message: `processed=${stats.processed} ok=${stats.ok} failed=${stats.failed} pending=${stats.pendingRemaining ?? 0}`,
-      });
+      input.onProgress?.(stats);
     }
+
+    const counts = await this.deps.coverage.countByStatus(input.phase.id);
+    stats.pendingRemaining = counts.pending + counts.processing;
+    stats.totalKnown =
+      counts.pending + counts.processing + counts.done + counts.failed;
+    await this.deps.session.phaseRuns.updateStats(input.runId, stats);
+    await this.deps.session.phaseRuns.appendLog(input.runId, {
+      at: new Date().toISOString(),
+      level: "info",
+      message: `processed=${stats.processed} ok=${stats.ok} failed=${stats.failed} pending=${stats.pendingRemaining ?? 0}`,
+    });
 
     return stats;
   }
@@ -87,6 +95,8 @@ export class PhaseRunner {
     trigger: PhaseTrigger;
     materializationIds?: string[];
     placeIds?: string[];
+    /** Снимок накопленного результата после каждого завершённого batch. */
+    onProgress?: (stats: PhaseRunStats) => void;
   }): Promise<PhaseRunStats> {
     if (input.phase.scope === "geoParse") {
       throw new Error(
@@ -172,6 +182,10 @@ export class PhaseRunner {
             await this.deps.session.finalize(run.id, "paused", totals);
             return totals;
           }
+          if (totals.pendingRemaining > 0) {
+            await waitForDrainProgress();
+            continue;
+          }
           await this.deps.session.finalize(run.id, "completed", totals);
           return totals;
         }
@@ -181,8 +195,12 @@ export class PhaseRunner {
           runId: run.id,
           trigger: input.trigger,
           tasks,
+          onProgress: (batchProgress) => {
+            input.onProgress?.(mergePhaseRunStats(totals, batchProgress));
+          },
         });
         totals = mergePhaseRunStats(totals, batchStats);
+        input.onProgress?.(totals);
 
         if (input.materializationIds?.length) {
           await this.deps.session.finalize(run.id, "completed", totals);

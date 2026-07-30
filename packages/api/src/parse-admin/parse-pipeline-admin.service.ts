@@ -4,7 +4,6 @@ import {
   Logger,
   OnModuleDestroy,
 } from "@nestjs/common";
-import { InjectDataSource } from "@nestjs/typeorm";
 import {
   parsePipelineStatusResponseSchema,
   type ParsePipelineJobKind,
@@ -12,7 +11,6 @@ import {
   type ParsePipelineStatusResponse,
 } from "@radar/shared";
 import { spawn, type ChildProcess } from "child_process";
-import type { DataSource } from "typeorm";
 import { MONOREPO_ROOT } from "../monorepo-root";
 import { PhasesAdminService } from "../phases-admin/phases-admin.service";
 
@@ -23,6 +21,8 @@ type JobState = {
   finishedAt?: Date;
   error?: string;
   totalMessages: number;
+  phaseIds: string[];
+  failedAtStart: number;
   child?: ChildProcess;
 };
 
@@ -40,18 +40,14 @@ const IDLE: ParsePipelineStatusResponse = {
 };
 
 /**
- * Запуск parse pipeline reset / reparse через worker CLI в фоне.
- * Прогресс reparse — по log_parse_attempt с момента старта job.
+ * Reset запускается через worker CLI; catch-up только планирует очередь и будит worker-ы.
  */
 @Injectable()
 export class ParsePipelineAdminService implements OnModuleDestroy {
   private readonly logger = new Logger(ParsePipelineAdminService.name);
   private job: JobState | null = null;
 
-  constructor(
-    @InjectDataSource() private readonly ds: DataSource,
-    private readonly phasesAdmin: PhasesAdminService,
-  ) {}
+  constructor(private readonly phasesAdmin: PhasesAdminService) {}
 
   onModuleDestroy(): void {
     this.job?.child?.kill();
@@ -66,10 +62,46 @@ export class ParsePipelineAdminService implements OnModuleDestroy {
     return this.startJob("reset", "parse-engine:pipeline:reset", ["--no-force-locks"]);
   }
 
-  /** Полный reparse + drain scheduled (как 
-`npm run radar -- parse run`). */
-  async startReparse(): Promise<ParsePipelineStartResponse> {
-    return this.startJob("reparse", "parse-engine:rebuild:drain", ["--no-force-locks"]);
+  /** Планирует отсутствующие raw и разбирает очередь батчами без очистки таблиц. */
+  async startCatchUp(): Promise<ParsePipelineStartResponse> {
+    this.assertNoRunningJob();
+
+    const startedAt = new Date();
+    this.job = {
+      kind: "catchup",
+      status: "running",
+      startedAt,
+      totalMessages: 0,
+      phaseIds: [],
+      failedAtStart: 0,
+    };
+    void this.initializeCatchUp(startedAt);
+    this.logger.log("catchup planning started");
+    return { ok: true, kind: "catchup" };
+  }
+
+  /** Планирует очередь асинхронно, чтобы Admin сразу получил running-статус. */
+  private async initializeCatchUp(startedAt: Date): Promise<void> {
+    try {
+      const catchUp = await this.phasesAdmin.catchUpEnabledIngestPhases();
+      if (!this.job || this.job.kind !== "catchup" || this.job.startedAt !== startedAt) return;
+
+      const completed = catchUp.queued === 0;
+      this.job.totalMessages = catchUp.queued;
+      this.job.phaseIds = catchUp.phaseIds;
+      this.job.failedAtStart = catchUp.failed;
+      this.job.status = completed ? "completed" : "running";
+      this.job.finishedAt = completed ? new Date() : undefined;
+      this.logger.log(
+        `catchup ${completed ? "completed" : "started"}: enqueued=${catchUp.enqueued}, queued=${catchUp.queued}`,
+      );
+    } catch (error) {
+      if (!this.job || this.job.kind !== "catchup" || this.job.startedAt !== startedAt) return;
+      this.job.status = "failed";
+      this.job.finishedAt = new Date();
+      this.job.error = error instanceof Error ? error.message : String(error);
+      this.logger.error(`catchup planning failed: ${this.job.error}`);
+    }
   }
 
   private async startJob(
@@ -77,13 +109,7 @@ export class ParsePipelineAdminService implements OnModuleDestroy {
     npmScript: string,
     extraArgs: string[],
   ): Promise<ParsePipelineStartResponse> {
-    if (this.job?.status === "running") {
-      throw new BadRequestException(
-        `Уже выполняется ${this.job.kind} (с ${this.job.startedAt.toISOString()})`,
-      );
-    }
-
-    const totalMessages = await this.countRawMessages();
+    this.assertNoRunningJob();
     const startedAt = new Date();
     const child = this.spawnWorkerScript(npmScript, extraArgs);
 
@@ -91,7 +117,9 @@ export class ParsePipelineAdminService implements OnModuleDestroy {
       kind,
       status: "running",
       startedAt,
-      totalMessages: kind === "reparse" ? totalMessages : 0,
+      totalMessages: 0,
+      phaseIds: [],
+      failedAtStart: 0,
       child,
     };
 
@@ -176,37 +204,39 @@ export class ParsePipelineAdminService implements OnModuleDestroy {
       percentApprox: 0,
     };
 
-    if (job.kind !== "reparse") {
+    if (job.kind !== "catchup") {
       if (job.status === "running") base.percentApprox = 0;
       else base.percentApprox = job.status === "completed" ? 100 : 0;
       return base;
     }
+    if (job.status === "running" && job.phaseIds.length === 0) {
+      return base;
+    }
 
-    const [progress] = await this.ds.query<
-      Array<{ processed: string; ok: string; failed: string }>
-    >(
-      `SELECT
-         COUNT(*)::text AS processed,
-         COUNT(*) FILTER (WHERE status = 'ok')::text AS ok,
-         COUNT(*) FILTER (WHERE status = 'failed')::text AS failed
-       FROM log_parse_attempt
-       WHERE created_at >= $1`,
-      [job.startedAt],
-    );
+    const counts = await this.phasesAdmin.getIngestQueueCounts(job.phaseIds);
+    const remaining = counts.pending + counts.processing;
+    const processedMessages = Math.max(0, job.totalMessages - Math.min(job.totalMessages, remaining));
+    const failed = Math.max(0, counts.failed - job.failedAtStart);
+    const ok = Math.max(0, processedMessages - failed);
+    if (job.status === "running" && remaining === 0) {
+      job.status = "completed";
+      job.finishedAt = new Date();
+      base.status = job.status;
+      base.finishedAt = job.finishedAt.toISOString();
+      this.logger.log("catchup completed");
+    }
 
-    const processedMessages = Number(progress?.processed ?? 0);
-    const ok = Number(progress?.ok ?? 0);
-    const failed = Number(progress?.failed ?? 0);
     const total = job.totalMessages;
     const percentApprox =
-      total > 0
-        ? Math.min(100, Math.round((processedMessages / total) * 100))
-        : job.status === "completed"
-          ? 100
-          : 0;
+      job.status === "completed"
+        ? 100
+        : total > 0
+        ? Math.min(100, Math.round((processedMessages / total) * 1_000) / 10)
+        : 0;
 
     return {
       ...base,
+      totalMessages: total,
       processedMessages,
       ok,
       failed,
@@ -214,10 +244,11 @@ export class ParsePipelineAdminService implements OnModuleDestroy {
     };
   }
 
-  private async countRawMessages(): Promise<number> {
-    const [row] = await this.ds.query<Array<{ count: string }>>(
-      `SELECT COUNT(*)::text AS count FROM mat_ingest_raw`,
-    );
-    return Number(row?.count ?? 0);
+  private assertNoRunningJob(): void {
+    if (this.job?.status === "running") {
+      throw new BadRequestException(
+        `Уже выполняется ${this.job.kind} (с ${this.job.startedAt.toISOString()})`,
+      );
+    }
   }
 }

@@ -42,7 +42,7 @@ export const phasesOverview$ = new BehaviorSubject<PhaseRunsOverview | null>(nul
 export const phaseRuns$ = new BehaviorSubject<PhaseRun[]>([]);
 /** Статус пайплайна треков (WS tracking-status). */
 export const trackingStatus$ = new BehaviorSubject<TrackingStatusResponse | null>(null);
-/** Статус parse reset/reparse (WS parse-pipeline-status). */
+/** Статус parse reset/catch-up. */
 export const parsePipelineStatus$ = new BehaviorSubject<ParsePipelineStatusResponse | null>(null);
 /** Runner Platform discovery (WS runtime-discovery + REST fallback). */
 export const runnerDiscovery$ = new BehaviorSubject<RunnerDiscoveryResponse | null>(null);
@@ -52,6 +52,7 @@ const STATS_POLL_MS = 30_000;
 const TELEMETRY_POLL_MS = 10_000;
 const BACKFILL_POLL_MS = 5_000;
 const TRACKING_POLL_MS = 3_000;
+const PARSE_PIPELINE_POLL_MS = 3_000;
 const RUNNER_DISCOVERY_POLL_MS = 5_000;
 
 /** Макс. строк лога парсинга в памяти (кольцевой буфер / REST limit DESC). */
@@ -71,9 +72,9 @@ export function startAdminStore(): void {
   startIntervalPoll(TELEMETRY_POLL_MS, refreshTelemetry);
   startIntervalPoll(BACKFILL_POLL_MS, refreshBackfill);
   startIntervalPoll(TRACKING_POLL_MS, refreshTrackingStatus);
+  startIntervalPoll(PARSE_PIPELINE_POLL_MS, refreshParsePipelineStatus);
   startIntervalPoll(RUNNER_DISCOVERY_POLL_MS, refreshRunnerDiscovery);
   void refreshTrackingStatus();
-  void refreshParsePipelineStatus();
   void refreshRunnerDiscovery();
 
   selectedChannelKey$.subscribe((key) => void refreshChannelStats(key));

@@ -226,11 +226,12 @@ export class TypeOrmPhaseCoverageRepository implements IPhaseCoverageRepository 
   }
 
   async countByStatus(phaseId?: string): Promise<Record<PhaseCoverageStatus, number>> {
+    const where = phaseId ? "WHERE phase_id = $1" : "";
     const rows = (await this.dataSource.query(
       `SELECT status, COUNT(*)::int AS count FROM job_parse_phase
-       WHERE ($1::text IS NULL OR phase_id = $1)
+       ${where}
        GROUP BY status`,
-      [phaseId ?? null],
+      phaseId ? [phaseId] : [],
     )) as Array<{ status: PhaseCoverageStatus; count: number }>;
     const result: Record<PhaseCoverageStatus, number> = {
       pending: 0,

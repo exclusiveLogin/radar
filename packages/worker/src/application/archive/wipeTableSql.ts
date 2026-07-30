@@ -17,14 +17,39 @@ function quoteTable(name: string): string {
 }
 
 function isLockTimeoutError(error: unknown): boolean {
-  const code =
-    typeof error === "object" &&
-    error !== null &&
-    "driverError" in error &&
-    typeof (error as { driverError?: { code?: string } }).driverError?.code === "string"
-      ? (error as { driverError: { code: string } }).driverError.code
-      : undefined;
-  return code === "55P03";
+  const details = collectDatabaseErrors(error);
+  return details.some(
+    ({ code, message }) =>
+      code === "55P03" ||
+      (code === "57014" && message.includes("due to lock timeout")),
+  );
+}
+
+type DatabaseErrorDetails = {
+  code?: string;
+  message: string;
+};
+
+/** Достаёт PostgreSQL error из TypeORM-обёрток transaction / driverError / cause. */
+function collectDatabaseErrors(error: unknown): DatabaseErrorDetails[] {
+  if (typeof error !== "object" || error === null) return [];
+
+  const candidate = error as {
+    code?: unknown;
+    message?: unknown;
+    driverError?: unknown;
+    cause?: unknown;
+  };
+  const current = {
+    code: typeof candidate.code === "string" ? candidate.code : undefined,
+    message: typeof candidate.message === "string" ? candidate.message : "",
+  };
+
+  return [
+    current,
+    ...collectDatabaseErrors(candidate.driverError),
+    ...collectDatabaseErrors(candidate.cause),
+  ];
 }
 
 /** Таблица занята другим процессом (dev/API). */

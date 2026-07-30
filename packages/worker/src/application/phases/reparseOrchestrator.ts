@@ -4,6 +4,7 @@ import { runPostIngestPhaseFlow } from "./phaseIngestFlow.js";
 import { MapStateFullReset } from "../map-state/mapStateFullReset.js";
 import { clearParseLayerArtifacts } from "./pipelineOperationalReset.js";
 import type { PhaseOperationalDeps } from "./phaseOperationalDeps.js";
+import { stopAllActivePhaseRuns } from "./stopAllActivePhaseRuns.js";
 
 export { clearParsedArtifacts } from "./pipelineOperationalReset.js";
 
@@ -32,6 +33,14 @@ export async function runFullReparseLikeIngest(input: FullReparseInput): Promise
   const ingestPhases = await input.deps.phaseDefinitions.listEnabled(undefined, "ingestParse");
   const phaseIds = ingestPhases.map((p) => p.id);
 
+  // Сначала закрываем active runs и очищаем очередь: иначе worker удерживает
+  // lock на parse-таблицах в момент последующего TRUNCATE.
+  await stopAllActivePhaseRuns({
+    deps: input.deps,
+    reason: "reparse:reset",
+    ingestPhaseIds: phaseIds,
+  });
+
   const mapReset = new MapStateFullReset({
     operationalSql: input.deps.operationalSql,
   });
@@ -40,11 +49,6 @@ export async function runFullReparseLikeIngest(input: FullReparseInput): Promise
   const parseLayer = await clearParseLayerArtifacts(input.deps.operationalSql, {
     forceLocks: input.forceLocks,
   });
-
-  // Не открываем очередь до конца bulk plan — иначе daemon гоняется с CLI.
-  if (phaseIds.length > 0) {
-    await input.deps.phaseCoverage.clearQueuedWork(phaseIds);
-  }
 
   const postedOrder = resolveRawMessagePostedAtOrder();
   const rows = await input.deps.operationalSql.query<{ id: string }>(

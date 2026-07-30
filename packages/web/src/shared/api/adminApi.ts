@@ -251,8 +251,8 @@ export const adminApi = {
   parsePipelineReset: (): Promise<ParsePipelineStartResponse> =>
     postJson("/api/admin/parse/reset", undefined, parsePipelineStartResponseSchema),
 
-  parsePipelineReparse: (): Promise<ParsePipelineStartResponse> =>
-    postJson("/api/admin/parse/reparse", undefined, parsePipelineStartResponseSchema),
+  parsePipelineCatchUp: (): Promise<ParsePipelineStartResponse> =>
+    postJson("/api/admin/parse/catch-up", undefined, parsePipelineStartResponseSchema),
 
   workbookObservability: (): Promise<WorkbookObservabilityResponse> =>
     getJson("/api/admin/workbook/observability", workbookObservabilityResponseSchema),
