@@ -14,6 +14,7 @@ import { ReadSideModule } from "./read-side/read-side.module";
 import { WorkerModule } from "./worker/worker.module";
 import { WorkbookAdminModule } from "./workbook-admin/workbook-admin.module";
 import { ObservabilityAdminModule } from "./observability-admin/observability-admin.module";
+import { MetricsModule } from "./metrics/metrics.module";
 
 @Module({
   imports: [
@@ -46,6 +47,7 @@ import { ObservabilityAdminModule } from "./observability-admin/observability-ad
     WorkerModule,
     WorkbookAdminModule,
     ObservabilityAdminModule,
+    MetricsModule,
   ],
 })
 export class AppModule {}

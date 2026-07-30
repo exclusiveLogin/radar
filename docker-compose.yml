@@ -55,6 +55,12 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost/misc/ping"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
   adminer:
     image: adminer:4
@@ -70,6 +76,12 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
 
   rabbitmq:
     image: rabbitmq:4-management-alpine
@@ -91,9 +103,9 @@ services:
       - radar_net
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 6
+      interval: 30s
+      timeout: 30s
+      retries: 3
       start_period: 30s
 
   prometheus:
@@ -110,9 +122,81 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
+      cadvisor:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:9090/-/healthy"]
       interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  cadvisor:
+    image: ghcr.io/google/cadvisor:v0.60.5
+    container_name: radar-cadvisor
+    restart: unless-stopped
+    privileged: true
+    command:
+      - --docker_only=true
+      - --housekeeping_interval=10s
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker:/var/lib/docker:ro
+      - /var/lib/containerd:/var/lib/containerd:ro
+    networks:
+      - radar_net
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:8080/healthz || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  docker-health-exporter:
+    image: ghcr.io/gladioluss/docker_healthcheck_exporter:1.0.1
+    container_name: radar-docker-health-exporter
+    restart: unless-stopped
+    environment:
+      LISTEN: 0.0.0.0:9102
+      REFRESH_INTERVAL_SECONDS: 5
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - radar_net
+
+  postgres-exporter:
+    image: quay.io/prometheuscommunity/postgres-exporter:v0.20.1
+    container_name: radar-postgres-exporter
+    restart: unless-stopped
+    environment:
+      DATA_SOURCE_NAME: postgresql://${POSTGRES_USER:-radar}:${POSTGRES_PASSWORD:-radar}@db:5432/${POSTGRES_DB:-radar}?sslmode=disable
+    networks:
+      - radar_net
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:9187/metrics"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  node-exporter:
+    image: quay.io/prometheus/node-exporter:v1.12.1
+    container_name: radar-node-exporter
+    restart: unless-stopped
+    command:
+      - --path.rootfs=/host
+    volumes:
+      - /:/host:ro
+    networks:
+      - radar_net
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:9100/metrics"]
+      interval: 15s
       timeout: 5s
       retries: 5
       start_period: 15s
@@ -121,6 +205,10 @@ services:
     image: grafana/grafana:11.5.2
     container_name: radar-grafana
     restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-radar_grafana}
+      GF_USERS_ALLOW_SIGN_UP: "false"
     ports:
       - "${GRAFANA_PORT:-3002}:3000"
     volumes:

@@ -34,7 +34,7 @@ npm run radar -- stack tiles:sync
 |--------|------------|------------|
 | `rabbitmq` | `5672` AMQP, `15672` Management UI | Планирование ingest→parse→geo |
 | `prometheus` | `${PROMETHEUS_PORT:-9090}` | Scrape `rabbitmq:15692` |
-| `grafana` | `${GRAFANA_PORT:-3001}` | RabbitMQ dashboard |
+| `grafana` | `${GRAFANA_PORT:-3002}` | Dashboard метрик Docker-контейнеров |
 
 Переменные: `RMQ_*`, см. `.env.example`. Cascade **только через RMQ** в docker; `worker-parse` / `worker-geo` вместо `worker-phase`.
 

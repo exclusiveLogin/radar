@@ -23,6 +23,10 @@ x-rmq: &rmq
 x-db-url: &db-url
   DATABASE_URL: postgresql://${POSTGRES_USER:-radar}:${POSTGRES_PASSWORD:-radar}@db:5432/${POSTGRES_DB:-radar}
 
+x-worker-probe: &worker-probe
+  WORKER_PROBE_HOST: 0.0.0.0
+  WORKER_PROBE_PORT: "3010"
+
 x-worker: &worker
   <<: *app
   profiles: ["app"]
@@ -165,7 +169,7 @@ services:
   worker-tracking:
     <<: *worker
     environment:
-      <<: [*db-url, *rmq]
+      <<: [*worker-probe, *db-url, *rmq]
       RADAR_STORAGE_MODE: db
       RADAR_WORKER_ROLE: tracking
       WORKER_PROBE_ENABLED: "0"
