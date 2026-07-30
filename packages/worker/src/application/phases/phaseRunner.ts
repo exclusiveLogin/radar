@@ -12,8 +12,8 @@ import type { PhaseRunSession } from "./phaseRunSession.js";
 
 const DRAIN_IDLE_POLL_MS = 250;
 
-function waitForDrainProgress(): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, DRAIN_IDLE_POLL_MS));
+function waitForDrainProgress(delayMs = DRAIN_IDLE_POLL_MS): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, delayMs));
 }
 
 export type PhaseRunnerDeps = {
@@ -128,10 +128,11 @@ export class PhaseRunner {
       }
     }
     let totals: PhaseRunStats = {
-      claimed: 0,
-      processed: 0,
-      ok: 0,
-      failed: 0,
+      ...run.stats,
+      claimed: run.stats.claimed ?? 0,
+      processed: run.stats.processed ?? 0,
+      ok: run.stats.ok ?? 0,
+      failed: run.stats.failed ?? 0,
     };
 
     try {
@@ -200,6 +201,7 @@ export class PhaseRunner {
           },
         });
         totals = mergePhaseRunStats(totals, batchStats);
+        await this.deps.session.phaseRuns.updateStats(run.id, totals);
         input.onProgress?.(totals);
 
         if (input.materializationIds?.length) {
@@ -215,6 +217,9 @@ export class PhaseRunner {
         if (afterBatch === "pause") {
           await this.deps.session.finalize(run.id, "paused", totals);
           return totals;
+        }
+        if (input.phase.policy.minIntervalMs > 0) {
+          await waitForDrainProgress(input.phase.policy.minIntervalMs);
         }
       }
     } catch (err) {

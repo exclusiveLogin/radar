@@ -62,6 +62,7 @@ export class AdminGateway
 
   private readonly subscriptions = new Map<WebSocket, Set<AdminWsChannel>>();
   private readonly timers: ReturnType<typeof setInterval>[] = [];
+  private readonly activePolls = new Set<string>();
   private parseLogCursor = new Date();
   /** ID run-ов, которые были в статусе running на предыдущем тике — для детекции завершения. */
   private prevRunningIds = new Set<string>();
@@ -81,19 +82,47 @@ export class AdminGateway
   onModuleInit(): void {
     this.parseLogCursor = new Date();
     this.timers.push(
-      setInterval(() => void this.pollWorkerStatus(), WORKER_STATUS_POLL_MS),
-      setInterval(() => void this.pollParseLog(), PARSE_LOG_POLL_MS),
-      setInterval(() => void this.pollBackfill(), BACKFILL_POLL_MS),
-      setInterval(() => void this.pollPhasesUpdate(), PHASES_POLL_MS),
-      setInterval(() => void this.pollTrackingStatus(), TRACKING_POLL_MS),
-      setInterval(() => void this.pollParsePipelineStatus(), PARSE_PIPELINE_POLL_MS),
-      setInterval(() => void this.pollRuntimeDiscovery(), RUNTIME_DISCOVERY_POLL_MS),
+      setInterval(
+        () => this.runPoll("worker-status", () => this.pollWorkerStatus()),
+        WORKER_STATUS_POLL_MS,
+      ),
+      setInterval(
+        () => this.runPoll("parse-log", () => this.pollParseLog()),
+        PARSE_LOG_POLL_MS,
+      ),
+      setInterval(
+        () => this.runPoll("backfill", () => this.pollBackfill()),
+        BACKFILL_POLL_MS,
+      ),
+      setInterval(
+        () => this.runPoll("phases", () => this.pollPhasesUpdate()),
+        PHASES_POLL_MS,
+      ),
+      setInterval(
+        () => this.runPoll("tracking", () => this.pollTrackingStatus()),
+        TRACKING_POLL_MS,
+      ),
+      setInterval(
+        () => this.runPoll("parse-pipeline", () => this.pollParsePipelineStatus()),
+        PARSE_PIPELINE_POLL_MS,
+      ),
+      setInterval(
+        () => this.runPoll("runtime-discovery", () => this.pollRuntimeDiscovery()),
+        RUNTIME_DISCOVERY_POLL_MS,
+      ),
     );
   }
 
   onModuleDestroy(): void {
     for (const timer of this.timers) clearInterval(timer);
     this.timers.length = 0;
+  }
+
+  /** Не запускает второй poll того же канала, пока предыдущий ещё выполняется. */
+  private runPoll(key: string, poll: () => Promise<void>): void {
+    if (this.activePolls.has(key)) return;
+    this.activePolls.add(key);
+    void poll().finally(() => this.activePolls.delete(key));
   }
 
   handleConnection(client: WebSocket): void {

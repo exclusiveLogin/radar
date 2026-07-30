@@ -4,6 +4,7 @@
 import type {
   IPhaseRunRepository,
   PhaseDefinitionRecord,
+  PhaseRun,
   PhaseRunStats,
   PhaseTrigger,
 } from "@radar/shared";
@@ -14,7 +15,7 @@ export type PhaseRunSession = {
     phase: PhaseDefinitionRecord;
     trigger: PhaseTrigger;
     existingRunId?: string;
-  }): Promise<{ id: string }>;
+  }): Promise<PhaseRun>;
   finalize(
     runId: string,
     status: "completed" | "canceled" | "paused",

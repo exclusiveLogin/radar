@@ -20,9 +20,6 @@ type JobState = {
   startedAt: Date;
   finishedAt?: Date;
   error?: string;
-  totalMessages: number;
-  phaseIds: string[];
-  failedAtStart: number;
   child?: ChildProcess;
 };
 
@@ -54,8 +51,12 @@ export class ParsePipelineAdminService implements OnModuleDestroy {
   }
 
   async getStatus(): Promise<ParsePipelineStatusResponse> {
-    if (!this.job) return IDLE;
-    return parsePipelineStatusResponseSchema.parse(await this.buildStatus(this.job));
+    if (this.job) {
+      return parsePipelineStatusResponseSchema.parse(this.buildProcessStatus(this.job));
+    }
+    const catchUp = await this.phasesAdmin.getIngestCatchUpState();
+    if (!catchUp) return IDLE;
+    return parsePipelineStatusResponseSchema.parse(this.buildCatchUpStatus(catchUp));
   }
 
   async startReset(): Promise<ParsePipelineStartResponse> {
@@ -64,44 +65,12 @@ export class ParsePipelineAdminService implements OnModuleDestroy {
 
   /** Планирует отсутствующие raw и разбирает очередь батчами без очистки таблиц. */
   async startCatchUp(): Promise<ParsePipelineStartResponse> {
-    this.assertNoRunningJob();
-
-    const startedAt = new Date();
-    this.job = {
-      kind: "catchup",
-      status: "running",
-      startedAt,
-      totalMessages: 0,
-      phaseIds: [],
-      failedAtStart: 0,
-    };
-    void this.initializeCatchUp(startedAt);
-    this.logger.log("catchup planning started");
+    await this.assertNoRunningJob();
+    const catchUp = await this.phasesAdmin.catchUpEnabledIngestPhases();
+    this.logger.log(
+      `catchup started: enqueued=${catchUp.enqueued}, queued=${catchUp.queued}`,
+    );
     return { ok: true, kind: "catchup" };
-  }
-
-  /** Планирует очередь асинхронно, чтобы Admin сразу получил running-статус. */
-  private async initializeCatchUp(startedAt: Date): Promise<void> {
-    try {
-      const catchUp = await this.phasesAdmin.catchUpEnabledIngestPhases();
-      if (!this.job || this.job.kind !== "catchup" || this.job.startedAt !== startedAt) return;
-
-      const completed = catchUp.queued === 0;
-      this.job.totalMessages = catchUp.queued;
-      this.job.phaseIds = catchUp.phaseIds;
-      this.job.failedAtStart = catchUp.failed;
-      this.job.status = completed ? "completed" : "running";
-      this.job.finishedAt = completed ? new Date() : undefined;
-      this.logger.log(
-        `catchup ${completed ? "completed" : "started"}: enqueued=${catchUp.enqueued}, queued=${catchUp.queued}`,
-      );
-    } catch (error) {
-      if (!this.job || this.job.kind !== "catchup" || this.job.startedAt !== startedAt) return;
-      this.job.status = "failed";
-      this.job.finishedAt = new Date();
-      this.job.error = error instanceof Error ? error.message : String(error);
-      this.logger.error(`catchup planning failed: ${this.job.error}`);
-    }
   }
 
   private async startJob(
@@ -109,7 +78,7 @@ export class ParsePipelineAdminService implements OnModuleDestroy {
     npmScript: string,
     extraArgs: string[],
   ): Promise<ParsePipelineStartResponse> {
-    this.assertNoRunningJob();
+    await this.assertNoRunningJob();
     const startedAt = new Date();
     const child = this.spawnWorkerScript(npmScript, extraArgs);
 
@@ -117,9 +86,6 @@ export class ParsePipelineAdminService implements OnModuleDestroy {
       kind,
       status: "running",
       startedAt,
-      totalMessages: 0,
-      phaseIds: [],
-      failedAtStart: 0,
       child,
     };
 
@@ -190,64 +156,84 @@ export class ParsePipelineAdminService implements OnModuleDestroy {
     });
   }
 
-  private async buildStatus(job: JobState): Promise<ParsePipelineStatusResponse> {
-    const base: ParsePipelineStatusResponse = {
+  private buildProcessStatus(job: JobState): ParsePipelineStatusResponse {
+    return {
       status: job.status,
       kind: job.kind,
       startedAt: job.startedAt.toISOString(),
       finishedAt: job.finishedAt?.toISOString() ?? null,
       error: job.error ?? null,
-      totalMessages: job.totalMessages,
+      totalMessages: 0,
       processedMessages: 0,
       ok: 0,
       failed: 0,
-      percentApprox: 0,
+      percentApprox: job.status === "completed" ? 100 : 0,
     };
+  }
 
-    if (job.kind !== "catchup") {
-      if (job.status === "running") base.percentApprox = 0;
-      else base.percentApprox = job.status === "completed" ? 100 : 0;
-      return base;
-    }
-    if (job.status === "running" && job.phaseIds.length === 0) {
-      return base;
-    }
-
-    const counts = await this.phasesAdmin.getIngestQueueCounts(job.phaseIds);
-    const remaining = counts.pending + counts.processing;
-    const processedMessages = Math.max(0, job.totalMessages - Math.min(job.totalMessages, remaining));
-    const failed = Math.max(0, counts.failed - job.failedAtStart);
-    const ok = Math.max(0, processedMessages - failed);
-    if (job.status === "running" && remaining === 0) {
-      job.status = "completed";
-      job.finishedAt = new Date();
-      base.status = job.status;
-      base.finishedAt = job.finishedAt.toISOString();
-      this.logger.log("catchup completed");
-    }
-
-    const total = job.totalMessages;
+  private buildCatchUpStatus(
+    state: NonNullable<
+      Awaited<ReturnType<PhasesAdminService["getIngestCatchUpState"]>>
+    >,
+  ): ParsePipelineStatusResponse {
+    const activeRuns = state.runs.filter((run) =>
+      ["pending", "running", "paused"].includes(run.status),
+    );
+    const displayedRuns = activeRuns.length > 0 ? activeRuns : state.runs;
+    const remaining = state.counts.pending + state.counts.processing;
+    const totalMessages =
+      remaining + state.counts.done + state.counts.failed;
+    const processedMessages = state.counts.done + state.counts.failed;
+    const failed = state.counts.failed;
+    const completed = activeRuns.length === 0 && remaining === 0;
+    const status =
+      activeRuns.length > 0 ? "running" : completed ? "completed" : "failed";
+    const startedAt =
+      displayedRuns.map((run) => run.startedAt ?? run.createdAt).sort()[0] ?? null;
+    const finishedAt =
+      status === "running"
+        ? null
+        : displayedRuns
+            .map((run) => run.finishedAt)
+            .filter((value): value is string => value !== null)
+            .sort()
+            .at(-1) ?? null;
     const percentApprox =
-      job.status === "completed"
+      status === "completed"
         ? 100
-        : total > 0
-        ? Math.min(100, Math.round((processedMessages / total) * 1_000) / 10)
+        : totalMessages > 0
+        ? Math.min(100, Math.round((processedMessages / totalMessages) * 1_000) / 10)
         : 0;
-
     return {
-      ...base,
-      totalMessages: total,
+      status,
+      kind: "catchup",
+      startedAt,
+      finishedAt,
+      error:
+        status === "failed"
+          ? displayedRuns.find((run) => run.error)?.error ?? "catch-up run failed"
+          : null,
+      totalMessages,
       processedMessages,
-      ok,
+      ok: Math.max(0, processedMessages - failed),
       failed,
       percentApprox,
     };
   }
 
-  private assertNoRunningJob(): void {
+  private async assertNoRunningJob(): Promise<void> {
     if (this.job?.status === "running") {
       throw new BadRequestException(
         `Уже выполняется ${this.job.kind} (с ${this.job.startedAt.toISOString()})`,
+      );
+    }
+    const catchUp = await this.phasesAdmin.getIngestCatchUpState();
+    const activeRun = catchUp?.runs.find((run) =>
+      ["pending", "running", "paused"].includes(run.status),
+    );
+    if (activeRun) {
+      throw new BadRequestException(
+        `Уже выполняется catchup (с ${activeRun.startedAt ?? activeRun.createdAt})`,
       );
     }
   }

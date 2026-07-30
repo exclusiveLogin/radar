@@ -199,9 +199,10 @@ export class PhasesAdminService implements OnModuleInit, OnModuleDestroy {
       await this.cancelActiveRunsForPhase(phase.id, CATCH_UP_TAKEOVER_REASON);
       await this.coverage.resetProcessingForPhase(phase.id);
       enqueued += (await this.coverage.enqueueCatchUp(phase.id)).enqueued;
-      await this.runs.create({ phaseId: phase.id, trigger: "manual" });
       const counts = await this.coverage.countByStatus(phase.id);
-      queued += counts.pending + counts.processing;
+      const queuedForPhase = counts.pending + counts.processing;
+      await this.runs.create({ phaseId: phase.id, trigger: "manual" });
+      queued += queuedForPhase;
       failed += counts.failed;
     }
 
@@ -224,6 +225,27 @@ export class PhasesAdminService implements OnModuleInit, OnModuleDestroy {
       total.failed += counts.failed;
     }
     return total;
+  }
+
+  /** Последние durable manual runs enabled ingestParse-фаз и их текущая очередь. */
+  async getIngestCatchUpState(): Promise<{
+    runs: PhaseRun[];
+    counts: { pending: number; processing: number; done: number; failed: number };
+  } | null> {
+    const phases = await this.phases.listEnabled(undefined, "ingestParse");
+    const runs = (
+      await Promise.all(
+        phases.map((phase) =>
+          this.runs.list({ phaseId: phase.id, trigger: "manual", limit: 1 }),
+        ),
+      )
+    ).flat();
+    if (runs.length === 0) return null;
+
+    return {
+      runs,
+      counts: await this.getIngestQueueCounts(phases.map((phase) => phase.id)),
+    };
   }
 
   /** Publishes phase enablement changes to the runner. */

@@ -102,8 +102,9 @@ function buildStreamParams(
  * Демон backfill: round-robin по активным job, один батч Telegram за тик на канал.
  */
 export class BackfillDaemonService {
-  private timer: ReturnType<typeof setInterval> | null = null;
+  private timer: ReturnType<typeof setTimeout> | null = null;
   private pulseTimer: ReturnType<typeof setInterval> | null = null;
+  private started = false;
   private ticking = false;
   private roundRobinIndex = 0;
   /** MTProto-клиент на провайдера: один connect на весь жизненный цикл демона. */
@@ -123,9 +124,9 @@ export class BackfillDaemonService {
   ) {}
 
   start(): void {
-    if (this.timer) return;
-    void this.tick();
-    this.timer = setInterval(() => void this.tick(), this.pollMs);
+    if (this.started) return;
+    this.started = true;
+    void this.runBatchLoop();
     if (this.heartbeatMs > 0) {
       this.pulseTimer = setInterval(() => {
         void this.pulseRunnableJobs().catch((err) => {
@@ -134,13 +135,14 @@ export class BackfillDaemonService {
       }, this.heartbeatMs);
     }
     console.log(
-      `BackfillDaemon: poll ${this.pollMs}ms, heartbeat ${this.heartbeatMs}ms (round-robin batch)`,
+      `BackfillDaemon: batch pause ${this.pollMs}ms, heartbeat ${this.heartbeatMs}ms (round-robin)`,
     );
   }
 
   async stop(): Promise<void> {
+    this.started = false;
     if (this.timer) {
-      clearInterval(this.timer);
+      clearTimeout(this.timer);
       this.timer = null;
     }
     if (this.pulseTimer) {
@@ -151,6 +153,13 @@ export class BackfillDaemonService {
       await adapter.stop();
     }
     this.adaptersByProvider.clear();
+  }
+
+  /** Гарантирует полную паузу после batch перед следующим round-robin тиком. */
+  private async runBatchLoop(): Promise<void> {
+    await this.tick();
+    if (!this.started) return;
+    this.timer = setTimeout(() => void this.runBatchLoop(), this.pollMs);
   }
 
   /** Подключает telegram-адаптер один раз на providerId; повторные тики переиспользуют сессию. */

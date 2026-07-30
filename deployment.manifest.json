@@ -38,7 +38,7 @@
       "triggerMode": "event",
       "scope": "ingestParse",
       "enrichers": ["catalog"],
-      "policy": { "batchSize": 100, "eagerMode": "queue" },
+      "policy": { "batchSize": 100, "eagerMode": "queue", "minIntervalMs": 5000 },
       "enabled": true,
       "order": 0
     },
