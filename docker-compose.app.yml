@@ -42,8 +42,17 @@ x-worker: &worker
   environment:
     <<: [*db-url, *rmq]
     RADAR_STORAGE_MODE: db
-    WORKER_PROBE_ENABLED: "0"
   command: ["npm", "run", "dev", "-w", "@radar/worker", "--ignore-scripts"]
+  healthcheck:
+    test:
+      [
+        "CMD-SHELL",
+        'node -e "fetch(''http://127.0.0.1:3010/health'').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"',
+      ]
+    interval: 15s
+    timeout: 5s
+    retries: 5
+    start_period: 180s
 
 services:
   # Один раз наполняет общий volume node_modules под текущий package-lock.
@@ -108,15 +117,23 @@ services:
     ports:
       - "${WEB_PORT:-5173}:5173"
     command: ["npm", "run", "dev", "-w", "@radar/web", "--", "--host", "0.0.0.0"]
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          'node -e "fetch(''http://127.0.0.1:5173/'').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"',
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 120s
 
   worker-ingest:
     <<: *worker
     environment:
-      <<: [*db-url, *rmq]
+      <<: [*worker-probe, *db-url, *rmq]
       RADAR_STORAGE_MODE: db
       RADAR_WORKER_ROLE: ingest
-      WORKER_PROBE_HOST: 0.0.0.0
-      WORKER_PROBE_PORT: ${WORKER_PROBE_PORT:-3010}
       RADAR_SESSIONS_DIR: /var/radar/sessions
     volumes:
       - .:/app
@@ -128,10 +145,9 @@ services:
   worker-backfill:
     <<: *worker
     environment:
-      <<: [*db-url, *rmq]
+      <<: [*worker-probe, *db-url, *rmq]
       RADAR_STORAGE_MODE: db
       RADAR_WORKER_ROLE: backfill
-      WORKER_PROBE_ENABLED: "0"
       RADAR_SESSIONS_DIR: /var/radar/sessions
     volumes:
       - .:/app
@@ -141,10 +157,9 @@ services:
   worker-parse:
     <<: *worker
     environment:
-      <<: [*db-url, *rmq]
+      <<: [*worker-probe, *db-url, *rmq]
       RADAR_STORAGE_MODE: db
       RADAR_WORKER_ROLE: parse
-      WORKER_PROBE_ENABLED: "0"
 
   worker-geo:
     <<: *worker
@@ -160,10 +175,9 @@ services:
       ollama:
         condition: service_healthy
     environment:
-      <<: [*db-url, *rmq]
+      <<: [*worker-probe, *db-url, *rmq]
       RADAR_STORAGE_MODE: db
       RADAR_WORKER_ROLE: geo
-      WORKER_PROBE_ENABLED: "0"
       RADAR_LLM_BASE_URL: http://ollama:11434/v1
 
   worker-tracking:
@@ -172,7 +186,6 @@ services:
       <<: [*worker-probe, *db-url, *rmq]
       RADAR_STORAGE_MODE: db
       RADAR_WORKER_ROLE: tracking
-      WORKER_PROBE_ENABLED: "0"
 
   tiles:
     image: maptiler/tileserver-gl:latest
