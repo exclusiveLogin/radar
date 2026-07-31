@@ -167,7 +167,7 @@ export function createTrackingRunner(
 
   const workload = createWorkload({
     workbook,
-    // timer→RMQ wake(∅); event wake с ids — через trackingIngestSubscriber
+    // Wake только запускает SQL-drain; адресные данные runner читает из PostgreSQL.
     schedule: { mode: "event" },
     io: {
       cursorStore: {

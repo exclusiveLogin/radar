@@ -26,7 +26,18 @@ export function createEventTransport(input: CreateEventTransportInput): IEventTr
   const { transport, workerRole, dataSource } = input;
   assertTransportCompatible(workerRole, transport);
   const pgDedup = transport.rmq.dedupTable && dataSource ? createPgTransportDedup(dataSource) : undefined;
-  return createRmqEventTransport(transport.rmq, pgDedup, resolveRmqConsumerSuffix(workerRole));
+  return createRmqEventTransport(
+    transport.rmq,
+    pgDedup,
+    resolveRmqConsumerSuffix(workerRole),
+    exitWorkerOnConnectionLoss,
+  );
+}
+
+/** Завершает worker: восстановление соединения и подписок выполняет Docker supervisor. */
+function exitWorkerOnConnectionLoss(error: Error): void {
+  console.error("[rmq] connection lost; worker will restart", error);
+  process.exit(1);
 }
 
 export function resolveTransportFromManifest(manifest: DeploymentManifest): DeploymentTransport {

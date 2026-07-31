@@ -1,5 +1,5 @@
-# Overlay: api + web + worker-роли (dev hot-reload). База — docker-compose.yml
-# Порядок: npm-ci → api → web/workers. Без entrypoint-ретраев.
+# Overlay: api + web + worker-роли. База — docker-compose.yml
+# Worker запускается напрямую: Docker видит его exit и применяет restart policy.
 name: radar
 
 x-app: &app
@@ -33,6 +33,7 @@ x-worker-probe: &worker-probe
 x-worker: &worker
   <<: *app
   profiles: ["app"]
+  restart: unless-stopped
   depends_on:
     npm-ci:
       condition: service_completed_successfully
@@ -46,7 +47,7 @@ x-worker: &worker
     <<: [*db-url, *rmq, *api-url]
     RADAR_STORAGE_MODE: db
     RADAR_API_URL: http://api:3000
-  command: ["npm", "run", "dev", "-w", "@radar/worker", "--ignore-scripts"]
+  command: ["node", "packages/worker/dist/index.js"]
   healthcheck:
     test:
       [
@@ -59,7 +60,7 @@ x-worker: &worker
     start_period: 180s
 
 services:
-  # Один раз наполняет общий volume node_modules под текущий package-lock.
+  # Готовит общий node_modules и один раз собирает worker для всех его ролей.
   npm-ci:
     <<: *app
     profiles: ["app"]
@@ -70,11 +71,12 @@ services:
         mark=node_modules/.radar-package-lock.json
         if [ -f "$$mark" ] && cmp -s package-lock.json "$$mark"; then
           echo "[npm-ci] node_modules ok"
-          exit 0
+        else
+          echo "[npm-ci] npm ci..."
+          npm ci
+          cp package-lock.json "$$mark"
         fi
-        echo "[npm-ci] npm ci..."
-        npm ci
-        cp package-lock.json "$$mark"
+        npm run predev -w @radar/worker
 
   api:
     <<: *app

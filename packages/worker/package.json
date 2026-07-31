@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "predev": "npm run build -w @radar/shared && npm run build -w @radar/observability && npm run build -w @radar/persistence && npm run build -w @repo/root && npm run build -w @radar/worker",
+    "predev": "npm run build -w @radar/shared && npm run build -w @radar/observability && npm run build -w @radar/persistence && npm run build -w @radar/transport-rmq && npm run build -w @repo/root && npm run build -w @radar/worker",
     "prestart": "npm run predev",
     "dev": "tsx watch src/index.ts",
     "start": "tsx src/index.ts",

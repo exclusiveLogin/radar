@@ -558,6 +558,7 @@ export type {
 } from "./deployment/deploymentManifest";
 export type {
   IEventTransport,
+  TransportDelivery,
   TransportEventHandler,
   TransportSignalHandler,
   TransportSubscribeOptions,

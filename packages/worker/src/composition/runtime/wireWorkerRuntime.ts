@@ -9,7 +9,6 @@ import { resolveGeoEnrichmentProvider, resolveRmqConsumerSuffix } from "@radar/s
 import { bootBackfill } from "../../domain-boots/bootBackfill.js";
 import { bootGeo } from "../../domain-boots/bootGeo.js";
 import { bootIngest } from "../../domain-boots/bootIngest.js";
-import { bootTracking } from "../../domain-boots/bootTracking.js";
 import { createRawMessageIngestedHandler } from "../../application/subscribers/rawMessageIngestedSubscriber.js";
 import { createPhaseIngestHandler } from "../../application/subscribers/phaseIngestSubscriber.js";
 import { IngestRawMessageHandler } from "../../application/handlers/ingestRawMessageHandler.js";
@@ -309,14 +308,6 @@ export async function wireWorkerRuntime(
               }),
             )
         : undefined,
-    createTrackingIngestHandler: hasCap(context.caps, "tracking")
-      ? () =>
-          bootTracking(({ subscriber }) =>
-            subscriber.createTrackingIngestHandler({
-              onWake: () => context.pipelineLaunchers.wake("tracking"),
-            }),
-          )
-      : undefined,
     trackingIntervalMs: hasCap(context.caps, "tracking")
       ? context.workerRuntime.tracking.intervalMs
       : undefined,

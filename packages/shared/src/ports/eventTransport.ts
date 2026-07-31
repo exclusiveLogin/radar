@@ -5,9 +5,15 @@ import type { Unsubscribe } from "./events.js";
 export type TransportEventHandler = (event: DomainEvent) => Promise<void>;
 export type TransportSignalHandler = (payload: Record<string, unknown>) => Promise<void>;
 
-/** Опции subscribe; RMQ использует queueSuffix для fan-out per role. */
+export type TransportDelivery = "reliable" | "transient";
+
+/**
+ * Опции transport-подписки.
+ * transient предназначен только для безадресного wake-сигнала: он не хранится без consumer.
+ */
 export type TransportSubscribeOptions = {
   queueSuffix?: string;
+  delivery?: TransportDelivery;
 };
 
 /** Единый порт планирования: RMQ / in-process. */

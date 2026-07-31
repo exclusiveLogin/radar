@@ -8,6 +8,7 @@ export type { IEventClassifier, ClassifiedPost } from "./classifiers";
 export type { EventHandler, IEventPublisher, IEventSubscriber, Unsubscribe } from "./events";
 export type {
   IEventTransport,
+  TransportDelivery,
   TransportEventHandler,
   TransportSignalHandler,
   TransportSubscribeOptions,

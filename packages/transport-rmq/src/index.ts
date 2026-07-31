@@ -9,6 +9,7 @@ import {
   type IEventTransport,
   type ITransportDedup,
   type RadarTopicRoutingKey,
+  type TransportDelivery,
   type TransportEventHandler,
   type TransportSignalHandler,
   type TransportSubscribeOptions,
@@ -25,6 +26,7 @@ type PendingSub = {
   kind: "unit" | "signal";
   handler: TransportEventHandler | TransportSignalHandler;
   queueSuffix: string;
+  delivery: TransportDelivery;
 };
 
 type ActiveConsumer = {
@@ -38,6 +40,8 @@ export type RmqEventTransportOptions = {
   consumerQueueSuffix: string;
   /** PG + LRU composite; если не передан — LRU only при dedupTable. */
   dedup?: ITransportDedup;
+  /** Потеря соединения фатальна: внешний runtime завершает процесс для supervisor-restart. */
+  onConnectionLost?: (error: Error) => void;
 };
 
 /** RabbitMQ transport — topic exchange + per-role queues + graceful shutdown. */
@@ -53,11 +57,14 @@ export class RmqEventTransport implements IEventTransport {
   private inFlight = 0;
   private stopping = false;
   private started = false;
+  private connectionLossReported = false;
   private readonly cfg: DeploymentTransportRmq;
+  private readonly onConnectionLost?: (error: Error) => void;
 
   constructor(options: RmqEventTransportOptions) {
     this.cfg = options.cfg;
     this.consumerQueueSuffix = options.consumerQueueSuffix;
+    this.onConnectionLost = options.onConnectionLost;
     if (options.dedup) {
       this.dedup = options.dedup;
     } else if (options.cfg.dedupTable) {
@@ -72,6 +79,7 @@ export class RmqEventTransport implements IEventTransport {
     this.stopping = false;
     this.connection = await amqp.connect(this.cfg.url);
     this.channel = await this.connection.createConfirmChannel();
+    this.watchConnection(this.connection, this.channel);
     await this.channel.prefetch(this.cfg.prefetch);
     await this.channel.assertExchange(this.cfg.exchange, "topic", { durable: true });
     await this.channel.assertExchange(DLX, "topic", { durable: true });
@@ -104,6 +112,7 @@ export class RmqEventTransport implements IEventTransport {
     this.channel = null;
     this.connection = null;
     this.started = false;
+    this.connectionLossReported = false;
     this.stopping = false;
   }
 
@@ -117,6 +126,7 @@ export class RmqEventTransport implements IEventTransport {
       kind: "unit",
       handler,
       queueSuffix: options?.queueSuffix ?? this.consumerQueueSuffix,
+      delivery: options?.delivery ?? "reliable",
     });
   }
 
@@ -130,6 +140,7 @@ export class RmqEventTransport implements IEventTransport {
       kind: "signal",
       handler,
       queueSuffix: options?.queueSuffix ?? this.consumerQueueSuffix,
+      delivery: options?.delivery ?? "reliable",
     });
   }
 
@@ -157,16 +168,29 @@ export class RmqEventTransport implements IEventTransport {
     return this.channel;
   }
 
-  private groupKey(sub: Pick<PendingSub, "routingKey" | "queueSuffix" | "kind">): string {
-    return `${sub.routingKey}|${sub.queueSuffix}|${sub.kind}`;
+  private groupKey(
+    sub: Pick<PendingSub, "routingKey" | "queueSuffix" | "kind" | "delivery">,
+  ): string {
+    return `${sub.routingKey}|${sub.queueSuffix}|${sub.kind}|${sub.delivery}`;
   }
 
   private async ensureQueueTopology(
     ch: ConfirmChannel,
     routingKey: RadarTopicRoutingKey,
     queueSuffix: string,
+    delivery: TransportDelivery,
   ): Promise<string> {
     const q = rmqQueueName(routingKey, queueSuffix);
+    if (delivery === "transient") {
+      const transient = await ch.assertQueue("", {
+        durable: false,
+        exclusive: true,
+        autoDelete: true,
+      });
+      await ch.bindQueue(transient.queue, this.cfg.exchange, routingKey);
+      return transient.queue;
+    }
+
     const dlq = `${q}.dlq`;
     await ch.assertQueue(dlq, { durable: true });
     await ch.assertQueue(q, {
@@ -202,10 +226,17 @@ export class RmqEventTransport implements IEventTransport {
 
     try {
       const ch = this.requireChannel();
-      const q = await this.ensureQueueTopology(ch, sub.routingKey, sub.queueSuffix);
-      const { consumerTag } = await ch.consume(q, (msg) => void this.onGroupMessage(key, msg), {
-        noAck: false,
-      });
+      const q = await this.ensureQueueTopology(
+        ch,
+        sub.routingKey,
+        sub.queueSuffix,
+        sub.delivery,
+      );
+      const { consumerTag } = await ch.consume(
+        q,
+        (msg) => void this.onGroupMessage(key, sub.delivery, msg),
+        { noAck: sub.delivery === "transient" },
+      );
       this.consumers.push({ groupKey: key, tag: consumerTag });
     } catch (err) {
       this.activeGroups.delete(key);
@@ -213,9 +244,14 @@ export class RmqEventTransport implements IEventTransport {
     }
   }
 
-  private async onGroupMessage(groupKey: string, msg: ConsumeMessage | null): Promise<void> {
+  private async onGroupMessage(
+    groupKey: string,
+    delivery: TransportDelivery,
+    msg: ConsumeMessage | null,
+  ): Promise<void> {
+    const reliable = delivery === "reliable";
     if (!msg || !this.channel || this.stopping) {
-      if (msg && this.channel) this.channel.nack(msg, false, true);
+      if (reliable && msg && this.channel) this.channel.nack(msg, false, true);
       return;
     }
     this.inFlight += 1;
@@ -239,13 +275,25 @@ export class RmqEventTransport implements IEventTransport {
           await (sub.handler as TransportSignalHandler)(parsed.payload);
         }
       }
-      this.channel.ack(msg);
+      if (reliable) this.channel.ack(msg);
     } catch (err) {
       console.error(`[rmq] consume failed ${groupKey}`, err);
-      this.channel.nack(msg, false, false);
+      if (reliable) this.channel.nack(msg, false, false);
     } finally {
       this.inFlight -= 1;
     }
+  }
+
+  /** Соединение без встроенного reconnect: сообщаем runtime, чтобы supervisor поднял worker заново. */
+  private watchConnection(connection: AmqpConn, channel: ConfirmChannel): void {
+    const report = (error: Error) => {
+      if (this.stopping || this.connectionLossReported) return;
+      this.connectionLossReported = true;
+      this.onConnectionLost?.(error);
+    };
+    connection.once("error", report);
+    connection.once("close", () => report(new Error("RabbitMQ connection closed")));
+    channel.once("error", report);
   }
 }
 
@@ -254,9 +302,10 @@ export function createRmqEventTransport(
   cfg: DeploymentTransportRmq,
   pgDedup?: ITransportDedup,
   consumerQueueSuffix = "default",
+  onConnectionLost?: (error: Error) => void,
 ): RmqEventTransport {
   const dedup = cfg.dedupTable
     ? createCompositeTransportDedup(createLruTransportDedup(), pgDedup)
     : undefined;
-  return new RmqEventTransport({ cfg, dedup, consumerQueueSuffix });
+  return new RmqEventTransport({ cfg, dedup, consumerQueueSuffix, onConnectionLost });
 }

@@ -49,7 +49,6 @@ export type WireWorkerTransportSubscriptionsInput = {
   };
   parseIngestHandler?: TransportHandler;
   createGeoIngestHandler?: () => Promise<TransportHandler>;
-  createTrackingIngestHandler?: () => Promise<TransportHandler>;
   trackingIntervalMs?: number;
   rawMessageIngestedHandler?: TransportHandler;
 };
@@ -74,7 +73,6 @@ export async function wireWorkerTransportSubscriptions(
     phaseWake,
     parseIngestHandler,
     createGeoIngestHandler,
-    createTrackingIngestHandler,
     trackingIntervalMs,
     rawMessageIngestedHandler,
   } = input;
@@ -133,22 +131,8 @@ export async function wireWorkerTransportSubscriptions(
     );
   }
 
-  if (hasCap(caps, "tracking") && createTrackingIngestHandler) {
-    lifecycle.register(
-      transport.subscribe(
-        RADAR_TOPICS.MESSAGE_PARSED,
-        await createTrackingIngestHandler(),
-        { queueSuffix: PIPELINE_RMQ_QUEUE_SUFFIX.tracking },
-      ),
-    );
-  }
-
   if (hasCap(caps, "tracking") && trackingIntervalMs != null) {
-    const timer = setInterval(() => {
-      void transport.publishSignal(RADAR_TOPICS.RUNNER_DRAIN_TRACKING, {
-        mode: "full",
-      });
-    }, trackingIntervalMs);
+    const timer = setInterval(() => wake.wake("tracking"), trackingIntervalMs);
     lifecycle.register(() => clearInterval(timer));
   }
 
@@ -158,7 +142,7 @@ export async function wireWorkerTransportSubscriptions(
     );
   }
 
-  wireRunnerTriggers({
+  wireTrackingTrigger({
     transport,
     lifecycle,
     wake,
@@ -172,31 +156,25 @@ type WireRunnerTriggersInput = Pick<
   "transport" | "lifecycle" | "wake" | "hasWakeableLauncher" | "observabilityRecorder"
 >;
 
-/** Подписывает runner-platform pipeline на его transport-событие. */
-function wireRunnerTriggers(input: WireRunnerTriggersInput): void {
-  wireRunnerTrigger(input, "parse", RADAR_TOPICS.RAW_INGESTED, "RawMessageIngested");
-  wireRunnerTrigger(input, "tracking", RADAR_TOPICS.MESSAGE_PARSED, "MessageParsed");
-  wireRunnerTrigger(input, "geo-enrich", RADAR_TOPICS.MESSAGE_PARSED, "MessageParsed");
-}
-
-function wireRunnerTrigger(
-  input: WireRunnerTriggersInput,
-  pipelineKey: PipelineKey,
-  topic: (typeof RADAR_TOPICS)[keyof typeof RADAR_TOPICS],
-  eventType: string,
-): void {
+/**
+ * MessageParsed только будит tracking: данные runner читает из PostgreSQL.
+ * Эфемерная noAck-очередь не накапливает одинаковые wake-сообщения без worker.
+ */
+function wireTrackingTrigger(input: WireRunnerTriggersInput): void {
+  const pipelineKey: PipelineKey = "tracking";
   if (!input.hasWakeableLauncher(pipelineKey)) return;
 
   input.lifecycle.register(
-    wireTransportTrigger(input.transport, topic, {
+    wireTransportTrigger(input.transport, RADAR_TOPICS.MESSAGE_PARSED, {
       debounceMs: 250,
       onRoute: () => input.wake.wake(pipelineKey),
-      queueSuffix: PIPELINE_RMQ_QUEUE_SUFFIX[pipelineKey],
+      queueSuffix: `${PIPELINE_RMQ_QUEUE_SUFFIX[pipelineKey]}.trigger`,
+      delivery: "transient",
       obs: input.observabilityRecorder
         ? {
             recorder: input.observabilityRecorder,
             pipelineKey,
-            eventType,
+            eventType: "MessageParsed",
           }
         : undefined,
     }),
