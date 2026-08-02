@@ -3,7 +3,6 @@ import { TrackingInfraModule } from "../tracking/tracking-infra.module";
 import {
   ControlTrackingRunUseCase,
   PatchTrackingConfigUseCase,
-  ResetTrackingPipelineUseCase,
   SetTrackingEnabledUseCase,
   StartTrackingRebuildUseCase,
 } from "../application/tracking-admin/tracking-admin-commands";
@@ -28,11 +27,6 @@ import { TrackingAdminQueryService } from "./tracking-admin.service";
     {
       provide: StartTrackingRebuildUseCase,
       useFactory: (port: TrackingAdminQueryService) => new StartTrackingRebuildUseCase(port),
-      inject: [TrackingAdminQueryService],
-    },
-    {
-      provide: ResetTrackingPipelineUseCase,
-      useFactory: (port: TrackingAdminQueryService) => new ResetTrackingPipelineUseCase(port),
       inject: [TrackingAdminQueryService],
     },
     {

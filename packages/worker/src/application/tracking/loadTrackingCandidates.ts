@@ -115,9 +115,11 @@ type BatchOptions = {
 
 type PendingOptions = {
   until: Date;
+  /** Bounded page: размер очереди не должен определять стоимость одного tick. */
+  limit?: number;
 };
 
-/** Вся необработанная pipeline-очередь (без LIMIT). */
+/** Стабильная event-time страница необработанной pipeline-очереди. */
 export async function loadPendingTrackingCandidates(
   ds: DataSource,
   opts: PendingOptions,
@@ -133,11 +135,34 @@ export async function loadPendingTrackingCandidates(
       AND pe.is_active IS DISTINCT FROM false
       AND pe.event_type IN (${PIPELINE_TYPES_IN})
       ${NOT_PROCESSED_SQL}
+      AND NOT EXISTS (
+        SELECT 1 FROM state_track_strobe_member staged
+        WHERE staged.event_location_id = el.id
+      )
     ORDER BY ${EVENT_AT_SQL} ASC, el.id ASC
+    LIMIT $2
     `,
-    [opts.until.toISOString()],
+    [opts.until.toISOString(), opts.limit ?? 20_000],
   );
 
+  return rows.map(toCandidate).filter(canEnterPipeline);
+}
+
+/** Загружает полный накопленный состав одного persisted strobe. */
+export async function loadTrackingStrobeCandidates(
+  ds: DataSource,
+  strobeId: string,
+): Promise<TrackingCandidate[]> {
+  const rows = await ds.query<RawRow[]>(
+    `
+    ${CANDIDATES_SELECT}
+    ${CANDIDATES_FROM_SQL}
+    JOIN state_track_strobe_member member ON member.event_location_id = el.id
+    WHERE member.strobe_id = $1
+    ORDER BY ${EVENT_AT_SQL} ASC, el.id ASC
+    `,
+    [strobeId],
+  );
   return rows.map(toCandidate).filter(canEnterPipeline);
 }
 
@@ -149,19 +174,23 @@ const CONSUMED_ANCHOR_SQL = `
 
 type CandidateWindowOptions = {
   until: Date;
+  limit: number;
   /** Окно ε_temporal (мс) — lookback от min(pending) для consumed-якорей. */
   lookbackMs: number;
 };
 
 /**
- * Candidate window: pending + consumed-якоря в [min(pending)−lookback, until].
- * Сама дедупликация — позже в ST-DBSCAN; здесь только загрузка окна.
+ * Candidate window: bounded pending page + consumed anchors around its event-time frontier.
+ * Состав окна зависит от event-time, а не от общего размера очереди.
  */
 export async function loadCandidateWindow(
   ds: DataSource,
   opts: CandidateWindowOptions,
 ): Promise<CandidateWindowLoad> {
-  const pending = await loadPendingTrackingCandidates(ds, { until: opts.until });
+  const pending = await loadPendingTrackingCandidates(ds, {
+    until: opts.until,
+    limit: opts.limit,
+  });
   if (pending.length === 0) {
     return { pending: [], window: [], lookbackMs: opts.lookbackMs };
   }
@@ -197,8 +226,7 @@ export async function loadTrackingCandidatesBatch(
   ds: DataSource,
   opts: BatchOptions,
 ): Promise<TrackingCandidate[]> {
-  const pending = await loadPendingTrackingCandidates(ds, { until: opts.until });
-  return pending.slice(0, opts.limit);
+  return loadPendingTrackingCandidates(ds, opts);
 }
 
 type CountRemainingOptions = {
@@ -216,7 +244,9 @@ export async function countTrackingPipelineRemaining(
   const [{ count }] = await ds.query<{ count: string }[]>(
     `
     SELECT COUNT(*)::text AS count
-    ${CANDIDATES_FROM_SQL}
+    FROM mat_parse_location el
+    JOIN mat_parse_event pe ON pe.id = el.parsed_event_id
+    LEFT JOIN mat_ingest_raw rm ON rm.id = pe.raw_message_id
     WHERE
       ${EVENT_AT_SQL} <= $1
       AND el.lat IS NOT NULL

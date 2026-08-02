@@ -27,6 +27,9 @@ export {
   PROFILE_KINEMATICS,
   resolveProfileKinematics,
 } from "./domain/tracking/profileKinematics";
+export {
+  DEFAULT_TRACKING_STROBE_MAX_WINDOW_MS,
+} from "./domain/tracking/strobePolicy";
 
 export { observationCovarianceMeters } from "./domain/tracking/observationCovariance";
 

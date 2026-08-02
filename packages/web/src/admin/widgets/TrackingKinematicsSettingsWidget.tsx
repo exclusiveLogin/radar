@@ -9,6 +9,7 @@ import {
   DEFAULT_MAGNETIZE_WEIGHTS,
   DEFAULT_MAGNET_COST_WEIGHTS,
   DEFAULT_TURN_PENALTY,
+  DEFAULT_TRACKING_STROBE_MAX_WINDOW_MS,
   type ThreatProfile,
   type TrackingPipelineConfig,
 } from "@radar/shared";
@@ -189,6 +190,7 @@ function configSignature(
     counterFlowRejectCos: cfg?.counterFlowRejectCos ?? null,
     nextgen: cfg?.nextgen ?? null,
     clusteringMode: cfg?.clusteringMode ?? "collapse",
+    strobe: cfg?.strobe ?? null,
     magnet: cfg?.magnet ?? null,
     override: cfg?.profiles?.[profile] ?? null,
   });
@@ -230,6 +232,9 @@ export function TrackingKinematicsSettingsWidget() {
   // rflPenaltyThreshold — override гейта field_train; без override = counterFlowRejectCos.
   const [rflThresholdOverrideEnabled, setRflThresholdOverrideEnabled] = useState(false);
   const [clusteringMode, setClusteringMode] = useState<"collapse" | "magnet">("collapse");
+  const [strobeWindowMinutes, setStrobeWindowMinutes] = useState(
+    DEFAULT_TRACKING_STROBE_MAX_WINDOW_MS / 60_000,
+  );
   const [magnetWMag, setMagnetWMag] = useState(DEFAULT_MAGNET_COST_WEIGHTS.wMag);
   const [magnetWFlow, setMagnetWFlow] = useState(DEFAULT_MAGNET_COST_WEIGHTS.wFlow);
   const [lambdaCloud, setLambdaCloud] = useState(DEFAULT_MAGNETIZE_WEIGHTS.lambdaCloud);
@@ -275,6 +280,9 @@ export function TrackingKinematicsSettingsWidget() {
     setNextgen({ ...NEXTGEN_DEFAULTS, ...(cfg.nextgen ?? {}) });
     setRflThresholdOverrideEnabled(cfg.nextgen?.rflPenaltyThreshold != null);
     setClusteringMode(cfg.clusteringMode ?? "collapse");
+    setStrobeWindowMinutes(
+      (cfg.strobe?.maxWindowMs ?? DEFAULT_TRACKING_STROBE_MAX_WINDOW_MS) / 60_000,
+    );
     const m = cfg.magnet;
     setMagnetWMag(m?.wMag ?? DEFAULT_MAGNET_COST_WEIGHTS.wMag);
     setMagnetWFlow(m?.wFlow ?? DEFAULT_MAGNET_COST_WEIGHTS.wFlow);
@@ -313,6 +321,7 @@ export function TrackingKinematicsSettingsWidget() {
     setNextgen(NEXTGEN_DEFAULTS);
     setRflThresholdOverrideEnabled(false);
     setClusteringMode("collapse");
+    setStrobeWindowMinutes(DEFAULT_TRACKING_STROBE_MAX_WINDOW_MS / 60_000);
     setMagnetWMag(DEFAULT_MAGNET_COST_WEIGHTS.wMag);
     setMagnetWFlow(DEFAULT_MAGNET_COST_WEIGHTS.wFlow);
     setLambdaCloud(DEFAULT_MAGNETIZE_WEIGHTS.lambdaCloud);
@@ -343,6 +352,7 @@ export function TrackingKinematicsSettingsWidget() {
           rflPenaltyThreshold: rflThresholdOverrideEnabled ? nextgen.rflPenaltyThreshold ?? -0.2 : undefined,
         },
         clusteringMode,
+        strobe: { maxWindowMs: Math.round(strobeWindowMinutes * 60_000) },
         magnet: {
           wMag: magnetWMag,
           wFlow: magnetWFlow,
@@ -390,6 +400,15 @@ export function TrackingKinematicsSettingsWidget() {
           <option value="magnet">Magnet (веса без схлопывания)</option>
         </select>
       </Field>
+      <CoeffSlider
+        label="Максимальное окно strobe, мин"
+        hint={H.strobeMaxWindow}
+        value={strobeWindowMinutes}
+        min={1}
+        max={120}
+        step={1}
+        onChange={setStrobeWindowMinutes}
+      />
 
       {clusteringMode === "magnet" && (
         <div className="ds-subpanel">

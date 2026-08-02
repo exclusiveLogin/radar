@@ -9,7 +9,12 @@
  *          как это делает существующий legacy-демон.
  * ---
  */
-import type { TrackingCandidate, TrackingPipelineConfig, TrackingRebuildStats } from "@radar/shared";
+import type {
+  FlowMapSnapshot,
+  TrackingCandidate,
+  TrackingPipelineConfig,
+  TrackingRebuildStats,
+} from "@radar/shared";
 import type { IncrementalBatchResult } from "../trackingRebuildService.js";
 import type { TrackingActiveRun, TrackingPipelineState } from "../../../infrastructure/tracking/trackingPipelineStateRepository.js";
 
@@ -17,11 +22,14 @@ export type TrackingCursorSnapshot = TrackingPipelineState;
 
 export type TrackingRunnerSlice = {
   run: TrackingActiveRun;
+  strobeId: string;
+  finalizeOnly: boolean;
   chunk: TrackingCandidate[];
   window: TrackingCandidate[];
   fullPendingIds: ReadonlySet<string>;
   totalCandidates: number;
   config: TrackingPipelineConfig;
+  flowSnapshot: FlowMapSnapshot;
 };
 
 export type TrackingRunnerArtifact = {

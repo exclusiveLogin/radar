@@ -319,10 +319,13 @@ export {
   resolveDaemonBatchSize,
   NEXTGEN_RECOMMENDED_BATCH_SIZE,
   TRACKING_RESET_TRUNCATE_SQL,
+  restartTrackingDrainTx,
   withTrackingL1Transaction,
   withTrackingL1ReadRetry,
+  type TrackingDrainRestart,
   type TrackingPgQueryFn,
   H3VectorFlowMap,
+  type FlowMapSnapshot,
   type NextGenSeedTrack,
   registerObservedFlows,
   registerNodeMasses,
@@ -351,6 +354,14 @@ export {
   type TrackingStepManifestEntry,
   type TrackingStepManifest,
   DEFAULT_TRACKING_STEP_MANIFEST,
+  DEFAULT_TRACKING_STROBE_MAX_WINDOW_MS,
+  belongsToTrackingStrobe,
+  compareTrackingCandidates,
+  createTrackingStrobeBounds,
+  isTrackingStrobeReady,
+  resolveTrackingPipelineConfig,
+  type TrackingStrobeBounds,
+  type TrackingStrobeConfig,
 } from "./domain/tracking";
 export {
   createWorkbook,
@@ -556,6 +567,11 @@ export type {
   DeploymentTransport,
   DeploymentManifest,
 } from "./deployment/deploymentManifest";
+export {
+  loadTrackingPipelineManifest,
+  DEFAULT_TRACKING_PIPELINE_MANIFEST,
+  type TrackingPipelineManifest,
+} from "./manifest/domains/trackingPipeline.loader";
 export type {
   IEventTransport,
   TransportDelivery,

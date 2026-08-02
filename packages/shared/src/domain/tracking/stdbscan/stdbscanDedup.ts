@@ -14,6 +14,7 @@
  * ---
  */
 import { observationCovarianceMeters } from "../observationCovariance";
+import { compareTrackingCandidates } from "../strobePolicy";
 import type { TrackingCandidate } from "../types";
 import {
   findStdbscanNeighbors,
@@ -131,7 +132,11 @@ function selectWinner(
   for (const i of indices) {
     const c = candidates[i];
     const { sigmaLatM } = observationCovarianceMeters(c.precision, c.trust);
-    if (sigmaLatM < bestSigma) {
+    if (
+      sigmaLatM < bestSigma
+      || (sigmaLatM === bestSigma
+        && compareTrackingCandidates(c, candidates[bestIdx]!) < 0)
+    ) {
       bestSigma = sigmaLatM;
       bestIdx = i;
     }

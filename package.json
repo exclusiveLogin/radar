@@ -27,7 +27,7 @@
     "docker:prod:down": "docker compose -f docker-compose.yml -f docker-compose.prod.yml --profile prod down",
     "docker:prod:assets-check": "node scripts/docker-runtime-assets-check.mjs --profile prod",
     "docker:prepare": "npm run dev:prepare",
-    "docker:dev": "npm run dev:prepare && docker compose -f docker-compose.yml -f docker-compose.app.yml --profile app up --build",
+    "docker:dev": "npm run dev:prepare && docker compose -f docker-compose.yml -f docker-compose.app.yml --profile app --profile obs up --build",
     "tiles:download": "node scripts/tiles/download-osm.mjs",
     "tiles:merge": "node scripts/tiles/merge-osm.mjs",
     "tiles:build": "node scripts/tiles/build-tiles.mjs",

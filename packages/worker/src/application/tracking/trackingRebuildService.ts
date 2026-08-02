@@ -22,6 +22,7 @@ import {
   canEnterAttention,
   DEFAULT_SEED_WEIGHTS,
   H3VectorFlowMap,
+  type FlowMapSnapshot,
   type SeedWeights,
   type ProfileKinematics,
   type TrackingCandidate,
@@ -35,7 +36,6 @@ import {
   withTrackingL1Transaction,
 } from "@radar/shared";
 import {
-  loadTrackingCandidates,
   markPipelineCandidatesConsumedTx,
   isTrackingPipelineEnabled,
 } from "./loadTrackingCandidates.js";
@@ -44,92 +44,18 @@ import {
   type TrackingOpenTrackSeed,
 } from "../../infrastructure/tracking/trackingTracksReadRepository.js";
 import {
-  writeTracks,
   writeTracksL1,
   type BuiltTracks,
 } from "../../infrastructure/tracking/trackingTracksWriteRepository.js";
 import { buildTracksViaNextGenPipeline, type TrackingClusterStepStats } from "./pipeline/index.js";
-import { randomUUID } from "crypto";
-
-type RebuildOptions = {
-  since: Date;
-  until: Date;
-  rebuildGen?: string;
-  /** false — dry-run, не сохраняет. */
-  persist?: boolean;
-  /** Конфиг пайплайна: оверрайды кинематики, веса потока, NextGen-параметры. */
-  config?: TrackingPipelineConfig;
-};
-
-type RebuildResult = {
-  tracksCount: number;
-  nodesCount: number;
-  collapsedByDedup: number;
-  elapsedMs: number;
-};
-
-/**
- * Полный rebuild L1-треков за период [since, until].
- *
- * V1: полная перестройка (truncate + insert).
- * V2: инкрементальный rebuild с watermark.
- */
-export async function runTrackingRebuild(
-  ds: DataSource,
-  opts: RebuildOptions,
-): Promise<RebuildResult> {
-  const startMs = Date.now();
-  const { since, until, persist = true } = opts;
-  const rebuildGen = opts.rebuildGen ?? randomUUID();
-
-  // 1. Загружаем все кандидаты за период (full rebuild — без consumed guard)
-  const allCandidates = await loadTrackingCandidates(ds, { since, until, excludeConsumed: false });
-
-  // 2. Дедупликация per-profile (collapse или magnet)
-  const byProfile = groupByProfile(allCandidates);
-  const allDeduped: TrackingCandidate[] = [];
-  let collapsedByDedup = 0;
-  const seedWeights = resolveSeedWeights(opts.config);
-  const gravityIndex = resolvePlaceGravityForRebuild(allCandidates, opts.config, seedWeights);
-
-  for (const [profile, candidates] of Object.entries(byProfile)) {
-    const result = runClusteringForProfile(
-      candidates,
-      profile as ThreatProfile,
-      opts.config,
-      seedWeights,
-      gravityIndex,
-      opts.config?.reuseAcrossTracks ?? false,
-    );
-    allDeduped.push(...result.candidates);
-    collapsedByDedup += result.collapsedCount;
-  }
-
-  allDeduped.sort((a, b) => a.occurredAt.getTime() - b.occurredAt.getTime());
-
-  const builtTracks = buildTracksNextGen(allDeduped, until, opts.config);
-
-  if (persist && builtTracks.tracks.length > 0) {
-    await writeTracks(ds, builtTracks, rebuildGen, {
-      // Полная перестройка: L1 становится снимком текущего rebuild.
-      pruneByRebuildGen: true,
-    });
-  }
-
-  return {
-    tracksCount: builtTracks.tracks.length,
-    nodesCount: builtTracks.nodes.length,
-    collapsedByDedup,
-    elapsedMs: Date.now() - startMs,
-  };
-}
-
 export type IncrementalBatchResult = {
   tracksCount: number;
   nodesCount: number;
   collapsedByDedup: number;
   consumedCount: number;
   watermark: TrackingWatermark | null;
+  flowSnapshot: FlowMapSnapshot | null;
+  winnerEventLocationIds: string[];
 };
 
 export type IncrementalBatchOptions = {
@@ -144,6 +70,12 @@ export type IncrementalBatchOptions = {
   config?: TrackingPipelineConfig;
   /** Run-scoped H3-поле NextGen: батчи прогона обогащают его, ребилд обнуляет. */
   flowField?: H3VectorFlowMap;
+  /** Checkpoint принадлежит той же L1-транзакции, что tracks/nodes и consumed. */
+  checkpoint?: { runId: string; totalCandidates: number };
+  /** Ready strobe финализируется вместе с tracks/consumed/checkpoint. */
+  finalizeStrobeId?: string;
+  /** Provisional winner и FlowMap checkpoint принадлежат тому же L1 commit. */
+  checkpointStrobeId?: string;
   onProgress?: (stats: Partial<TrackingRebuildStats>) => void | Promise<void>;
 };
 
@@ -321,6 +253,8 @@ export async function runIncrementalBatch(
     id => chunkIds.has(id) || !dedupWinnerIds.has(id) || handledIds.has(id),
   );
 
+  const watermark = consumedIds.length > 0 ? computeWatermark(opts.candidates) : null;
+  const flowSnapshot = opts.flowField?.exportSnapshot() ?? null;
   let consumedCount = 0;
   if (await isTrackingPipelineEnabled(ds)) {
     await withTrackingL1Transaction(
@@ -330,13 +264,52 @@ export async function runIncrementalBatch(
           await writeTracksL1(query, built, opts.rebuildGen, { pruneByRebuildGen: false });
         }
         await markPipelineCandidatesConsumedTx(query, consumedIds);
+        if (opts.finalizeStrobeId) {
+          await query(
+            `UPDATE state_track_strobe
+             SET status = 'final', updated_at = now()
+             WHERE id = $1 AND status = 'open'`,
+            [opts.finalizeStrobeId],
+          );
+        }
+        if (opts.checkpointStrobeId) {
+          await query(
+            `UPDATE state_track_strobe
+             SET winner_event_location_ids = $1::jsonb,
+                 flow_snapshot = $2::jsonb,
+                 replay_from = NULL,
+                 updated_at = now()
+             WHERE id = $3`,
+            [
+              JSON.stringify([...dedupWinnerIds].sort()),
+              JSON.stringify(flowSnapshot ?? { vectors: {}, mass: {} }),
+              opts.checkpointStrobeId,
+            ],
+          );
+        }
+        if (watermark && opts.checkpoint) {
+          await query(
+            `UPDATE state_track_pipeline
+             SET watermark = $1::jsonb, total_candidates = $2,
+                 flow_snapshot = COALESCE($3::jsonb, flow_snapshot), updated_at = now()
+             WHERE id = 'default'`,
+            [
+              JSON.stringify(watermark),
+              opts.checkpoint.totalCandidates,
+              flowSnapshot ? JSON.stringify(flowSnapshot) : null,
+            ],
+          );
+          await query(
+            `UPDATE job_track_rebuild SET checkpoint = $1::jsonb WHERE id = $2`,
+            [JSON.stringify(watermark), opts.checkpoint.runId],
+          );
+        }
       },
       { maxAttempts: 8, baseDelayMs: 150 },
     );
     consumedCount = consumedIds.length;
   }
 
-  const watermark = consumedCount > 0 ? computeWatermark(opts.candidates) : null;
   await emitProgress(opts.onProgress, {
     stage: "idle",
     stdbscanClusters,
@@ -359,6 +332,8 @@ export async function runIncrementalBatch(
     collapsedByDedup,
     consumedCount,
     watermark,
+    flowSnapshot,
+    winnerEventLocationIds: [...dedupWinnerIds].sort(),
   };
 }
 
@@ -460,8 +435,7 @@ function pickProfileSeeds(
       (a, b) =>
         (b.nodes[b.nodes.length - 1]?.occurredAt.getTime() ?? 0)
         - (a.nodes[a.nodes.length - 1]?.occurredAt.getTime() ?? 0),
-    )
-    .slice(0, NEXTGEN_MAX_OPEN_TRACKS);
+    );
 }
 
 /** Собранный трек до финального пересчёта метаданных (status/firstAt/lastAt/…). */
@@ -507,9 +481,6 @@ function computeWatermark(candidates: TrackingCandidate[]): TrackingWatermark | 
     lastEventLocationId: last.eventLocationId,
   };
 }
-
-/** Макс. open-треков из БД для NextGen join за тик (остальные — следующие батчи). */
-const NEXTGEN_MAX_OPEN_TRACKS = 400;
 
 type NextGenBuildProgress = {
   nextgenCluster: TrackingClusterStepStats;
@@ -569,27 +540,6 @@ function buildTracksNextGenForProfile(
       step3RejectKalmanInnovation: built.step3.rejectKalmanInnovation,
     },
   };
-}
-
-/** Full-rebuild вариант: без seed-треков из БД (полная перестройка с нуля). */
-function buildTracksNextGen(
-  candidates: TrackingCandidate[],
-  rebuildAt: Date,
-  config?: TrackingPipelineConfig,
-): BuiltTracks {
-  const byProfile = groupByProfile(candidates.filter(canEnterAttention));
-  const drafts: TrackNodesDraft[] = [];
-  const flowMap = new H3VectorFlowMap(config?.nextgen?.h3Resolution ?? 8);
-
-  for (const profile of Object.keys(byProfile) as ThreatProfile[]) {
-    const kin = resolveProfileKinematics(profile, config?.profiles);
-    const built = buildTracksViaNextGenPipeline(byProfile[profile]!, kin, profile, config ?? ({} as TrackingPipelineConfig), flowMap);
-    for (const t of built.tracks) {
-      drafts.push({ id: t.id, nodes: t.nodes ?? [], profile, totalDistanceM: t.totalDistanceM });
-    }
-  }
-
-  return finalizeTracks(drafts, rebuildAt);
 }
 
 /** Группирует кандидатов по профилю угрозы для независимого dedup/pipeline прогона. */

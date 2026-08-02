@@ -4,14 +4,13 @@ import {
   DEFAULT_TRACKING_STEP_MANIFEST,
   resolveTrackingPipelineStatus,
   TRACKING_PIPELINE_NOT_PROCESSED_SQL,
-  TRACKING_PERSIST_ADVISORY_LOCK_KEY,
-  TRACKING_RESET_TRUNCATE_SQL,
   maxEpsilonTemporalMs,
   resolveDaemonBatchSize,
   withTrackingL1Transaction,
   withTrackingL1ReadRetry,
-  isPgContendedL1ResetError,
-  trackingPipelineConfigSchema,
+  resolveTrackingPipelineConfig,
+  restartTrackingDrainTx,
+  loadTrackingPipelineManifest,
   trackingStatusResponseSchema,
   trackingTargetEventTypesSqlIn,
   withPgContendedReadRetry,
@@ -24,9 +23,9 @@ import {
 import type { DataSource } from "typeorm";
 import { randomUUID } from "crypto";
 import { TrackingL1ResetGate } from "../tracking/tracking-l1-reset.gate";
+import { MONOREPO_ROOT } from "../monorepo-root.js";
 import type {
   TrackingAdminCommandPort,
-  TrackingRebuildMode,
 } from "../application/tracking-admin/tracking-admin-commands";
 import {
   pgTimestampToIso,
@@ -39,6 +38,8 @@ type PipelineRow = {
   config: TrackingPipelineConfig;
   active_run_id: string | null;
   total_candidates: string | null;
+  config_revision: string;
+  applied_config_revision: string;
 };
 
 type RunRow = {
@@ -56,7 +57,7 @@ type RunRow = {
   error: string | null;
 };
 
-const DEFAULT_CONFIG = trackingPipelineConfigSchema.parse({});
+const TRACKING_PIPELINE_BASELINE = loadTrackingPipelineManifest({ repoRoot: MONOREPO_ROOT });
 const EVENT_AT_SQL = "COALESCE(el.occurred_at, rm.posted_at, pe.parsed_at)";
 
 const NOT_PROCESSED_SQL = TRACKING_PIPELINE_NOT_PROCESSED_SQL;
@@ -71,15 +72,18 @@ export class TrackingAdminQueryService implements TrackingAdminCommandPort {
 
   async getStatus(): Promise<TrackingStatusResponse> {
     const [state] = await this.ds.query<PipelineRow[]>(
-      `SELECT enabled, watermark, config, active_run_id, total_candidates
+      `SELECT enabled, watermark, config, active_run_id, total_candidates,
+              config_revision, applied_config_revision
        FROM state_track_pipeline WHERE id = 'default'`,
     );
     const pipeline = state ?? {
       enabled: false,
       watermark: {},
-      config: DEFAULT_CONFIG,
+      config: TRACKING_PIPELINE_BASELINE,
       active_run_id: null,
       total_candidates: null,
+      config_revision: "0",
+      applied_config_revision: "0",
     };
 
     const runId = pipeline.active_run_id ?? null;
@@ -150,6 +154,7 @@ export class TrackingAdminQueryService implements TrackingAdminCommandPort {
       percentApprox,
       metrics,
       config,
+      rebuildRequired: pipeline.config_revision !== pipeline.applied_config_revision,
       stepManifest: DEFAULT_TRACKING_STEP_MANIFEST,
     });
   }
@@ -196,8 +201,13 @@ export class TrackingAdminQueryService implements TrackingAdminCommandPort {
 
   async saveConfig(next: TrackingPipelineConfig): Promise<void> {
     await this.ds.query(
-      `UPDATE state_track_pipeline SET config = $1::jsonb, updated_at = now() WHERE id = 'default'`,
-      [JSON.stringify(next)],
+      `UPDATE state_track_pipeline
+       SET config = $1::jsonb, config_revision = config_revision + 1, updated_at = now()
+       WHERE id = 'default'`,
+      [JSON.stringify(configOverridePatch(
+        TRACKING_PIPELINE_BASELINE as unknown as Record<string, unknown>,
+        next as unknown as Record<string, unknown>,
+      ))],
     );
   }
 
@@ -219,13 +229,26 @@ export class TrackingAdminQueryService implements TrackingAdminCommandPort {
     return state?.enabled === true;
   }
 
-  async resetPipeline(): Promise<void> {
-    await this.resetInternal();
+  /** API использует тот же atomic reset/start контракт, что CLI и worker job. */
+  async restartTrackingDrain(): Promise<{ id: string }> {
+    const restart = {
+      id: randomUUID(),
+      rebuildGen: randomUUID(),
+      startedAt: new Date().toISOString(),
+    };
+    await withTrackingL1Transaction(
+      fn => this.ds.transaction(async em => fn((sql, params) => em.query(sql, params))),
+      query => restartTrackingDrainTx(query, restart),
+    );
+    return { id: restart.id };
   }
 
   async activateRun(runId: string): Promise<void> {
     await this.ds.query(
-      `UPDATE state_track_pipeline SET active_run_id = $1, enabled = true, updated_at = now() WHERE id = 'default'`,
+      `UPDATE state_track_pipeline
+       SET active_run_id = $1, enabled = true,
+           applied_config_revision = config_revision, updated_at = now()
+       WHERE id = 'default'`,
       [runId],
     );
   }
@@ -254,166 +277,8 @@ export class TrackingAdminQueryService implements TrackingAdminCommandPort {
     );
   }
 
-  // ─────────────────────────────────────────────────────────────────────────
-
-  private async resetInternal(): Promise<void> {
-    await this.runL1Reset(async () => {
-      await this.cancelActiveRuns();
-      await this.ds.query(
-        `UPDATE state_track_pipeline
-         SET enabled = false, active_run_id = NULL, updated_at = now()
-         WHERE id = 'default'`,
-      );
-      await this.waitTrackingMutationsIdle(45_000);
-      await this.waitL1ReadsIdle(8_000);
-      await this.terminateL1WriteBlockers();
-      await sleepMs(300);
-      await this.truncateTracksQueueInternal();
-    });
-  }
-
-  /** Блокируем map read L1; после reset — resume (даже при ошибке). */
-  private async runL1Reset(body: () => Promise<void>): Promise<void> {
-    this.l1ResetGate.pause();
-    try {
-      await body();
-    } finally {
-      this.l1ResetGate.resume();
-    }
-  }
-
-  /** Ждём завершения in-flight L1 WRITE (read-локи COUNT игнорируем). */
-  private async waitTrackingMutationsIdle(maxMs = 30_000): Promise<void> {
-    const stepMs = 250;
-    for (let waited = 0; waited < maxMs; waited += stepMs) {
-      const [row] = await this.ds.query<{ count: string }[]>(
-        `
-        SELECT COUNT(*)::text AS count
-        FROM pg_locks l
-        JOIN pg_class c ON c.oid = l.relation
-        WHERE c.relname IN ('mat_track', 'mat_track_node', 'state_track_consumed')
-          AND l.granted
-          AND l.mode IN ('RowExclusiveLock', 'ShareLock', 'ShareRowExclusiveLock',
-                         'ExclusiveLock', 'AccessExclusiveLock')
-          AND l.pid <> pg_backend_pid()
-        `,
-      );
-      if (Number(row?.count ?? 0) === 0) return;
-      await sleepMs(stepMs);
-    }
-  }
-
-  /** Ждём завершения in-flight map SELECT (AccessShareLock). */
-  private async waitL1ReadsIdle(maxMs = 8_000): Promise<void> {
-    const stepMs = 200;
-    for (let waited = 0; waited < maxMs; waited += stepMs) {
-      const [row] = await this.ds.query<{ count: string }[]>(
-        `
-        SELECT COUNT(*)::text AS count
-        FROM pg_locks l
-        JOIN pg_class c ON c.oid = l.relation
-        WHERE c.relname IN ('mat_track', 'mat_track_node', 'state_track_consumed')
-          AND l.granted
-          AND l.mode = 'AccessShareLock'
-          AND l.pid <> pg_backend_pid()
-        `,
-      );
-      if (Number(row?.count ?? 0) === 0) return;
-      await sleepMs(stepMs);
-    }
-  }
-
-  /**
-   * Отменяем активные SELECT по L1 — соединение пула живёт, lock снимается.
-   * Не используем pg_terminate_backend: иначе падают ingest/admin на том же пуле.
-   */
-  private async cancelL1ReadBlockers(): Promise<void> {
-    await this.ds.query(
-      `
-      SELECT pg_cancel_backend(s.pid)
-      FROM (
-        SELECT DISTINCT l.pid
-        FROM pg_locks l
-        JOIN pg_class c ON c.oid = l.relation
-        WHERE l.pid <> pg_backend_pid()
-          AND l.granted
-          AND c.relname IN ('mat_track', 'mat_track_node', 'state_track_consumed')
-          AND l.mode = 'AccessShareLock'
-      ) s
-      `,
-    );
-  }
-
-  /** Worker persist / L1 WRITE — terminate допустим (переподключится). */
-  private async terminateL1WriteBlockers(): Promise<void> {
-    await this.ds.query(
-      `
-      SELECT pg_terminate_backend(s.pid)
-      FROM (
-        SELECT DISTINCT l.pid
-        FROM pg_locks l
-        LEFT JOIN pg_class c ON c.oid = l.relation
-        WHERE l.pid <> pg_backend_pid()
-          AND l.granted
-          AND (
-            (l.locktype = 'advisory' AND l.objid = $1)
-            OR (
-              c.relname IN ('mat_track', 'mat_track_node', 'state_track_consumed')
-              AND l.mode IN ('RowExclusiveLock', 'ShareLock', 'ShareRowExclusiveLock',
-                             'ExclusiveLock', 'AccessExclusiveLock')
-            )
-          )
-      ) s
-      `,
-      [TRACKING_PERSIST_ADVISORY_LOCK_KEY],
-    );
-  }
-
-  /** Общий сброс очереди assign: TRUNCATE + watermark {} под xact advisory lock. */
-  private async truncateTracksQueueInternal(): Promise<void> {
-    const lockTimeoutMs = 30_000;
-    let lastError: unknown;
-    for (let attempt = 1; attempt <= 8; attempt++) {
-      try {
-        await withTrackingL1Transaction(
-          fn => this.ds.transaction(async em => fn((sql, params) => em.query(sql, params))),
-          async query => {
-            await query(TRACKING_RESET_TRUNCATE_SQL);
-            await query(
-              `UPDATE state_track_pipeline
-               SET watermark = '{}'::jsonb, updated_at = now()
-               WHERE id = 'default'`,
-            );
-          },
-          { maxAttempts: 3, baseDelayMs: 200, lockTimeoutMs },
-        );
-        return;
-      } catch (error) {
-        lastError = error;
-        if (!isPgContendedL1ResetError(error)) {
-          throw error;
-        }
-        await this.cancelL1ReadBlockers();
-        await this.terminateL1WriteBlockers();
-        await sleepMs(500 * attempt);
-      }
-    }
-    throw lastError instanceof Error
-      ? lastError
-      : new Error("truncate L1: не удалось получить lock после terminate");
-  }
-
-  private async cancelActiveRuns(): Promise<void> {
-    await this.ds.query(
-      `UPDATE job_track_rebuild
-       SET status = 'cancelled', finished_at = now(),
-           control = COALESCE(control, '{}'::jsonb) || '{"cancel":true}'::jsonb
-       WHERE status IN ('running', 'paused')`,
-    );
-  }
-
   async createRun(
-    mode: "incremental" | TrackingRebuildMode,
+    mode: "incremental" | "full_rebuild",
   ): Promise<string> {
     const id = randomUUID();
     const rebuildGen = randomUUID();
@@ -705,7 +570,29 @@ function isWatermark(value: unknown): value is TrackingWatermark {
 }
 
 function mergeConfig(raw: unknown): TrackingPipelineConfig {
-  return trackingPipelineConfigSchema.parse({ ...DEFAULT_CONFIG, ...(raw as object) });
+  return resolveTrackingPipelineConfig(TRACKING_PIPELINE_BASELINE, raw);
+}
+
+/** Храним только отличия UI от manifest/env baseline. */
+function configOverridePatch(
+  baseline: Record<string, unknown>,
+  resolved: Record<string, unknown>,
+): Record<string, unknown> {
+  const patch: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(resolved)) {
+    const base = baseline[key];
+    if (isRecord(value) && isRecord(base)) {
+      const nested = configOverridePatch(base, value);
+      if (Object.keys(nested).length > 0) patch[key] = nested;
+      continue;
+    }
+    if (JSON.stringify(value) !== JSON.stringify(base)) patch[key] = value;
+  }
+  return patch;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function mapRunRow(row: RunRow): TrackingRebuildRun {
@@ -724,6 +611,3 @@ function mapRunRow(row: RunRow): TrackingRebuildRun {
   };
 }
 
-function sleepMs(ms: number): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}

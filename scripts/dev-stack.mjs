@@ -2,7 +2,7 @@
 /**
  * Host dev-стек: infra → prepare → concurrently (shared/api/web + workers).
  * --app-only: без workers.
- * --llm / --llm-ui: дополнительно ollama (+ open-webui).
+ * --obs / --llm / --llm-ui: дополнительно observability / ollama (+ open-webui).
  * --no-infra: не трогать Docker (если infra уже поднята).
  */
 import { loadDeploymentManifest } from '@radar/shared/deployment/deploymentManifest.loader.js';
@@ -21,6 +21,7 @@ const appOnly = argv.includes('--app-only');
 const noInfra = argv.includes('--no-infra');
 const prepareArgs = argv.includes('--no-clean') ? ['--no-clean'] : [];
 const infraArgs = [
+  ...(argv.includes('--obs') ? ['--obs'] : []),
   ...(argv.includes('--llm') ? ['--llm'] : []),
   ...(argv.includes('--llm-ui') ? ['--llm-ui'] : []),
 ];
@@ -74,7 +75,7 @@ async function main() {
   }
   run('node', ['scripts/dev-stack-prepare.mjs', ...prepareArgs]);
   console.log('\n\x1b[32mЗапуск процессов (web и workers после /api/ready)\x1b[0m');
-  console.log('\x1b[90mТолько UI: npm run dev:app | без Docker: --no-infra | LLM: --llm\x1b[0m\n');
+  console.log('\x1b[90mТолько UI: npm run dev:app | без Docker: --no-infra | наблюдаемость: --obs | LLM: --llm\x1b[0m\n');
   spawnConcurrently();
 }
 

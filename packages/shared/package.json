@@ -17,6 +17,10 @@
       "types": "./dist/manifest/domains/workerRuntime.loader.d.ts",
       "default": "./dist/manifest/domains/workerRuntime.loader.js"
     },
+    "./manifest/domains/trackingPipeline.loader.js": {
+      "types": "./dist/manifest/domains/trackingPipeline.loader.d.ts",
+      "default": "./dist/manifest/domains/trackingPipeline.loader.js"
+    },
     "./manifest/domains/geoEnrichers.loader.js": {
       "types": "./dist/manifest/domains/geoEnrichers.loader.d.ts",
       "default": "./dist/manifest/domains/geoEnrichers.loader.js"

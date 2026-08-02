@@ -6,8 +6,8 @@ import { adminApi } from "../../shared/api/adminApi";
 import { refreshTrackingStatus, trackingStatus$ } from "../../shared/state/adminStore";
 import { reportAppError } from "../../shared/state/appLogStore";
 
-/** Master-контроль пайплайна треков: ВКЛ/ВЫКЛ, pause/resume, rebuild, reset. */
-type PendingAction = "enabled" | "config" | "pause" | "resume" | "rebuild" | "soft" | "reset";
+/** Master-контроль пайплайна треков: ВКЛ/ВЫКЛ, pause/resume и rebuild. */
+type PendingAction = "enabled" | "config" | "pause" | "resume" | "rebuild";
 
 const CLIENT_TIMEOUT_MS = 90_000;
 
@@ -181,7 +181,7 @@ export function TrackingPipelineWidget() {
         </Field>
         <Button
           variant="ghost"
-          disabled={controlsLocked}
+          disabled={controlsLocked || !status?.rebuildRequired}
           onClick={() =>
             void run("config", async () => {
               const n = Number(batchSize);
@@ -236,6 +236,11 @@ export function TrackingPipelineWidget() {
           Ошибка run: {status.lastRun.error}
         </p>
       )}
+      {status?.rebuildRequired && (
+        <p style={{ fontSize: 11, color: "var(--warning)", marginTop: 6 }}>
+          Настройки изменены. Нажмите «Перестроить», чтобы применить их к текущим трекам.
+        </p>
+      )}
       <div style={{ display: "flex", gap: 6, marginTop: 10, flexWrap: "wrap" }}>
         <Button variant="ghost" disabled={controlsLocked || !canPause} onClick={() => void run("pause", () => adminApi.trackingPause())}>
           Pause
@@ -247,37 +252,11 @@ export function TrackingPipelineWidget() {
           variant="ghost"
           disabled={controlsLocked}
           onClick={() => {
-            if (!window.confirm("Full rebuild: truncate + catch-up?")) return;
+            if (!window.confirm("Перестроить tracking: очистить derived state и запустить bounded drain?")) return;
             void run("rebuild", () => adminApi.trackingRebuild());
           }}
         >
-          Rebuild
-        </Button>
-        <Button
-          variant="ghost"
-          disabled={controlsLocked}
-          onClick={() => {
-            if (
-              !window.confirm(
-                "Soft rebuild: удалить треки и заново прогнать те же точки с текущим config (веса не сбрасываются)?",
-              )
-            ) {
-              return;
-            }
-            void run("soft", () => adminApi.trackingSoftRebuild());
-          }}
-        >
-          Soft rebuild
-        </Button>
-        <Button
-          variant="danger"
-          disabled={controlsLocked}
-          onClick={() => {
-            if (!window.confirm("Reset watermark и truncate треков?")) return;
-            void run("reset", () => adminApi.trackingReset());
-          }}
-        >
-          Reset
+          Перестроить
         </Button>
       </div>
     </Panel>

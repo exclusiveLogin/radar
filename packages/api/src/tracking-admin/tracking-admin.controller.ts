@@ -11,7 +11,6 @@ import { ApiOperation, ApiTags } from "@nestjs/swagger";
 import {
   ControlTrackingRunUseCase,
   PatchTrackingConfigUseCase,
-  ResetTrackingPipelineUseCase,
   SetTrackingEnabledUseCase,
   StartTrackingRebuildUseCase,
   TrackingAdminCommandError,
@@ -26,7 +25,6 @@ export class TrackingAdminController {
     private readonly patchConfigCommand: PatchTrackingConfigUseCase,
     private readonly setEnabledCommand: SetTrackingEnabledUseCase,
     private readonly rebuildCommand: StartTrackingRebuildUseCase,
-    private readonly resetCommand: ResetTrackingPipelineUseCase,
     private readonly controlRunCommand: ControlTrackingRunUseCase,
   ) {}
 
@@ -60,18 +58,7 @@ export class TrackingAdminController {
 
   @Post("rebuild")
   rebuild() {
-    return this.execute(() => this.rebuildCommand.execute("full_rebuild"));
-  }
-
-  @Post("soft-rebuild")
-  @ApiOperation({ summary: "Пересборка треков с текущим config (без сброса весов)" })
-  softRebuild() {
-    return this.execute(() => this.rebuildCommand.execute("soft_rebuild"));
-  }
-
-  @Post("reset")
-  reset() {
-    return this.execute(() => this.resetCommand.execute());
+    return this.execute(() => this.rebuildCommand.execute());
   }
 
   @Post("pause")

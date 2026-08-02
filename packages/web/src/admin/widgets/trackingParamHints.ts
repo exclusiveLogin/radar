@@ -34,6 +34,8 @@ export const TRACKING_PARAM_HINTS = {
     "NextGen: сколько нод делают цепочку сплошной магистралью. Короче — пунктир-сателлит. Ниже порог — больше сплошных трасс.",
   clusteringMode:
     "Collapse — один winner на облако. Magnet — веса облака в cost без удаления точек.",
+  strobeMaxWindow:
+    "Окно считается от первой точки incident-strobe и не расширяется следующими событиями. Размер batch влияет только на I/O.",
   magnetWMag:
     "Сила магнетизма ST-DBSCAN в cost линковки. Высокое → притяжение к winner-облакам.",
   magnetWFlow:

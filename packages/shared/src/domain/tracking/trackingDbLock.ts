@@ -31,6 +31,12 @@ export type TrackingL1TransactionRunner = <T>(
   fn: (query: TrackingPgQueryFn) => Promise<T>,
 ) => Promise<T>;
 
+export type TrackingDrainRestart = {
+  id: string;
+  rebuildGen: string;
+  startedAt: string;
+};
+
 /**
  * Одна транзакция: pg_advisory_xact_lock → mutate L1.
  * API reset/rebuild и worker persist — только через это.
@@ -68,4 +74,43 @@ export { isPgDeadlockError, isPgLockNotAvailableError };
  * consumed без FK на mat_parse_location — не блокируем OLTP при INSERT/TRUNCATE.
  */
 export const TRACKING_RESET_TRUNCATE_SQL =
-  `TRUNCATE TABLE state_track_consumed, mat_track_node, mat_track RESTART IDENTITY CASCADE`;
+  `TRUNCATE TABLE state_track_strobe_member, state_track_strobe,
+   state_track_consumed, mat_track_node, mat_track RESTART IDENTITY CASCADE`;
+
+/**
+ * Единый атомарный контракт rebuild: отменяет старые run, инвалидирует derived L1
+ * и создаёт новый bounded drain в той же транзакции.
+ */
+export async function restartTrackingDrainTx(
+  query: TrackingPgQueryFn,
+  restart: TrackingDrainRestart,
+): Promise<void> {
+  await query(
+    `UPDATE job_track_rebuild
+     SET status = 'cancelled', finished_at = now(),
+         control = COALESCE(control, '{}'::jsonb) || '{"cancel":true}'::jsonb
+     WHERE status IN ('running', 'paused')`,
+  );
+  await query(TRACKING_RESET_TRUNCATE_SQL);
+  await query(
+    `UPDATE state_track_pipeline
+     SET watermark = '{}'::jsonb,
+         flow_snapshot = '{"vectors":{},"mass":{}}'::jsonb,
+         active_run_id = $1, enabled = true,
+         applied_config_revision = config_revision, updated_at = now()
+     WHERE id = 'default'`,
+    [restart.id],
+  );
+  await query(
+    `INSERT INTO job_track_rebuild
+     (id, status, mode, since, until, rebuild_gen, stats, started_at)
+     VALUES ($1, 'running', 'full_rebuild', $2, $3, $4, $5::jsonb, $3)`,
+    [
+      restart.id,
+      new Date(0).toISOString(),
+      restart.startedAt,
+      restart.rebuildGen,
+      JSON.stringify({ stage: "loading", elapsedMs: 0 }),
+    ],
+  );
+}

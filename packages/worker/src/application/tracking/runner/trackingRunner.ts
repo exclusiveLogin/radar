@@ -15,9 +15,6 @@
 import type { DataSource } from "typeorm";
 import {
   H3VectorFlowMap,
-  maxEpsilonTemporalMs,
-  orderTrackingCandidates,
-  resolveTrackingTemporalReplay,
   resolveDaemonBatchSize,
   createWorkbook,
 } from "@radar/shared";
@@ -26,10 +23,20 @@ import {
   ensureActiveTrackingRun,
   readTrackingPipelineState,
   readTrackingRunControl,
-  resetTrackingTemporalTail,
   resetTrackingWatermark,
 } from "../../../infrastructure/tracking/trackingPipelineStateRepository.js";
-import { loadCandidateWindow, runIncrementalBatch, countTrackingPipelineRemaining } from "../trackingRebuildService.js";
+import {
+  loadPendingTrackingCandidates,
+  loadTrackingStrobeCandidates,
+} from "../loadTrackingCandidates.js";
+import { runIncrementalBatch, countTrackingPipelineRemaining } from "../trackingRebuildService.js";
+import {
+  finalizeTrackingStrobeAtomically,
+  loadDirtyTrackingStrobe,
+  loadReadyTrackingStrobes,
+  resetTrackingStrobeTail,
+  stageTrackingCandidates,
+} from "../../../infrastructure/tracking/trackingStrobeRepository.js";
 import type { JobKernelObsPort } from "../../runtime/runner-platform/jobKernel.js";
 import { createWorkload, type Workload } from "../../runtime/workload/createWorkload.js";
 import { createTrackingMaterialize } from "./trackingMaterializationPorts.js";
@@ -57,14 +64,14 @@ export function createTrackingRunner(
     options?.intervalMs ?? DEFAULT_WORKER_RUNTIME_MANIFEST.tracking.intervalMs;
   // intervalMs — для timer→RMQ снаружи (composition); workload сам только event.
   void intervalMs;
-  const flowFieldByRun = new Map<string, H3VectorFlowMap>();
   const telemetryBridge = createTrackingTelemetryBridge();
 
-  function acquireFlowField(runId: string, h3Resolution: number): H3VectorFlowMap {
-    const existing = flowFieldByRun.get(runId);
-    if (existing) return existing;
+  function restoreFlowField(
+    h3Resolution: number,
+    snapshot: ReturnType<H3VectorFlowMap["exportSnapshot"]>,
+  ): H3VectorFlowMap {
     const field = new H3VectorFlowMap(h3Resolution);
-    flowFieldByRun.set(runId, field);
+    field.loadSnapshot(snapshot);
     return field;
   }
 
@@ -81,7 +88,15 @@ export function createTrackingRunner(
       }
 
       try {
-        const flowField = acquireFlowField(slice.run.id, slice.config.nextgen?.h3Resolution ?? 8);
+        if (slice.finalizeOnly) {
+          await finalizeTrackingStrobeAtomically(ds, slice.strobeId);
+          return {
+            artifact: { runId: slice.run.id, result: null, stats: { stage: "idle" } },
+            nextCursor: await readTrackingPipelineState(ds),
+          };
+        }
+
+        const flowField = restoreFlowField(slice.config.nextgen?.h3Resolution ?? 8, slice.flowSnapshot);
         let lastStats: Parameters<NonNullable<Parameters<typeof runIncrementalBatch>[1]["onProgress"]>>[0] = {};
         const result = await runIncrementalBatch(ds, {
           candidates: slice.chunk,
@@ -90,6 +105,8 @@ export function createTrackingRunner(
           rebuildGen: slice.run.rebuildGen,
           config: slice.config,
           flowField,
+          checkpoint: { runId: slice.run.id, totalCandidates: slice.totalCandidates },
+          checkpointStrobeId: slice.strobeId,
           onProgress: async (stats) => {
             lastStats = stats;
             obs?.onLiveMetrics?.(stats as Record<string, unknown>);
@@ -98,8 +115,6 @@ export function createTrackingRunner(
 
         const remaining = await countTrackingPipelineRemaining(ds, { until: new Date() });
         const isDone = remaining === 0;
-        if (isDone) flowFieldByRun.delete(slice.run.id);
-
         const stats = {
           ...lastStats,
           stage: isDone ? ("done" as const) : ("idle" as const),
@@ -112,7 +127,6 @@ export function createTrackingRunner(
           nextCursor: await readTrackingPipelineState(ds),
         };
       } catch (error) {
-        flowFieldByRun.delete(slice.run.id);
         const message = error instanceof Error ? error.message : String(error);
         throw new Error(`tracking runner batch failed (run=${slice.run.id}): ${message}`, { cause: error });
       }
@@ -124,43 +138,46 @@ export function createTrackingRunner(
     if (!state.enabled) return { slice: EMPTY_SLICE, isEmpty: true };
 
     const until = new Date();
-    const lookbackMs = maxEpsilonTemporalMs(state.config.profiles);
-    let { pending, window } = await loadCandidateWindow(ds, { until, lookbackMs });
-    const replay = resolveTrackingTemporalReplay(pending, state.watermark, state.config.profiles);
-    if (replay) {
-      await resetTrackingTemporalTail(ds, replay.since);
-      flowFieldByRun.clear();
-      ({ pending, window } = await loadCandidateWindow(ds, { until, lookbackMs }));
+    const batchSize = resolveDaemonBatchSize(state.config.batchSize);
+    const pending = await loadPendingTrackingCandidates(ds, {
+      until,
+      limit: batchSize,
+    });
+    await stageTrackingCandidates(ds, pending, state.config);
+    let currentState = state;
+    let strobe = await loadDirtyTrackingStrobe(ds);
+    if (strobe) {
+      await resetTrackingStrobeTail(ds, strobe);
+      currentState = await readTrackingPipelineState(ds);
+      strobe = await loadDirtyTrackingStrobe(ds);
     }
 
-    const run = await ensureActiveTrackingRun(ds, state, pending.length > 0);
+    const ready = await loadReadyTrackingStrobes(ds, until);
+    const finalizable = strobe == null ? ready[0] : null;
+    const selected = strobe ?? finalizable;
+    const run = await ensureActiveTrackingRun(ds, currentState, selected != null);
     if (!run) return { slice: EMPTY_SLICE, isEmpty: true };
 
-    if (pending.length === 0) {
-      const remaining = await countTrackingPipelineRemaining(ds, { until });
-      await createTrackingMaterialize(ds)({
-        runId: run.id,
-        result: null,
-        stats: { stage: "done", pendingCandidates: remaining },
-      });
+    if (!selected) {
       return { slice: EMPTY_SLICE, isEmpty: true };
     }
 
     const control = await readTrackingRunControl(ds, run.id);
     if (control?.pause || control?.cancel) return { slice: EMPTY_SLICE, isEmpty: true };
 
-    const batchSize = resolveDaemonBatchSize(state.config.batchSize);
-    // Wake только будит workload; порядок решений всегда определяется event-time.
-    const chunk = orderTrackingCandidates(pending).slice(0, batchSize);
+    const members = finalizable ? [] : await loadTrackingStrobeCandidates(ds, selected.id);
     const totalCandidates = await countTrackingPipelineRemaining(ds, { until });
 
     const slice: TrackingRunnerSlice = {
       run,
-      chunk,
-      window,
-      fullPendingIds: new Set(pending.map((c) => c.eventLocationId)),
+      strobeId: selected.id,
+      finalizeOnly: finalizable != null,
+      chunk: members,
+      window: members,
+      fullPendingIds: new Set(members.map((c) => c.eventLocationId)),
       totalCandidates,
-      config: state.config,
+      config: currentState.config,
+      flowSnapshot: currentState.flowSnapshot,
     };
     return { slice, isEmpty: false };
   }
@@ -192,9 +209,12 @@ export function createTrackingRunner(
 
 const EMPTY_SLICE: TrackingRunnerSlice = {
   run: { id: "", rebuildGen: "", startedAt: "" },
+  strobeId: "",
+  finalizeOnly: false,
   chunk: [],
   window: [],
   fullPendingIds: new Set(),
   totalCandidates: 0,
   config: {} as TrackingRunnerSlice["config"],
+  flowSnapshot: { vectors: {}, mass: {} },
 };

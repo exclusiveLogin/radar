@@ -3,7 +3,6 @@ import {
   type TrackingPipelineConfig,
 } from "@radar/shared";
 
-export type TrackingRebuildMode = "full_rebuild" | "soft_rebuild";
 export type TrackingRunControl = "pause" | "resume" | "cancel";
 
 /** Порт записи состояния tracking без привязки к Nest или TypeORM. */
@@ -13,10 +12,10 @@ export interface TrackingAdminCommandPort {
   countUnconsumedPipeline(): Promise<number>;
   findControllableRunId(): Promise<string | null>;
   isPipelineEnabled(): Promise<boolean>;
-  createRun(mode: "incremental" | TrackingRebuildMode): Promise<string>;
+  createRun(mode: "incremental" | "full_rebuild"): Promise<string>;
   activateRun(runId: string): Promise<void>;
+  restartTrackingDrain(): Promise<{ id: string }>;
   setPipelineEnabled(enabled: boolean): Promise<void>;
-  resetPipeline(): Promise<void>;
   getRunStatus(runId: string): Promise<string | null>;
   setRunPaused(runId: string, paused: boolean): Promise<void>;
   cancelRun(runId: string): Promise<void>;
@@ -35,6 +34,9 @@ export class PatchTrackingConfigUseCase {
     const next = trackingPipelineConfigSchema.parse({
       ...current,
       ...patch,
+      strobe: patch.strobe ? { ...current.strobe, ...patch.strobe } : current.strobe,
+      nextgen: patch.nextgen ? { ...current.nextgen, ...patch.nextgen } : current.nextgen,
+      magnet: patch.magnet ? { ...current.magnet, ...patch.magnet } : current.magnet,
       profiles: patch.profiles
         ? mergeProfileOverrides(current.profiles, patch.profiles)
         : current.profiles,
@@ -62,30 +64,13 @@ export class SetTrackingEnabledUseCase {
   }
 }
 
-/** Запускает полную или мягкую пересборку после общего сброса L1. */
+/** Инвалидирует derived state и запускает единый bounded drain. */
 export class StartTrackingRebuildUseCase {
   constructor(private readonly port: TrackingAdminCommandPort) {}
 
-  async execute(mode: TrackingRebuildMode): Promise<{ ok: true; runId: string }> {
-    await this.port.resetPipeline();
-    try {
-      const runId = await this.port.createRun(mode);
-      await this.port.activateRun(runId);
-      return { ok: true, runId };
-    } catch (error) {
-      await this.port.setPipelineEnabled(true);
-      throw error;
-    }
-  }
-}
-
-/** Сбрасывает L1 и очередь tracking без создания нового run. */
-export class ResetTrackingPipelineUseCase {
-  constructor(private readonly port: TrackingAdminCommandPort) {}
-
-  async execute(): Promise<{ ok: true }> {
-    await this.port.resetPipeline();
-    return { ok: true };
+  async execute(): Promise<{ ok: true; runId: string }> {
+    const run = await this.port.restartTrackingDrain();
+    return { ok: true, runId: run.id };
   }
 }
 

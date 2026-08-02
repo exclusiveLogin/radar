@@ -112,6 +112,7 @@ services:
     image: prom/prometheus:v3.2.1
     container_name: radar-prometheus
     restart: unless-stopped
+    profiles: ["obs"]
     ports:
       - "${PROMETHEUS_PORT:-9090}:9090"
     volumes:
@@ -135,6 +136,7 @@ services:
     image: ghcr.io/google/cadvisor:v0.60.5
     container_name: radar-cadvisor
     restart: unless-stopped
+    profiles: ["obs"]
     privileged: true
     command:
       - --docker_only=true
@@ -158,6 +160,7 @@ services:
     image: ghcr.io/gladioluss/docker_healthcheck_exporter:1.0.1
     container_name: radar-docker-health-exporter
     restart: unless-stopped
+    profiles: ["obs"]
     environment:
       LISTEN: 0.0.0.0:9102
       REFRESH_INTERVAL_SECONDS: 5
@@ -170,6 +173,7 @@ services:
     image: quay.io/prometheuscommunity/postgres-exporter:v0.20.1
     container_name: radar-postgres-exporter
     restart: unless-stopped
+    profiles: ["obs"]
     environment:
       DATA_SOURCE_NAME: postgresql://${POSTGRES_USER:-radar}:${POSTGRES_PASSWORD:-radar}@db:5432/${POSTGRES_DB:-radar}?sslmode=disable
     networks:
@@ -188,6 +192,7 @@ services:
     image: quay.io/prometheus/node-exporter:v1.12.1
     container_name: radar-node-exporter
     restart: unless-stopped
+    profiles: ["obs"]
     command:
       - --path.rootfs=/host
     volumes:
@@ -205,6 +210,7 @@ services:
     image: grafana/grafana:11.5.2
     container_name: radar-grafana
     restart: unless-stopped
+    profiles: ["obs"]
     environment:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-radar_grafana}

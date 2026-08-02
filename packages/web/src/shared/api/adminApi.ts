@@ -226,13 +226,6 @@ export const adminApi = {
   trackingRebuild: (): Promise<{ ok: true; runId: string }> =>
     postJson("/api/admin/tracking/rebuild", undefined, z.object({ ok: z.literal(true), runId: z.string().uuid() })),
 
-  trackingSoftRebuild: (): Promise<{ ok: true; runId: string }> =>
-    postJson(
-      "/api/admin/tracking/soft-rebuild",
-      undefined,
-      z.object({ ok: z.literal(true), runId: z.string().uuid() }),
-    ),
-
   trackingReset: (): Promise<{ ok: true }> =>
     postJson("/api/admin/tracking/reset", undefined, z.object({ ok: z.literal(true) })),
 

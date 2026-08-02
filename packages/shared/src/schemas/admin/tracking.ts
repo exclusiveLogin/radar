@@ -9,6 +9,7 @@
  */
 import { z } from "zod";
 import { threatProfileSchema } from "../map/tracks";
+import { DEFAULT_TRACKING_STROBE_MAX_WINDOW_MS } from "../../domain/tracking/strobePolicy";
 
 export const trackingStepIdSchema = z.enum([
   "cluster",
@@ -149,7 +150,7 @@ export const trackingPipelineMetricsSchema = z.object({
 export const trackingRebuildRunSchema = z.object({
   id: z.string().uuid(),
   status: z.enum(["running", "paused", "done", "failed", "cancelled"]),
-  mode: z.enum(["incremental", "full_rebuild", "soft_rebuild"]),
+  mode: z.enum(["incremental", "full_rebuild"]),
   startedAt: z.string().datetime(),
   finishedAt: z.string().datetime().nullable(),
   since: z.string().datetime(),
@@ -161,8 +162,16 @@ export const trackingRebuildRunSchema = z.object({
 });
 
 export const trackingPipelineConfigSchema = z.object({
-  /** Точек за тик daemon (assign/persist). ST-DBSCAN closure — вся очередь + якоря. */
+  /** Точек, читаемых и назначаемых за один bounded tick. */
   batchSize: z.number().int().min(10).max(20000).default(500),
+  /**
+   * Фиксированный event-time предел incident-strobe от его первой точки.
+   * ε ST-DBSCAN определяет соседство, strobe запрещает бесконечную транзитивную цепочку.
+   */
+  strobe: z.object({
+    maxWindowMs: z.number().int().min(60_000).max(24 * 60 * 60 * 1000)
+      .default(DEFAULT_TRACKING_STROBE_MAX_WINDOW_MS),
+  }).default({}),
   daemonIntervalMs: z.number().int().min(5000).max(300000).optional(),
   seedMin: z.number().min(0).max(5).default(0.45),
   /** Seed только если front_distance_km ≤ порога (км от фронта). */
@@ -289,6 +298,8 @@ export const trackingStatusResponseSchema = z.object({
   percentApprox: z.number().min(0).max(100),
   metrics: trackingPipelineMetricsSchema,
   config: trackingPipelineConfigSchema,
+  /** Сохранённые параметры отличаются от revision, которым построен текущий state. */
+  rebuildRequired: z.boolean().default(false),
   /** Состав steps pipeline (SSOT: @radar/shared DEFAULT_TRACKING_STEP_MANIFEST). */
   stepManifest: z.array(trackingStepManifestEntrySchema),
 });

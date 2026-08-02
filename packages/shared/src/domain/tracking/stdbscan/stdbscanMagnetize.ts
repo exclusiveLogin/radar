@@ -11,6 +11,7 @@ import { computeSeedScore, DEFAULT_SEED_WEIGHTS, type SeedWeights } from "../poi
 import type { PlaceGravityIndex } from "../flow/placeGravityIndex";
 import { EMPTY_PLACE_GRAVITY_INDEX } from "../flow/placeGravityIndex";
 import type { TrackingCandidate } from "../types";
+import { compareTrackingCandidates } from "../strobePolicy";
 import {
   findStdbscanNeighbors,
   type StdbscanClusterParams,
@@ -158,7 +159,11 @@ function selectWinnerBySeedScore(
   let bestScore = -Infinity;
   for (const i of indices) {
     const score = computeSeedScore(candidates[i]!, seedWeights);
-    if (score > bestScore) {
+    if (
+      score > bestScore
+      || (score === bestScore
+        && compareTrackingCandidates(candidates[i]!, candidates[bestIdx]!) < 0)
+    ) {
       bestScore = score;
       bestIdx = i;
     }

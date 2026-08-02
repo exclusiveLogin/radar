@@ -8,12 +8,12 @@
  *   npm run tracking:enable -w @radar/worker -- --on
  */
 import { MONOREPO_ROOT } from "@repo/root";
-import { trackingPipelineConfigSchema, TRACKING_RESET_TRUNCATE_SQL } from "@radar/shared";
+import { TRACKING_RESET_TRUNCATE_SQL } from "@radar/shared";
 import { createWorkerCompositionRoot } from "../application/createWorkerCompositionRoot.js";
 import {
   countTrackingCandidates,
-  runTrackingRebuild,
 } from "../application/tracking/trackingRebuildService.js";
+import { restartTrackingDrain } from "../infrastructure/tracking/trackingPipelineStateRepository.js";
 import { loadRootEnv } from "../infrastructure/config/loadRootEnv.js";
 import { cliWorkerRuntime } from "./cliWorkerRuntime.js";
 import { hasAnyFlag, parseLongFlagsMap } from "./workerCliArgs.js";
@@ -67,29 +67,16 @@ async function cmdStatus(): Promise<void> {
 
 async function cmdRebuild(flags: ReturnType<typeof parseLongFlagsMap>): Promise<void> {
   const dryRun = hasAnyFlag(flags, ["dry-run", "dryRun"]);
-  const sinceRaw = flags.get("since");
-  const untilRaw = flags.get("until");
-  const until = untilRaw && typeof untilRaw === "string" ? new Date(untilRaw) : new Date();
-  const since =
-    sinceRaw && typeof sinceRaw === "string"
-      ? new Date(sinceRaw)
-      : new Date(until.getTime() - 24 * 60 * 60 * 1000);
 
   if (dryRun) {
-    console.log(`[dry-run] rebuild since=${since.toISOString()} until=${until.toISOString()}`);
+    console.log(`[dry-run] ${TRACKING_RESET_TRUNCATE_SQL} → incremental tracking drain`);
     return;
   }
 
   const { ds, shutdown } = await openDb();
   try {
-    // Конфиг пайплайна (flow gate, веса, оверрайды профилей) — из состояния БД.
-    const [state] = await ds.query<{ config: unknown }[]>(
-      `SELECT config FROM state_track_pipeline WHERE id = 'default'`,
-    );
-    const config = trackingPipelineConfigSchema.parse(state?.config ?? {});
-    console.log(`[tracking:rebuild] since=${since.toISOString()} until=${until.toISOString()}`);
-    const result = await runTrackingRebuild(ds, { since, until, config });
-    console.log("[tracking:rebuild] готово:", result);
+    const run = await restartTrackingDrain(ds);
+    console.log(`[tracking:rebuild] run=${run.id}; worker продолжит обычный incremental drain`);
   } finally {
     await shutdown?.();
   }
@@ -116,10 +103,11 @@ async function cmdReset(flags: ReturnType<typeof parseLongFlagsMap>): Promise<vo
     );
     await ds.query(TRACKING_RESET_TRUNCATE_SQL);
     const watermarkReset = resetKinematics
-      ? `SET watermark = '{}'::jsonb, active_run_id = NULL,
+      ? `SET watermark = '{}'::jsonb, flow_snapshot = '{"vectors":{},"mass":{}}'::jsonb, active_run_id = NULL,
          config = jsonb_set(COALESCE(config, '{}'::jsonb), '{profiles}', '{}'::jsonb),
          updated_at = now()`
-      : `SET watermark = '{}'::jsonb, active_run_id = NULL, updated_at = now()`;
+      : `SET watermark = '{}'::jsonb, flow_snapshot = '{"vectors":{},"mass":{}}'::jsonb,
+         active_run_id = NULL, updated_at = now()`;
     await ds.query(
       `UPDATE state_track_pipeline ${watermarkReset} WHERE id = 'default'`,
     );

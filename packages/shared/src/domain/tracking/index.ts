@@ -165,15 +165,27 @@ export type {
 
 export { TRACKING_PIPELINE_NOT_PROCESSED_SQL } from "./pipelineProcessedSql";
 export {
+  DEFAULT_TRACKING_STROBE_MAX_WINDOW_MS,
+  belongsToTrackingStrobe,
+  compareTrackingCandidates,
+  createTrackingStrobeBounds,
+  isTrackingStrobeReady,
+  type TrackingStrobeBounds,
+  type TrackingStrobeConfig,
+} from "./strobePolicy";
+export { resolveTrackingPipelineConfig } from "./resolveTrackingPipelineConfig";
+export {
   TRACKING_PERSIST_ADVISORY_LOCK_KEY,
   TRACKING_DAEMON_MAX_BATCH_SIZE,
   resolveDaemonBatchSize,
   NEXTGEN_RECOMMENDED_BATCH_SIZE,
   TRACKING_RESET_TRUNCATE_SQL,
+  restartTrackingDrainTx,
   withTrackingL1Transaction,
   withTrackingL1ReadRetry,
   isPgDeadlockError,
   isPgLockNotAvailableError,
+  type TrackingDrainRestart,
   type TrackingPgQueryFn,
   type TrackingL1TransactionRunner,
 } from "./trackingDbLock";

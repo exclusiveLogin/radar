@@ -12,17 +12,23 @@
 import { randomUUID } from "node:crypto";
 import type { DataSource } from "typeorm";
 import {
-  trackingPipelineConfigSchema,
+  resolveTrackingPipelineConfig,
+  loadTrackingPipelineManifest,
+  restartTrackingDrainTx,
+  withTrackingL1Transaction,
   type TrackingPipelineConfig,
   type TrackingRebuildStats,
   type TrackingWatermark,
+  type FlowMapSnapshot,
 } from "@radar/shared";
+import { MONOREPO_ROOT } from "@repo/root";
 
 export type TrackingPipelineState = {
   enabled: boolean;
   watermark: TrackingWatermark | Record<string, never>;
   config: TrackingPipelineConfig;
   activeRunId: string | null;
+  flowSnapshot: FlowMapSnapshot;
 };
 
 export type TrackingRunControl = { pause?: boolean; cancel?: boolean };
@@ -36,16 +42,21 @@ export async function readTrackingPipelineState(ds: DataSource): Promise<Trackin
       watermark: unknown;
       config: unknown;
       active_run_id: string | null;
+      flow_snapshot: FlowMapSnapshot | null;
     }[]
   >(
-    `SELECT enabled, watermark, config, active_run_id
+    `SELECT enabled, watermark, config, active_run_id, flow_snapshot
      FROM state_track_pipeline WHERE id = 'default'`,
   );
   return {
     enabled: row?.enabled ?? false,
     watermark: (row?.watermark as TrackingWatermark | undefined) ?? {},
-    config: trackingPipelineConfigSchema.parse(row?.config ?? {}),
+    config: resolveTrackingPipelineConfig(
+      loadTrackingPipelineManifest({ repoRoot: MONOREPO_ROOT }),
+      row?.config ?? {},
+    ),
     activeRunId: row?.active_run_id ?? null,
+    flowSnapshot: row?.flow_snapshot ?? { vectors: {}, mass: {} },
   };
 }
 
@@ -121,12 +132,14 @@ export async function advanceTrackingWatermark(
   watermark: TrackingWatermark,
   runId: string,
   totalCandidates: number,
+  flowSnapshot?: FlowMapSnapshot,
 ): Promise<void> {
   await ds.query(
     `UPDATE state_track_pipeline
-     SET watermark = $1::jsonb, total_candidates = $2, updated_at = now()
+     SET watermark = $1::jsonb, total_candidates = $2,
+         flow_snapshot = COALESCE($3::jsonb, flow_snapshot), updated_at = now()
      WHERE id = 'default'`,
-    [JSON.stringify(watermark), totalCandidates],
+    [JSON.stringify(watermark), totalCandidates, flowSnapshot ? JSON.stringify(flowSnapshot) : null],
   );
   await ds.query(`UPDATE job_track_rebuild SET checkpoint = $1::jsonb WHERE id = $2`, [
     JSON.stringify(watermark),
@@ -172,8 +185,27 @@ export async function failTrackingRun(
 /** Каскадный сброс: watermark к началу, без re-enqueue и без перетасовки очереди. */
 export async function resetTrackingWatermark(ds: DataSource): Promise<void> {
   await ds.query(
-    `UPDATE state_track_pipeline SET watermark = '{}'::jsonb, updated_at = now() WHERE id = 'default'`,
+    `UPDATE state_track_pipeline
+     SET watermark = '{}'::jsonb, flow_snapshot = '{"vectors":{},"mass":{}}'::jsonb, updated_at = now()
+     WHERE id = 'default'`,
   );
+}
+
+/**
+ * Единый старт rebuild: инвалидирует L1 и оставляет всю source-очередь pending.
+ * Дальше её обрабатывает обычный bounded runner, без отдельного full-array алгоритма.
+ */
+export async function restartTrackingDrain(ds: DataSource): Promise<TrackingActiveRun> {
+  const id = randomUUID();
+  const rebuildGen = randomUUID();
+  const startedAt = new Date().toISOString();
+
+  await withTrackingL1Transaction(
+    fn => ds.transaction(async em => fn((sql, params) => em.query(sql, params))),
+    query => restartTrackingDrainTx(query, { id, rebuildGen, startedAt }),
+  );
+
+  return { id, rebuildGen, startedAt };
 }
 
 /**
@@ -198,8 +230,13 @@ export async function resetTrackingTemporalTail(ds: DataSource, since: Date): Pr
       [boundary],
     );
     await manager.query(
+      `DELETE FROM state_track_strobe
+       WHERE first_at >= $1 OR closes_at >= $1`,
+      [boundary],
+    );
+    await manager.query(
       `UPDATE state_track_pipeline
-       SET watermark = '{}'::jsonb, updated_at = now()
+       SET watermark = '{}'::jsonb, flow_snapshot = '{"vectors":{},"mass":{}}'::jsonb, updated_at = now()
        WHERE id = 'default'`,
     );
   });

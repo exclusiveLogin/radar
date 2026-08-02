@@ -4,6 +4,7 @@ import { trackingPipelineConfigSchema } from "@radar/shared";
 import {
   ControlTrackingRunUseCase,
   SetTrackingEnabledUseCase,
+  StartTrackingRebuildUseCase,
   TrackingAdminCommandError,
   type TrackingAdminCommandPort,
 } from "./tracking-admin-commands.js";
@@ -17,8 +18,8 @@ function fakePort(overrides: Partial<TrackingAdminCommandPort> = {}): TrackingAd
     isPipelineEnabled: async () => true,
     createRun: async () => "run-1",
     activateRun: async () => undefined,
+  restartTrackingDrain: async () => ({ id: "run-rebuild" }),
     setPipelineEnabled: async () => undefined,
-    resetPipeline: async () => undefined,
     getRunStatus: async () => null,
     setRunPaused: async () => undefined,
     cancelRun: async () => undefined,
@@ -43,6 +44,15 @@ test("enabling tracking starts an incremental run only for pending work", async 
 
   assert.deepEqual(result, { ok: true, enabled: true });
   assert.deepEqual(calls, ["create", "activate:run-2"]);
+});
+
+test("rebuild uses one atomic drain command", async () => {
+  const useCase = new StartTrackingRebuildUseCase(fakePort({
+    restartTrackingDrain: async () => ({ id: "run-atomic" }),
+  }));
+
+  await assert.doesNotReject(() => useCase.execute());
+  assert.deepEqual(await useCase.execute(), { ok: true, runId: "run-atomic" });
 });
 
 test("pause rejects a disabled pipeline without creating a run", async () => {
