@@ -6,7 +6,12 @@ import { ChannelStatsWidget } from "./widgets/ChannelStatsWidget";
 import { ChannelStatusWidget } from "./widgets/ChannelStatusWidget";
 import { ParsePipelineWidget } from "./widgets/ParsePipelineWidget";
 import { PhasesWidget } from "./widgets/PhasesWidget";
-import { MessagesStatsWidget } from "./widgets/MessagesStatsWidget";
+import { OverviewPipelineWidget } from "./widgets/OverviewPipelineWidget";
+import { OverviewIngestKpiWidget } from "./widgets/OverviewIngestKpiWidget";
+import { OverviewParseKpiWidget } from "./widgets/OverviewParseKpiWidget";
+import { OverviewInfraKpiWidget } from "./widgets/OverviewInfraKpiWidget";
+import { OverviewPhaseCoverageWidget } from "./widgets/OverviewPhaseCoverageWidget";
+import { OverviewGeoEnrichmentWidget } from "./widgets/OverviewGeoEnrichmentWidget";
 import { ParseErrorsWidget } from "./widgets/ParseErrorsWidget";
 import { TelemetryWidget } from "./widgets/TelemetryWidget";
 import { WorkerRunnersWidget } from "./widgets/WorkerRunnersWidget";
@@ -32,13 +37,20 @@ export type AdminLayoutSection = {
 };
 
 /**
- * Секции админки: сверху KPI, центр — обогащение + health, ниже ingest/backfill/ops.
+ * Секции админки (= табы): обзор KPI, обогащение, ingest, backfill, треки, runners, ops.
  */
 export const ADMIN_LAYOUT_SECTIONS: AdminLayoutSection[] = [
   {
     id: "overview",
-    title: "Система",
-    widgets: [{ id: "messages-stats", component: MessagesStatsWidget, span: 12 }],
+    title: "Обзор",
+    widgets: [
+      { id: "overview-pipeline", component: OverviewPipelineWidget, span: 12 },
+      { id: "overview-ingest-kpi", component: OverviewIngestKpiWidget, span: 4 },
+      { id: "overview-parse-kpi", component: OverviewParseKpiWidget, span: 4 },
+      { id: "overview-infra-kpi", component: OverviewInfraKpiWidget, span: 4 },
+      { id: "overview-phase-coverage", component: OverviewPhaseCoverageWidget, span: 12 },
+      { id: "overview-geo-enrichment", component: OverviewGeoEnrichmentWidget, span: 12 },
+    ],
   },
   {
     id: "enrichment",

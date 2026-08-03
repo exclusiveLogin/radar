@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useState } from "react";
 import type { GeoEnrichmentCounts, PhaseCoverageCounts, StatsOverview } from "@radar/shared";
 import { Button } from "../../shared/ds";
 import { adminApi } from "../../shared/api/adminApi";
@@ -272,15 +272,6 @@ export function PipelineStrip({ stats }: { stats: StatsOverview }) {
           </div>
         </div>
       ))}
-    </div>
-  );
-}
-
-export function KpiSection({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <div className="admin-dashboard-kpi">
-      <h3 className="admin-dashboard-kpi__title">{title}</h3>
-      <div className="ds-stat-grid">{children}</div>
     </div>
   );
 }

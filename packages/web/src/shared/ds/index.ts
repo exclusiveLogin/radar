@@ -2,6 +2,8 @@ export { Panel } from "./Panel";
 export { Badge } from "./Badge";
 export { Accordion } from "./Accordion";
 export type { AccordionItem } from "./Accordion";
+export { Tabs } from "./Tabs";
+export type { TabItem } from "./Tabs";
 export { StatTile } from "./StatTile";
 export { Donut } from "./Donut";
 export type { DonutSegment } from "./Donut";
