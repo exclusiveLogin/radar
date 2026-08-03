@@ -17,6 +17,7 @@ export {
 export {
   parsePipelineJobKindSchema,
   parsePipelineJobStatusSchema,
+  parsePipelinePhaseSchema,
   parsePipelineStatusResponseSchema,
   parsePipelineStartResponseSchema,
 } from "./parse-pipeline";
@@ -66,6 +67,7 @@ export type {
 export type {
   ParsePipelineJobKind,
   ParsePipelineJobStatus,
+  ParsePipelinePhase,
   ParsePipelineStatusResponse,
   ParsePipelineStartResponse,
 } from "./parse-pipeline";

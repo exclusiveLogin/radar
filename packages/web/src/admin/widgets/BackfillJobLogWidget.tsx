@@ -18,7 +18,9 @@ function outcomeText(row: ParseAttemptItem): string {
   if (row.outcomeLabel) return row.outcomeLabel;
   if (row.status === "ok") return "—";
   const reason = row.errors?.reason;
-  return typeof reason === "string" ? reason : "—";
+  if (typeof reason === "string" && reason.trim()) return reason;
+  const message = row.errors?.message;
+  return typeof message === "string" && message.trim() ? message : "—";
 }
 
 /** Лог парсинга: все каналы (не фильтруется picker'ом). Parse только на insert, не на dup. */

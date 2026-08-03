@@ -6,6 +6,7 @@ import { AdminModule } from "./admin/admin.module";
 import { HealthModule } from "./health/health.module";
 import { IngestAdminModule } from "./ingest-admin/ingest-admin.module";
 import { PhasesAdminModule } from "./phases-admin/phases-admin.module";
+import { ParseMaintenanceModule } from "./parse-admin/parse-maintenance.module";
 import { ParsePipelineAdminModule } from "./parse-admin/parse-pipeline-admin.module";
 import { TrackingAdminModule } from "./tracking-admin/tracking-admin.module";
 import { TrackingInfraModule } from "./tracking/tracking-infra.module";
@@ -38,6 +39,7 @@ import { MetricsModule } from "./metrics/metrics.module";
     AdminModule,
     HealthModule,
     TrackingInfraModule,
+    ParseMaintenanceModule,
     IngestAdminModule,
     MapModule,
     PhasesAdminModule,

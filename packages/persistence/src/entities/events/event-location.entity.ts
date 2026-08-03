@@ -67,6 +67,10 @@ export class EventLocationEntity {
   @Column({ name: "status_code", type: "text", nullable: true })
   statusCode!: string | null;
 
+  /** Метка continuation не смешивает региональный raise с локальным clear. */
+  @Column({ type: "jsonb", nullable: true })
+  meta!: { continuation?: true } | null;
+
   @Column({ name: "occurred_at", type: "timestamptz", default: () => "now()" })
   occurredAt!: Date;
 

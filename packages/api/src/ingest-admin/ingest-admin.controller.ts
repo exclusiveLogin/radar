@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -149,8 +150,14 @@ export class IngestAdminController {
   }
 
   @Post("backfill-jobs/:id/cancel")
-  @ApiOperation({ summary: "Запросить отмену backfill-задачи" })
+  @ApiOperation({ summary: "Запросить отмену backfill-задачи (status=canceled)" })
   cancelBackfillJob(@Param("id") id: string) {
     return this.ingestAdmin.cancelBackfillJob(id);
+  }
+
+  @Delete("backfill-jobs/:id")
+  @ApiOperation({ summary: "Убрать backfill-задачу из очереди (DELETE строки)" })
+  removeBackfillJob(@Param("id") id: string) {
+    return this.ingestAdmin.removeBackfillJob(id);
   }
 }

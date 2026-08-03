@@ -199,10 +199,10 @@ export class BackfillDaemonService {
     }
   }
 
-  /** Перечитывает статус job: true, если оператор запросил отмену. */
+  /** Перечитывает статус job: true, если оператор отменил или удалил job. */
   private async isCanceled(jobId: string): Promise<boolean> {
     const fresh = await this.jobs.findById(jobId);
-    return fresh?.status === "canceled";
+    return !fresh || fresh.status === "canceled";
   }
 
   /** Пульс updated_at для всех runnable job — админка видит живую очередь. */

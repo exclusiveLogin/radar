@@ -24,6 +24,7 @@ import {
 } from "@radar/shared";
 import { GeoFeatureEntity, PlaceEntity, RegionEntity } from "@radar/persistence";
 import { StatusDictionaryEntity } from "@radar/persistence";
+import { ParseMaintenanceGate } from "../parse-admin/parse-maintenance.gate";
 import { resolvePlaceMapMarkerCoords, resolveRegionCentroid } from "./map-centroid.resolver";
 import { loadLayout } from "./layout.loader";
 import { MapFactsRepository } from "./map-facts.repository";
@@ -42,9 +43,38 @@ export class MapSnapshotQueryService {
   constructor(
     @InjectDataSource() private readonly dataSource: DataSource,
     private readonly factsRepository: MapFactsRepository,
+    private readonly parseMaintenance: ParseMaintenanceGate,
   ) {}
 
   async getRegionsStateAt(asOf: Date): Promise<MapRegionsStateResponse> {
+    return this.parseMaintenance.runRead(() => this.loadRegionsStateAt(asOf));
+  }
+
+  async getPlacesStateAt(asOf: Date, regionId?: string): Promise<MapPlacesStateResponse> {
+    return this.parseMaintenance.runRead(() => this.loadPlacesStateAt(asOf, regionId));
+  }
+
+  async getSnapshotAt(asOf: Date): Promise<MapSnapshot> {
+    return this.parseMaintenance.runRead(async () => {
+      const [regionsState, placesState, vicinityScopes] = await Promise.all([
+        this.loadRegionsStateAt(asOf),
+        this.loadPlacesStateAt(asOf),
+        this.loadVicinityScopesAt(asOf),
+      ]);
+      return {
+        generatedAt: asOf.toISOString(),
+        regions: regionsState.regions,
+        places: placesState.places,
+        vicinityScopes,
+      };
+    });
+  }
+
+  async getVicinityScopesAt(asOf: Date): Promise<MapVicinityScopeSnapshot[]> {
+    return this.parseMaintenance.runRead(() => this.loadVicinityScopesAt(asOf));
+  }
+
+  private async loadRegionsStateAt(asOf: Date): Promise<MapRegionsStateResponse> {
     const ttlMs = resolveMapStateTtlMs(process.env);
     let facts: EventLocationFact[] = [];
     try {
@@ -60,7 +90,7 @@ export class MapSnapshotQueryService {
     };
   }
 
-  async getPlacesStateAt(asOf: Date, regionId?: string): Promise<MapPlacesStateResponse> {
+  private async loadPlacesStateAt(asOf: Date, regionId?: string): Promise<MapPlacesStateResponse> {
     const ttlMs = resolveMapStateTtlMs(process.env);
     let regionFacts: EventLocationFact[] = [];
     let placeFacts: EventLocationFact[] = [];
@@ -91,21 +121,7 @@ export class MapSnapshotQueryService {
     };
   }
 
-  async getSnapshotAt(asOf: Date): Promise<MapSnapshot> {
-    const [regionsState, placesState, vicinityScopes] = await Promise.all([
-      this.getRegionsStateAt(asOf),
-      this.getPlacesStateAt(asOf),
-      this.getVicinityScopesAt(asOf),
-    ]);
-    return {
-      generatedAt: asOf.toISOString(),
-      regions: regionsState.regions,
-      places: placesState.places,
-      vicinityScopes,
-    };
-  }
-
-  async getVicinityScopesAt(asOf: Date): Promise<MapVicinityScopeSnapshot[]> {
+  private async loadVicinityScopesAt(asOf: Date): Promise<MapVicinityScopeSnapshot[]> {
     const ttlMs = resolveMapStateTtlMs(process.env);
     let regionFacts: EventLocationFact[] = [];
     let vicinityFacts: EventLocationFact[] = [];

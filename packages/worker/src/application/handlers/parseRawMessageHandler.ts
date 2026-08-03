@@ -82,6 +82,7 @@ export class ParseRawMessageHandler {
             payload: {
               reason: result.reason,
               channelKey: raw.channelKey,
+              rawText: raw.rawText,
               rawMessageId,
               parserVersion: PARSER_VERSION,
               outcome: "skipped",
@@ -187,6 +188,7 @@ export class ParseRawMessageHandler {
           payload: {
             reason: `error:${message}`,
             channelKey: raw.channelKey,
+            rawText: raw.rawText,
             rawMessageId,
             parserVersion: PARSER_VERSION,
             outcome: "failed",

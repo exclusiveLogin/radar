@@ -215,6 +215,25 @@ export class IngestAdminService implements OnModuleInit, OnModuleDestroy {
     return this.toJobListItem(row);
   }
 
+  /**
+   * Убрать job: для pending/running сначала cancel (демон прервёт батч), затем DELETE строки.
+   * Для terminal — сразу удаление из мониторинга.
+   */
+  async removeBackfillJob(id: string): Promise<{ ok: true; removed: true }> {
+    const row = await this.deps.backfillJobs.findById(id);
+    if (!row) {
+      throw new NotFoundException(`Backfill job not found: ${id}`);
+    }
+    if (row.status === "pending" || row.status === "running") {
+      await this.deps.backfillJobs.requestCancel(id);
+    }
+    const removed = await this.deps.backfillJobs.delete(id);
+    if (!removed) {
+      throw new NotFoundException(`Backfill job not found: ${id}`);
+    }
+    return { ok: true, removed: true };
+  }
+
   /** Запрос отмены: pending/running → canceled (демон прервёт стрим). */
   async cancelBackfillJob(id: string): Promise<BackfillJobListItem> {
     const updated = await this.deps.backfillJobs.requestCancel(id);

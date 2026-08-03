@@ -28,6 +28,10 @@ export const eventLocationSchema = z.object({
   authorChannelKey: z.string().min(1).optional(),
   action: z.enum(["raise", "clear"]).optional(),
   statusCode: z.string().min(1).optional(),
+  /** Служебная причина отдельного status-fact. */
+  meta: z.object({
+    continuation: z.literal(true).optional(),
+  }).optional(),
   occurredAt: z.string().datetime().optional(),
   source: z.enum(["db", "dadata", "nominatim", "llm", "cache"]),
 });

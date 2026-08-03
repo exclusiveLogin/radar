@@ -161,6 +161,8 @@ export interface IIngestBackfillJobRepository {
   updateStatus(id: string, status: BackfillJobRecord["status"], stats?: BackfillJobRecord["stats"]): Promise<void>;
   /** Запросить отмену: pending/running → canceled (демон прервёт стрим). */
   requestCancel(id: string): Promise<BackfillJobRecord | null>;
+  /** Удалить job из очереди мониторинга (строка job_ingest_backfill). */
+  delete(id: string): Promise<boolean>;
   updateProgress(
     id: string,
     patch: { stats?: BackfillJobRecord["stats"]; params?: Record<string, unknown> },

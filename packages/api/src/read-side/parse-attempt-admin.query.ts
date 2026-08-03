@@ -19,7 +19,9 @@ type ParseAttemptSqlRow = {
 function resolveOutcomeLabel(row: ParseAttemptSqlRow): string | null {
   if (row.event_type) return row.event_type;
   const reason = row.errors?.reason;
-  return typeof reason === "string" ? reason : null;
+  if (typeof reason === "string" && reason.trim()) return reason;
+  const message = row.errors?.message;
+  return typeof message === "string" && message.trim() ? message : null;
 }
 
 /** Строка log_parse_attempt + превью raw и тип события для админ-лога. */

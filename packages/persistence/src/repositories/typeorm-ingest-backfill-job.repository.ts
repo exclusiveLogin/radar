@@ -61,6 +61,12 @@ export class TypeOrmIngestBackfillJobRepository implements IIngestBackfillJobRep
     return toBackfillJobRecord(row);
   }
 
+  /** Удаляет строку job — демон трактует отсутствие как отмену. */
+  async delete(id: string): Promise<boolean> {
+    const result = await this.dataSource.getRepository(IngestBackfillJobEntity).delete({ id });
+    return (result.affected ?? 0) > 0;
+  }
+
   async findRunnable(): Promise<BackfillJobRecord | null> {
     const rows = await this.findRunnableMany(1);
     return rows[0] ?? null;

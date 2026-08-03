@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, ServiceUnavailableException } from "@nestjs/common";
 import {
   isPgContendedReadError,
   type MapPlaceSnapshot,
@@ -57,6 +57,10 @@ export class MapFoldRealtimePoller {
     try {
       await this.tickOnce(emit);
     } catch (error) {
+      if (error instanceof ServiceUnavailableException) {
+        console.warn("[MapFoldRealtimePoller] parse maintenance — пропуск тика");
+        return;
+      }
       if (isPgContendedReadError(error)) {
         console.warn("[MapFoldRealtimePoller] read contention — пропуск тика (rebuild/heal)");
         return;

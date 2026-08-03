@@ -169,12 +169,12 @@ export function BackfillRunnerWidget() {
     }
   };
 
-  const cancel = async (id: string): Promise<void> => {
+  const remove = async (id: string): Promise<void> => {
     try {
-      await adminApi.cancelBackfillJob(id);
+      await adminApi.removeBackfillJob(id);
       await refreshBackfill();
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Не удалось отменить";
+      const msg = err instanceof Error ? err.message : "Не удалось убрать задачу";
       setError(msg);
       reportAppError("Backfill", err, msg);
     }
@@ -328,7 +328,7 @@ export function BackfillRunnerWidget() {
               key={job.id}
               job={job}
               runnableJobCount={runnableJobCount}
-              onCancel={(id) => void cancel(id)}
+              onCancel={(id) => void remove(id)}
             />
           ))}
         </div>

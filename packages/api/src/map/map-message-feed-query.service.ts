@@ -11,6 +11,7 @@ import {
   type StateLevel,
 } from "@radar/shared";
 import type { DataSource } from "typeorm";
+import { ParseMaintenanceGate } from "../parse-admin/parse-maintenance.gate";
 
 /**
  * Read-модель исходных сообщений и лент обработки.
@@ -18,21 +19,30 @@ import type { DataSource } from "typeorm";
  */
 @Injectable()
 export class MapMessageFeedQueryService {
-  constructor(@InjectDataSource() private readonly dataSource: DataSource) {}
+  constructor(
+    @InjectDataSource() private readonly dataSource: DataSource,
+    private readonly parseMaintenance: ParseMaintenanceGate,
+  ) {}
 
   /** Raw-сообщение winner-статуса региона; при statusEventAt — точный матч по occurred_at. */
   async getRegionSourceMessage(
     regionCode: string,
     options?: { statusEventAt?: string },
   ): Promise<SourceMessage | null> {
-    const atStatus = options?.statusEventAt?.trim() || null;
-    const primary = await this.queryRegionSourceMessage(regionCode, atStatus);
-    if (primary || !atStatus) return primary;
-    return this.queryRegionSourceMessage(regionCode, null);
+    return this.parseMaintenance.runRead(async () => {
+      const atStatus = options?.statusEventAt?.trim() || null;
+      const primary = await this.queryRegionSourceMessage(regionCode, atStatus);
+      if (primary || !atStatus) return primary;
+      return this.queryRegionSourceMessage(regionCode, null);
+    });
   }
 
   /** Последнее raw-сообщение, привязанное к населённому пункту. */
   async getPlaceSourceMessage(placeId: string): Promise<SourceMessage | null> {
+    return this.parseMaintenance.runRead(() => this.loadPlaceSourceMessage(placeId));
+  }
+
+  private async loadPlaceSourceMessage(placeId: string): Promise<SourceMessage | null> {
     const rows = (await this.dataSource.query(
       `WITH hit AS (
          SELECT rm.id AS raw_id, pe.id AS parsed_id, rm.raw_text, rm.posted_at, c.key AS channel_key
@@ -66,6 +76,10 @@ export class MapMessageFeedQueryService {
    * Одна строка = одно событие из одного raw, без дублей без региона.
    */
   async getRecentStateChangeEvents(limit: number): Promise<StateChangeEventItem[]> {
+    return this.parseMaintenance.runRead(() => this.loadRecentStateChangeEvents(limit));
+  }
+
+  private async loadRecentStateChangeEvents(limit: number): Promise<StateChangeEventItem[]> {
     const rows = (await this.dataSource.query(
       `SELECT pe.id AS parsed_event_id,
               rm.id AS raw_message_id,
@@ -119,8 +133,12 @@ export class MapMessageFeedQueryService {
     }));
   }
 
-  /** Последние mat_ingest_raw всех каналов — 1 строка на raw, без фильтра по parse/loc. */
+  /** Последние mat_ingest_raw всех каналов — 1 строка на raw; stats тянут mat_parse_*. */
   async getRecentMessages(limit: number): Promise<MessageFeedItem[]> {
+    return this.parseMaintenance.runRead(() => this.loadRecentMessages(limit));
+  }
+
+  private async loadRecentMessages(limit: number): Promise<MessageFeedItem[]> {
     const rows = (await this.dataSource.query(
       `SELECT rm.id,
               c.key AS channel_key,

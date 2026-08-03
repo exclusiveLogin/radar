@@ -18,6 +18,7 @@ import { StatusDictionaryEntity } from "@radar/persistence";
 import { PlaceEntity, RegionEntity } from "@radar/persistence";
 import { loadRegionAdjacency } from "./adjacency.loader";
 import type { GeoRegionRef, PlaceRef } from "./map.dto";
+import { ParseMaintenanceGate } from "../parse-admin/parse-maintenance.gate";
 import { MapGeoJsonQueryService } from "./map-geojson-query.service";
 import { MapSnapshotQueryService } from "./map-snapshot-query.service";
 
@@ -36,6 +37,7 @@ export class MapQueryService {
     @InjectDataSource() private readonly dataSource: DataSource,
     private readonly mapSnapshotQuery: MapSnapshotQueryService,
     private readonly mapGeoJsonQuery: MapGeoJsonQueryService,
+    private readonly parseMaintenance: ParseMaintenanceGate,
   ) {}
 
   getActiveDistrictsGeoJsonLayer() {
@@ -140,6 +142,12 @@ export class MapQueryService {
   async getWarnings(
     params: { regionId?: string; since?: string; limit: number },
   ): Promise<Warning[]> {
+    return this.parseMaintenance.runRead(() => this.loadWarnings(params));
+  }
+
+  private async loadWarnings(
+    params: { regionId?: string; since?: string; limit: number },
+  ): Promise<Warning[]> {
     const rows = (await this.dataSource.query(
       `
       SELECT el.region_id,
@@ -217,35 +225,37 @@ export class MapQueryService {
    * Возвращает отчёты с распарсенными данными из extras.pvo.
    */
   async getPvoReports(limit = 50, since?: string): Promise<PvoReportRow[]> {
-    const sinceClause = since ? `AND rm.posted_at > $2` : "";
-    const params: unknown[] = [limit];
-    if (since) params.push(since);
+    return this.parseMaintenance.runRead(async () => {
+      const sinceClause = since ? `AND rm.posted_at > $2` : "";
+      const params: unknown[] = [limit];
+      if (since) params.push(since);
 
-    const rows = await this.dataSource.query<RawPvoReportRow[]>(
-      `SELECT pe.id,
-              pe.extras->'pvo'        AS stats,
-              rm.raw_text,
-              rm.posted_at,
-              ch.key                  AS channel_key,
-              ch.title                AS channel_title
-         FROM mat_parse_event pe
-         JOIN mat_ingest_raw rm ON rm.id = pe.raw_message_id
-         JOIN channels ch ON ch.id = rm.channel_id
-        WHERE pe.event_type = 'pvo_report'
-          ${sinceClause}
-        ORDER BY rm.posted_at DESC
-        LIMIT $1`,
-      params,
-    );
+      const rows = await this.dataSource.query<RawPvoReportRow[]>(
+        `SELECT pe.id,
+                pe.extras->'pvo'        AS stats,
+                rm.raw_text,
+                rm.posted_at,
+                ch.key                  AS channel_key,
+                ch.title                AS channel_title
+           FROM mat_parse_event pe
+           JOIN mat_ingest_raw rm ON rm.id = pe.raw_message_id
+           JOIN channels ch ON ch.id = rm.channel_id
+          WHERE pe.event_type = 'pvo_report'
+            ${sinceClause}
+          ORDER BY rm.posted_at DESC
+          LIMIT $1`,
+        params,
+      );
 
-    return rows.map((row) => ({
-      id:           row.id,
-      postedAt:     row.posted_at,
-      channelKey:   row.channel_key,
-      channelTitle: row.channel_title,
-      rawText:      row.raw_text,
-      stats:        row.stats ?? null,
-    }));
+      return rows.map((row) => ({
+        id:           row.id,
+        postedAt:     row.posted_at,
+        channelKey:   row.channel_key,
+        channelTitle: row.channel_title,
+        rawText:      row.raw_text,
+        stats:        row.stats ?? null,
+      }));
+    });
   }
   /** Смежность регионов (ISO → соседние ISO) из adjacency.json — для read-side вычисления уровня соседей. */
   getRegionAdjacency(): Record<string, string[]> {
@@ -257,30 +267,32 @@ export class MapQueryService {
    * Используется в TopActivityWidget для рейтинга активности.
    */
   async getTopActivityRegions(limit = 10): Promise<TopActivityRow[]> {
-    const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-    const rows = (await this.dataSource.query(
-      `SELECT r.iso        AS region_code,
-              r.name,
-              COUNT(DISTINCT pe.id) AS event_count
-       FROM mat_parse_event pe
-       JOIN mat_parse_location el ON el.parsed_event_id = pe.id
-       JOIN regions r           ON r.id = el.region_id AND r.is_active = true
-       JOIN mat_ingest_raw rm     ON rm.id = pe.raw_message_id
-       JOIN status_dictionary sd ON sd.code = pe.event_type AND sd.is_active = true
-       WHERE pe.is_active = true
-         AND sd.state_level = 'red'
-         AND rm.posted_at >= $2::timestamptz
-       GROUP BY r.iso, r.name
-       ORDER BY event_count DESC
-       LIMIT $1`,
-      [limit, since],
-    )) as Array<{ region_code: string; name: string; event_count: string }>;
+    return this.parseMaintenance.runRead(async () => {
+      const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+      const rows = (await this.dataSource.query(
+        `SELECT r.iso        AS region_code,
+                r.name,
+                COUNT(DISTINCT pe.id) AS event_count
+         FROM mat_parse_event pe
+         JOIN mat_parse_location el ON el.parsed_event_id = pe.id
+         JOIN regions r           ON r.id = el.region_id AND r.is_active = true
+         JOIN mat_ingest_raw rm     ON rm.id = pe.raw_message_id
+         JOIN status_dictionary sd ON sd.code = pe.event_type AND sd.is_active = true
+         WHERE pe.is_active = true
+           AND sd.state_level = 'red'
+           AND rm.posted_at >= $2::timestamptz
+         GROUP BY r.iso, r.name
+         ORDER BY event_count DESC
+         LIMIT $1`,
+        [limit, since],
+      )) as Array<{ region_code: string; name: string; event_count: string }>;
 
-    return rows.map((row) => ({
-      regionCode: row.region_code,
-      name: row.name,
-      eventCount: Number(row.event_count),
-    }));
+      return rows.map((row) => ({
+        regionCode: row.region_code,
+        name: row.name,
+        eventCount: Number(row.event_count),
+      }));
+    });
   }
 
   /**
@@ -288,6 +300,10 @@ export class MapQueryService {
    * Используется в RegionDetailWidget для отображения хронологии.
    */
   async getRegionEvents(regionCode: string, limit = 50): Promise<StateChangeEventItem[]> {
+    return this.parseMaintenance.runRead(() => this.loadRegionEvents(regionCode, limit));
+  }
+
+  private async loadRegionEvents(regionCode: string, limit: number): Promise<StateChangeEventItem[]> {
     const rows = (await this.dataSource.query(
       `SELECT pe.id AS parsed_event_id,
               rm.id AS raw_message_id,
@@ -364,6 +380,15 @@ export class MapQueryService {
    * (@see map-centroid.resolver resolvePlaceMapCentroid).
    */
   async getEventsHeatmapGeoJson(params: {
+    period: EventHeatmapPeriod;
+    until?: Date;
+    limit?: number;
+    eventTypes?: EventType[];
+  }): Promise<EventHeatmapResponse> {
+    return this.parseMaintenance.runRead(() => this.loadEventsHeatmapGeoJson(params));
+  }
+
+  private async loadEventsHeatmapGeoJson(params: {
     period: EventHeatmapPeriod;
     until?: Date;
     limit?: number;

@@ -164,14 +164,10 @@ export async function resetTrackingStrobeTail(
       await query(
         `UPDATE state_track_pipeline
          SET watermark = '{}'::jsonb,
-             flow_snapshot = $3::jsonb,
+             flow_snapshot = $1::jsonb,
              updated_at = now()
          WHERE id = 'default'`,
-        [
-          boundary,
-          strobe.id,
-          JSON.stringify(prefix?.flow_snapshot ?? { vectors: {}, mass: {} }),
-        ],
+        [JSON.stringify(prefix?.flow_snapshot ?? { vectors: {}, mass: {} })],
       );
     },
   );

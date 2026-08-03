@@ -125,6 +125,15 @@ export const adminApi = {
       backfillJobListItemSchema,
     ),
 
+  /** Убрать job из мониторинга (для running — сначала cancel). */
+  removeBackfillJob: (id: string): Promise<{ ok: true; removed: true }> =>
+    sendJson(
+      "DELETE",
+      `/api/admin/ingest/backfill-jobs/${encodeURIComponent(id)}`,
+      undefined,
+      z.object({ ok: z.literal(true), removed: z.literal(true) }),
+    ),
+
   telemetry: (): Promise<AdminTelemetry> =>
     getJson("/api/admin/telemetry", adminTelemetrySchema),
 
@@ -241,11 +250,9 @@ export const adminApi = {
   parsePipelineGetStatus: (): Promise<ParsePipelineStatusResponse> =>
     getJson("/api/admin/parse/status", parsePipelineStatusResponseSchema),
 
-  parsePipelineReset: (): Promise<ParsePipelineStartResponse> =>
-    postJson("/api/admin/parse/reset", undefined, parsePipelineStartResponseSchema),
-
-  parsePipelineCatchUp: (): Promise<ParsePipelineStartResponse> =>
-    postJson("/api/admin/parse/catch-up", undefined, parsePipelineStartResponseSchema),
+  /** Wipe parse-слоя + enqueue catch-up (единая операция админки). */
+  parsePipelineRebuild: (): Promise<ParsePipelineStartResponse> =>
+    postJson("/api/admin/parse/rebuild", undefined, parsePipelineStartResponseSchema),
 
   workbookObservability: (): Promise<WorkbookObservabilityResponse> =>
     getJson("/api/admin/workbook/observability", workbookObservabilityResponseSchema),

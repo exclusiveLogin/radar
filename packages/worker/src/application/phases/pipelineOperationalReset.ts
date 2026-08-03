@@ -1,22 +1,40 @@
-import { truncateTableCounted } from "../archive/wipeTableSql.js";
+import { waitForTableLocksIdle } from "../archive/waitForTableLocksIdle.js";
+import {
+  truncateTableCounted,
+  WipeTableLockError,
+  type TruncateOptions,
+} from "../archive/wipeTableSql.js";
 import { MapStateFullReset } from "../map-state/mapStateFullReset.js";
 import { sortPhasesByOrder } from "./phaseOrder.js";
 import type { PhaseOperationalDeps } from "./phaseOperationalDeps.js";
 import type { OperationalSql } from "./operationalSql.port.js";
+import { withSoftTruncateRetry } from "./softTruncateRetry.js";
 import { stopAllActivePhaseRuns } from "./stopAllActivePhaseRuns.js";
 
 export const PIPELINE_RESET_REASON = "pipeline:operational-reset";
 
+const SOFT_TRUNCATE_LOCK_TIMEOUT_MS = 5_000;
+const SOFT_IDLE_WAIT_MS = 30_000;
+const PARSE_RESET_TABLES = [
+  "work_parse_message",
+  "mat_parse_event",
+  "mat_parse_location",
+  "log_parse_attempt",
+] as const;
+
 /** TRUNCATE work_parse_message + mat_parse_event (+ CASCADE). Контур rebuild/reparse. @see ../parse/parseWorkspaceRunModes.ts */
 export async function clearParseLayerArtifacts(
   sql: OperationalSql,
-  options: { forceLocks?: boolean } = {},
+  options: { forceLocks?: boolean; lockTimeoutMs?: number } = {},
 ): Promise<{
   workspacesDeleted: number;
   parsedEventsDeleted: number;
 }> {
   const forceLocks = options.forceLocks !== false;
-  const truncateOpts = { forceLocks };
+  const truncateOpts: TruncateOptions = {
+    forceLocks,
+    lockTimeoutMs: options.lockTimeoutMs,
+  };
   const workspacesDeleted = await truncateTableCounted(
     sql,
     "work_parse_message",
@@ -62,18 +80,44 @@ export async function runPipelineOperationalReset(
   input: PipelineOperationalResetInput,
 ): Promise<PipelineOperationalResetResult> {
   const { operationalSql } = input.deps;
-  const truncateOpts = { forceLocks: input.forceLocks !== false };
+  const forceLocks = input.forceLocks !== false;
+  const truncateOpts: TruncateOptions = {
+    forceLocks,
+    lockTimeoutMs: forceLocks ? undefined : SOFT_TRUNCATE_LOCK_TIMEOUT_MS,
+  };
+
+  // Сначала закрываем active runs: иначе worker держит lock на parse-таблицах при TRUNCATE.
+  const { phaseRunsClosed, processingReleased: coverageProcessingToPending } =
+    await stopAllActivePhaseRuns({
+      deps: input.deps,
+      reason: PIPELINE_RESET_REASON,
+    });
 
   const mapReset = new MapStateFullReset({
     operationalSql,
   });
   const map = await mapReset.run(new Date(), PIPELINE_RESET_REASON);
 
-  const { parsedEventsDeleted } = await clearParseLayerArtifacts(operationalSql, truncateOpts);
-  const parseAttemptsDeleted = await truncateTableCounted(
-    operationalSql,
-    "log_parse_attempt",
-    truncateOpts,
+  if (!forceLocks) {
+    // Best-effort: не валим wipe, если краткий SELECT ещё висит — дальше soft-retry TRUNCATE.
+    try {
+      await waitForTableLocksIdle(operationalSql, [...PARSE_RESET_TABLES], {
+        timeoutMs: SOFT_IDLE_WAIT_MS,
+      });
+    } catch (error) {
+      if (!(error instanceof WipeTableLockError)) throw error;
+      console.warn(
+        `[pipeline-reset] tables still locked after ${SOFT_IDLE_WAIT_MS}ms — continue soft truncate`,
+        error.message,
+      );
+    }
+  }
+
+  const { parsedEventsDeleted } = await withSoftTruncateRetry(forceLocks, () =>
+    clearParseLayerArtifacts(operationalSql, truncateOpts),
+  );
+  const parseAttemptsDeleted = await withSoftTruncateRetry(forceLocks, () =>
+    truncateTableCounted(operationalSql, "log_parse_attempt", truncateOpts),
   );
 
   const allPhaseIds = (await input.deps.phaseDefinitions.listAll()).map((p) => p.id);
@@ -81,12 +125,6 @@ export async function runPipelineOperationalReset(
     allPhaseIds.length > 0
       ? await input.deps.phaseCoverage.invalidateForPhases(allPhaseIds)
       : 0;
-
-  const { phaseRunsClosed, processingReleased: coverageProcessingToPending } =
-    await stopAllActivePhaseRuns({
-      deps: input.deps,
-      reason: PIPELINE_RESET_REASON,
-    });
 
   const catchUpByPhase: Record<string, number> = {};
   if (input.enqueueCatchUp !== false) {

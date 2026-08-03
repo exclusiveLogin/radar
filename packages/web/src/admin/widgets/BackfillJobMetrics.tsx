@@ -244,6 +244,7 @@ function resolveJobPercent(job: BackfillJobListItem): number | null {
 type Props = {
   job: BackfillJobListItem;
   runnableJobCount?: number;
+  /** Снять активный job с очереди (DELETE; демон прерывает батч). */
   onCancel?: (id: string) => void;
 };
 
@@ -252,10 +253,10 @@ export function BackfillJobMetrics({ job, runnableJobCount = 1, onCancel }: Prop
   const preflight = readPreflight(job.params);
   const { progress } = job;
   const processed = progress.inserted + progress.duplicates;
-  const cancelable = job.status === "pending" || job.status === "running";
+  const isLive = job.status === "pending" || job.status === "running";
+  const canCancel = isLive && onCancel != null;
   const percent = resolveJobPercent(job);
   const hasCheckpoint = progress.checkpointOffsetId != null;
-  const isLive = job.status === "pending" || job.status === "running";
   const showBar = isLive || percent != null || hasCheckpoint;
   const throughput = useProcessedThroughput(processed, isLive);
   const pulse = readDaemonPulse(job.updatedAt, isLive);
@@ -283,11 +284,13 @@ export function BackfillJobMetrics({ job, runnableJobCount = 1, onCancel }: Prop
   const newShare = formatShare(progress.inserted, processed);
 
   const handleCancel = (): void => {
-    if (!onCancel) return;
-    if (job.status === "running") {
-      if (!window.confirm("Прервать докачку Telegram? Checkpoint сохранится в этой задаче.")) {
-        return;
-      }
+    if (!canCancel || !onCancel) return;
+    if (
+      !window.confirm(
+        "Отменить докачку и снять задачу с очереди? Уже вставленный raw останется.",
+      )
+    ) {
+      return;
     }
     onCancel(job.id);
   };
@@ -295,10 +298,10 @@ export function BackfillJobMetrics({ job, runnableJobCount = 1, onCancel }: Prop
   const channelLabel = job.channelKey ?? "—";
   const showSlice = job.roundRobinSlice != null;
   const headerColumns = showSlice
-    ? cancelable && onCancel
+    ? canCancel
       ? "auto minmax(0, 1fr) auto auto"
       : "auto minmax(0, 1fr) auto"
-    : cancelable && onCancel
+    : canCancel
       ? "minmax(0, 1fr) auto auto"
       : "minmax(0, 1fr) auto";
 
@@ -342,8 +345,8 @@ export function BackfillJobMetrics({ job, runnableJobCount = 1, onCancel }: Prop
         >
           {job.status}
         </span>
-        {cancelable && onCancel && (
-          <Button variant="danger" onClick={handleCancel} title="Прервать докачку">
+        {canCancel && (
+          <Button variant="danger" onClick={handleCancel} title="Снять задачу с очереди backfill">
             Отменить
           </Button>
         )}

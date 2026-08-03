@@ -10,7 +10,9 @@ import type { GeoValidationService } from "../../application/parse/geoValidation
 import { applyVicinityScope } from "./applyVicinityScope.js";
 import { anchorsFromPlaceCandidates } from "./geo/filterRegionScanHits.js";
 import { deriveEventLocationsFromCandidate } from "./deriveEventLocationsFromCandidate.js";
+import { extractContinuationFact } from "./extractContinuationFact.js";
 import { listActiveCandidates } from "./parseProcessorContract.js";
+import { resolveEventTypeForCandidate } from "./resolveEventTypeForCandidate.js";
 
 function countPlaceAnchors(candidates: EventCandidate[]): number {
   return candidates.filter((c) => c.anchor.kind === "place").length;
@@ -33,40 +35,90 @@ async function enrichDraftCoords(
   return { ...draft, lat: place.centroidLat, lon: place.centroidLon };
 }
 
+/** Region facet + кандидаты той же группы (для правильного владельца при нескольких регионах). */
+type RegionFacetGroup = {
+  facet: EventLocation;
+  /** Place-кандидаты, чей place.regionId == facet.regionId, в порядке появления. */
+  ownerCandidateIds: string[];
+};
+
 /**
  * ADR-012 §8: region facet из place.region_id, если нет region-anchor в winners.
+ * Каждый facet привязан только к кандидатам своего региона — сообщение может
+ * упоминать места из нескольких регионов одновременно.
  */
-async function deriveRegionFromPlace(
+async function deriveRegionFacetGroups(
   materialized: EventCandidate[],
   regions: IRegionRepository,
   places: IPlaceRepository,
-): Promise<EventLocation[]> {
+): Promise<RegionFacetGroup[]> {
   const hasRegionAnchor = materialized.some((c) => c.anchor.kind === "region");
   if (hasRegionAnchor) return [];
 
-  const regionIds = new Set<string>();
+  const ownerCandidateIdsByRegionId = new Map<string, string[]>();
   for (const candidate of materialized) {
     if (candidate.anchor.kind !== "place" || !candidate.anchor.placeId) continue;
     const place = await places.findById(candidate.anchor.placeId);
-    if (place && place.trustState !== "rejected") regionIds.add(place.regionId);
+    if (!place || place.trustState === "rejected") continue;
+    const owners = ownerCandidateIdsByRegionId.get(place.regionId) ?? [];
+    owners.push(candidate.id);
+    ownerCandidateIdsByRegionId.set(place.regionId, owners);
   }
 
-  const derived: EventLocation[] = [];
-  for (const regionId of regionIds) {
+  const groups: RegionFacetGroup[] = [];
+  for (const [regionId, ownerCandidateIds] of ownerCandidateIdsByRegionId) {
     const region = await regions.findById(regionId);
     if (!region) continue;
-    derived.push({
-      regionId: region.id,
-      regionCode: canonicalRegionCode(region),
-      regionFias: region.fiasId,
-      placeName: region.name,
-      precision: "region",
-      entityKind: "region",
-      source: "db",
-      confidence: 0.85,
+    groups.push({
+      facet: {
+        regionId: region.id,
+        regionCode: canonicalRegionCode(region),
+        regionFias: region.fiasId,
+        placeName: region.name,
+        precision: "region",
+        entityKind: "region",
+        source: "db",
+        confidence: 0.85,
+      },
+      ownerCandidateIds,
     });
   }
-  return derived;
+  return groups;
+}
+
+/** Добавляет региональный raise «сохраняется» к одному local-clear event. */
+async function appendContinuationFact(input: {
+  workspace: ParseWorkspace;
+  candidates: EventCandidate[];
+  regions: IRegionRepository;
+  locationsByCandidateId: Record<string, EventLocation[]>;
+}): Promise<void> {
+  const continuation = extractContinuationFact(input.workspace);
+  if (!continuation) return;
+
+  const target = input.candidates.find(
+    (candidate) =>
+      resolveEventTypeForCandidate(candidate, input.workspace) === "cleared"
+      && (input.locationsByCandidateId[candidate.id]?.length ?? 0) > 0,
+  );
+  if (!target) return;
+
+  const region = await input.regions.findByCode(continuation.regionCode);
+  if (!region) return;
+
+  input.locationsByCandidateId[target.id]!.push({
+    regionId: region.id,
+    regionCode: canonicalRegionCode(region),
+    ...(region.fiasId ? { regionFias: region.fiasId } : {}),
+    placeName: region.name,
+    precision: "region",
+    entityKind: "region",
+    source: "db",
+    confidence: 1,
+    action: "raise",
+    statusCode: continuation.statusCode,
+    meta: { continuation: true },
+  });
 }
 
 /**
@@ -107,21 +159,20 @@ export async function buildMaterializedEventLocations(input: {
     }
   }
 
-  const regionFacets = await deriveRegionFromPlace(active, input.regions, input.places);
-  if (regionFacets.length > 0) {
-    const target = active.find((c) => c.anchor.kind === "place" && (result[c.id]?.length ?? 0) > 0);
-    if (target) {
-      const validatedFacets: EventLocation[] = [];
-      for (const draft of regionFacets) {
-        const decision = await input.validation.validate(rawText, draft, validationBase);
-        if (decision.decision !== "rejected" && decision.location) {
-          validatedFacets.push(decision.location);
-        }
-      }
-      if (validatedFacets.length > 0) {
-        result[target.id] = [...(result[target.id] ?? []), ...validatedFacets];
-      }
-    }
+  const nonClearCandidates = active.filter(
+    (candidate) => resolveEventTypeForCandidate(candidate, input.workspace) !== "cleared",
+  );
+  const regionFacetGroups = await deriveRegionFacetGroups(
+    nonClearCandidates,
+    input.regions,
+    input.places,
+  );
+  for (const group of regionFacetGroups) {
+    const target = group.ownerCandidateIds.find((id) => (result[id]?.length ?? 0) > 0);
+    if (!target) continue;
+    const decision = await input.validation.validate(rawText, group.facet, validationBase);
+    if (decision.decision === "rejected" || !decision.location) continue;
+    result[target] = [...(result[target] ?? []), decision.location];
   }
 
   const vicinity = await applyVicinityScope({
@@ -134,6 +185,13 @@ export async function buildMaterializedEventLocations(input: {
     const existing = result[vicinity.anchorCandidateId] ?? [];
     result[vicinity.anchorCandidateId] = [...existing, vicinity.location];
   }
+
+  await appendContinuationFact({
+    workspace: input.workspace,
+    candidates: active,
+    regions: input.regions,
+    locationsByCandidateId: result,
+  });
 
   return result;
 }
