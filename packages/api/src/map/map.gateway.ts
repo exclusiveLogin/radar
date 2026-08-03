@@ -12,6 +12,7 @@ import { MapQueryService } from "./map-query.service";
 import { MapRealtimeBroadcastService } from "./map-realtime-broadcast.service";
 import { MapFoldRealtimePoller } from "./map-fold-realtime.poller";
 import { TracksRealtimePoller } from "./tracks-realtime.poller";
+import { wsMetrics } from "../metrics/wsMetrics";
 
 const ALL_CHANNELS: WsChannel[] = ["region-state", "place-state", "warnings", "tracks"];
 
@@ -56,8 +57,12 @@ export class MapGateway
 
   async handleConnection(client: WebSocket): Promise<void> {
     this.subscriptions.set(client, new Set(ALL_CHANNELS));
+    wsMetrics.onConnect("map", this.subscriptions.size);
     client.on("message", (raw) => this.onClientMessage(client, raw));
-    client.on("close", () => this.subscriptions.delete(client));
+    client.on("close", () => {
+      this.subscriptions.delete(client);
+      wsMetrics.onDisconnect("map", this.subscriptions.size);
+    });
 
     try {
       const regionsState = await this.map.getRegionsStateAt(new Date());
@@ -87,6 +92,7 @@ export class MapGateway
   private onClientMessage(client: WebSocket, raw: RawData): void {
     const parsed = this.parseClientMessage(raw);
     if (!parsed) return;
+    wsMetrics.onInbound("map", parsed.type);
     const channels = this.subscriptions.get(client) ?? new Set<WsChannel>();
     for (const channel of parsed.channels) {
       if (parsed.type === "subscribe") channels.add(channel);
@@ -114,6 +120,7 @@ export class MapGateway
   }
 
   private send(client: WebSocket, message: WsServerMessage): void {
+    wsMetrics.onOutbound("map", channelOf(message));
     client.send(JSON.stringify(message));
   }
 }

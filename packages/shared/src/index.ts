@@ -543,6 +543,11 @@ export type {
 } from "./ports/ingest-repositories";
 export type { IObservabilityRecorder } from "./ports/observability-recorder";
 export type {
+  ITransportMetricsRecorder,
+  TransportConsumeResult,
+} from "./ports/transport-metrics";
+export { noopTransportMetricsRecorder } from "./ports/transport-metrics";
+export type {
   HostSnapshot,
   ExecutorSnapshot,
   WorkloadSnapshot,

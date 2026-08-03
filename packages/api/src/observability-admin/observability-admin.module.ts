@@ -21,6 +21,6 @@ import {
       inject: [DataSource],
     },
   ],
-  exports: [ObservabilityAdminService],
+  exports: [ObservabilityAdminService, OBS_READ_CLIENT],
 })
 export class ObservabilityAdminModule {}

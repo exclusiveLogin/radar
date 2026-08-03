@@ -1,6 +1,6 @@
 import { createServer, type Server } from "node:http";
-import { createNodeRuntimeMetrics } from "@radar/observability";
 import { workerRuntimeStatus } from "../../application/workerRuntimeStatus.js";
+import { getWorkerPrometheusMetrics } from "../metrics/workerPrometheusMetrics.js";
 
 const DEFAULT_PORT = 3010;
 
@@ -29,10 +29,7 @@ export type WorkerProbeHandle = {
 export function startWorkerProbeServer(): WorkerProbeHandle {
   const port = readProbePort();
   const host = readProbeHost();
-  const metrics = createNodeRuntimeMetrics({
-    service: "worker",
-    role: process.env.RADAR_WORKER_ROLE?.trim() || "unknown",
-  });
+  const metrics = getWorkerPrometheusMetrics();
 
   const server = createServer(async (req, res) => {
     if (req.method === "GET" && req.url === "/metrics") {

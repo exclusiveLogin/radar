@@ -2,12 +2,14 @@ import amqp, { type ConfirmChannel, type ConsumeMessage } from "amqplib";
 import {
   createCompositeTransportDedup,
   createLruTransportDedup,
+  noopTransportMetricsRecorder,
   publishConfirmed,
   rmqQueueName,
   type DeploymentTransportRmq,
   type DomainEvent,
   type IEventTransport,
   type ITransportDedup,
+  type ITransportMetricsRecorder,
   type RadarTopicRoutingKey,
   type TransportDelivery,
   type TransportEventHandler,
@@ -42,6 +44,8 @@ export type RmqEventTransportOptions = {
   dedup?: ITransportDedup;
   /** Потеря соединения фатальна: внешний runtime завершает процесс для supervisor-restart. */
   onConnectionLost?: (error: Error) => void;
+  /** Метрики consumer ack/nack/dedup_skip (default no-op). */
+  metrics?: ITransportMetricsRecorder;
 };
 
 /** RabbitMQ transport — topic exchange + per-role queues + graceful shutdown. */
@@ -60,11 +64,13 @@ export class RmqEventTransport implements IEventTransport {
   private connectionLossReported = false;
   private readonly cfg: DeploymentTransportRmq;
   private readonly onConnectionLost?: (error: Error) => void;
+  private readonly metrics: ITransportMetricsRecorder;
 
   constructor(options: RmqEventTransportOptions) {
     this.cfg = options.cfg;
     this.consumerQueueSuffix = options.consumerQueueSuffix;
     this.onConnectionLost = options.onConnectionLost;
+    this.metrics = options.metrics ?? noopTransportMetricsRecorder;
     if (options.dedup) {
       this.dedup = options.dedup;
     } else if (options.cfg.dedupTable) {
@@ -234,7 +240,7 @@ export class RmqEventTransport implements IEventTransport {
       );
       const { consumerTag } = await ch.consume(
         q,
-        (msg) => void this.onGroupMessage(key, sub.delivery, msg),
+        (msg) => void this.onGroupMessage(key, sub.routingKey, sub.delivery, msg),
         { noAck: sub.delivery === "transient" },
       );
       this.consumers.push({ groupKey: key, tag: consumerTag });
@@ -246,6 +252,7 @@ export class RmqEventTransport implements IEventTransport {
 
   private async onGroupMessage(
     groupKey: string,
+    routingKey: RadarTopicRoutingKey,
     delivery: TransportDelivery,
     msg: ConsumeMessage | null,
   ): Promise<void> {
@@ -255,6 +262,7 @@ export class RmqEventTransport implements IEventTransport {
       return;
     }
     this.inFlight += 1;
+    const started = process.hrtime.bigint();
     try {
       const parsed = JSON.parse(msg.content.toString("utf8")) as
         | { kind: "unit"; events: DomainEvent[] }
@@ -263,7 +271,10 @@ export class RmqEventTransport implements IEventTransport {
       const matching = this.subs.filter((s) => this.groupKey(s) === groupKey);
       if (parsed.kind === "unit") {
         for (const event of parsed.events) {
-          if (this.dedup && !(await this.dedup.tryClaim(`${groupKey}:${event.id}`))) continue;
+          if (this.dedup && !(await this.dedup.tryClaim(`${groupKey}:${event.id}`))) {
+            this.metrics.onConsumed(routingKey, "dedup_skip", 0);
+            continue;
+          }
           for (const sub of matching) {
             if (sub.kind !== "unit") continue;
             await (sub.handler as TransportEventHandler)(event);
@@ -276,9 +287,11 @@ export class RmqEventTransport implements IEventTransport {
         }
       }
       if (reliable) this.channel.ack(msg);
+      this.metrics.onConsumed(routingKey, "ack", elapsedMs(started));
     } catch (err) {
       console.error(`[rmq] consume failed ${groupKey}`, err);
       if (reliable) this.channel.nack(msg, false, false);
+      this.metrics.onConsumed(routingKey, "nack", elapsedMs(started));
     } finally {
       this.inFlight -= 1;
     }
@@ -303,9 +316,20 @@ export function createRmqEventTransport(
   pgDedup?: ITransportDedup,
   consumerQueueSuffix = "default",
   onConnectionLost?: (error: Error) => void,
+  metrics?: ITransportMetricsRecorder,
 ): RmqEventTransport {
   const dedup = cfg.dedupTable
     ? createCompositeTransportDedup(createLruTransportDedup(), pgDedup)
     : undefined;
-  return new RmqEventTransport({ cfg, dedup, consumerQueueSuffix, onConnectionLost });
+  return new RmqEventTransport({
+    cfg,
+    dedup,
+    consumerQueueSuffix,
+    onConnectionLost,
+    metrics,
+  });
+}
+
+function elapsedMs(started: bigint): number {
+  return Number(process.hrtime.bigint() - started) / 1e6;
 }

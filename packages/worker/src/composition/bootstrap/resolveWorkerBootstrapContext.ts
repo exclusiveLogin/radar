@@ -8,7 +8,7 @@
 import { loadDeploymentManifest } from "@radar/shared/deployment/deploymentManifest.loader.js";
 import { loadWorkerRuntimeManifest } from "@radar/shared/manifest/domains/workerRuntime.loader.js";
 import { MONOREPO_ROOT } from "@repo/root";
-import { MetricsAggregator, ParseAttemptLogger } from "../../application/subscribers/index.js";
+import { MetricsAggregator, ParseAttemptLogger, PrometheusDomainEventCounter } from "../../application/subscribers/index.js";
 import type { WorkerCompositionOptions } from "../../application/workerCompositionRoot.types.js";
 import { odpResolve } from "../odp/index.js";
 import { resolveRuntimePipelines } from "../runtime/index.js";
@@ -23,6 +23,7 @@ import {
   resolveWorkerStorageModeFromEnv,
 } from "../../infrastructure/persistence/storageMode.js";
 import { InProcessEventBus } from "../../infrastructure/events/inProcessEventBus.js";
+import { getWorkerPrometheusMetrics } from "../../infrastructure/metrics/workerPrometheusMetrics.js";
 
 /** Создаёт общие значения, используемые всеми bootstrap slices. */
 export function resolveWorkerBootstrapContext(options: WorkerCompositionOptions) {
@@ -35,8 +36,12 @@ export function resolveWorkerBootstrapContext(options: WorkerCompositionOptions)
   const workerRuntime = loadWorkerRuntimeManifest({ repoRoot: MONOREPO_ROOT });
   const bus = new InProcessEventBus();
   const metricsAggregator = new MetricsAggregator();
+  const prometheusDomainEvents = new PrometheusDomainEventCounter(
+    getWorkerPrometheusMetrics().registry,
+  );
 
   bus.subscribe("*", metricsAggregator.handler);
+  bus.subscribe("*", prometheusDomainEvents.handler);
 
   if (needsParseStack) {
     const parseAttemptLogger = new ParseAttemptLogger(workerRuntime.logging.verboseParse);

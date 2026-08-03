@@ -1,19 +1,14 @@
 import { Controller, Get, Header } from "@nestjs/common";
-import { createNodeRuntimeMetrics } from "@radar/observability";
-
-const metrics = createNodeRuntimeMetrics({
-  service: "api",
-  role: "api",
-});
+import { apiPrometheusMetrics } from "./apiPrometheusMetrics";
 
 @Controller("metrics")
 export class MetricsController {
   /**
-   * Отдаёт стандартные process/nodejs метрики API в формате Prometheus.
+   * Отдаёт process/nodejs + доменные метрики API в формате Prometheus.
    */
   @Get()
-  @Header("Content-Type", metrics.contentType)
+  @Header("Content-Type", apiPrometheusMetrics.contentType)
   snapshot(): Promise<string> {
-    return metrics.snapshot();
+    return apiPrometheusMetrics.snapshot();
   }
 }

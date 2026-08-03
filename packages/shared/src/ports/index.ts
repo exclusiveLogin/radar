@@ -92,3 +92,8 @@ export type {
 } from "./phase-repositories";
 export type { IDomainEventRepository } from "./event-repositories";
 export type { IObservabilityRecorder } from "./observability-recorder";
+export type {
+  ITransportMetricsRecorder,
+  TransportConsumeResult,
+} from "./transport-metrics";
+export { noopTransportMetricsRecorder } from "./transport-metrics";

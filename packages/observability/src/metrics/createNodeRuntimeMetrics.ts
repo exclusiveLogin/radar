@@ -3,6 +3,8 @@ import { collectDefaultMetrics, Registry } from "prom-client";
 export type NodeRuntimeMetricLabels = Readonly<Record<string, string>>;
 
 export type NodeRuntimeMetrics = {
+  /** Registry для регистрации доменных Counter/Gauge/Histogram рядом с defaults. */
+  registry: Registry;
   contentType: string;
   snapshot(): Promise<string>;
 };
@@ -19,6 +21,7 @@ export function createNodeRuntimeMetrics(
   collectDefaultMetrics({ register: registry });
 
   return {
+    registry,
     contentType: registry.contentType,
     snapshot: () => registry.metrics(),
   };

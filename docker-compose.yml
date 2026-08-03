@@ -200,7 +200,8 @@ services:
     networks:
       - radar_net
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:9100/metrics"]
+      # Не --spider на /metrics: wget рвёт соединение до конца ответа → spam broken pipe в логах.
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:9100/"]
       interval: 15s
       timeout: 5s
       retries: 5

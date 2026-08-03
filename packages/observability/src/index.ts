@@ -14,3 +14,8 @@ export {
   type NodeRuntimeMetricLabels,
   type NodeRuntimeMetrics,
 } from "./metrics/createNodeRuntimeMetrics.js";
+export {
+  createObsPrometheusCollector,
+  type ObsPrometheusCollector,
+  type ObsSnapshotProvider,
+} from "./metrics/createObsPrometheusCollector.js";

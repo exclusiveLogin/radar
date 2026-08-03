@@ -25,6 +25,7 @@ import {
   listBackfillJobsByIds,
   mapBackfillAdminRow,
 } from "../read-side/backfill-admin.query";
+import { wsMetrics } from "../metrics/wsMetrics";
 
 const ALL_CHANNELS: AdminWsChannel[] = [
   "worker-status",
@@ -127,14 +128,19 @@ export class AdminGateway
 
   handleConnection(client: WebSocket): void {
     this.subscriptions.set(client, new Set(ALL_CHANNELS));
+    wsMetrics.onConnect("admin", this.subscriptions.size);
     client.on("message", (raw) => this.onClientMessage(client, raw));
-    client.on("close", () => this.subscriptions.delete(client));
+    client.on("close", () => {
+      this.subscriptions.delete(client);
+      wsMetrics.onDisconnect("admin", this.subscriptions.size);
+    });
     void this.pollWorkerStatus();
   }
 
   private onClientMessage(client: WebSocket, raw: RawData): void {
     const parsed = this.parseClientMessage(raw);
     if (!parsed) return;
+    wsMetrics.onInbound("admin", parsed.type);
     const channels = this.subscriptions.get(client) ?? new Set<AdminWsChannel>();
     for (const channel of parsed.channels) {
       if (parsed.type === "subscribe") channels.add(channel);
@@ -267,6 +273,7 @@ export class AdminGateway
     const data = JSON.stringify(message);
     for (const [client, channels] of this.subscriptions) {
       if (client.readyState === WebSocket.OPEN && channels.has(channel)) {
+        wsMetrics.onOutbound("admin", channel);
         client.send(data);
       }
     }
