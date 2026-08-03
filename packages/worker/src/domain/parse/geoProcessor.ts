@@ -119,7 +119,11 @@ export function runGeoProcessor(input: {
           span: hit.span,
         },
         eventType: "unknown",
-        extras: hit.geoImprecise ? { geoImprecise: true } : {},
+        extras: {
+          ...(hit.geoImprecise ? { geoImprecise: true } : {}),
+          ...(hit.matchedViaAdjectiveStem ? { matchedViaAdjectiveStem: true } : {}),
+          ...(typeof hit.stemPoolSize === "number" ? { stemPoolSize: hit.stemPoolSize } : {}),
+        },
         provenance: {
           eventTypeSource: "pending",
           anchorSource: "geo-processor",

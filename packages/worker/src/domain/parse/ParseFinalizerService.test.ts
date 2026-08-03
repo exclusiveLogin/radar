@@ -174,3 +174,60 @@ test("CRDT: LLM trust 90 побеждает catalog 80 на одном mergeKey 
     assert.equal(plan.materialized[0]!.parsedEvent.eventType, "danger", order);
   }
 });
+
+test("ADR-027: geoScore ниже threshold → skip materialize + invalidIds", () => {
+  const rawMessageId = "44444444-4444-4444-4444-444444444444";
+  const bad = v2Candidate({
+    rawMessageId,
+    authorProcessorId: "geo-processor",
+    authorEnricherId: "catalog",
+    trust: 80,
+    anchorKind: "place",
+    name: "Северск",
+    regionCode: "RU-TOM",
+    eventType: "danger",
+  });
+  bad.extras.geoScore = 0.1;
+  const priorId = "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee";
+
+  const plan = planFinalize({
+    workspace: workspace(rawMessageId, [bad]),
+    context: {
+      mode: "refinalize",
+      existingSpawnedIds: [priorId],
+      candidateEventMap: { [bad.id]: priorId },
+      orphanPolicy: "deactivate",
+    },
+    postedAt: "2026-08-03T16:00:00.000Z",
+  });
+
+  assert.equal(plan.materialized.length, 0);
+  assert.deepEqual(plan.invalidIds, [priorId]);
+});
+
+test("ADR-027: отсутствие geoScore → gate не режет (legacy/heal)", () => {
+  const rawMessageId = "55555555-5555-5555-5555-555555555555";
+  const ok = v2Candidate({
+    rawMessageId,
+    authorProcessorId: "geo-processor",
+    authorEnricherId: "catalog",
+    trust: 80,
+    anchorKind: "place",
+    name: "Таганрог",
+    regionCode: "RU-ROS",
+    eventType: "danger",
+  });
+
+  const plan = planFinalize({
+    workspace: workspace(rawMessageId, [ok]),
+    context: {
+      mode: "heal",
+      existingSpawnedIds: [],
+      candidateEventMap: {},
+      orphanPolicy: "deactivate",
+    },
+    postedAt: "2026-08-03T16:00:00.000Z",
+  });
+
+  assert.equal(plan.materialized.length, 1);
+});

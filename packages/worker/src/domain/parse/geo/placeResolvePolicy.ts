@@ -1,5 +1,5 @@
 import type { PlaceKindHint, PlaceRecord, PlaceScanEntry } from "@radar/shared";
-import { collectPlaceMatchStems, placeStem } from "@radar/shared";
+import { collectPlaceMatchStems, placeStem, placeStemCore } from "@radar/shared";
 import { kindMeetsFloor, sortPlaceScanEntriesStable } from "@radar/shared";
 
 export type ResolveStemInput = {
@@ -11,11 +11,31 @@ export type ResolveStemInput = {
   allowDistrict?: boolean;
 };
 
-/** Резолв stem → canonical PlaceScanEntry (ADR-012 §2). */
+export type ResolveStemResult = {
+  entry: PlaceScanEntry;
+  geoImprecise: boolean;
+  /** Матч через «…ский → …ск», а не primary stem label. */
+  matchedViaAdjectiveStem: boolean;
+  /** Размер filtered pool (уникальность = 1). */
+  stemPoolSize: number;
+};
+
+/** Primary stem + опциональный adjective-alt («Северский» / «Северский район» → «северск»). */
+function adjectiveAltStem(label: string): string | null {
+  const core = label.replace(/\s+(?:мо|го|район|р-н)\s*$/iu, "").trim();
+  const adjective = core.match(/^(.+?)(?:ский|ской)$/iu);
+  if (!adjective) return null;
+  const alt = placeStemCore(`${adjective[1]!}ск`);
+  const primary = placeStemCore(core);
+  if (!alt || alt === primary) return null;
+  return alt;
+}
+
+/** Резолв stem → canonical PlaceScanEntry (ADR-012 §2 + ADR-027 сигналы). */
 export function resolveStemToEntry(
   entriesByStem: Map<string, PlaceScanEntry[]>,
   input: ResolveStemInput,
-): { entry: PlaceScanEntry; geoImprecise: boolean } | null {
+): ResolveStemResult | null {
   const stems = collectPlaceMatchStems(input.label);
   if (stems.length === 0) {
     stems.push(placeStem(input.label));
@@ -23,6 +43,7 @@ export function resolveStemToEntry(
 
   const minKind: PlaceRecord["kind"] =
     input.kindHint === "district" || input.allowDistrict ? "district" : "city";
+  const viaAdjective = adjectiveAltStem(input.label);
 
   for (const stem of stems) {
     const pool = entriesByStem.get(stem) ?? [];
@@ -39,6 +60,8 @@ export function resolveStemToEntry(
     return {
       entry: sorted[0]!,
       geoImprecise: sorted.length > 1 && !input.regionScopeId,
+      matchedViaAdjectiveStem: viaAdjective !== null && stem === viaAdjective,
+      stemPoolSize: sorted.length,
     };
   }
 

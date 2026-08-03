@@ -10,6 +10,7 @@ import type {
 import type { GeoValidationService } from "./geoValidationService.js";
 import { planFinalize } from "../../domain/parse/ParseFinalizerService.js";
 import { buildMaterializedEventLocations } from "../../domain/parse/buildMaterializedEventLocations.js";
+import { runGeoCandidateScoring } from "../../domain/parse/geo/geoCandidateScoring.js";
 import { runParseWorkspaceOrchestrator } from "../../domain/parse/ParseWorkspaceOrchestrator.js";
 import type { ParseEnricherId } from "../../domain/parse/parseEnricherRegistry.js";
 import {
@@ -187,6 +188,9 @@ export class ParseWorkspaceMessageService {
     postedAt: string;
     parserRevision: string;
   }): Promise<Extract<ParseWorkspaceRunResult, { kind: "event" }>> {
+    // ADR-027: score после всех enricher'ов, до materialize-gate.
+    runGeoCandidateScoring(input.workspace);
+
     const plan = planFinalize({
       workspace: input.workspace,
       context: input.context,

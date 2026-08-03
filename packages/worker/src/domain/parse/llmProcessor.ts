@@ -2,12 +2,48 @@ import type { GeoEnrichmentArtifact } from "@radar/shared";
 import type { ParseWorkspace } from "@radar/shared";
 import type { EventType } from "@radar/shared";
 import { appendCandidatesFromGeoNodes } from "./appendCandidatesFromGeoNodes.js";
-import { writeNamespaceSlice } from "./parseProcessorContract.js";
+import { listActiveCandidates, writeNamespaceSlice } from "./parseProcessorContract.js";
 import { createTraitAttachment } from "./attachRule.js";
 import { EVENT_TYPE_TRAIT_KEY } from "./resolveEventTypeForCandidate.js";
 
 const AUTHOR = "llm-processor";
 const ENRICHER = "llm";
+
+/**
+ * Прокидывает places[].confidence/reason на matching active candidates (ADR-027).
+ * Сопоставление: имя (case-insensitive) или regionCode для region-якоря.
+ */
+function annotateLlmConfidenceOnCandidates(workspace: ParseWorkspace): void {
+  const artifact = workspace.namespaces.geoArtifact as GeoEnrichmentArtifact | undefined;
+  const nodes = artifact?.llm?.nodes;
+  if (!nodes?.length) return;
+
+  for (const candidate of listActiveCandidates(workspace)) {
+    const name = candidate.anchor.name?.trim().toLowerCase();
+    const regionCode = candidate.anchor.regionCode;
+    const node = nodes.find((n) => {
+      const nodeName = n.name?.trim().toLowerCase();
+      if (name && nodeName && name === nodeName) return true;
+      if (
+        candidate.anchor.kind === "region"
+        && regionCode
+        && n.regionCode
+        && regionCode === n.regionCode
+        && n.kind === "region"
+      ) {
+        return true;
+      }
+      return false;
+    });
+    if (!node) continue;
+    if (typeof node.confidence === "number") {
+      candidate.extras.llmConfidence = node.confidence;
+    }
+    if (typeof node.reason === "string" && node.reason.trim()) {
+      candidate.extras.llmReason = node.reason;
+    }
+  }
+}
 
 /**
  * LLM enricher: namespaces.llm + eventType traits + gap-fill candidates (без дублей geo mergeKey).
@@ -43,6 +79,7 @@ export function runLlmProcessor(workspace: ParseWorkspace): void {
     authorEnricherId: ENRICHER,
     onlyMissingMergeKeys: true,
   });
+  annotateLlmConfidenceOnCandidates(workspace);
 }
 
 function mapLlmCategoryToEventType(category: string | undefined): EventType | null {

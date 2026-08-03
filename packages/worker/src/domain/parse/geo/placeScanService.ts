@@ -73,6 +73,10 @@ export class PlaceScanService implements IPlaceScanPort {
             matchedText: token.matchedText,
           },
           resolved.geoImprecise,
+          {
+            matchedViaAdjectiveStem: resolved.matchedViaAdjectiveStem,
+            stemPoolSize: resolved.stemPoolSize,
+          },
         ),
       );
     }

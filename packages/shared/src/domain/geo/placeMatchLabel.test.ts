@@ -30,6 +30,12 @@ test("collectPlaceMatchStems: прилагательный городской о
   assert.equal(placeStemCore("Наро-Фоминск"), "нарофоминск");
 });
 
+test("collectPlaceMatchStems: Северский район → северск", () => {
+  const stems = collectPlaceMatchStems("Северский район");
+  assert.ok(stems.includes("северский"));
+  assert.ok(stems.includes("северск"));
+});
+
 test("F1: Кулебакский район/мо → один stem без «раион»", () => {
   assert.equal(placeStemCore("Кулебакский район"), "кулебакский");
   assert.equal(placeStemCore("Кулебакский мо"), "кулебакский");

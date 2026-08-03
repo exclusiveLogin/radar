@@ -42,6 +42,14 @@ export function appendCandidatesFromGeoNodes(input: {
     });
     if (input.onlyMissingMergeKeys && existingKeys.has(mergeKey)) continue;
 
+    const extras: Record<string, unknown> = {};
+    if (typeof node.confidence === "number") {
+      extras.llmConfidence = node.confidence;
+    }
+    if (typeof node.reason === "string" && node.reason.trim()) {
+      extras.llmReason = node.reason;
+    }
+
     appendCandidate({
       workspace: input.workspace,
       authorProcessorId: input.authorProcessorId,
@@ -56,6 +64,7 @@ export function appendCandidatesFromGeoNodes(input: {
         span,
       },
       eventType: "unknown",
+      extras,
       provenance: {
         eventTypeSource: "pending",
         anchorSource: input.authorProcessorId,

@@ -199,6 +199,13 @@ export function mergeSpanHit(
   entry: PlaceScanEntry,
   span: TextSpan,
   geoImprecise?: boolean,
+  signals?: { matchedViaAdjectiveStem?: boolean; stemPoolSize?: number },
 ): PlaceScanHit {
-  return { entry, span, geoImprecise };
+  return {
+    entry,
+    span,
+    geoImprecise,
+    matchedViaAdjectiveStem: signals?.matchedViaAdjectiveStem,
+    stemPoolSize: signals?.stemPoolSize,
+  };
 }
