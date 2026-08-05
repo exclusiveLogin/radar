@@ -150,6 +150,7 @@ export type BackfillJobFilter = {
 };
 
 export interface IIngestBackfillJobRepository {
+  /** Upsert по binding_id: один слот на канал, повторный старт сбрасывает задачу. */
   create(input: CreateBackfillJob & { providerId: string }): Promise<BackfillJobRecord>;
   findById(id: string): Promise<BackfillJobRecord | null>;
   /** Список задач для мониторинга (order createdAt DESC), с фильтром по статусу/binding. */

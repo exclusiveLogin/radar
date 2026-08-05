@@ -16,19 +16,57 @@ const CANCELABLE_STATUSES = ["pending", "running"];
 export class TypeOrmIngestBackfillJobRepository implements IIngestBackfillJobRepository {
   constructor(private readonly dataSource: DataSource) {}
 
+  /**
+   * Upsert-слот: 1 binding = 1 задача.
+   * Повторный старт сбрасывает status/stats/params; id сохраняется при conflict.
+   */
   async create(input: CreateBackfillJob & { providerId: string }): Promise<BackfillJobRecord> {
-    const repo = this.dataSource.getRepository(IngestBackfillJobEntity);
-    const row = repo.create({
-      id: randomUUID(),
-      bindingId: input.bindingId,
-      providerId: input.providerId,
-      strategy: input.strategy,
-      params: input.params as Record<string, unknown>,
-      status: "pending",
-      stats: { inserted: 0, duplicates: 0, parsed: 0 },
-    });
-    const saved = await repo.save(row);
-    return toBackfillJobRecord(saved);
+    const stats = { inserted: 0, duplicates: 0, parsed: 0 };
+    const params = input.params as Record<string, unknown>;
+    const rows = readTypeOrmQueryRows<{
+      id: string;
+      binding_id: string;
+      provider_id: string;
+      strategy: string;
+      params: Record<string, unknown>;
+      status: string;
+      stats: BackfillJobRecord["stats"];
+      created_at: Date;
+      updated_at: Date;
+    }>(
+      await this.dataSource.query(
+        `INSERT INTO job_ingest_backfill (
+           id, binding_id, provider_id, strategy, params, status, stats
+         ) VALUES ($1, $2, $3, $4, $5::jsonb, 'pending', $6::jsonb)
+         ON CONFLICT (binding_id) DO UPDATE SET
+           provider_id = EXCLUDED.provider_id,
+           strategy = EXCLUDED.strategy,
+           params = EXCLUDED.params,
+           status = 'pending',
+           stats = EXCLUDED.stats,
+           created_at = NOW(),
+           updated_at = NOW()
+         RETURNING id, binding_id, provider_id, strategy, params, status, stats, created_at, updated_at`,
+        [randomUUID(), input.bindingId, input.providerId, input.strategy, JSON.stringify(params), JSON.stringify(stats)],
+      ),
+    );
+
+    const row = rows[0];
+    if (!row) {
+      throw new Error(`backfill upsert failed for binding ${input.bindingId}`);
+    }
+
+    return toBackfillJobRecord({
+      id: row.id,
+      bindingId: row.binding_id,
+      providerId: row.provider_id,
+      strategy: row.strategy,
+      params: row.params,
+      status: row.status,
+      stats: row.stats,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    } as IngestBackfillJobEntity);
   }
 
   async findById(id: string): Promise<BackfillJobRecord | null> {
