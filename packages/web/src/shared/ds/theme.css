@@ -1377,6 +1377,18 @@ body {
   align-items: stretch;
 }
 
+/* Discovery: 3 панели пайплайнов + executors ниже */
+.admin-discovery {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+  min-width: 0;
+}
+
+.admin-discovery__executors {
+  min-width: 0;
+}
+
 .admin-grid__cell > .ds-panel {
   height: 100%;
   width: 100%;
