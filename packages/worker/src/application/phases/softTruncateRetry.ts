@@ -13,8 +13,8 @@ export function isSoftTruncateContention(error: unknown): boolean {
 }
 
 /**
- * При forceLocks=false повторяет TRUNCATE на deadlock/lock timeout.
- * Остальные ошибки не скрывает.
+ * Soft (forceLocks=false): retry deadlock/lock timeout без terminate.
+ * Hard (forceLocks=true): без обёртки — retry+terminate внутри wipeTableSql.truncateTables.
  */
 export async function withSoftTruncateRetry<T>(
   forceLocks: boolean,

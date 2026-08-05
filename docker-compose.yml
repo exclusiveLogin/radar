@@ -284,7 +284,7 @@ services:
     restart: unless-stopped
     profiles: ["obs"]
     environment:
-      DATABASE_URL: ${DATABASE_URL:-postgresql://radar:radar@db:5432/radar}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-radar}:${POSTGRES_PASSWORD:-radar}@db:5432/${POSTGRES_DB:-radar}
       PORT: "3020"
       OBS_HOST: 0.0.0.0
     ports:
