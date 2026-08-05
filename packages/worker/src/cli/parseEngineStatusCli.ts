@@ -26,7 +26,7 @@ async function printIngestQueues(
     const counts = await repos.phaseCoverage.countByStatus(phase.id);
     const pending = counts.pending + counts.processing;
     if (pending === 0 && counts.done === 0 && counts.failed === 0) continue;
-    console.log(`  [${phase.id}] trigger=${phase.trigger}`, counts);
+    console.log(`  [${phase.id}] triggerMode=${phase.triggerMode}`, counts);
   }
 }
 

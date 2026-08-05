@@ -6,6 +6,8 @@ import type {
 } from "@radar/shared";
 import {
   drainTopicForPhaseScope,
+  phaseWakesOnEvent,
+  phaseWakesOnSchedule,
   RADAR_TOPICS,
   resolveRmqQueueSuffixForPhaseScope,
 } from "@radar/shared";
@@ -19,16 +21,6 @@ export type PhaseWakeSchedulerDeps = {
 
 function resolveSubscribeTopic(phase: PhaseDefinitionRecord): RadarTopicRoutingKey {
   return phase.policy.subscribeTopic ?? RADAR_TOPICS.RAW_INGESTED;
-}
-
-function wakesOnEvent(phase: PhaseDefinitionRecord): boolean {
-  const mode = phase.triggerMode ?? "both";
-  return mode === "event" || mode === "both";
-}
-
-function wakesOnTimeout(phase: PhaseDefinitionRecord): boolean {
-  const mode = phase.triggerMode ?? "both";
-  return mode === "timeout" || mode === "both";
 }
 
 function resolveIntervalMs(phase: PhaseDefinitionRecord): number {
@@ -48,7 +40,7 @@ export async function wirePhaseWakeScheduler(
   for (const phase of enabled) {
     if (!phase.enabled) continue;
 
-    if (wakesOnEvent(phase)) {
+    if (phaseWakesOnEvent(phase.triggerMode)) {
       const topic = resolveSubscribeTopic(phase);
       teardown.push(
         wireTransportTrigger(deps.transport, topic, {
@@ -60,7 +52,7 @@ export async function wirePhaseWakeScheduler(
     }
 
     // timeout/both: периодический RMQ drain-сигнал без ids → shared drain-lane
-    if (wakesOnTimeout(phase) && (phase.scope === "ingestParse" || phase.scope === "geoParse")) {
+    if (phaseWakesOnSchedule(phase.triggerMode) && (phase.scope === "ingestParse" || phase.scope === "geoParse")) {
       const intervalMs = resolveIntervalMs(phase);
       const topic = drainTopicForPhaseScope(phase.scope);
       const timer = setInterval(() => {

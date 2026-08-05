@@ -1,6 +1,6 @@
 import { MONOREPO_ROOT } from "@repo/root";
 import type { PlaceEnrichmentProvider } from "@radar/shared";
-import { resolveGeoEnrichmentProvider } from "@radar/shared";
+import { phaseWakesOnSchedule, resolveGeoEnrichmentProvider } from "@radar/shared";
 import { createWorkerCompositionRoot } from "../application/createWorkerCompositionRoot.js";
 import { runGeoPhaseDrain } from "../application/geo-parse/runGeoPhaseDrain.js";
 import { loadRootEnv } from "../infrastructure/config/loadRootEnv.js";
@@ -32,14 +32,13 @@ async function main(): Promise<void> {
     throw new Error("parse-engine:geo:drain: требуется db mode + session");
   }
 
-  let geoPhases = await runtime.workerRepos.phaseDefinitions.listEnabled(
-    "scheduled",
-    "geoParse",
-  );
+  let geoPhases = (
+    await runtime.workerRepos.phaseDefinitions.listEnabled(undefined, "geoParse")
+  ).filter((phase) => phaseWakesOnSchedule(phase.triggerMode));
   if (phaseFilter) {
     geoPhases = geoPhases.filter((phase) => phase.id === phaseFilter);
     if (geoPhases.length === 0) {
-      throw new Error(`scheduled geoParse фаза '${phaseFilter}' не найдена`);
+      throw new Error(`schedule-capable geoParse фаза '${phaseFilter}' не найдена`);
     }
   }
 

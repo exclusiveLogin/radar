@@ -17,14 +17,14 @@ function sleep(ms: number): Promise<void> {
 function fakePhase(id: string): PhaseDefinitionRecord {
   return {
     id,
-    trigger: "scheduled",
+    triggerMode: "both",
     scope: "ingestParse",
     enrichers: ["llm"],
     policy: { batchSize: 10, intervalMs: 60_000, minIntervalMs: 60_000, eagerMode: "queue" } as PhaseDefinitionRecord["policy"],
     enabled: true,
     order: 1,
     updatedAt: new Date().toISOString(),
-  } as PhaseDefinitionRecord;
+  };
 }
 
 function buildDeps(

@@ -125,6 +125,8 @@ export {
   phaseTriggerSchema,
   phaseTriggerModeSchema,
   legacyTriggerToMode,
+  phaseWakesOnSchedule,
+  phaseWakesOnEvent,
   phaseScopeSchema,
   phaseKindSchema,
   enrichStageSchema,

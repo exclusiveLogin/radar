@@ -117,7 +117,7 @@ function PipelineMonitorCard({
             pulse={snap.activity === "running" || snap.activity === "rebuild"}
           />
           {snap.detail ? (
-            <span className="ds-muted" style={{ marginLeft: 6, fontSize: 10 }}>
+            <span className="ds-muted" style={{ marginLeft: 6, fontSize: 12 }}>
               {snap.detail}
               {snap.rebuildPhase ? ` · ${snap.rebuildPhase}` : ""}
             </span>
@@ -129,7 +129,7 @@ function PipelineMonitorCard({
         <span className="ds-metric-row__label">Queue</span>
         <span className="ds-metric-row__value">
           {fmt(queueTotal)}
-          <span className="ds-muted" style={{ marginLeft: 6, fontSize: 10 }}>
+          <span className="ds-muted" style={{ marginLeft: 6, fontSize: 12 }}>
             p:{fmt(snap.queue.pending)} pr:{fmt(snap.queue.processing)}
           </span>
         </span>
@@ -143,13 +143,13 @@ function PipelineMonitorCard({
             style={{ display: "flex", gap: 8, alignItems: "center", flex: 1 }}
           >
             {showRebuild && (
-              <span style={{ fontSize: 12 }}>
+              <span style={{ fontSize: 14 }}>
                 {snap.rebuildPercent!.toFixed(1)}%
                 {snap.rebuildPhase ? ` · ${snap.rebuildPhase}` : ""}
               </span>
             )}
             {showTrackingProgress && (
-              <span style={{ fontSize: 12 }}>{snap.trackingPercent!.toFixed(1)}%</span>
+              <span style={{ fontSize: 14 }}>{snap.trackingPercent!.toFixed(1)}%</span>
             )}
             {showRunProgress && snap.progressStats && (
               <PhaseRunProgressBar stats={snap.progressStats} />
@@ -161,7 +161,7 @@ function PipelineMonitorCard({
       {snap.millStatus && (
         <div className="ds-metric-row">
           <span className="ds-metric-row__label">Mill</span>
-          <span className="ds-muted" style={{ fontSize: 10 }}>
+          <span className="ds-muted" style={{ fontSize: 12 }}>
             {snap.millStatus}
             {snap.millLastTickAt ? ` · ${formatDateTime(snap.millLastTickAt)}` : ""}
           </span>
@@ -198,11 +198,11 @@ function HostsPanel({
       {rows.map((row) => (
         <li key={row.hostId} className="ds-log-list__item" style={{ gap: 8, flexWrap: "wrap" }}>
           <StatusDot kind={LIVENESS_KIND[row.liveness]} label={row.hostId} />
-          <span className="ds-muted" style={{ fontSize: 10 }}>
+          <span className="ds-muted" style={{ fontSize: 12 }}>
             {row.role}
           </span>
-          <span style={{ fontSize: 10 }}>{formatDateTime(row.lastSeenAt)}</span>
-          <span className="ds-muted" style={{ fontSize: 10 }}>
+          <span style={{ fontSize: 12 }}>{formatDateTime(row.lastSeenAt)}</span>
+          <span className="ds-muted" style={{ fontSize: 12 }}>
             {row.pipelines.map((p) => p.pipelineKey).join(", ") || "—"}
           </span>
         </li>
@@ -309,7 +309,7 @@ export function RunnerDiscoveryWidget() {
 
       <Panel title="Hosts (worker)" className="admin-discovery__executors">
         <HostsPanel rows={hosts} />
-        <p className="ds-muted" style={{ fontSize: 10, marginTop: 12 }}>
+        <p className="ds-muted" style={{ fontSize: 12, marginTop: 12 }}>
           generatedAt: {discovery.generatedAt}
         </p>
       </Panel>

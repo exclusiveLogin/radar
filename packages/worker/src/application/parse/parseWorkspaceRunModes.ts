@@ -34,7 +34,7 @@ export function phaseEnrichersToRun(enrichers: EnricherId[]): EnricherId[] {
  */
 export function resolvePhaseRunKind(phase: PhaseDefinitionRecord): ParseWorkspaceRunKind {
   const lazy = phaseEnrichersToRun(phase.enrichers);
-  if (lazy.length > 0 && phase.trigger !== "eager") {
+  if (lazy.length > 0 && phase.triggerMode !== "event") {
     return "phase_enrich";
   }
   return "rebuild";

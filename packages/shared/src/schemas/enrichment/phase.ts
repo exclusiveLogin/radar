@@ -1,5 +1,5 @@
 /**
- * Phase-pipeline v2 (ADR-003): фаза = enrichers[] + policy + trigger.
+ * Phase-pipeline v2 (ADR-003): фаза = enrichers[] + policy + triggerMode.
  * Ingest доставляет mat_ingest_raw; фазы маркируют job_parse_phase и мержат в накопитель.
  */
 import { z } from "zod";
@@ -10,16 +10,17 @@ export const enricherIdSchema = z.enum([
   "catalog",
   "rule",
   "llm",
+  "llm-validator",
   "dadata",
   "nominatim",
 ]);
 export type EnricherId = z.infer<typeof enricherIdSchema>;
 
-/** @deprecated Заменён на phaseTriggerModeSchema; сохранён для import/БД. */
+/** @deprecated Только для phase_runs.trigger и старых манифестов; фазы — triggerMode. */
 export const phaseTriggerSchema = z.enum(["eager", "scheduled", "manual"]);
 export type PhaseTrigger = z.infer<typeof phaseTriggerSchema>;
 
-/** Режим пробуждения фазы (ортогонально policy). */
+/** Режим пробуждения фазы (ортогонально policy). SSOT в phase_definitions.trigger_mode. */
 export const phaseTriggerModeSchema = z.enum(["event", "timeout", "both", "manual"]);
 export type PhaseTriggerMode = z.infer<typeof phaseTriggerModeSchema>;
 
@@ -55,10 +56,31 @@ export type PhasePolicy = z.infer<typeof phasePolicySchema>;
 
 export const DEFAULT_PHASE_POLICY: PhasePolicy = phasePolicySchema.parse({});
 
-export const phaseManifestEntrySchema = z.object({
+/** Legacy trigger (манифест/БД) → triggerMode. Только для import/миграции. */
+export function legacyTriggerToMode(trigger: PhaseTrigger): PhaseTriggerMode {
+  if (trigger === "eager") return "event";
+  if (trigger === "manual") return "manual";
+  return "both";
+}
+
+/** Фаза может будиться по таймеру (timeout или hybrid both). */
+export function phaseWakesOnSchedule(mode: PhaseTriggerMode): boolean {
+  return mode === "timeout" || mode === "both";
+}
+
+/** Фаза будится событием (event или hybrid both). */
+export function phaseWakesOnEvent(mode: PhaseTriggerMode): boolean {
+  return mode === "event" || mode === "both";
+}
+
+const phaseManifestEntryObjectSchema = z.object({
   id: z.string().min(1),
-  triggerMode: phaseTriggerModeSchema.default("both"),
-  /** @deprecated — нормализуется в triggerMode при import. */
+  /** SSOT; если нет — выводится из legacy trigger или both. */
+  triggerMode: phaseTriggerModeSchema.optional(),
+  /**
+   * @deprecated Только import старых JSON; в runtime/БД не хранится.
+   * Если задан без triggerMode — нормализуется в triggerMode.
+   */
   trigger: phaseTriggerSchema.optional(),
   scope: phaseScopeSchema.default("ingestParse"),
   enrichers: z.array(enricherIdSchema).min(1),
@@ -66,7 +88,33 @@ export const phaseManifestEntrySchema = z.object({
   enabled: z.boolean().default(true),
   order: z.number().int().nonnegative().default(0),
 });
-export type PhaseManifestEntry = z.infer<typeof phaseManifestEntrySchema>;
+
+/** Нормализует optional legacy trigger → triggerMode; legacy trigger из ответа убираем. */
+export const phaseManifestEntrySchema = phaseManifestEntryObjectSchema.transform((entry) => {
+  const triggerMode =
+    entry.triggerMode ??
+    (entry.trigger !== undefined ? legacyTriggerToMode(entry.trigger) : "both");
+  return {
+    id: entry.id,
+    triggerMode,
+    scope: entry.scope,
+    enrichers: entry.enrichers,
+    policy: entry.policy,
+    enabled: entry.enabled,
+    order: entry.order,
+  };
+});
+
+/** Запись фазы в манифесте/БД: только triggerMode (без legacy trigger). */
+export type PhaseManifestEntry = {
+  id: string;
+  triggerMode: PhaseTriggerMode;
+  scope: PhaseScope;
+  enrichers: EnricherId[];
+  policy: PhasePolicy;
+  enabled: boolean;
+  order: number;
+};
 
 export const phaseManifestSchema = z.object({
   version: z.literal(1).default(1),
@@ -74,10 +122,18 @@ export const phaseManifestSchema = z.object({
 });
 export type PhaseManifest = z.infer<typeof phaseManifestSchema>;
 
-/** Операционная запись фазы из БД. */
-export const phaseDefinitionSchema = phaseManifestEntrySchema.extend({
-  updatedAt: z.string().optional(),
-});
+/** Операционная запись фазы из БД (без legacy trigger). */
+export const phaseDefinitionSchema = z
+  .object({
+    id: z.string().min(1),
+    triggerMode: phaseTriggerModeSchema,
+    scope: phaseScopeSchema.default("ingestParse"),
+    enrichers: z.array(enricherIdSchema).min(1),
+    policy: phasePolicySchema.default({}),
+    enabled: z.boolean().default(true),
+    order: z.number().int().nonnegative().default(0),
+    updatedAt: z.string().optional(),
+  });
 export type PhaseDefinition = z.infer<typeof phaseDefinitionSchema>;
 
 /** Override селектора только для manual CLI / POST run. */
@@ -97,29 +153,23 @@ export const LEGACY_PHASE_ID_MAP: Record<string, string> = {
   "enrich-nominatim": "nominatim",
 };
 
-/** Legacy trigger → triggerMode. */
-export function legacyTriggerToMode(trigger: PhaseTrigger): PhaseTriggerMode {
-  if (trigger === "eager") return "event";
-  if (trigger === "manual") return "manual";
-  return "both";
-}
-
-/** Нормализует legacy-манифест (kind/stage/trigger → triggerMode/policy). */
+/**
+ * Нормализует legacy-манифест (kind/stage/trigger → triggerMode/policy).
+ * Не пишет обратно legacy trigger.
+ */
 export function normalizePhaseManifestEntry(raw: Record<string, unknown>): PhaseManifestEntry {
   const id = LEGACY_PHASE_ID_MAP[String(raw.id)] ?? String(raw.id);
-  let trigger = raw.trigger as PhaseTrigger | undefined;
-  if (!trigger) {
-    const kind = raw.kind as string | undefined;
-    trigger = kind === "lazy" ? "scheduled" : (kind as PhaseTrigger) ?? "scheduled";
-  }
+  const legacyTrigger = raw.trigger as PhaseTrigger | undefined;
+  const kind = raw.kind as string | undefined;
+  const inferredTrigger: PhaseTrigger =
+    legacyTrigger ?? (kind === "lazy" ? "scheduled" : (kind as PhaseTrigger) ?? "scheduled");
   const triggerMode =
-    (raw.triggerMode as PhaseTriggerMode | undefined) ?? legacyTriggerToMode(trigger);
+    (raw.triggerMode as PhaseTriggerMode | undefined) ?? legacyTriggerToMode(inferredTrigger);
   const policy = phasePolicySchema.parse(raw.policy ?? {});
   const enrichers = z.array(enricherIdSchema).parse(raw.enrichers);
   return phaseManifestEntrySchema.parse({
     id,
     triggerMode,
-    trigger,
     scope: raw.scope ?? "ingestParse",
     enrichers,
     policy,

@@ -278,7 +278,7 @@ export class PhasesAdminService implements OnModuleInit, OnModuleDestroy {
         const raw = await this.coverage.countByStatus(phase.id);
         return {
           phaseId: phase.id,
-          trigger: phase.trigger ?? phase.triggerMode,
+          trigger: phase.triggerMode,
           enabled: phase.enabled,
           activeRun: active.find((r) => r.phaseId === phase.id) ?? null,
           coverage: {
@@ -299,7 +299,7 @@ export class PhasesAdminService implements OnModuleInit, OnModuleDestroy {
           : emptyJobCounts();
         return {
           phaseId: phase.id,
-          trigger: phase.trigger ?? phase.triggerMode,
+          trigger: phase.triggerMode,
           enabled: phase.enabled,
           provider,
           activeRun: active.find((r) => r.phaseId === phase.id) ?? null,

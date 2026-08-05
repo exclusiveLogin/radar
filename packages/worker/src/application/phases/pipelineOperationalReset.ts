@@ -130,7 +130,7 @@ export async function runPipelineOperationalReset(
   if (input.enqueueCatchUp !== false) {
     const enabledAuto = sortPhasesByOrder(
       (await input.deps.phaseDefinitions.listEnabled(undefined, "ingestParse")).filter(
-        (p) => p.trigger === "eager" || p.trigger === "scheduled",
+        (p) => p.triggerMode !== "manual",
       ),
     );
     for (const phase of enabledAuto) {

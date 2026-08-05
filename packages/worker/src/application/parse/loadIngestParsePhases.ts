@@ -10,7 +10,6 @@ function defaultCatalogPhase(): PhaseDefinitionRecord[] {
     {
       id: "catalog",
       triggerMode: "event",
-      trigger: "eager",
       scope: "ingestParse",
       enrichers: ["catalog"],
       policy: { ...DEFAULT_PHASE_POLICY, batchSize: 100, eagerMode: "queue" },

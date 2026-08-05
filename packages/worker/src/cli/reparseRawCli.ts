@@ -1,4 +1,5 @@
 import { MONOREPO_ROOT } from "@repo/root";
+import { phaseWakesOnSchedule } from "@radar/shared";
 import { createWorkerCompositionRoot } from "../application/createWorkerCompositionRoot.js";
 import { runFullReparseLikeIngest } from "../application/phases/reparseOrchestrator.js";
 import { createPhaseOperationalDeps } from "../application/phases/phaseOperationalDeps.js";
@@ -117,7 +118,9 @@ async function main(): Promise<void> {
       };
       reportProgress(completed);
     }
-    const scheduledGeo = await repos.phaseDefinitions.listEnabled("scheduled", "geoParse");
+    const scheduledGeo = (await repos.phaseDefinitions.listEnabled(undefined, "geoParse")).filter(
+      (p) => phaseWakesOnSchedule(p.triggerMode),
+    );
     const { runGeoPhaseDrain } = await import("../application/geo-parse/runGeoPhaseDrain.js");
     for (const phase of scheduledGeo) {
       if (!runtime.placeEnrichmentRunner || !runtime.phaseRunSession) continue;

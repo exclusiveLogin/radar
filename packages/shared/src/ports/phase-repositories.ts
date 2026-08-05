@@ -11,6 +11,7 @@ import type {
   PhasePolicy,
   PhaseScope,
   PhaseTrigger,
+  PhaseTriggerMode,
 } from "../schemas/enrichment/phase";
 import type {
   PhaseRun,
@@ -92,7 +93,7 @@ export type PhaseDefinitionRecord = PhaseManifestEntry & { updatedAt: string };
 
 export interface IPhaseDefinitionRepository {
   listAll(): Promise<PhaseDefinitionRecord[]>;
-  listEnabled(trigger?: PhaseTrigger, scope?: PhaseScope): Promise<PhaseDefinitionRecord[]>;
+  listEnabled(triggerMode?: PhaseTriggerMode, scope?: PhaseScope): Promise<PhaseDefinitionRecord[]>;
   findById(id: string): Promise<PhaseDefinitionRecord | null>;
   upsert(entry: PhaseManifestEntry): Promise<void>;
   setEnabled(id: string, enabled: boolean): Promise<void>;

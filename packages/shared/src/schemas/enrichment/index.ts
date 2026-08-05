@@ -25,6 +25,8 @@ export {
   manualRunScopeSchema,
   LEGACY_PHASE_ID_MAP,
   legacyTriggerToMode,
+  phaseWakesOnSchedule,
+  phaseWakesOnEvent,
   normalizePhaseManifestEntry,
 } from "./phase";
 export {

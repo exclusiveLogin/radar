@@ -9,8 +9,9 @@ export class PhaseDefinitionEntity {
   @PrimaryColumn({ name: "id", type: "text" })
   id!: string;
 
-  @Column({ name: "trigger", type: "text" })
-  trigger!: string;
+  /** SSOT пробуждения: event | timeout | both | manual. */
+  @Column({ name: "trigger_mode", type: "text" })
+  triggerMode!: string;
 
   @Column({ name: "scope", type: "text", default: "ingestParse" })
   scope!: string;
