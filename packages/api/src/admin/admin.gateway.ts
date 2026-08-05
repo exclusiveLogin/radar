@@ -227,7 +227,12 @@ export class AdminGateway
         (id) => !currentRunningIds.has(id),
       );
       if (justFinished) {
-        void this.phasesAdmin.pushMapSnapshot();
+        // Во время parse rebuild maintenance — push no-op; не шумим unhandled rejection.
+        void this.phasesAdmin.pushMapSnapshot().catch((err: unknown) => {
+          this.logger.warn(
+            `pushMapSnapshot skip: ${err instanceof Error ? err.message : String(err)}`,
+          );
+        });
       }
       this.prevRunningIds = currentRunningIds;
 

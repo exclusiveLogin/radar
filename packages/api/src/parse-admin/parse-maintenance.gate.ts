@@ -2,6 +2,18 @@ import { Injectable, ServiceUnavailableException } from "@nestjs/common";
 
 const DRAIN_TIMEOUT_MS = 15_000;
 
+export const PARSE_MAINTENANCE_CODE = "PARSE_MAINTENANCE";
+
+/** 503 от gate — фоновые poll/push должны глотать, HTTP-клиентам отдавать как есть. */
+export function isParseMaintenanceError(error: unknown): boolean {
+  if (!(error instanceof ServiceUnavailableException)) return false;
+  const body = error.getResponse();
+  if (typeof body === "object" && body !== null && "code" in body) {
+    return (body as { code?: string }).code === PARSE_MAINTENANCE_CODE;
+  }
+  return false;
+}
+
 /**
  * In-process maintenance для parse reset:
  * новые map/parse reads получают 503, уже начатые учитываются в drain.
@@ -36,7 +48,7 @@ export class ParseMaintenanceGate {
     if (this.paused) {
       this.releaseRead();
       throw new ServiceUnavailableException({
-        code: "PARSE_MAINTENANCE",
+        code: PARSE_MAINTENANCE_CODE,
         message: "Идёт сброс parse pipeline",
       });
     }

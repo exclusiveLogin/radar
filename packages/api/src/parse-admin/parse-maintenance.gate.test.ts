@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { ServiceUnavailableException } from "@nestjs/common";
-import { ParseMaintenanceGate } from "./parse-maintenance.gate.js";
+import {
+  isParseMaintenanceError,
+  ParseMaintenanceGate,
+  PARSE_MAINTENANCE_CODE,
+} from "./parse-maintenance.gate.js";
 
 test("runRead отклоняет новые чтения после pause", async () => {
   const gate = new ParseMaintenanceGate();
@@ -52,4 +56,20 @@ test("resume снова открывает read-path", async () => {
   gate.pause();
   gate.resume();
   assert.equal(await gate.runRead(async () => 42), 42);
+});
+
+test("isParseMaintenanceError узнаёт 503 gate", async () => {
+  const gate = new ParseMaintenanceGate();
+  gate.pause();
+  try {
+    await gate.runRead(async () => "x");
+    assert.fail("expected throw");
+  } catch (error) {
+    assert.equal(isParseMaintenanceError(error), true);
+    const body = (error as ServiceUnavailableException).getResponse() as {
+      code: string;
+    };
+    assert.equal(body.code, PARSE_MAINTENANCE_CODE);
+  }
+  assert.equal(isParseMaintenanceError(new Error("other")), false);
 });
