@@ -19,6 +19,18 @@ function readLlmConfidence(extras: Record<string, unknown>): number | undefined 
   return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 }
 
+function readLlmValidatorVerdict(
+  extras: Record<string, unknown>,
+): "confirm" | "reject" | undefined {
+  const value = extras.llmValidatorVerdict;
+  return value === "confirm" || value === "reject" ? value : undefined;
+}
+
+function readLlmValidatorConfidence(extras: Record<string, unknown>): number | undefined {
+  const value = extras.llmValidatorConfidence;
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
 function collectExplicitRegionIsos(workspace: ParseWorkspace): Set<string> {
   const isos = new Set<string>();
   for (const candidate of listActiveCandidates(workspace)) {
@@ -62,6 +74,8 @@ function buildFactors(input: {
     geoConflict: conflictForCandidate,
     channelPromo: input.channelPromo,
     llmConfidence: readLlmConfidence(extras),
+    llmValidatorVerdict: readLlmValidatorVerdict(extras),
+    llmValidatorConfidence: readLlmValidatorConfidence(extras),
   };
 }
 

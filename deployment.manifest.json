@@ -52,13 +52,22 @@
       "order": 1
     },
     {
+      "id": "llm-validator",
+      "triggerMode": "both",
+      "scope": "ingestParse",
+      "enrichers": ["llm-validator"],
+      "policy": { "batchSize": 50, "intervalMs": 60000, "minIntervalMs": 5000 },
+      "enabled": false,
+      "order": 2
+    },
+    {
       "id": "dadata",
       "triggerMode": "both",
       "scope": "ingestParse",
       "enrichers": ["dadata"],
       "policy": { "batchSize": 100, "intervalMs": 120000 },
       "enabled": false,
-      "order": 2
+      "order": 3
     },
     {
       "id": "nominatim",
@@ -67,7 +76,7 @@
       "enrichers": ["nominatim"],
       "policy": { "batchSize": 100, "intervalMs": 180000 },
       "enabled": false,
-      "order": 3
+      "order": 4
     },
     {
       "id": "geo-llm",

@@ -10,6 +10,7 @@ import { runMassClearExcludeProcessor } from "./massClearExcludeProcessor.js";
 import { runMassClearScopeProcessor } from "./massClearScopeProcessor.js";
 import { runRepeatProcessor, runMassProcessor, runCountProcessor, runUncertainProcessor, runMultipleFixationProcessor, runNegativeMonitoringProcessor } from "./traitProcessors.js";
 import { runLlmProcessor } from "./llmProcessor.js";
+import { runLlmValidatorProcessor } from "./llmValidatorProcessor.js";
 import { runDadataProcessor } from "./dadataProcessor.js";
 import { runNominatimProcessor } from "./nominatimProcessor.js";
 import { runVicinityProcessor } from "./vicinityProcessor.js";
@@ -27,6 +28,7 @@ export type ParseProcessorId =
   | "mass-processor"
   | "count-processor"
   | "llm-processor"
+  | "llm-validator-processor"
   | "dadata-processor"
   | "nominatim-processor";
 
@@ -66,6 +68,7 @@ const PROCESSOR_IMPL: Record<ParseProcessorId, ParseProcessorFn> = {
   "mass-processor": ({ workspace }) => runMassProcessor(workspace),
   "count-processor": ({ workspace }) => runCountProcessor(workspace),
   "llm-processor": ({ workspace }) => runLlmProcessor(workspace),
+  "llm-validator-processor": ({ workspace }) => runLlmValidatorProcessor(workspace),
   "dadata-processor": ({ workspace }) => runDadataProcessor(workspace),
   "nominatim-processor": ({ workspace }) => runNominatimProcessor(workspace),
 };

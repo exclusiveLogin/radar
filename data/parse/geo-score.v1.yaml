@@ -40,3 +40,12 @@ factors:
   llmConfidence:
     kind: scaled
     weight: 0.25
+  # Signed: confirm → +weight*confidence, reject → −weight*confidence.
+  llmValidatorConfidence:
+    weight: 0.3
+
+# LLM Validator phase trigger (ADR-027 extension).
+# off — не вызывать; on — все geo-кандидаты; auto — borderline вокруг порога.
+llmValidator:
+  trigger: auto
+  borderlineMargin: 0.15

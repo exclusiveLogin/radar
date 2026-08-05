@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   computeGeoCandidateScore,
   scaledLlmConfidenceContribution,
+  signedLlmValidatorContribution,
   type GeoScoreFactors,
   type GeoScoreMatrix,
 } from "./geoCandidateScore.js";
@@ -21,7 +22,9 @@ const MATRIX: GeoScoreMatrix = {
     geoConflict: -0.35,
     channelPromo: -0.7,
     llmConfidence: 0.25,
+    llmValidatorConfidence: 0.3,
   },
+  llmValidator: { trigger: "auto", borderlineMargin: 0.15 },
 };
 
 function factors(overrides: Partial<GeoScoreFactors> = {}): GeoScoreFactors {
@@ -85,6 +88,27 @@ test("llmConfidence scaled: 1.0 → +weight, 0 → -weight, absent → 0", () =>
   assert.equal(low.score, 0.75);
 });
 
+test("llmValidatorConfidence: confirm/reject задают знак", () => {
+  assert.equal(signedLlmValidatorContribution("confirm", 1, 0.3), 0.3);
+  assert.equal(signedLlmValidatorContribution("reject", 1, 0.3), -0.3);
+  assert.equal(signedLlmValidatorContribution("reject", 0.5, 0.3), -0.15);
+  assert.equal(signedLlmValidatorContribution(undefined, 1, 0.3), 0);
+
+  const confirm = computeGeoCandidateScore(
+    factors({ llmValidatorVerdict: "confirm", llmValidatorConfidence: 1 }),
+    MATRIX,
+  );
+  assert.equal(confirm.breakdown.llmValidatorConfidence, 0.3);
+  assert.equal(confirm.score, 1.3);
+
+  const reject = computeGeoCandidateScore(
+    factors({ llmValidatorVerdict: "reject", llmValidatorConfidence: 1 }),
+    MATRIX,
+  );
+  assert.equal(reject.breakdown.llmValidatorConfidence, -0.3);
+  assert.equal(reject.score, 0.7);
+});
+
 test("score clamp в [0, 2]", () => {
   const low = computeGeoCandidateScore(
     factors({
@@ -130,6 +154,11 @@ factors:
   llmConfidence:
     kind: scaled
     weight: 0.2
+  llmValidatorConfidence:
+    weight: 0.35
+llmValidator:
+  trigger: on
+  borderlineMargin: 0.2
 `;
   const matrix = parseGeoScoreMatrixYaml(yaml);
   assert.equal(matrix.revision, "unit-1");
@@ -139,4 +168,7 @@ factors:
   assert.equal(matrix.materializeGate.threshold, 0.4);
   assert.equal(matrix.factors.adjectiveStem, -0.2);
   assert.equal(matrix.factors.llmConfidence, 0.2);
+  assert.equal(matrix.factors.llmValidatorConfidence, 0.35);
+  assert.equal(matrix.llmValidator.trigger, "on");
+  assert.equal(matrix.llmValidator.borderlineMargin, 0.2);
 });

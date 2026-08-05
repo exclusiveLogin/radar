@@ -2,7 +2,11 @@ import { readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import type { GeoScoreFactorWeights, GeoScoreMatrix } from "./geoCandidateScore.js";
+import type {
+  GeoScoreFactorWeights,
+  GeoScoreMatrix,
+  LlmValidatorTriggerMode,
+} from "./geoCandidateScore.js";
 
 function defaultMatrix(): GeoScoreMatrix {
   return {
@@ -18,6 +22,11 @@ function defaultMatrix(): GeoScoreMatrix {
       geoConflict: -0.35,
       channelPromo: -0.7,
       llmConfidence: 0.25,
+      llmValidatorConfidence: 0.3,
+    },
+    llmValidator: {
+      trigger: "auto",
+      borderlineMargin: 0.15,
     },
   };
 }
@@ -46,6 +55,23 @@ function readFactorWeight(raw: string, name: string, fallback: number): number {
   return Number.isFinite(n) ? n : fallback;
 }
 
+function readLlmValidatorTrigger(raw: string, fallback: LlmValidatorTriggerMode): LlmValidatorTriggerMode {
+  const block = raw.match(/llmValidator:\s*\n((?:\s{2}.+\n)*)/);
+  if (!block?.[1]) return fallback;
+  const triggerMatch = block[1].match(/trigger:\s*(on|off|auto)/);
+  if (!triggerMatch?.[1]) return fallback;
+  return triggerMatch[1] as LlmValidatorTriggerMode;
+}
+
+function readLlmValidatorMargin(raw: string, fallback: number): number {
+  const block = raw.match(/llmValidator:\s*\n((?:\s{2}.+\n)*)/);
+  if (!block?.[1]) return fallback;
+  const marginMatch = block[1].match(/borderlineMargin:\s*(-?[0-9.]+)/);
+  if (!marginMatch?.[1]) return fallback;
+  const n = Number(marginMatch[1]);
+  return Number.isFinite(n) ? n : fallback;
+}
+
 /** Hand-rolled YAML parser для geo-score.v1.yaml. */
 export function parseGeoScoreMatrixYaml(raw: string): GeoScoreMatrix {
   const defaults = defaultMatrix();
@@ -60,6 +86,11 @@ export function parseGeoScoreMatrixYaml(raw: string): GeoScoreMatrix {
     geoConflict: readFactorWeight(raw, "geoConflict", defaults.factors.geoConflict),
     channelPromo: readFactorWeight(raw, "channelPromo", defaults.factors.channelPromo),
     llmConfidence: readFactorWeight(raw, "llmConfidence", defaults.factors.llmConfidence),
+    llmValidatorConfidence: readFactorWeight(
+      raw,
+      "llmValidatorConfidence",
+      defaults.factors.llmValidatorConfidence,
+    ),
   };
 
   return {
@@ -71,6 +102,10 @@ export function parseGeoScoreMatrixYaml(raw: string): GeoScoreMatrix {
       threshold: readNumber(raw, "threshold", defaults.materializeGate.threshold),
     },
     factors,
+    llmValidator: {
+      trigger: readLlmValidatorTrigger(raw, defaults.llmValidator.trigger),
+      borderlineMargin: readLlmValidatorMargin(raw, defaults.llmValidator.borderlineMargin),
+    },
   };
 }
 

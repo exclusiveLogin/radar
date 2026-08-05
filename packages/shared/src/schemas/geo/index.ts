@@ -6,10 +6,12 @@ export {
   geoEnrichmentDadataSchema,
   geoEnrichmentFinalizerSchema,
   geoEnrichmentLlmSchema,
+  geoEnrichmentLlmValidatorSchema,
   geoEnrichmentNominatimSchema,
   geoEventCategorySchema,
   geoPipelineReportSchema,
   geoPipelineStepLogSchema,
+  llmValidatorVerdictSchema,
 } from "./enrichment-artifact";
 export { aliasDraftSchema, placeDraftSchema, regionDraftSchema } from "./drafts";
 export {
@@ -65,8 +67,10 @@ export type {
   GeoEnrichmentDadata,
   GeoEnrichmentFinalizer,
   GeoEnrichmentLlm,
+  GeoEnrichmentLlmValidator,
   GeoEnrichmentNominatim,
   GeoEventCategory,
   GeoNode,
   GeoPipelineReport,
+  LlmValidatorVerdict,
 } from "./enrichment-artifact";

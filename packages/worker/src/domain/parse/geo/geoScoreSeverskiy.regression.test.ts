@@ -20,7 +20,9 @@ const MATRIX: GeoScoreMatrix = {
     geoConflict: -0.35,
     channelPromo: -0.7,
     llmConfidence: 0.25,
+    llmValidatorConfidence: 0.3,
   },
+  llmValidator: { trigger: "auto", borderlineMargin: 0.15 },
 };
 
 function placeCandidate(input: {

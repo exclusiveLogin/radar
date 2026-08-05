@@ -50,9 +50,25 @@ Loader: `geoScoreMatrixRegistry.ts` (кэш + revision hash), паттерн к�
 | `minorityRegion` | region кандидата минорен при кластере ≥`majorityClusterMin` другого ISO | − |
 | `geoConflict` | `namespaces.geoConflict` и region кандидата ∉ явных субъектов текста | − |
 | `channelPromo` | `isChannelCityListPromo(groomedText)` | − |
-| `llmConfidence` | scaled: `weight * (llmConfidence - 0.5) * 2` | ± |
+| `llmConfidence` | scaled: `weight * (llmConfidence - 0.5) * 2` (LLM enrich, name-match) | ± |
+| `llmValidatorConfidence` | signed: `confirm → +w·c`, `reject → −w·c` (LLM validator, по `candidateId`) | ± |
 
-LLM **не судья**: только входной сигнал (`places[].confidence` / `reason`). Пересчёт — той же Domain-функцией.
+LLM **не судья materialize**: оба сигнала — только факторы формулы. Пересчёт — той же Domain-функцией.
+
+### LLM Validator (фаза runner platform)
+
+Отдельная фаза `llm-validator` (`order` сразу после `llm`) аудирует уже отобранные geo-кандидаты:
+
+| Режим `llmValidator.trigger` | Поведение |
+|------------------------------|-----------|
+| `off` | HTTP не вызывается |
+| `on` | все active place/region |
+| `auto` | borderline: `\|geoScore − threshold\| ≤ borderlineMargin` |
+
+Контракт артефакта: `artifact.llmValidator.verdicts[] = { candidateId, verdict: confirm\|reject, confidence, reason }`.  
+Processor пишет в `extras.llmValidatorVerdict` / `llmValidatorConfidence` / `llmValidatorReason` **строго по id** (не name-match).
+
+On/off фазы, scaling (`policy.batchSize`/`intervalMs`) и obs — через тот же PhaseManifest / runner platform, что у `llm`/`dadata`/`nominatim`.
 
 ### Формула
 
@@ -81,7 +97,8 @@ isCandidateGeoScoreAcceptable(extras, matrix):
 | `geoImprecise` | ADR-012 (как сейчас) |
 | `matchedViaAdjectiveStem` | `resolveStemToEntry` |
 | `stemPoolSize` | размер filtered pool |
-| `llmConfidence` / `llmReason` | `llmProcessor` ↔ `artifact.llm.nodes` |
+| `llmConfidence` / `llmReason` | `llmProcessor` ↔ `artifact.llm.nodes` (name-match) |
+| `llmValidatorVerdict` / `llmValidatorConfidence` / `llmValidatorReason` | `llmValidatorProcessor` ↔ `artifact.llmValidator.verdicts` (по id) |
 | `geoScore` / `geoScoreBreakdown` | `runGeoCandidateScoring` |
 
 ## Rollout
@@ -101,5 +118,5 @@ isCandidateGeoScoreAcceptable(extras, matrix):
 
 - Отдельный MCP/сервис перевзвешивания.
 - Per-eventType пороги (YAGNI).
-- Ленивый LLM re-finalize как отдельный контур (уже существующий phase_enrich).
+- Замена name-match `llmConfidence` на id-based (оставлены оба фактора).
 - Кейс RU-IRK «Поволжье» — отдельная фикстура после полного текста сообщения.

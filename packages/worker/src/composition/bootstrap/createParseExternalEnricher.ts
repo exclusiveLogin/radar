@@ -10,11 +10,13 @@ import { DadataStep } from "../../application/geo-pipeline/steps/DadataStep.js";
 import type { GeoPipelineContext } from "../../application/geo-pipeline/GeoPipelineContext.js";
 import type { ParseExternalEnricher } from "../../application/parse/parseExternalEnricher.js";
 import { LlmStep } from "../../application/geo-pipeline/steps/LlmStep.js";
+import { LlmValidatorStep } from "../../application/geo-pipeline/steps/LlmValidatorStep.js";
 import { NominatimStep } from "../../application/geo-pipeline/steps/NominatimStep.js";
 import { GeoCatalog } from "../../infrastructure/geo-catalog/index.js";
 import { DadataEnricher } from "../../infrastructure/enrichers/dadataEnricher.js";
 import { loadDadataToken } from "../../infrastructure/enrichers/dadataConfig.js";
 import { LlmEnricher } from "../../infrastructure/enrichers/llmEnricher.js";
+import { LlmValidatorEnricher } from "../../infrastructure/enrichers/llmValidatorEnricher.js";
 import { loadLlmRuntimeConfig } from "../../infrastructure/enrichers/llmRuntimeConfig.js";
 import { NominatimEnricher } from "../../infrastructure/enrichers/nominatimEnricher.js";
 import { syncCatalogArtifactFromWorkspace } from "../../domain/parse/syncCatalogArtifactFromWorkspace.js";
@@ -31,12 +33,20 @@ function ensureGeoArtifact(workspace: ParseWorkspace): GeoEnrichmentArtifact {
 /** Создаёт lazy HTTP enrichers для parse workspace. */
 export function createParseExternalEnricher(): ParseExternalEnricher {
   let llm: LlmEnricher | undefined;
+  let llmValidator: LlmValidatorEnricher | undefined;
   let dadata: DadataEnricher | undefined;
   let nominatim: NominatimEnricher | undefined;
 
   return {
     async enrich(enricherId, workspace): Promise<void> {
       if (enricherId === "catalog") return;
+
+      // LLM Validator работает с workspace (candidate.id + geoScore), не с GeoPipelineContext.
+      if (enricherId === "llm-validator") {
+        llmValidator ??= new LlmValidatorEnricher(loadLlmRuntimeConfig());
+        await new LlmValidatorStep(llmValidator).run(workspace);
+        return;
+      }
 
       const artifact = ensureGeoArtifact(workspace);
       syncCatalogArtifactFromWorkspace(artifact, workspace);
