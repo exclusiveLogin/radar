@@ -92,7 +92,7 @@ export function ActiveThreatsWidget({
       ),
       body: (
         <>
-          <div className="ds-muted" style={{ fontSize: 11 }}>
+          <div className="ds-muted" style={{ fontSize: 12 }}>
             Статус с: {formatDateTime(regionStatusAt(row))}
           </div>
           <SourceMessageBlock regionCode={row.regionCode} />
@@ -122,7 +122,7 @@ export function ActiveThreatsWidget({
       ),
       body: (
         <>
-          <div className="ds-muted" style={{ fontSize: 11 }}>
+          <div className="ds-muted" style={{ fontSize: 12 }}>
             Статус с: {formatDateTime(placeStatusAt(row))}
           </div>
           <div className="ds-muted">{row.statusCode}</div>

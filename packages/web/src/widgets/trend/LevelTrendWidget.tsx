@@ -49,7 +49,7 @@ export function LevelTrendWidget({
       defaultCollapsed={defaultCollapsed}
       persistenceKey={panelPersistenceKey}
     >
-      <p className="ds-muted" style={{ margin: "0 0 6px", fontSize: 11 }}>
+      <p className="ds-muted" style={{ margin: "0 0 6px", fontSize: 12 }}>
         Окно: {changes.length} записей (макс. 200)
       </p>
       <Sparkline values={buckets} width={280} height={56} />

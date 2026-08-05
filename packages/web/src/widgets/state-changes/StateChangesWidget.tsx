@@ -90,16 +90,16 @@ export function StateChangesWidget({
       ),
       body: (
         <>
-          <div className="ds-muted" style={{ fontSize: 11 }}>
+          <div className="ds-muted" style={{ fontSize: 12 }}>
             {sourceLabel(row)} · {formatDateTime(row.postedAt)}
           </div>
           {namesLine && (
-            <div className="ds-muted" style={{ fontSize: 11, marginTop: 4 }}>
+            <div className="ds-muted" style={{ fontSize: 12, marginTop: 4 }}>
               {namesLine}
             </div>
           )}
           {parseLine && (
-            <div className="ds-muted" style={{ fontSize: 11, marginTop: 4 }}>
+            <div className="ds-muted" style={{ fontSize: 12, marginTop: 4 }}>
               {parseLine}
             </div>
           )}

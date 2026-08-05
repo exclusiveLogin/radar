@@ -31,7 +31,7 @@ function widgetsByZone(zone: WidgetZone, visible: Record<string, boolean>) {
 }
 
 /**
- * OSINT-оболочка: карта фоном, glass-рейлы по бокам, ломаный хедер.
+ * OSINT-оболочка: карта фоном, glass-рейлы по бокам, плоский хедер.
  */
 export function AppShell() {
   const [visible, setVisible] = useState<Record<string, boolean>>(initialVisibility);

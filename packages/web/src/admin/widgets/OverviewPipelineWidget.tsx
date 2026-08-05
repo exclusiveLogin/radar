@@ -27,7 +27,7 @@ export function OverviewPipelineWidget() {
       actions={
         <span
           className="ds-muted"
-          style={{ fontSize: 11 }}
+          style={{ fontSize: 12 }}
           title={formatDateTime(stats.lastRawPostedAt)}
         >
           Последнее raw · {lastRawLabel}

@@ -59,7 +59,7 @@ function ExecutorGroup({
 }) {
   return (
     <div style={{ marginTop: 8 }}>
-      <h5 style={{ margin: "0 0 4px", fontSize: 11, color: "var(--text-muted)" }}>{title}</h5>
+      <h5 style={{ margin: "0 0 4px", fontSize: 12, color: "var(--text-muted)" }}>{title}</h5>
       <ul className="ds-log-list">
         {items.map((executor) => {
           const childThreads =
@@ -70,9 +70,9 @@ function ExecutorGroup({
           return (
             <li key={executor.executorId} className="ds-log-list__item" style={{ gap: 8 }}>
               <span>{executor.executorId}</span>
-              <span style={{ color: "var(--text-muted)", fontSize: 10 }}>{executor.status}</span>
+              <span style={{ color: "var(--text-muted)", fontSize: 12 }}>{executor.status}</span>
               {childThreads.length > 0 && (
-                <span style={{ fontSize: 10 }}>threads: {childThreads.length}</span>
+                <span style={{ fontSize: 12 }}>threads: {childThreads.length}</span>
               )}
             </li>
           );

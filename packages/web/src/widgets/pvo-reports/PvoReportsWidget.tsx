@@ -40,7 +40,7 @@ function ByRegionList({ item }: { item: PvoReportItem }) {
         if (r.rockets  !== undefined) parts.push(`${r.rockets} ракет`);
         if (r.balloons !== undefined) parts.push(`${r.balloons} МВШ`);
         return (
-          <div key={r.code} className="ds-muted" style={{ fontSize: 11 }}>
+          <div key={r.code} className="ds-muted" style={{ fontSize: 12 }}>
             {r.name}: {parts.join(" · ")}
           </div>
         );
@@ -74,14 +74,14 @@ export function PvoReportsWidget({
             .join("\n"),
           head: (
             <>
-              <span className="ds-muted" style={{ fontSize: 11, marginRight: 6 }}>
+              <span className="ds-muted" style={{ fontSize: 12, marginRight: 6 }}>
                 {formatDateTime(report.postedAt)}
               </span>
               <span style={{ fontWeight: 500 }}>
                 {summary !== "—" ? `сбито ${summary}` : "—"}
               </span>
               {regionsLine && (
-                <span className="ds-muted" style={{ fontSize: 11, marginLeft: 6 }}>
+                <span className="ds-muted" style={{ fontSize: 12, marginLeft: 6 }}>
                   {regionsLine}
                 </span>
               )}
@@ -89,7 +89,7 @@ export function PvoReportsWidget({
           ),
           body: (
             <>
-              <div className="ds-muted" style={{ fontSize: 11 }}>
+              <div className="ds-muted" style={{ fontSize: 12 }}>
                 {source} · {formatDateTime(report.postedAt)}
               </div>
               <ByRegionList item={report} />

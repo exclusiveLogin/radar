@@ -7,7 +7,7 @@ import type { ProcessMetrics } from "@radar/shared";
 function ProcessTiles({ title, metrics }: { title: string; metrics: ProcessMetrics }) {
   return (
     <div style={{ marginBottom: 8 }}>
-      <h4 style={{ margin: "0 0 6px", fontSize: 11, color: "var(--text-muted)" }}>{title}</h4>
+      <h4 style={{ margin: "0 0 6px", fontSize: 12, color: "var(--text-muted)" }}>{title}</h4>
       <div className="ds-stat-grid">
         <StatTile label="Heap used" value={formatBytes(metrics.heapUsedBytes)} />
         <StatTile label="Heap total" value={formatBytes(metrics.heapTotalBytes)} />

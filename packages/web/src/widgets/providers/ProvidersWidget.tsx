@@ -70,7 +70,7 @@ export function ProvidersWidget({
                   pulse={display.pulse}
                 />
               </div>
-              <div className="ds-muted" style={{ fontSize: 11 }}>
+              <div className="ds-muted" style={{ fontSize: 12 }}>
                 {p.adapterKind} · heartbeat: {formatAge(p.lastHeartbeatAt)}
                 {!liveCtx.workerReachable && p.status === "active" ? " · worker offline" : null}
               </div>
@@ -78,7 +78,7 @@ export function ProvidersWidget({
                 <EllipsisText
                   text={p.lastError}
                   className="ds-ellipsis"
-                  style={{ fontSize: 11, color: "var(--status-error)", marginTop: 2 }}
+                  style={{ fontSize: 12, color: "var(--status-error)", marginTop: 2 }}
                   tip={p.lastError}
                 />
               )}

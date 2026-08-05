@@ -43,7 +43,7 @@ export function OverviewStatsWidget({ panelPersistenceKey }: WidgetProps) {
 
   return (
     <Panel title="Обзор" variant="glass" collapsible persistenceKey={panelPersistenceKey}>
-      <p className="ds-muted" style={{ margin: "0 0 6px", fontSize: 11 }}>
+      <p className="ds-muted" style={{ margin: "0 0 6px", fontSize: 12 }}>
         Регионы
       </p>
       <div className="ds-stat-grid">
@@ -57,13 +57,13 @@ export function OverviewStatsWidget({ panelPersistenceKey }: WidgetProps) {
         ))}
       </div>
       <div style={{ marginTop: 10 }}>
-        <p className="ds-muted" style={{ margin: "0 0 6px", fontSize: 11 }}>
+        <p className="ds-muted" style={{ margin: "0 0 6px", fontSize: 12 }}>
           Всего регионов: {regionTotal}
         </p>
         <Donut segments={regionSegments} />
       </div>
 
-      <p className="ds-muted" style={{ margin: "12px 0 6px", fontSize: 11 }}>
+      <p className="ds-muted" style={{ margin: "12px 0 6px", fontSize: 12 }}>
         Места на карте ({placesVisible})
       </p>
       <div className="ds-stat-grid">
