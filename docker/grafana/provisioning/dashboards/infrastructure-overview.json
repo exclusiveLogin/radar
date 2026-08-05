@@ -661,7 +661,7 @@
   "templating": {
     "list": [
       {
-        "allValue": ".*",
+        "allValue": ".+",
         "current": { "text": "All", "value": "$__all" },
         "datasource": { "type": "prometheus", "uid": "prometheus" },
         "definition": "label_values(process_resident_memory_bytes{job=~\"node-runtime-.*\"}, role)",

@@ -1,13 +1,21 @@
+import { isPgContendedL1ResetError, isPgDeadlockError } from "@radar/shared";
 import type { OperationalSql } from "../phases/operationalSql.port.js";
 import type { WipeLogger } from "./wipeLog.js";
 import {
   formatBlockersForError,
   listTableLockBlockers,
+  terminateOtherDatabaseBackends,
   terminateTableLockBlockers,
 } from "./wipeDbLocks.js";
 
 const TABLE_NAME = /^[a-z][a-z0-9_]*$/;
 const DEFAULT_LOCK_TIMEOUT_MS = 30_000;
+/** Wipe имеет приоритет: deadlock/lock → terminate blockers → retry. */
+const FORCE_TRUNCATE_ATTEMPTS = 5;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 function quoteTable(name: string): string {
   if (!TABLE_NAME.test(name)) {
@@ -183,28 +191,51 @@ export async function truncateTables(
   log?.detail(`TRUNCATE ${existing.join(", ")}${cascade ? " CASCADE" : ""}…`);
   log?.sql(sql);
 
-  try {
-    await runTruncateSql(sqlExecutor, sql, lockTimeoutMs, log);
-    log?.detail(`TRUNCATE ok: ${existing.join(", ")}`);
-  } catch (error) {
-    if (error instanceof WipeTableLockError && options.forceLocks) {
-      log?.line("lock timeout — снимаем блокировки и повторяем TRUNCATE…");
-      await terminateTableLockBlockers(sqlExecutor, existing, log);
-      try {
-        await runTruncateSql(sqlExecutor, sql, lockTimeoutMs, log);
-        log?.detail(`TRUNCATE ok (retry): ${existing.join(", ")}`);
-        return;
-      } catch (retryError) {
-        const blockers = await listTableLockBlockers(sqlExecutor, existing);
-        throw new WipeTableLockError(existing, retryError, blockers);
+  const attempts = options.forceLocks ? FORCE_TRUNCATE_ATTEMPTS : 1;
+  let lastError: unknown;
+
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    try {
+      await runTruncateSql(sqlExecutor, sql, lockTimeoutMs, log);
+      log?.detail(
+        attempt === 1
+          ? `TRUNCATE ok: ${existing.join(", ")}`
+          : `TRUNCATE ok (retry ${attempt}): ${existing.join(", ")}`,
+      );
+      return;
+    } catch (error) {
+      lastError = error;
+      const contended =
+        error instanceof WipeTableLockError || isPgContendedL1ResetError(error);
+
+      if (!options.forceLocks || !contended || attempt >= attempts) {
+        if (error instanceof WipeTableLockError) {
+          const blockers = await listTableLockBlockers(sqlExecutor, existing);
+          throw new WipeTableLockError(existing, error.cause ?? error, blockers);
+        }
+        if (isPgContendedL1ResetError(error)) {
+          const blockers = await listTableLockBlockers(sqlExecutor, existing);
+          throw new WipeTableLockError(existing, error, blockers);
+        }
+        throw error;
       }
+
+      const kind = isPgDeadlockError(error) ? "deadlock" : "lock timeout";
+      log?.line(
+        `TRUNCATE ${kind} (попытка ${attempt}/${attempts}) — terminate table blockers & retry…`,
+      );
+      await terminateTableLockBlockers(sqlExecutor, existing, log);
+      // Ядерный terminate всех backends — только поздний escalate (не с первой попытки),
+      // иначе admin-rebuild убивает Nest API.
+      if (attempt >= 3) {
+        log?.line("escalate: pg_terminate_backend прочих подключений к БД…");
+        await terminateOtherDatabaseBackends(sqlExecutor, log);
+      }
+      await sleep(120 * attempt);
     }
-    if (error instanceof WipeTableLockError) {
-      const blockers = await listTableLockBlockers(sqlExecutor, existing);
-      throw new WipeTableLockError(existing, error.cause, blockers);
-    }
-    throw error;
   }
+
+  throw lastError;
 }
 
 /** TRUNCATE с опциональным COUNT до очистки. */

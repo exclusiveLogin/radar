@@ -86,8 +86,11 @@ export class ParsePipelineAdminService implements OnModuleDestroy {
       this.logger.log(
         `rebuild preflight: runsClosed=${stopped.phaseRunsClosed}, queueCleared=${stopped.queueCleared}`,
       );
+      // --no-force-locks: не рвём DB-сессии живого API (иначе Nest падает → ECONNREFUSED).
+      // maintenance pause + stop runs уже сняли parse-конкуренцию; TRUNCATE soft-retry.
       return await this.startJob("rebuild", "parse-engine:pipeline:reset", [
         "--no-catch-up",
+        "--no-force-locks",
       ]);
     } catch (error) {
       this.parseMaintenance.resume();

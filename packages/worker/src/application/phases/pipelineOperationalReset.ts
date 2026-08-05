@@ -93,6 +93,10 @@ export async function runPipelineOperationalReset(
       reason: PIPELINE_RESET_REASON,
     });
 
+  // Не зовём terminateOtherDatabaseBackends здесь: admin-rebuild идёт при живом API,
+  // ядерный terminate валит Nest-пул → контейнер рестартится (vite ECONNREFUSED).
+  // forceLocks-retry в truncateTables рвёт только блокеров таблиц / escalate точечно.
+
   const mapReset = new MapStateFullReset({
     operationalSql,
   });
