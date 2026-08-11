@@ -57,7 +57,10 @@ function isCommercialNoise(input: string): boolean {
 
 const rules: Array<{ regex: RegExp; type: EventType }> = [
 
-  { regex: /отбой.*(?:по\s+(?:всем|всех)|всем\s+ранее\s+объявлен)/is, type: "cleared" },
+  {
+    regex: /отбой.*(?:по\s+(?:всем|всех)|всем\s+ранее\s+объявлен|ранее\s+объявлен)/is,
+    type: "cleared",
+  },
 
   { regex: /отбой.*(опасност|внимани|тревог|угроз)/is, type: "cleared" },
 
