@@ -535,6 +535,10 @@ export {
   type RawMessagePostedAtOrder,
 } from "./domain/phases/phaseClaimOrder";
 export { resolveGeoEnrichmentProvider } from "./domain/phases/phaseGeoProvider";
+export {
+  createPipelineStabilizedEvent,
+  createChannelBackfillCompletedEvent,
+} from "./domain/pipeline/cascadeEvents";
 export { phaseRunsOverviewSchema, type PhaseRunsOverview } from "./schemas/enrichment/phase-admin";
 export { SourceUniquenessRegistry } from "./ports/source-uniqueness";
 export type {
@@ -855,6 +859,8 @@ export type {
   LlmChatResult,
   LlmChatRole,
   IDomainEventRepository,
+  IPipelineStabilityRepository,
+  PipelineStabilityStatus,
   IEventLocationRepository,
   IIngestCursorRepository,
   IIngestProviderRepository,

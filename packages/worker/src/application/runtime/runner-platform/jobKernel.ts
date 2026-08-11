@@ -24,9 +24,13 @@ export type JobKernelObsPort = {
   onPaused?(): void;
   onStopped?(): void;
   onTickStart?(): void;
-  onTickEnd(metrics?: Record<string, unknown>): void;
+  onTickEnd?(metrics?: Record<string, unknown>): void;
   onMaterialize?(): void;
   onLiveMetrics?(metrics: Record<string, unknown>): void;
+  /** Тик нашёл работу — composition может markBusy для cascade. */
+  onBusy?(): void | Promise<void>;
+  /** Тик увидел пустую очередь — composition решает, публиковать ли stabilized. */
+  onIdle?(): void | Promise<void>;
 };
 
 export type JobKernelStatus = {
@@ -75,10 +79,12 @@ export function createJobKernel<TCursor, TSlice, TArtifact>(
       const cursor = await cursorEngine.current();
       const { slice, isEmpty } = await config.callbacks.loadSlice(cursor);
       if (isEmpty) {
+        await config.obs?.onIdle?.();
         config.obs?.onTickEnd?.({ empty: true });
         return;
       }
 
+      await config.obs?.onBusy?.();
       const runId = randomUUID();
       const { artifact, nextCursor } = await config.callbacks.evaluate(slice, {
         checkControl: readControl,

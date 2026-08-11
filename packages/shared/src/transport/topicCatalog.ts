@@ -12,6 +12,8 @@ export const RADAR_TOPICS = {
   RUNNER_DRAIN_GEO: "radar.runner.drain.geo",
   RUNNER_DRAIN_TRACKING: "radar.runner.drain.tracking",
   RUNNER_CONTROL: "radar.runner.control",
+  PIPELINE_STABILIZED: "radar.pipeline.stabilized",
+  CHANNEL_BACKFILL_COMPLETED: "radar.channel.backfill.completed",
 } as const;
 
 export type RadarTopicRoutingKey = (typeof RADAR_TOPICS)[keyof typeof RADAR_TOPICS];
@@ -24,6 +26,8 @@ const EVENT_TYPE_TO_TOPIC: Partial<Record<DomainEventType, RadarTopicRoutingKey>
   RawMessageIngested: RADAR_TOPICS.RAW_INGESTED,
   MessageParsed: RADAR_TOPICS.MESSAGE_PARSED,
   MessageParseFailed: RADAR_TOPICS.MESSAGE_PARSED,
+  PipelineStabilized: RADAR_TOPICS.PIPELINE_STABILIZED,
+  ChannelBackfillCompleted: RADAR_TOPICS.CHANNEL_BACKFILL_COMPLETED,
 };
 
 export function defaultTopicForEvent(type: DomainEventType): RadarTopicRoutingKey | null {

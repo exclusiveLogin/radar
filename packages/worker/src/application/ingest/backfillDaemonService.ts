@@ -121,6 +121,16 @@ export class BackfillDaemonService {
     private readonly telegramMtprotoApp: TelegramMtprotoAppCredentials,
     private readonly pollMs: number,
     private readonly heartbeatMs: number,
+    /** Cascade: busy/stabilized + ChannelBackfillCompleted (опционально). */
+    private readonly cascade?: {
+      markChannelBusy: (channelId: string) => Promise<void>;
+      onHistoryExhausted: (input: {
+        channelId: string;
+        channelKey: string;
+        providerKey: string;
+        jobId: string;
+      }) => Promise<void>;
+    },
   ) {}
 
   start(): void {
@@ -284,6 +294,12 @@ export class BackfillDaemonService {
         throw new Error(`Channel not found for binding ${binding.id}`);
       }
 
+      await this.cascade?.markChannelBusy(channel.id);
+      await this.cursors.updateBackfillState(channel.key, provider.key, {
+        inProgress: true,
+        jobId: currentJob.id,
+      });
+
       const adapter = await this.ensureAdapter(provider);
       if ("setChannelKeyMap" in adapter && typeof adapter.setChannelKeyMap === "function") {
         adapter.setChannelKeyMap(new Map([[binding.id, channel.key]]));
@@ -379,6 +395,12 @@ export class BackfillDaemonService {
           await this.jobs.updateStatus(currentJob.id, "completed", currentJob.stats);
           await this.clearRoundRobinSlice(currentJob.id, currentJob.params);
           console.log(`BackfillDaemon: job ${currentJob.id} completed`, currentJob.stats);
+          await this.cascade?.onHistoryExhausted({
+            channelId: channel.id,
+            channelKey: channel.key,
+            providerKey: provider.key,
+            jobId: currentJob.id,
+          });
         }
       } catch (err) {
         if (err instanceof BackfillCanceledError) {

@@ -91,6 +91,10 @@ export type {
   PhaseDefinitionRecord,
 } from "./phase-repositories";
 export type { IDomainEventRepository } from "./event-repositories";
+export type {
+  IPipelineStabilityRepository,
+  PipelineStabilityStatus,
+} from "./pipeline-stability";
 export type { IObservabilityRecorder } from "./observability-recorder";
 export type {
   ITransportMetricsRecorder,

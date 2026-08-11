@@ -21,6 +21,10 @@ export { TypeOrmRegionRepository } from "./typeorm-region.repository";
 export { TypeOrmStatusDictionaryRepository } from "./typeorm-status-dictionary.repository";
 export { TypeOrmSyncAuditRepository } from "./typeorm-sync-audit.repository";
 export {
+  TypeOrmPipelineStabilityRepository,
+  toStabilityStore,
+} from "./typeorm-pipeline-stability.repository";
+export {
   pgTimestampToIso,
   pgTimestampToIsoOptional,
   readTypeOrmQueryRows,

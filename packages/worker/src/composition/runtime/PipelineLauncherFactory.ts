@@ -13,6 +13,8 @@ import {
   type WorkloadObsContext,
 } from "../../application/runtime/observability/workloadObsHooks.js";
 import type { PhasePlatformDeps } from "../../application/runtime/runner-platform/phasePlatformDeps.js";
+import type { JobKernelObsPort } from "../../application/runtime/runner-platform/jobKernel.js";
+import { mergeJobKernelObs } from "../../application/runtime/runner-platform/mergeJobKernelObs.js";
 import { ParseRunnerRegistry } from "../../application/parse/runner/parseRunnerRegistry.js";
 import { GeoRunnerRegistry } from "../../application/geo-parse/runner/geoRunnerRegistry.js";
 import { createTrackingRunner } from "../../application/tracking/runner/trackingRunner.js";
@@ -26,6 +28,8 @@ export type PipelineLauncherFactoryDeps = {
   phasePlatform?: PhasePlatformDeps;
   obsBinding?: { recorder: IObservabilityRecorder; hostId: string };
   workerRuntime: WorkerRuntimeManifest;
+  /** Cascade: PipelineStabilized obs для parse/geo (merge в registry). */
+  stabilityObsByPipeline?: Partial<Record<PipelineKey, JobKernelObsPort>>;
 };
 
 class RunnerPlatformLauncher implements PipelineLauncher {
@@ -113,7 +117,10 @@ export function createPipelineLauncher(
       const obs = obsCtxFor(deps, "tracking");
       const runner = createTrackingRunner(
         deps.dataSource,
-        obs ? createWorkloadObsConfig(obs) : undefined,
+        mergeJobKernelObs(
+          obs ? createWorkloadObsConfig(obs) : undefined,
+          deps.stabilityObsByPipeline?.tracking,
+        ),
         { intervalMs: workerRuntime.tracking.intervalMs },
       );
       return new RunnerPlatformLauncher("tracking", runner);
@@ -122,7 +129,11 @@ export function createPipelineLauncher(
       if (!deps.phasePlatform?.parseTool) return null;
       const obs = obsCtxFor(deps, "parse");
       return new ParseRunnerLauncher(
-        new ParseRunnerRegistry({ ...deps.phasePlatform, obs }),
+        new ParseRunnerRegistry({
+          ...deps.phasePlatform,
+          obs,
+          stabilityObs: deps.stabilityObsByPipeline?.parse,
+        }),
       );
     }
     case "geo-enrich": {
@@ -133,6 +144,7 @@ export function createPipelineLauncher(
           ...deps.phasePlatform,
           placeEnrichmentRunner: deps.phasePlatform.placeEnrichmentRunner,
           obs,
+          stabilityObs: deps.stabilityObsByPipeline?.["geo-enrich"],
         }),
       );
     }

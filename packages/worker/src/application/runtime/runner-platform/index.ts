@@ -12,3 +12,5 @@ export * from "./lockEngine.js";
 export * from "./scheduleEngine.js";
 export * from "./telemetryBus.js";
 export * from "./jobKernel.js";
+export * from "./stabilityEngine.js";
+export * from "./mergeJobKernelObs.js";

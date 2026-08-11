@@ -20,6 +20,7 @@ Cross-context SDD — применяется одинаково к `tracking`, `
 | **trigger layer** | Debounce + gate перед `workload.enqueue()`. Не знает про workbook — только вызывает `onRoute()`. | `workload/triggerLayer.ts` |
 | **pipelineKey** | Неймспейс домена: `tracking` \| `parse` \| `geo-enrich`. | — |
 | **phaseKey** | Неймспейс фазы внутри домена: `<pipelineKey>.<phaseId>` (`tracking.cluster`, `parse.ingest-channel`, `geo-enrich.geo-dadata`). | — |
+| **stability scope** | Ключ race-safe claim'а «весь pipeline дренирован» — `pipeline:<pipelineKey>` или `channel-backfill:<channelId>`. Персист в `state_pipeline_stability`. | `runner-platform/stabilityEngine.ts` |
 
 ---
 
@@ -73,6 +74,18 @@ jobKernel.tick()
 
 Никакого центрального оркестратора между доменами — только хореография сигналами (Wave 6). `raw -> parse`, `mat_parse_event -> tracking`, `mat_parse_event -> geo-enrich` — каждый переход это `wireBusTrigger(bus, eventType, { onRoute: () => nextWorkload.enqueue() })`.
 
+### Cascade: stability-based wake (дополняет event-per-message chaining)
+
+Событие на каждое сообщение (`MessageParsed`) не гарантирует, что **весь** pipeline (все фазы, все реплики) реально дренирован. Для этого `jobKernel` получил `onBusy`/`onIdle` хуки в `JobKernelObsPort` — сам не знает про RMQ, просто сообщает composition root о переходах busy↔idle. App-обвязка (`application/cascade/pipelineStabilityCascade.ts`) на `onIdle` перепроверяет персист (`hasPendingWork`) и, если пусто, атомарно клеймит `stabilityEngine.reportIdle(scope)` — единственный победитель гонки реплик публикует `DomainEvent`:
+
+| Scope | Событие | Кто публикует | Кто будит |
+|---|---|---|---|
+| `pipeline:parse` | `PipelineStabilized{parse}` | любая реплика parse-workload, выигравшая claim | `tracking` (`wireParseStabilizedTrigger`) |
+| `pipeline:geo-enrich` | `PipelineStabilized{geo-enrich}` | реплика geo-enrich | — (пока без подписчика; задел для будущих geo-derived pipeline) |
+| `channel-backfill:<id>` | `ChannelBackfillCompleted` | `BackfillDaemonService` при `historyExhausted` без других runnable job по каналу | `parse` (`channelBackfillCompletedSubscriber` снимает `inProgress`) |
+
+Подробности и код: [how-it-works.md#stability-cascade](../../domain/how-it-works.md#stability-cascade).
+
 ---
 
 ## Инварианты
@@ -111,6 +124,8 @@ jobKernel.tick()
 | Geo-enrich | `geo-parse/runner/geoEnrichRunner.test.ts` | dadata→nominatim gating, run-id reuse, `phaseKey` |
 | ODP | `composition/odp/odpResolve.test.ts` | flag → runtime mapping |
 | API (contract) | `workbook-admin/workbook-admin.service.test.ts` | `workbookObservabilityResponseSchema` соответствие, registry/activeWorkloads/runHistory mapping |
+| Stability | `runner-platform/stabilityEngine.test.ts` | race-safe claim: N параллельных `reportIdle`, ровно один winner |
+| Cascade | `application/cascade/cascadeChains.test.ts` | `PipelineStabilized`/`ChannelBackfillCompleted` e2e через fake transport (live + backfill chain) |
 
 Regression parity legacy/runner-platform на golden fixtures и integration-прогон `raw -> parse -> tracking -> geo-enrich` — не выполнены (Wave 8, `test-gates`), см. пробелы в `tracking/runner-platform-migration.md`.
 

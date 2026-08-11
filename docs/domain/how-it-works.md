@@ -293,6 +293,39 @@ MessageParsed      → wireBusTrigger → tracking + geo-enrich enqueue()
 
 Polling (`hybrid schedule`) — резерв. E2E runbook: [e2e-bus-chaining.md](../runbook/e2e-bus-chaining.md).
 
+### Stability cascade — «раннер сам сигналит, что закончил» {#stability-cascade}
+
+**Проблема:** `MessageParsed`-триггер будит tracking на каждое сообщение, но не гарантирует, что parse **весь** дренирован (несколько реплик, несколько фаз). Нужен явный сигнал «во всём pipeline больше нет работы», а не «пришло одно событие».
+
+**Решение** — `stabilityEngine` (`packages/worker/.../runner-platform/stabilityEngine.ts`): персистентный busy→stabilized claim в `state_pipeline_stability`, race-safe между репликами (`UPDATE ... WHERE status='busy' RETURNING`).
+
+```text
+jobKernel.tick() (любая реплика parse/geo-enrich)
+  ├─ есть слайс     → onBusy()  → stabilityEngine.reportBusy(scope)
+  └─ isEmpty        → onIdle()  → hasPendingWork()? (перепроверка персиста)
+                                    └─ нет → stabilityEngine.reportIdle(scope) — claim
+                                             только победитель гонки публикует:
+                                             DomainEvent PipelineStabilized{pipelineKey}
+```
+
+Два независимых graph'а, оба через тот же примитив:
+
+| Chain | Scope | Trigger | Событие | Downstream |
+|---|---|---|---|---|
+| **Live** | `pipeline:parse`, `pipeline:geo-enrich` | parse/geo-enrich подтверждённо дренированы | `PipelineStabilized{parse}` | wake `tracking` (доп. к `MessageParsed`) |
+| **Backfill** | `channel-backfill:<channelId>` | `BackfillDaemonService` — `historyExhausted` и нет других runnable job по каналу | `ChannelBackfillCompleted` | снять `inProgress` в `backfill_state`, wake `parse` |
+
+Раннер (`jobKernel`) не знает про RMQ/DomainEvent — только вызывает `onBusy`/`onIdle` хуки `JobKernelObsPort`. Публикацию событий делает app-обвязка (`pipelineStabilityCascade.ts`), подключённая в composition root через `mergeJobKernelObs`.
+
+| Компонент | Файл |
+|---|---|
+| Race-safe claim | `runner-platform/stabilityEngine.ts` + `1754000000000-PipelineStability.ts` |
+| onBusy/onIdle hook в раннере | `runner-platform/jobKernel.ts` |
+| App-обвязка → DomainEvent | `application/cascade/pipelineStabilityCascade.ts` |
+| «Есть ли ещё работа» предикаты | `application/cascade/pendingWorkPredicates.ts` |
+| Wake tracking по `PipelineStabilized{parse}` | `composition/transport/wireWorkerTransportSubscriptions.ts` (`wireParseStabilizedTrigger`) |
+| Forward parse после backfill | `application/subscribers/channelBackfillCompletedSubscriber.ts` |
+
 ---
 
 ## Composition-root-flow {#composition-root-flow}

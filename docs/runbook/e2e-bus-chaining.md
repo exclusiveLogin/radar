@@ -23,8 +23,10 @@ npm run radar -- stack dev
 | raw → parse | `RawMessageIngested` | 250ms |
 | parse → tracking | `MessageParsed` | 250ms |
 | parse → geo | `MessageParsed` | 250ms |
+| parse (дренирован) → tracking | `PipelineStabilized{parse}` | 250ms |
+| backfill (канал исчерпан) → parse | `ChannelBackfillCompleted` | — |
 
-Polling (`hybrid schedule`) — резерв если событие потеряно.
+Polling (`hybrid schedule`) — резерв если событие потеряно. `PipelineStabilized` — доп. страховка на случай если единичный `MessageParsed` потерян/debounce съел последний тик (подробнее: [stability cascade](../domain/how-it-works.md#stability-cascade)).
 
 ---
 

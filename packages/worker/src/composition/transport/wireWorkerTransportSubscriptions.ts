@@ -22,6 +22,7 @@ import {
 } from "../../infrastructure/transport/wireTransportRuntimeSignals.js";
 import { wirePhaseWakeScheduler } from "../../application/phases/phaseWakeScheduler.js";
 import { wireTransportTrigger } from "../../application/runtime/workload/wireTransportTrigger.js";
+import { createTriggerLayer } from "../../application/runtime/workload/triggerLayer.js";
 import {
   hasCap,
   type DomainCap,
@@ -49,6 +50,8 @@ export type WireWorkerTransportSubscriptionsInput = {
   };
   parseIngestHandler?: TransportHandler;
   createGeoIngestHandler?: () => Promise<TransportHandler>;
+  /** bfend → parse forward (снять флаг + wake). */
+  channelBackfillCompletedHandler?: TransportHandler;
   trackingIntervalMs?: number;
   rawMessageIngestedHandler?: TransportHandler;
 };
@@ -73,6 +76,7 @@ export async function wireWorkerTransportSubscriptions(
     phaseWake,
     parseIngestHandler,
     createGeoIngestHandler,
+    channelBackfillCompletedHandler,
     trackingIntervalMs,
     rawMessageIngestedHandler,
   } = input;
@@ -131,6 +135,16 @@ export async function wireWorkerTransportSubscriptions(
     );
   }
 
+  if (hasCap(caps, "parse") && channelBackfillCompletedHandler) {
+    lifecycle.register(
+      transport.subscribe(
+        RADAR_TOPICS.CHANNEL_BACKFILL_COMPLETED,
+        channelBackfillCompletedHandler,
+        { queueSuffix: PIPELINE_RMQ_QUEUE_SUFFIX.parse },
+      ),
+    );
+  }
+
   if (hasCap(caps, "tracking") && trackingIntervalMs != null) {
     const timer = setInterval(() => wake.wake("tracking"), trackingIntervalMs);
     lifecycle.register(() => clearInterval(timer));
@@ -143,6 +157,14 @@ export async function wireWorkerTransportSubscriptions(
   }
 
   wireTrackingTrigger({
+    transport,
+    lifecycle,
+    wake,
+    hasWakeableLauncher,
+    observabilityRecorder,
+  });
+
+  wireParseStabilizedTrigger({
     transport,
     lifecycle,
     wake,
@@ -179,4 +201,41 @@ function wireTrackingTrigger(input: WireRunnerTriggersInput): void {
         : undefined,
     }),
   );
+}
+
+/**
+ * PipelineStabilized{parse} → wake tracking (live chain после дренирования parse).
+ * geo-enrich stabilized на тот же topic не будит tracking.
+ */
+function wireParseStabilizedTrigger(input: WireRunnerTriggersInput): void {
+  const pipelineKey: PipelineKey = "tracking";
+  if (!input.hasWakeableLauncher(pipelineKey)) return;
+
+  const trigger = createTriggerLayer({
+    debounceMs: 250,
+    onRoute: () => input.wake.wake(pipelineKey),
+    obs: input.observabilityRecorder
+      ? {
+          recorder: input.observabilityRecorder,
+          pipelineKey,
+          eventType: "PipelineStabilized",
+        }
+      : undefined,
+  });
+
+  input.lifecycle.register(
+    input.transport.subscribe(
+      RADAR_TOPICS.PIPELINE_STABILIZED,
+      async (event) => {
+        const key = (event.payload as { pipelineKey?: unknown })?.pipelineKey;
+        if (key !== "parse") return;
+        trigger.fire("bus");
+      },
+      {
+        queueSuffix: `${PIPELINE_RMQ_QUEUE_SUFFIX[pipelineKey]}.stabilized`,
+        delivery: "transient",
+      },
+    ),
+  );
+  input.lifecycle.register(() => trigger.dispose());
 }

@@ -12,6 +12,7 @@ import type { PlaceEnrichmentRunner } from "../../geo-parse/placeEnrichmentRunne
 import type { ParsePhaseTool } from "../../parse/parsePhaseTool.js";
 import type { PhaseRunSession } from "../../phases/phaseRunSession.js";
 import type { WorkloadObsContext } from "../observability/workloadObsHooks.js";
+import type { JobKernelObsPort } from "./jobKernel.js";
 
 /** Порты platform phase pipelines (parse + geo) — без WorkerDbRepositories bag. */
 export type PhasePlatformDeps = {
@@ -26,4 +27,6 @@ export type PhasePlatformDeps = {
   /** Domain-инструмент geo; нужен для geoParse scope. */
   placeEnrichmentRunner?: PlaceEnrichmentRunner;
   obs?: WorkloadObsContext;
+  /** Cascade stability obs (merge с recorder obs в registry). */
+  stabilityObs?: JobKernelObsPort;
 };

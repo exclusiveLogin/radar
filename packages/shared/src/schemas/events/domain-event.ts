@@ -41,6 +41,8 @@ export const domainEventTypeSchema = z.enum([
   "MetricSampleEmitted",
   "HealthSnapshotEmitted",
   "RateLimitTripped",
+  "PipelineStabilized",
+  "ChannelBackfillCompleted",
 ]);
 
 export const domainEventSchema = z.object({

@@ -35,7 +35,9 @@ import {
   ObsMaterializeCounterEntity,
   ObsTriggerCounterEntity,
   ObsWorkloadEntity,
+  PipelineStabilityEntity,
 } from "./observability";
+
 
 /** Единый набор TypeORM entity для автономных DataSource API и worker. */
 export const typeOrmEntities = [
@@ -57,6 +59,7 @@ export const typeOrmEntities = [
   ObsMaterializeCounterEntity,
   ObsTriggerCounterEntity,
   ObsWorkloadEntity,
+  PipelineStabilityEntity,
   ParseAttemptEntity,
   ParsedEventEntity,
   PhaseDefinitionEntity,

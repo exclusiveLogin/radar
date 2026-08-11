@@ -11,6 +11,7 @@ import { bootGeo } from "../../domain-boots/bootGeo.js";
 import { bootIngest } from "../../domain-boots/bootIngest.js";
 import { createRawMessageIngestedHandler } from "../../application/subscribers/rawMessageIngestedSubscriber.js";
 import { createPhaseIngestHandler } from "../../application/subscribers/phaseIngestSubscriber.js";
+import { createChannelBackfillCompletedHandler } from "../../application/subscribers/channelBackfillCompletedSubscriber.js";
 import { IngestRawMessageHandler } from "../../application/handlers/ingestRawMessageHandler.js";
 import { PhaseManualRunPoller } from "../../application/phases/phaseManualRunPoller.js";
 import { runGeoPhaseDrain } from "../../application/geo-parse/runGeoPhaseDrain.js";
@@ -33,6 +34,16 @@ import type { wireParseApplication } from "../bootstrap/wireParseApplication.js"
 import type { wirePhasePlatform } from "../bootstrap/wirePhasePlatform.js";
 import { wireWorkerTransportSubscriptions } from "../transport/wireWorkerTransportSubscriptions.js";
 import { startWorkerPipelines } from "./startWorkerPipelines.js";
+import type { PipelineLauncherFactoryDeps } from "./PipelineLauncherFactory.js";
+import { createStabilityEngine } from "../../application/runtime/runner-platform/stabilityEngine.js";
+import { toStabilityStore } from "@radar/persistence";
+import { createPipelineStabilityObsPort, markChannelBackfillBusy, publishChannelBackfillCompletedIfStable } from "../../application/cascade/pipelineStabilityCascade.js";
+import {
+  hasPendingGeoPlaceWork,
+  hasPendingPhaseCoverageWork,
+} from "../../application/cascade/pendingWorkPredicates.js";
+import type { JobKernelObsPort } from "../../application/runtime/runner-platform/jobKernel.js";
+import type { PipelineKey } from "@radar/shared";
 
 type BootstrapContext = ReturnType<typeof resolveWorkerBootstrapContext>;
 type WorkerPersistence = Awaited<ReturnType<typeof createWorkerPersistence>>;
@@ -99,7 +110,42 @@ export async function wireWorkerRuntime(
   let placeEnrichmentDaemon: WorkerRuntime["placeEnrichmentDaemon"];
   let trackingLauncher: WorkerRuntime["trackingLauncher"];
   let phaseManualRunPoller: PhaseManualRunPoller | undefined;
-  const factoryDeps = dataSource
+
+  const stabilityEngine =
+    workerRepos?.pipelineStability != null
+      ? createStabilityEngine(toStabilityStore(workerRepos.pipelineStability))
+      : undefined;
+
+  const stabilityObsByPipeline: Partial<Record<PipelineKey, JobKernelObsPort>> = {};
+  if (stabilityEngine && workerRepos && phasePlatform) {
+    if (hasCap(context.caps, "parse")) {
+      stabilityObsByPipeline.parse = createPipelineStabilityObsPort({
+        engine: stabilityEngine,
+        transport: eventTransport,
+        pipelineKey: "parse",
+        hasPendingWork: () =>
+          hasPendingPhaseCoverageWork({
+            phases: workerRepos.phaseDefinitions,
+            coverage: workerRepos.phaseCoverage,
+            scope: "ingestParse",
+          }),
+      });
+    }
+    if (hasCap(context.caps, "geo")) {
+      stabilityObsByPipeline["geo-enrich"] = createPipelineStabilityObsPort({
+        engine: stabilityEngine,
+        transport: eventTransport,
+        pipelineKey: "geo-enrich",
+        hasPendingWork: () =>
+          hasPendingGeoPlaceWork({
+            phases: workerRepos.phaseDefinitions,
+            placeJobs: workerRepos.placeEnrichmentJobs,
+          }),
+      });
+    }
+  }
+
+  const factoryDeps: PipelineLauncherFactoryDeps | undefined = dataSource
     ? {
         dataSource,
         phasePlatform,
@@ -110,6 +156,7 @@ export async function wireWorkerRuntime(
             }
           : undefined,
         workerRuntime: context.workerRuntime,
+        stabilityObsByPipeline,
       }
     : undefined;
 
@@ -208,6 +255,36 @@ export async function wireWorkerRuntime(
       context.workerRuntime.backfill.enabled &&
       ingestRawMessageHandler
     ) {
+      const backfillCascade =
+        stabilityEngine != null
+          ? {
+              markChannelBusy: (channelId: string) =>
+                markChannelBackfillBusy(stabilityEngine, channelId),
+              onHistoryExhausted: async (input: {
+                channelId: string;
+                channelKey: string;
+                providerKey: string;
+                jobId: string;
+              }) => {
+                await publishChannelBackfillCompletedIfStable(
+                  { engine: stabilityEngine, transport: eventTransport },
+                  {
+                    ...input,
+                    hasPendingChannelWork: async () => {
+                      const runnable = await backfillJobs.findRunnableMany(64);
+                      for (const row of runnable) {
+                        if (row.id === input.jobId) continue;
+                        const binding = await ingestBindings!.findById(row.bindingId);
+                        if (binding?.channelId === input.channelId) return true;
+                      }
+                      return false;
+                    },
+                  },
+                );
+              },
+            }
+          : undefined;
+
       backfillDaemon = await bootBackfill(
         ({ BackfillDaemonService: Daemon }) =>
           new Daemon(
@@ -221,6 +298,7 @@ export async function wireWorkerRuntime(
             telegramMtprotoApp,
             context.workerRuntime.backfill.pollMs,
             context.workerRuntime.backfill.heartbeatMs,
+            backfillCascade,
           ),
       );
       context.lifecycle.register(() => backfillDaemon?.stop());
@@ -307,6 +385,13 @@ export async function wireWorkerRuntime(
                 onWake: () => context.pipelineLaunchers.wake("geo-enrich"),
               }),
             )
+        : undefined,
+    channelBackfillCompletedHandler:
+      workerRepos && cursors && hasCap(context.caps, "parse")
+        ? createChannelBackfillCompletedHandler({
+            cursors,
+            onWakeParse: () => context.pipelineLaunchers.wake("parse"),
+          })
         : undefined,
     trackingIntervalMs: hasCap(context.caps, "tracking")
       ? context.workerRuntime.tracking.intervalMs

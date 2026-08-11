@@ -49,6 +49,7 @@ test("runOnce: loads slice, evaluates, materializes, advances cursor", async () 
 test("runOnce: empty slice does not materialize or advance cursor", async () => {
   const cursorStore = memoryCursorStore(5);
   let materializeCalls = 0;
+  let idleCalls = 0;
   const callbacks: PipelineCallbacks<number, number, number> = {
     loadSlice: async () => ({ slice: 0, isEmpty: true }),
     evaluate: async (slice) => ({ artifact: slice, nextCursor: slice }),
@@ -61,11 +62,49 @@ test("runOnce: empty slice does not materialize or advance cursor", async () => 
     schedule: { mode: "event" },
     cursorStore,
     callbacks,
+    obs: {
+      onTickEnd: () => {},
+      onIdle: () => {
+        idleCalls += 1;
+      },
+    },
   });
 
   await kernel.runOnce();
   assert.equal(materializeCalls, 0);
   assert.equal(await cursorStore.read(), 5);
+  assert.equal(idleCalls, 1);
+});
+
+test("runOnce: non-empty slice calls onBusy before evaluate", async () => {
+  const cursorStore = memoryCursorStore(0);
+  const order: string[] = [];
+  const callbacks: PipelineCallbacks<number, number, number> = {
+    loadSlice: async (cursor) =>
+      cursor < 1 ? { slice: cursor, isEmpty: false } : { slice: 0, isEmpty: true },
+    evaluate: async (slice) => {
+      order.push("evaluate");
+      return { artifact: slice, nextCursor: slice + 1 };
+    },
+    materialize: async () => {
+      order.push("materialize");
+    },
+  };
+  const kernel = createJobKernel({
+    pipelineKey: "test-pipeline-busy",
+    schedule: { mode: "event" },
+    cursorStore,
+    callbacks,
+    obs: {
+      onTickEnd: () => {},
+      onBusy: () => {
+        order.push("busy");
+      },
+    },
+  });
+
+  await kernel.runOnce();
+  assert.deepEqual(order, ["busy", "evaluate", "materialize"]);
 });
 
 test("pause: tick does no work while paused, resume re-enables", async () => {

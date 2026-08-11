@@ -3,6 +3,7 @@ import { createUnifiedPhaseWorkload } from "./unifiedPhaseWorkload.js";
 import type { PhasePlatformDeps } from "./phasePlatformDeps.js";
 import { createWorkloadObsConfig } from "../observability/workloadObsHooks.js";
 import type { Workload } from "../workload/createWorkload.js";
+import { mergeJobKernelObs } from "./mergeJobKernelObs.js";
 
 const DEFAULT_REFRESH_MS = 15_000;
 
@@ -51,9 +52,10 @@ export class PhaseKindRunnerRegistry {
 
     for (const phase of scheduled) {
       if (this.workloads.has(phase.id)) continue;
-      const phaseObs = this.deps.obs
+      const recorderObs = this.deps.obs
         ? createWorkloadObsConfig({ ...this.deps.obs, workloadIdSuffix: phase.id })
         : undefined;
+      const phaseObs = mergeJobKernelObs(recorderObs, this.deps.stabilityObs);
       const workload = createUnifiedPhaseWorkload(this.deps, phase, phaseObs);
       workload.start();
       this.workloads.set(phase.id, workload);
