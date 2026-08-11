@@ -9,29 +9,29 @@ const base = {
   infra: { obs: { dockerize: false, mode: "embedded" as const } },
   runners: {
     pipelines: [
-      { pipelineKey: "tracking", schedulingImpl: "legacy", enabled: true },
-      { pipelineKey: "parse", schedulingImpl: "legacy", enabled: true },
+      { pipelineKey: "tracking", enabled: true, spawn: "in-process" },
+      { pipelineKey: "parse", enabled: true, spawn: "in-process" },
     ],
   },
 };
 
 test("applyEnvOverlay patches nested scalar paths", () => {
-  const result = applyEnvOverlay(base, "DEPLOY", {
-    DEPLOY__infra__obs__dockerize: "true",
-    DEPLOY__infra__obs__mode: "service",
+  const result = applyEnvOverlay(base, "INFRA", {
+    INFRA__infra__obs__dockerize: "true",
+    INFRA__infra__obs__mode: "service",
   });
   assert.equal(result.infra.obs.dockerize, true);
   assert.equal(result.infra.obs.mode, "service");
 });
 
 test("applyEnvOverlay patches keyed array by pipelineKey", () => {
-  const result = applyEnvOverlay(base, "DEPLOY", {
-    DEPLOY__runners__pipelines__tracking__schedulingImpl: "runner-platform",
-    DEPLOY__runners__pipelines__parse__enabled: "false",
+  const result = applyEnvOverlay(base, "INFRA", {
+    INFRA__runners__pipelines__tracking__spawn: "docker",
+    INFRA__runners__pipelines__parse__enabled: "false",
   }, ARRAY_KEYS);
   const tracking = result.runners.pipelines.find((p) => p.pipelineKey === "tracking");
   const parse = result.runners.pipelines.find((p) => p.pipelineKey === "parse");
-  assert.equal(tracking?.schedulingImpl, "runner-platform");
+  assert.equal(tracking?.spawn, "docker");
   assert.equal(parse?.enabled, false);
 });
 

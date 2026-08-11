@@ -50,7 +50,7 @@ npm run radar -- ingest manifest:import
 
 `stack cold-up`: Docker (Postgres), `npm install`, build shared/api, **миграции**.
 
-`stack bootstrap`: seed `phase_definitions` из `deployment.manifest.json.phases` (insert-only; `--apply-config` — обновить policy без смены enabled).
+`stack bootstrap`: seed `phase_definitions` из `pipeline.manifest.json.phases` (insert-only; `--apply-config` — обновить policy без смены enabled).
 
 Опция **`-Tiles`**: после bootstrap запускает `tiles:sync` (скачивание OSM + tilemaker, **30–90 мин**, ≥30 GB диск). Без неё — CDN basemap (`openfreemap`). См. [map-tiles-selfhost.md](./map-tiles-selfhost.md).
 

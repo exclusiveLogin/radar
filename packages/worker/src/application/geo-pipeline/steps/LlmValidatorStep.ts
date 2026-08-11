@@ -12,6 +12,7 @@ import type {
   LlmValidatorCandidateInput,
   LlmValidatorEnricher,
 } from "../../../infrastructure/enrichers/llmValidatorEnricher.js";
+import { isLlmOpHardFailure } from "../../../domain/parse/geo/llmOpResult.js";
 
 function ensureGeoArtifact(workspace: ParseWorkspace): GeoEnrichmentArtifact {
   const existing = workspace.namespaces.geoArtifact as GeoEnrichmentArtifact | undefined;
@@ -76,18 +77,21 @@ export class LlmValidatorStep {
       candidates: selected.map(toValidatorInput),
     });
 
-    if (!result) {
+    if (!result.ok) {
       artifact.llmValidator = {
         schemaVersion: 1,
         verdicts: [],
-        skippedReason: "llm_no_result",
+        skippedReason: result.reason,
       };
+      if (isLlmOpHardFailure(result.reason)) {
+        throw new Error(`llm-validator:${result.reason}`);
+      }
       return;
     }
 
     artifact.llmValidator = {
       schemaVersion: 1,
-      verdicts: result.verdicts,
+      verdicts: result.data.verdicts,
     };
   }
 }

@@ -76,6 +76,7 @@ export async function createWorkerCompositionRoot(
     workerRepos: persistence.workerRepos,
     operationalSql: persistence.operationalSql,
     dataSource: persistence.dataSource,
+    eventTransport: persistence.eventTransport,
     shutdown: persistence.shutdown,
   };
 }

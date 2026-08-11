@@ -72,6 +72,10 @@ export class IngestRawMessageHandler {
         hash: normalized.hash,
         ingestMode: normalized.ingestMode,
       },
+      meta: {
+        stepId: normalized.ingestMode === "backfill" ? "ingest-backfill" : "ingest-live",
+        lane: normalized.ingestMode ?? "live",
+      },
     };
     await publishIngestDomainEvent(this.events, event);
     workerRuntimeStatus.recordIngest({

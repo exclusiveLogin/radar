@@ -1,6 +1,6 @@
 import type { DataSource } from "typeorm";
 import type {
-  DeploymentManifest,
+  InfraManifest,
   DeploymentTransport,
   IEventTransport,
   ITransportMetricsRecorder,
@@ -51,6 +51,6 @@ function exitWorkerOnConnectionLoss(error: Error): void {
   process.exit(1);
 }
 
-export function resolveTransportFromManifest(manifest: DeploymentManifest): DeploymentTransport {
+export function resolveTransportFromManifest(manifest: InfraManifest): DeploymentTransport {
   return manifest.transport;
 }

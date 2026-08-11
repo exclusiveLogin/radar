@@ -1,7 +1,7 @@
 # ADR-027: SSOT весовой матрицы geo-кандидатов.
 # Калибровка порога — только этот файл (без правки кода).
 schemaVersion: 1
-revision: "2026-08-03.1"
+revision: "2026-08-11.1"
 
 # Стартовый score до факторов.
 base: 1.0
@@ -43,9 +43,15 @@ factors:
   # Signed: confirm → +weight*confidence, reject → −weight*confidence.
   llmValidatorConfidence:
     weight: 0.3
+  # LLM gap-fill: место есть в raw, нет в каталоге (штатно, валидатор аудитит).
+  llmOnly:
+    weight: -0.35
+  # Галлюцинация: нет опоры в raw. base+maxLlmConf+вес < threshold.
+  llmUngrounded:
+    weight: -1.05
 
 # LLM Validator phase trigger (ADR-027 extension).
-# off — не вызывать; on — все geo-кандидаты; auto — borderline вокруг порога.
+# off — не вызывать; on — все geo-кандидаты; auto — borderline + llmOnly/llmUngrounded.
 llmValidator:
   trigger: auto
   borderlineMargin: 0.15

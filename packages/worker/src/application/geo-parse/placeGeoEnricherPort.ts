@@ -1,4 +1,5 @@
 import type { LocationCandidate, LocationEnrichInput } from "@radar/shared";
+import type { LlmOpResult } from "../../domain/parse/geo/llmOpResult.js";
 
 /** Порт dadata/nominatim — application без concrete infra-классов. */
 export type GeoProviderEnricherPort = {
@@ -6,17 +7,19 @@ export type GeoProviderEnricherPort = {
   isSuggestionsBlocked?(): boolean;
 };
 
-/** Порт LLM geo enrich. */
+export type LlmGeoEnrichPayload = {
+  places?: Array<{ placeName?: string; placeFias?: string | null; confidence?: number }>;
+  confidence?: number;
+  model: string;
+  latencyMs: number;
+};
+
+/** Порт LLM geo enrich (структурированный результат Wave 7). */
 export type LlmGeoEnricherPort = {
-  enrich(input: { rawText: string; regionCode?: string }): Promise<
-    | {
-        places?: Array<{ placeName?: string; placeFias?: string | null; confidence?: number }>;
-        confidence?: number;
-        model: string;
-        latencyMs: number;
-      }
-    | null
-  >;
+  enrich(input: {
+    rawText: string;
+    regionCode?: string;
+  }): Promise<LlmOpResult<LlmGeoEnrichPayload>>;
 };
 
 export type PlaceEnrichmentEnrichers = {

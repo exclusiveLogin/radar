@@ -3,16 +3,20 @@
  * layer: worker/composition
  * domain: transport/runtime
  * purpose: Владеет всеми transport-подписками и их lifecycle worker.
+ *          Domain handlers планируют работу; StepTriggerRouter будит шаги по манифесту.
  * ---
  */
 import type {
   IEventTransport,
   IObservabilityRecorder,
   IPhaseDefinitionRepository,
+  PipelineManifest,
+  StepRunContext,
 } from "@radar/shared";
 import {
   PIPELINE_RMQ_QUEUE_SUFFIX,
   RADAR_TOPICS,
+  pipelineKeySchema,
   type PipelineKey,
 } from "@radar/shared";
 import { bridgeTransportTopicToBus } from "../../infrastructure/transport/bridgeTransportToBus.js";
@@ -21,8 +25,7 @@ import {
   type WireTransportRuntimeSignalsInput,
 } from "../../infrastructure/transport/wireTransportRuntimeSignals.js";
 import { wirePhaseWakeScheduler } from "../../application/phases/phaseWakeScheduler.js";
-import { wireTransportTrigger } from "../../application/runtime/workload/wireTransportTrigger.js";
-import { createTriggerLayer } from "../../application/runtime/workload/triggerLayer.js";
+import { wireStepTriggerRouter } from "../../application/runtime/step/stepTriggerRouter.js";
 import {
   hasCap,
   type DomainCap,
@@ -54,11 +57,13 @@ export type WireWorkerTransportSubscriptionsInput = {
   channelBackfillCompletedHandler?: TransportHandler;
   trackingIntervalMs?: number;
   rawMessageIngestedHandler?: TransportHandler;
+  /** Declarative step ingress (Wave 2). */
+  pipelineManifest?: PipelineManifest;
 };
 
 /**
  * Регистрирует подписки в порядке обработки: domain handler планирует работу,
- * затем отдельный debounce-trigger будит соответствующий pipeline.
+ * затем StepTriggerRouter будит соответствующие pipeline steps.
  */
 export async function wireWorkerTransportSubscriptions(
   input: WireWorkerTransportSubscriptionsInput,
@@ -79,6 +84,7 @@ export async function wireWorkerTransportSubscriptions(
     channelBackfillCompletedHandler,
     trackingIntervalMs,
     rawMessageIngestedHandler,
+    pipelineManifest,
   } = input;
 
   if (bridgeToBus) {
@@ -156,86 +162,66 @@ export async function wireWorkerTransportSubscriptions(
     );
   }
 
-  wireTrackingTrigger({
-    transport,
-    lifecycle,
-    wake,
-    hasWakeableLauncher,
-    observabilityRecorder,
-  });
-
-  wireParseStabilizedTrigger({
-    transport,
-    lifecycle,
-    wake,
-    hasWakeableLauncher,
-    observabilityRecorder,
-  });
+  if (pipelineManifest) {
+    wireStepTriggers({
+      transport,
+      lifecycle,
+      wake,
+      hasWakeableLauncher,
+      observabilityRecorder,
+      pipelineManifest,
+    });
+  }
 }
 
-type WireRunnerTriggersInput = Pick<
+type WireStepTriggersInput = Pick<
   WireWorkerTransportSubscriptionsInput,
-  "transport" | "lifecycle" | "wake" | "hasWakeableLauncher" | "observabilityRecorder"
->;
+  | "transport"
+  | "lifecycle"
+  | "wake"
+  | "hasWakeableLauncher"
+  | "observabilityRecorder"
+  | "pipelineManifest"
+> & { pipelineManifest: PipelineManifest };
 
 /**
- * MessageParsed только будит tracking: данные runner читает из PostgreSQL.
- * Эфемерная noAck-очередь не накапливает одинаковые wake-сообщения без worker.
+ * Manifest-driven ingress: topic → gates → debounced StepRunContext → wake(pipelineKey).
+ * Domain subscribers выше остаются для planning (enqueue coverage/jobs).
  */
-function wireTrackingTrigger(input: WireRunnerTriggersInput): void {
-  const pipelineKey: PipelineKey = "tracking";
-  if (!input.hasWakeableLauncher(pipelineKey)) return;
+function wireStepTriggers(input: WireStepTriggersInput): void {
+  const stepsById = new Map(
+    input.pipelineManifest.steps.filter((s) => s.enabled).map((s) => [s.id, s]),
+  );
 
   input.lifecycle.register(
-    wireTransportTrigger(input.transport, RADAR_TOPICS.MESSAGE_PARSED, {
-      debounceMs: 250,
-      onRoute: () => input.wake.wake(pipelineKey),
-      queueSuffix: `${PIPELINE_RMQ_QUEUE_SUFFIX[pipelineKey]}.trigger`,
-      delivery: "transient",
-      obs: input.observabilityRecorder
-        ? {
-            recorder: input.observabilityRecorder,
-            pipelineKey,
-            eventType: "MessageParsed",
-          }
-        : undefined,
+    wireStepTriggerRouter({
+      steps: input.pipelineManifest.steps,
+      transport: input.transport,
+      onStepTrigger: (ctx: StepRunContext) => {
+        const step = stepsById.get(ctx.stepId);
+        if (!step) return;
+        const parsed = pipelineKeySchema.safeParse(step.pipelineKey);
+        if (!parsed.success) return;
+        const pipelineKey = parsed.data;
+        if (!input.hasWakeableLauncher(pipelineKey)) return;
+
+        if (input.observabilityRecorder) {
+          void input.observabilityRecorder
+            .incrementTrigger(
+              {
+                pipelineKey,
+                eventType: ctx.trigger.topic || "step.trigger",
+                source: ctx.trigger.source,
+              },
+              1,
+            )
+            .catch((err: unknown) => {
+              console.warn("[obs] incrementTrigger failed:", err);
+            });
+        }
+
+        input.wake.wake(pipelineKey);
+      },
     }),
   );
-}
-
-/**
- * PipelineStabilized{parse} → wake tracking (live chain после дренирования parse).
- * geo-enrich stabilized на тот же topic не будит tracking.
- */
-function wireParseStabilizedTrigger(input: WireRunnerTriggersInput): void {
-  const pipelineKey: PipelineKey = "tracking";
-  if (!input.hasWakeableLauncher(pipelineKey)) return;
-
-  const trigger = createTriggerLayer({
-    debounceMs: 250,
-    onRoute: () => input.wake.wake(pipelineKey),
-    obs: input.observabilityRecorder
-      ? {
-          recorder: input.observabilityRecorder,
-          pipelineKey,
-          eventType: "PipelineStabilized",
-        }
-      : undefined,
-  });
-
-  input.lifecycle.register(
-    input.transport.subscribe(
-      RADAR_TOPICS.PIPELINE_STABILIZED,
-      async (event) => {
-        const key = (event.payload as { pipelineKey?: unknown })?.pipelineKey;
-        if (key !== "parse") return;
-        trigger.fire("bus");
-      },
-      {
-        queueSuffix: `${PIPELINE_RMQ_QUEUE_SUFFIX[pipelineKey]}.stabilized`,
-        delivery: "transient",
-      },
-    ),
-  );
-  input.lifecycle.register(() => trigger.dispose());
 }

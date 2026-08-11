@@ -305,14 +305,16 @@ jobKernel.tick() (любая реплика parse/geo-enrich)
   └─ isEmpty        → onIdle()  → hasPendingWork()? (перепроверка персиста)
                                     └─ нет → stabilityEngine.reportIdle(scope) — claim
                                              только победитель гонки публикует:
-                                             DomainEvent PipelineStabilized{pipelineKey}
+                                             DomainEvent PipelineStabilized
+                                             → routing key из step.emits (`*.stabilized`)
 ```
 
 Два независимых graph'а, оба через тот же примитив:
 
 | Chain | Scope | Trigger | Событие | Downstream |
 |---|---|---|---|---|
-| **Live** | `pipeline:parse`, `pipeline:geo-enrich` | parse/geo-enrich подтверждённо дренированы | `PipelineStabilized{parse}` | wake `tracking` (доп. к `MessageParsed`) |
+| **Live parse** | `pipeline:parse` | parse подтверждённо дренирован | `radar.parse.stabilized` (DSL) | wake `tracking` (доп. к `MessageParsed`) |
+| **Live geo** | `pipeline:geo-enrich` | geo дренирован | claim idle, без bus-emit (`emits: []`) | — (параллельно, без retrack) |
 | **Backfill** | `channel-backfill:<channelId>` | `BackfillDaemonService` — `historyExhausted` и нет других runnable job по каналу | `ChannelBackfillCompleted` | снять `inProgress` в `backfill_state`, wake `parse` |
 
 Раннер (`jobKernel`) не знает про RMQ/DomainEvent — только вызывает `onBusy`/`onIdle` хуки `JobKernelObsPort`. Публикацию событий делает app-обвязка (`pipelineStabilityCascade.ts`), подключённая в composition root через `mergeJobKernelObs`.
@@ -323,8 +325,28 @@ jobKernel.tick() (любая реплика parse/geo-enrich)
 | onBusy/onIdle hook в раннере | `runner-platform/jobKernel.ts` |
 | App-обвязка → DomainEvent | `application/cascade/pipelineStabilityCascade.ts` |
 | «Есть ли ещё работа» предикаты | `application/cascade/pendingWorkPredicates.ts` |
-| Wake tracking по `PipelineStabilized{parse}` | `composition/transport/wireWorkerTransportSubscriptions.ts` (`wireParseStabilizedTrigger`) |
+| Wake tracking по `radar.parse.stabilized` | `StepTriggerRouter` (DSL `tracking.trigger.on`) |
 | Forward parse после backfill | `application/subscribers/channelBackfillCompletedSubscriber.ts` |
+
+---
+
+## Pipeline steps / gates / isolate {#pipeline-steps-flow}
+
+**Модель:** шаг из `pipeline.manifest.json` знает только свои `trigger.on[]`, фазы и `emits[]`. Цепочка = совпадение топиков, не оркестратор.
+
+```text
+bus topic → StepTriggerRouter (lane / isolate / stepId)
+         → StepRunner → materialize
+         → StepEgressGate → publish | suppress (+ log_step_run.suppressed_emits)
+```
+
+| Механика | Эффект |
+|----------|--------|
+| **lane** | `accepts.lane` на ingress; lane из `meta.lane` → `payload.ingestMode` → `live` |
+| **isolate** | исполнение идёт; domain emits глушатся; tracking/geo не будятся; lifecycle keys проходят |
+| **StepRunRequested** | admin/CLI будит один `payload.stepId` без phase-поллера |
+
+SSOT: [sdd/pipeline-steps](../sdd/pipeline-steps/README.md) · словарь: [pipeline-hooks-and-events.md](./pipeline-hooks-and-events.md) · ключи: [reference/pipeline-triggers.md](../reference/pipeline-triggers.md) · ADR: [ADR-028](../rfc/adr-028-infra-pipeline-manifests.md).
 
 ---
 
@@ -334,10 +356,8 @@ jobKernel.tick() (любая реплика parse/geo-enrich)
 
 1. `createWorkerDataSource()` — один TypeORM `DataSource`.
 2. `createWorkerDbRepositories(dataSource)` — репозитории на этот же source.
-3. 
-ew InProcessEventBus()`, подписки (`RawMessageIngested` → parse, метрики).
-4. 
-ew OutboxRelay(dataSource, bus)` + `start()` — poll раз в 1s.
+3. `new InProcessEventBus()`, подписки (`RawMessageIngested` → parse, метрики).
+4. `new OutboxRelay(dataSource, bus)` + `start()` — poll раз в 1s.
 5. Handlers, parse pipeline, опционально `IngestOrchestrator`.
 
 **Не делается:** единая транзакция на весь use case; прокидывание `EntityManager` в handlers.
@@ -366,8 +386,7 @@ ew OutboxRelay(dataSource, bus)` + `start()` — poll раз в 1s.
 
 | Вопрос | Ответ |
 |--------|--------|
-| Где создаётся агрегат? | Не 
-ew Aggregate()` — запись в таблицу + `aggregateId` в событии |
+| Где создаётся агрегат? | Не `new Aggregate()` — запись в таблицу + `aggregateId` в событии |
 | Composition root = UoW? | Нет, только wiring |
 | Все события в outbox? | Нет — worker пишет в in-memory bus |
 | Parse идёт после commit ingest? | В worker — да, синхронно в том же процессе после `upsert` |

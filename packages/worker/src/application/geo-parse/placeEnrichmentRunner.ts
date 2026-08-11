@@ -362,9 +362,11 @@ export class PlaceEnrichmentRunner {
       });
     }
 
-    const llm = await this.llm.enrich({ rawText: query, regionCode });
-    const best = llm?.places?.[0];
-    if (!llm || !best) return null;
+    const llmResult = await this.llm.enrich({ rawText: query, regionCode });
+    if (!llmResult.ok) return null;
+    const llm = llmResult.data;
+    const best = llm.places?.[0];
+    if (!best) return null;
     return this.toContribution(provider, placeId, {
       name: best.placeName,
       placeFias: best.placeFias ?? undefined,

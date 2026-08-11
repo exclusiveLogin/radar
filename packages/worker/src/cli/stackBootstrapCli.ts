@@ -1,6 +1,6 @@
 import "reflect-metadata";
 import { MONOREPO_ROOT } from "@repo/root";
-import { loadDeploymentManifest } from "@radar/shared/deployment/deploymentManifest.loader.js";
+import { loadPipelineManifest } from "@radar/shared/pipeline/pipelineManifest.loader.js";
 import { loadRootEnv } from "../infrastructure/config/loadRootEnv.js";
 import { createWorkerDataSource } from "../infrastructure/persistence/createWorkerDataSource.js";
 import { createWorkerDbRepositories } from "../infrastructure/persistence/workerDbRepos.js";
@@ -15,7 +15,7 @@ async function main(): Promise<void> {
   const modeArg = parsePositionalArgs(process.argv)[0];
   const mode: ManifestSeedMode = modeArg === "apply-config" ? "apply-config" : "insert-only";
 
-  const manifest = loadDeploymentManifest({ repoRoot: MONOREPO_ROOT });
+  const manifest = loadPipelineManifest({ repoRoot: MONOREPO_ROOT });
   const dataSource = await createWorkerDataSource();
   const db = await createWorkerDbRepositories(dataSource);
 

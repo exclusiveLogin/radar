@@ -52,6 +52,7 @@ npm run radar -- pipeline status
 | Tracking | [sdd/tracking/](./sdd/tracking/README.md) | [sdd/tracking/plan.md](./sdd/tracking/plan.md) |
 | ODP | [sdd/odp/](./sdd/odp/README.md) | [adr-014](./adr-014-operational-domain-profile.md) |
 | Parse | [sdd/parse/](./sdd/parse/README.md) | [parse-processor-workspace.md](./rfc/parse-processor-workspace.md) |
+| Pipeline steps | [sdd/pipeline-steps/](./sdd/pipeline-steps/README.md) | [ADR-028](./rfc/adr-028-infra-pipeline-manifests.md) |
 
 ---
 
@@ -64,6 +65,7 @@ npm run radar -- pipeline status
 | Tracking (live + debug) | [runbook/tracking-pipeline.md](./runbook/tracking-pipeline.md), [features/tracking-live-locus-debug.md](./features/tracking-live-locus-debug.md), [sdd/tracking/phase-6-tracks-realtime.md](./sdd/tracking/phase-6-tracks-realtime.md) |
 | Слои и wiring | [architecture-layers-and-wiring.md](./architecture-layers-and-wiring.md) |
 | Потоки в коде | [domain/how-it-works.md](./domain/how-it-works.md) |
+| Pipeline steps / triggers | [sdd/pipeline-steps/](./sdd/pipeline-steps/README.md), [domain/pipeline-hooks-and-events.md](./domain/pipeline-hooks-and-events.md), [reference/pipeline-triggers.md](./reference/pipeline-triggers.md), [ADR-028](./rfc/adr-028-infra-pipeline-manifests.md) |
 | Parse / domain pack | [master-implementation-roadmap.md](./rfc/master-implementation-roadmap.md), [parse-inspect.md](./parse-inspect.md), [adr-014](./adr-014-operational-domain-profile.md) |
 | Geo-артефакты / каталог | [runbook/geo-clean-rebuild.md](./runbook/geo-clean-rebuild.md), [data/geo/README.md](../data/geo/README.md) |
 | Phase-pipeline v2 | [phase-pipeline.md](./phase-pipeline.md), [api/phases-admin.md](./api/phases-admin.md) |

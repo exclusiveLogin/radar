@@ -6,7 +6,7 @@ import type {
   WorkloadSnapshot,
 } from "@radar/shared";
 
-/** No-op recorder: memory mode или deployment.manifest.json infra.obs.mode=noop. */
+/** No-op recorder: memory mode или infra.manifest.json infra.obs.mode=noop. */
 export class NoopObservabilityRecorder implements IObservabilityRecorder {
   async upsertHost(_host: HostSnapshot): Promise<void> {}
 

@@ -11,6 +11,7 @@ export { PhaseDefinitionEntity } from "./phase-definition.entity";
 export { PhaseRunEntity } from "./phase-run.entity";
 export { PlaceEnrichmentJobEntity } from "./place-enrichment-job.entity";
 export { StatusDictionaryEntity } from "./status-dictionary.entity";
+export { StepRunEntity } from "./step-run.entity";
 
 // --- type-only exports ---
 export {};

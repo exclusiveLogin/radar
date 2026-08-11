@@ -23,6 +23,8 @@ const MATRIX: GeoScoreMatrix = {
     channelPromo: -0.7,
     llmConfidence: 0.25,
     llmValidatorConfidence: 0.3,
+    llmOnly: -0.35,
+    llmUngrounded: -1.05,
   },
   llmValidator: { trigger: "auto", borderlineMargin: 0.15 },
 };
@@ -156,6 +158,10 @@ factors:
     weight: 0.2
   llmValidatorConfidence:
     weight: 0.35
+  llmOnly:
+    weight: -0.35
+  llmUngrounded:
+    weight: -1.05
 llmValidator:
   trigger: on
   borderlineMargin: 0.2
@@ -169,6 +175,31 @@ llmValidator:
   assert.equal(matrix.factors.adjectiveStem, -0.2);
   assert.equal(matrix.factors.llmConfidence, 0.2);
   assert.equal(matrix.factors.llmValidatorConfidence, 0.35);
+  assert.equal(matrix.factors.llmOnly, -0.35);
+  assert.equal(matrix.factors.llmUngrounded, -1.05);
   assert.equal(matrix.llmValidator.trigger, "on");
   assert.equal(matrix.llmValidator.borderlineMargin, 0.2);
+});
+
+test("llmOnly / llmUngrounded штрафуют; ungrounded + max conf ниже threshold", () => {
+  const only = computeGeoCandidateScore(factors({ llmOnly: true, llmConfidence: 1 }), MATRIX);
+  assert.equal(only.breakdown.llmOnly, -0.35);
+  assert.equal(only.score, 0.9);
+
+  const ungrounded = computeGeoCandidateScore(
+    factors({ llmUngrounded: true, llmConfidence: 1 }),
+    MATRIX,
+  );
+  assert.equal(ungrounded.breakdown.llmUngrounded, -1.05);
+  assert.ok(ungrounded.score < MATRIX.materializeGate.threshold);
+
+  // Калибровка бюджета пары весов: base + maxLlmConf + llmOnly + llmUngrounded ≤ threshold+margin
+  const budget =
+    MATRIX.base
+    + MATRIX.factors.llmConfidence
+    + MATRIX.factors.llmOnly
+    + MATRIX.factors.llmUngrounded;
+  const auditCeiling =
+    MATRIX.materializeGate.threshold + MATRIX.llmValidator.borderlineMargin;
+  assert.ok(budget <= auditCeiling);
 });

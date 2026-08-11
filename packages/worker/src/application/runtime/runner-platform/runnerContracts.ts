@@ -8,6 +8,8 @@
  * ---
  */
 
+import type { StepEmit } from "@radar/shared";
+
 /** Флаги доставки сигнала — определяют, где он переживает рестарт/куда попадает. */
 export type SignalPolicy = {
   /** Сохраняется для poller/replay (переживает рестарт процесса). */
@@ -46,7 +48,12 @@ export type LoadSlice<TCursor, TSlice> = (cursor: TCursor) => Promise<{
 export type Evaluate<TSlice, TArtifact, TCursor> = (
   slice: TSlice,
   ctx: { checkControl: RunControlReader },
-) => Promise<{ artifact: TArtifact; nextCursor: TCursor }>;
+) => Promise<{
+  artifact: TArtifact;
+  nextCursor: TCursor;
+  /** Wave 3+: опциональные emits для StepEgressGate (jobKernel пока игнорирует). */
+  emits?: StepEmit[];
+}>;
 
 /** Материализация side-артефактов (DB/persist) — без доменной логики platform-слоя. */
 export type Materialize<TArtifact> = (artifact: TArtifact) => Promise<void>;

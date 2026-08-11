@@ -1,18 +1,17 @@
 import type {
+  DomainEvent,
   IEventTransport,
   RadarTopicRoutingKey,
   TransportDelivery,
 } from "@radar/shared";
-import { createTriggerLayer, type TriggerLayerOptions } from "./triggerLayer.js";
+import { createTriggerLayer, type TriggerLayerOptions, type TriggerContext } from "./triggerLayer.js";
 
 export type WireTransportTriggerOptions = TriggerLayerOptions & {
-  /** RMQ fan-out queue suffix (parse/geo/tracking). */
   queueSuffix?: string;
-  /** Безадресный wake не требует хранения и повторной доставки. */
   delivery?: TransportDelivery;
 };
 
-/** Debounced enqueue по transport topic (аналог wireBusTrigger). */
+/** Debounced enqueue по transport topic — DomainEvent доезжает до gate. */
 export function wireTransportTrigger(
   transport: IEventTransport,
   routingKey: RadarTopicRoutingKey,
@@ -22,8 +21,13 @@ export function wireTransportTrigger(
   const trigger = createTriggerLayer(triggerOpts);
   const unsubscribe = transport.subscribe(
     routingKey,
-    async () => {
-      trigger.fire("bus");
+    async (event: DomainEvent) => {
+      const ctx: TriggerContext = {
+        source: "bus",
+        topic: routingKey,
+        event,
+      };
+      trigger.fire(ctx);
     },
     queueSuffix || delivery ? { queueSuffix, delivery } : undefined,
   );

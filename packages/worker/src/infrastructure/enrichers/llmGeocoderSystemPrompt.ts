@@ -1,5 +1,5 @@
 export const LLM_GEOCODER_SYSTEM_PROMPT = `
-Извлеки топонимы из rawText → JSON { places[], regionCode, confidence, reason, eventCategory }.
+Извлеки топонимы из rawText → JSON { places[], regionCode, confidence, reason, eventCategory, eventSubject }.
 
 User JSON: rawText, catalogRegions, priorRegions, priorPlaces, priorValidatedLocations, localityAnchors, regionCodeHint, knownRegionCodes.
 
@@ -22,15 +22,15 @@ catalogRegions и regionCodeHint — гипотезы regex-каталога т�
 Политика / репортаж без оперативки → eventCategory: noise.
 
 eventCategory (один из):
-fixation | pvo_work | intercept | impact | danger | rocket_threat | warning | attention | cleared | noise | other
+threat | impact | all_clear | movement | fixation | pvo_work | intercept | danger | rocket_threat | warning | attention | cleared | noise | other
 
 warning — приготовиться, тревога, волна (массовость не в типе).
 noise — promo, FAQ, «фиксаций нет», мониторинг без сигнала.
 other — неясно; не отменяй geo без reason.
+cleared / all_clear — отбой / снятие угрозы.
 
-eventSubject: drone | rocket | mws | aviation | other (null если cleared/noise/other).
-uncertain: true если «возможно/вероятно» в тексте.
+eventSubject: drone | rocket | mws | aviation | other (null если cleared/noise/other/all_clear).
 
 Только JSON:
-{"places":[{"placeName":"","kind":"","regionCode":null,"confidence":0,"reason":""}],"regionCode":null,"confidence":0,"reason":"","eventCategory":null,"eventSubject":null,"uncertain":false}
+{"places":[{"placeName":"","kind":"","regionCode":null,"confidence":0,"reason":""}],"regionCode":null,"confidence":0,"reason":"","eventCategory":null,"eventSubject":null}
 `.trim();

@@ -1,6 +1,6 @@
 /**
  * Отбор кандидатов для LLM Validator phase (ADR-027).
- * on / off / auto — из YAML; auto = borderline вокруг materialize-порога.
+ * on / off / auto — из YAML; auto = borderline + llmOnly/llmUngrounded.
  */
 import type { EventCandidate } from "@radar/shared";
 import type { GeoScoreMatrix } from "./geoCandidateScore.js";
@@ -8,6 +8,10 @@ import type { GeoScoreMatrix } from "./geoCandidateScore.js";
 function readGeoScore(extras: Record<string, unknown>): number | undefined {
   const value = extras.geoScore;
   return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function isLlmGapFill(extras: Record<string, unknown>): boolean {
+  return extras.llmOnly === true || extras.llmUngrounded === true;
 }
 
 /** Кандидат в зоне ±margin вокруг materializeGate.threshold. */
@@ -23,7 +27,7 @@ export function isBorderlineGeoScore(
 
 /**
  * Фильтрует active geo-кандидатов по trigger-режиму матрицы.
- * off → []; on → все place/region; auto → borderline.
+ * off → []; on → все place/region; auto → borderline ∪ llmOnly ∪ llmUngrounded.
  */
 export function selectLlmValidatorCandidates(
   candidates: EventCandidate[],
@@ -40,7 +44,9 @@ export function selectLlmValidatorCandidates(
 
   const { threshold } = matrix.materializeGate;
   const { borderlineMargin } = matrix.llmValidator;
-  return geo.filter((c) =>
-    isBorderlineGeoScore(readGeoScore(c.extras ?? {}), threshold, borderlineMargin),
-  );
+  return geo.filter((c) => {
+    const extras = c.extras ?? {};
+    if (isLlmGapFill(extras)) return true;
+    return isBorderlineGeoScore(readGeoScore(extras), threshold, borderlineMargin);
+  });
 }

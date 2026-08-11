@@ -1,25 +1,20 @@
-/**
- * ---
- * layer: worker/runtime
- * domain: workload
- * purpose: Wave 6 (tracking-parse-architecture-refactor) — ingest chaining как хореография по
- *          сигналам вместо централизованной оркестрации: тонкий адаптер bus-событие → TriggerLayer
- *          → `workload.enqueue()`. Каждый context (parse/tracking/geo-enrich) сам решает, реагировать
- *          ли на апстрим-событие — эта функция только подключает провод, знание "что" и "зачем"
- *          остаётся у вызывающей стороны (composition root).
- * ---
- */
-import type { IEventSubscriber } from "@radar/shared";
-import { createTriggerLayer, type TriggerLayerOptions } from "./triggerLayer.js";
+import type { DomainEvent, IEventSubscriber } from "@radar/shared";
+import { createTriggerLayer, type TriggerLayerOptions, type TriggerContext } from "./triggerLayer.js";
 
+/** Debounced enqueue по in-process bus event type (DomainEvent сохраняется). */
 export function wireBusTrigger(
   bus: IEventSubscriber,
   eventType: string,
   options: TriggerLayerOptions,
 ): () => void {
   const trigger = createTriggerLayer(options);
-  const unsubscribe = bus.subscribe(eventType, async () => {
-    trigger.fire("bus");
+  const unsubscribe = bus.subscribe(eventType, async (event: DomainEvent) => {
+    const ctx: TriggerContext = {
+      source: "bus",
+      topic: eventType,
+      event,
+    };
+    trigger.fire(ctx);
   });
   return () => {
     unsubscribe();

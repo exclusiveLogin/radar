@@ -15,12 +15,13 @@ export function resolvePipelineWakeMode(payload: PipelineWakePayload): PipelineW
   return payload.ids && payload.ids.length > 0 ? "targeted" : "drain";
 }
 
-/** Ids из DomainEvent aggregateId или payload.materializationIds / placeIds. */
+/** Ids из DomainEvent: payload.ids / materializationIds / placeIds или aggregateId. */
 export function extractWakeIds(input: {
   aggregateId?: string | null;
   payload?: Record<string, unknown>;
 }): string[] {
-  const fromPayload = input.payload?.materializationIds ?? input.payload?.placeIds;
+  const fromPayload =
+    input.payload?.ids ?? input.payload?.materializationIds ?? input.payload?.placeIds;
   if (Array.isArray(fromPayload)) {
     return fromPayload.map(String).filter((id) => id.length > 0);
   }

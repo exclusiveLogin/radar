@@ -17,7 +17,10 @@ import { DadataEnricher } from "../../infrastructure/enrichers/dadataEnricher.js
 import { loadDadataToken } from "../../infrastructure/enrichers/dadataConfig.js";
 import { LlmEnricher } from "../../infrastructure/enrichers/llmEnricher.js";
 import { LlmValidatorEnricher } from "../../infrastructure/enrichers/llmValidatorEnricher.js";
-import { loadLlmRuntimeConfig } from "../../infrastructure/enrichers/llmRuntimeConfig.js";
+import {
+  loadLlmRuntimeConfig,
+  loadLlmValidatorRuntimeConfig,
+} from "../../infrastructure/enrichers/llmRuntimeConfig.js";
 import { NominatimEnricher } from "../../infrastructure/enrichers/nominatimEnricher.js";
 import { syncCatalogArtifactFromWorkspace } from "../../domain/parse/syncCatalogArtifactFromWorkspace.js";
 
@@ -43,7 +46,7 @@ export function createParseExternalEnricher(): ParseExternalEnricher {
 
       // LLM Validator работает с workspace (candidate.id + geoScore), не с GeoPipelineContext.
       if (enricherId === "llm-validator") {
-        llmValidator ??= new LlmValidatorEnricher(loadLlmRuntimeConfig());
+        llmValidator ??= new LlmValidatorEnricher(loadLlmValidatorRuntimeConfig());
         await new LlmValidatorStep(llmValidator).run(workspace);
         return;
       }

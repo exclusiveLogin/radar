@@ -14,8 +14,8 @@ const nodeRequire = createRequire(__filename);
 
 export const OBS_READ_CLIENT = Symbol("OBS_READ_CLIENT");
 
-type DeploymentManifestModule = {
-  loadDeploymentManifest: (opts: { repoRoot: string }) => {
+type InfraManifestModule = {
+  loadInfraManifest: (opts: { repoRoot: string }) => {
     infra: { obs: { readMode: "embedded" | "service"; serviceUrl: string } };
   };
 };
@@ -48,16 +48,16 @@ export class ObservabilityAdminService {
   }
 }
 
-/** Nest factory: readMode из deployment manifest (ADR-021). */
+/** Nest factory: readMode из infra manifest. */
 export function obsReadClientFactory(
   dataSource: Parameters<typeof createObsReadClient>[0],
 ): ObsReadClient {
   const loaderPath = join(
     MONOREPO_ROOT,
-    "packages/shared/dist/deployment/deploymentManifest.loader.js",
+    "packages/shared/dist/infra/infraManifest.loader.js",
   );
-  const { loadDeploymentManifest } = nodeRequire(loaderPath) as DeploymentManifestModule;
-  const manifest = loadDeploymentManifest({ repoRoot: MONOREPO_ROOT });
+  const { loadInfraManifest } = nodeRequire(loaderPath) as InfraManifestModule;
+  const manifest = loadInfraManifest({ repoRoot: MONOREPO_ROOT });
   return createObsReadClient(dataSource, {
     readMode: manifest.infra.obs.readMode,
     serviceUrl: manifest.infra.obs.serviceUrl,

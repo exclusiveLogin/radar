@@ -5,7 +5,7 @@
 import type { PhaseDefinitionRecord, PhaseRunStats } from "@radar/shared";
 import { createWorkbook } from "@radar/shared";
 import { createPhaseTickGate } from "../../phases/phaseTickGate.js";
-import { buildPhaseDriver, triggerModeToSchedule } from "./phaseDriver.js";
+import { buildPhaseDriver } from "./phaseDriver.js";
 import type { PhasePlatformDeps } from "./phasePlatformDeps.js";
 import { createUnifiedRunner } from "./unifiedRunner.js";
 import type { JobKernelObsPort } from "./jobKernel.js";
@@ -30,8 +30,7 @@ export function createUnifiedPhaseWorkload(
 ): Workload & { telemetry: TelemetryBus<UnifiedPhaseArtifact> } {
   const telemetry = createTelemetryBus<UnifiedPhaseArtifact>();
   const pipelineKey = phase.scope === "ingestParse" ? "parse" : "geo-enrich";
-  const intervalMs = Math.max(phase.policy.intervalMs, phase.policy.minIntervalMs, 1000);
-  const schedule = triggerModeToSchedule(phase.triggerMode, intervalMs);
+  const schedule = { mode: "event" as const };
   const tickGate = createPhaseTickGate({
     phaseRuns: deps.phaseRuns,
     placeJobs: deps.placeJobs,

@@ -3,7 +3,7 @@
  * Ingest доставляет mat_ingest_raw; фазы маркируют job_parse_phase и мержат в накопитель.
  */
 import { z } from "zod";
-import { radarTopicRoutingKeySchema } from "../../transport/topicCatalog.js";
+import { radarRoutingKeySchema as radarTopicRoutingKeySchema } from "../../transport/radarRoutingKey.js";
 import { DEFAULT_PHASE_TERMINAL_POLICY } from "./phaseTerminalPolicy.js";
 
 export const enricherIdSchema = z.enum([

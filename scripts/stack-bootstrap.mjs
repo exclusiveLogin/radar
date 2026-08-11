@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Stack bootstrap — seed phase_definitions из deployment.manifest.json.phases.
+ * Stack bootstrap — seed phase_definitions из pipeline.manifest.json.phases.
  */
 import { loadRepoEnv, repoRoot, run } from './utils.mjs';
 

@@ -76,6 +76,8 @@ function buildFactors(input: {
     llmConfidence: readLlmConfidence(extras),
     llmValidatorVerdict: readLlmValidatorVerdict(extras),
     llmValidatorConfidence: readLlmValidatorConfidence(extras),
+    llmOnly: extras.llmOnly === true,
+    llmUngrounded: extras.llmUngrounded === true,
   };
 }
 

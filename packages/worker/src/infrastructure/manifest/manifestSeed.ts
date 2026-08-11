@@ -1,4 +1,4 @@
-import type { DeploymentManifest, IPhaseDefinitionRepository } from "@radar/shared";
+import type { IPhaseDefinitionRepository, PipelineManifest } from "@radar/shared";
 
 export type ManifestSeedMode = "insert-only" | "apply-config";
 
@@ -9,11 +9,11 @@ export type ManifestSeedResult = {
 };
 
 /**
- * Seed phase_definitions из deployment.manifest.json.phases.
+ * Seed phase_definitions из pipeline.manifest.json.phases.
  * apply-config обновляет конфиг, но never overwrite enabled.
  */
 export async function seedPhasesFromManifest(
-  manifest: DeploymentManifest,
+  manifest: Pick<PipelineManifest, "phases">,
   repo: IPhaseDefinitionRepository,
   mode: ManifestSeedMode,
 ): Promise<ManifestSeedResult> {

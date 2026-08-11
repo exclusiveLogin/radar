@@ -5,7 +5,7 @@
  * purpose: Разрешает неизменяемый контекст запуска worker.
  * ---
  */
-import { loadDeploymentManifest } from "@radar/shared/deployment/deploymentManifest.loader.js";
+import { loadInfraManifest } from "@radar/shared/infra/infraManifest.loader.js";
 import { loadWorkerRuntimeManifest } from "@radar/shared/manifest/domains/workerRuntime.loader.js";
 import { MONOREPO_ROOT } from "@repo/root";
 import { MetricsAggregator, ParseAttemptLogger, PrometheusDomainEventCounter } from "../../application/subscribers/index.js";
@@ -32,7 +32,7 @@ export function resolveWorkerBootstrapContext(options: WorkerCompositionOptions)
   const caps = capsFor(workerRole, options.bootCaps);
   const needsParseStack = hasCap(caps, "parse") || hasCap(caps, "geo");
   const needsIngestPath = hasCap(caps, "ingest") || hasCap(caps, "backfill");
-  const deploymentManifest = loadDeploymentManifest({ repoRoot: MONOREPO_ROOT });
+  const infraManifest = loadInfraManifest({ repoRoot: MONOREPO_ROOT });
   const workerRuntime = loadWorkerRuntimeManifest({ repoRoot: MONOREPO_ROOT });
   const bus = new InProcessEventBus();
   const metricsAggregator = new MetricsAggregator();
@@ -56,11 +56,11 @@ export function resolveWorkerBootstrapContext(options: WorkerCompositionOptions)
     needsParseStack,
     needsIngestPath,
     hostStartedAt: new Date().toISOString(),
-    deploymentManifest,
+    infraManifest,
     workerRuntime,
-    odp: odpResolve(deploymentManifest),
+    odp: odpResolve(infraManifest),
     runtimePipelines: resolveRuntimePipelines({
-      manifest: deploymentManifest,
+      manifest: infraManifest,
       workerRole,
     }),
     bus,

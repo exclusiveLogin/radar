@@ -2,7 +2,7 @@ import type { IngestParsePhaseSelection } from "../application/parse/loadIngestP
 import { readStringFlag, type CliFlagMap } from "./workerCliArgs.js";
 
 /**
- * Offline CLI: без `--phases` — enabled из DB / deployment.manifest;
+ * Offline CLI: без `--phases` — enabled из DB / pipeline.manifest;
  * с `--phases=id1,id2` — override (включая disabled).
  */
 export function parseIngestPhaseCli(map: CliFlagMap): IngestParsePhaseSelection {

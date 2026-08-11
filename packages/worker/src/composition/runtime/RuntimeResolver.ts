@@ -1,26 +1,24 @@
 /**
  * ---
  * layer: worker/composition
- * domain: deployment/runtime
- * purpose: Фильтрует deployment manifest — какие pipeline должны стартовать на текущем worker-role.
+ * domain: infra/runtime
+ * purpose: Фильтрует infra manifest — какие pipeline должны стартовать на текущем worker-role.
  * ---
  */
 import type {
-  DeploymentManifest,
+  InfraManifest,
   DeploymentPipelineEntry,
   ObsPipelineRuntime,
-  SchedulingImpl,
 } from "@radar/shared";
 import type { WorkerRole } from "../../infrastructure/config/workerRole.js";
 
 export type ResolvedRuntimePipeline = {
   entry: DeploymentPipelineEntry;
   runtime: ObsPipelineRuntime;
-  schedulingImpl: SchedulingImpl;
 };
 
 export type RuntimeResolverInput = {
-  manifest: DeploymentManifest;
+  manifest: InfraManifest;
   workerRole: WorkerRole;
 };
 
@@ -32,7 +30,7 @@ export function hostMatchesPipeline(
   return pipelineHost === workerRole;
 }
 
-/** Активные pipeline текущего процесса по deployment manifest. */
+/** Активные pipeline текущего процесса по infra manifest. */
 export function resolveRuntimePipelines(
   input: RuntimeResolverInput,
 ): ResolvedRuntimePipeline[] {
@@ -41,7 +39,6 @@ export function resolveRuntimePipelines(
     .filter((entry) => hostMatchesPipeline(entry.host, input.workerRole))
     .map((entry) => ({
       entry,
-      schedulingImpl: "runner-platform" as const,
       runtime: "runner-platform" as const,
     }));
 }

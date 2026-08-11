@@ -1,42 +1,34 @@
 import { MONOREPO_ROOT } from "@repo/root";
+import { createStepRunRequestedEvent, topicForKnownEventType } from "@radar/shared";
 import { createWorkerCompositionRoot } from "../application/createWorkerCompositionRoot.js";
 import { loadRootEnv } from "../infrastructure/config/loadRootEnv.js";
 import { cliWorkerRuntime } from "./cliWorkerRuntime.js";
 import { parseLongFlagsMap, readStringFlag } from "./workerCliArgs.js";
 
-/** Планирует отсутствующие raw и разбирает enabled ingestParse-фазы батчами. */
+/** Публикует StepRunRequested для parse (опционально --phase только для лога). */
 async function main(): Promise<void> {
   loadRootEnv(MONOREPO_ROOT);
   const phaseFilter = readStringFlag(parseLongFlagsMap(process.argv), ["phase"])?.trim();
 
   const runtime = await createWorkerCompositionRoot(cliWorkerRuntime("parse", ["parse"]));
-  if (!runtime.workerRepos || !runtime.phaseRunner) {
-    throw new Error("parse-engine:ingest:drain: требуется db mode");
+  if (!runtime.eventTransport) {
+    throw new Error("parse-engine:ingest:drain: требуется db mode + transport");
   }
 
-  let phases = await runtime.workerRepos.phaseDefinitions.listEnabled(undefined, "ingestParse");
-  if (phaseFilter) {
-    phases = phases.filter((phase) => phase.id === phaseFilter);
-    if (phases.length === 0) {
-      throw new Error(`scheduled ingestParse фаза '${phaseFilter}' не найдена`);
-    }
-  }
+  const event = createStepRunRequestedEvent({
+    stepId: "parse",
+    lane: "manual",
+  });
+  const topic = topicForKnownEventType(event.type);
+  if (!topic) throw new Error("StepRunRequested topic missing");
 
-  for (const phase of phases) {
-    const { enqueued } = await runtime.workerRepos.phaseCoverage.enqueueCatchUp(phase.id);
-    const run = await runtime.workerRepos.phaseRuns.create({
-      phaseId: phase.id,
-      trigger: "manual",
-    });
-    await runtime.phaseRunner.runDrain({
-      phase,
-      runId: run.id,
-      trigger: "manual",
-      batchSize: phase.policy.batchSize,
-    });
-    console.log(`ingest drained phase=${phase.id} enqueued=${enqueued}`);
-  }
-
+  await runtime.eventTransport.start();
+  await runtime.eventTransport.publish(topic, [event]);
+  console.log(
+    `ingest drain: StepRunRequested step=parse event=${event.id}${
+      phaseFilter ? ` (phase filter note=${phaseFilter})` : ""
+    }`,
+  );
   await runtime.shutdown?.();
 }
 

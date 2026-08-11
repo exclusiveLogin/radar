@@ -30,6 +30,12 @@ import {
   runnerDiscoveryResponseSchema,
   type WorkbookObservabilityResponse,
   type RunnerDiscoveryResponse,
+  pipelineTopologyResponseSchema,
+  pipelineStepRunResponseSchema,
+  pipelineStepResetResponseSchema,
+  type PipelineTopologyResponse,
+  type PipelineStepRunResponse,
+  type PipelineStepResetResponse,
 } from "@radar/shared";
 import type { PhaseDefinition, PhaseRun, TrackingStatusResponse, TrackingRebuildRun } from "@radar/shared";
 import { z } from "zod";
@@ -259,4 +265,27 @@ export const adminApi = {
 
   runnerDiscovery: (): Promise<RunnerDiscoveryResponse> =>
     getJson("/api/admin/runner/discovery", runnerDiscoveryResponseSchema),
+
+  pipelineTopology: (): Promise<PipelineTopologyResponse> =>
+    getJson("/api/admin/pipeline/topology", pipelineTopologyResponseSchema),
+
+  pipelineStepRun: (
+    stepId: string,
+    body: { isolate?: boolean; ids?: string[]; lane?: "manual" | "backfill" },
+  ): Promise<PipelineStepRunResponse> =>
+    postJson(
+      `/api/admin/pipeline/steps/${encodeURIComponent(stepId)}/run`,
+      body,
+      pipelineStepRunResponseSchema,
+    ),
+
+  pipelineStepReset: (
+    stepId: string,
+    body: { cascade?: boolean; dryRun?: boolean },
+  ): Promise<PipelineStepResetResponse> =>
+    postJson(
+      `/api/admin/pipeline/steps/${encodeURIComponent(stepId)}/reset`,
+      body,
+      pipelineStepResetResponseSchema,
+    ),
 };

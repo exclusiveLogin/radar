@@ -3,6 +3,7 @@
  * layer: worker/application
  * domain: cascade
  * purpose: App-обвязка stabilityEngine → DomainEvent. Раннер не знает про RMQ.
+ *          Routing key для stabilized — только из DSL (step.emits), не хардкод.
  * ---
  */
 import type { IEventTransport, PipelineKey } from "@radar/shared";
@@ -24,6 +25,11 @@ export type PipelineStabilityCascadeDeps = {
   pipelineKey: PipelineKey;
   /** true = в персисте ещё есть работа по всему pipeline (все фазы/реплики). */
   hasPendingWork: () => Promise<boolean>;
+  /**
+   * Routing key из `step.emits` (`*.stabilized`).
+   * null → claim idle без bus-publish (нет downstream в DSL).
+   */
+  stabilizedRoutingKey: string | null;
 };
 
 /**
@@ -42,9 +48,11 @@ export function createPipelineStabilityObsPort(
       if (await deps.hasPendingWork()) return;
       const claimed = await deps.engine.reportIdle(scopeKey);
       if (!claimed) return;
+      if (!deps.stabilizedRoutingKey) return;
       await publishDomainEventViaTransport(
         deps.transport,
         createPipelineStabilizedEvent({ pipelineKey: deps.pipelineKey }),
+        deps.stabilizedRoutingKey,
       );
     },
   };
@@ -73,12 +81,18 @@ export async function publishChannelBackfillCompletedIfStable(
   if (!claimed) return false;
   await publishDomainEventViaTransport(
     deps.transport,
-    createChannelBackfillCompletedEvent({
-      channelId: input.channelId,
-      channelKey: input.channelKey,
-      providerKey: input.providerKey,
-      jobId: input.jobId,
-    }),
+    {
+      ...createChannelBackfillCompletedEvent({
+        channelId: input.channelId,
+        channelKey: input.channelKey,
+        providerKey: input.providerKey,
+        jobId: input.jobId,
+      }),
+      meta: {
+        stepId: "ingest-backfill",
+        lane: "backfill",
+      },
+    },
   );
   return true;
 }

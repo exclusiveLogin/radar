@@ -90,6 +90,13 @@ export type {
   IPhaseDefinitionRepository,
   PhaseDefinitionRecord,
 } from "./phase-repositories";
+export type {
+  IStepRunRepository,
+  StepRunOpenInput,
+  StepRunRecord,
+  StepRunStatus,
+  StepRunSuppressedEmit,
+} from "./step-run-repository";
 export type { IDomainEventRepository } from "./event-repositories";
 export type {
   IPipelineStabilityRepository,

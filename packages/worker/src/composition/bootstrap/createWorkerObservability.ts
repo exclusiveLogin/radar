@@ -18,7 +18,7 @@ type WorkerPersistence = Awaited<ReturnType<typeof createWorkerPersistence>>;
 export async function createWorkerObservability(
   context: Pick<
     BootstrapContext,
-    "storageMode" | "workerRole" | "hostStartedAt" | "deploymentManifest" | "odp"
+    "storageMode" | "workerRole" | "hostStartedAt" | "infraManifest" | "odp"
   >,
   persistence: Pick<WorkerPersistence, "dataSource">,
 ): Promise<{
@@ -26,7 +26,7 @@ export async function createWorkerObservability(
   obsHostSnapshot: HostSnapshot | undefined;
 }> {
   const obsConfig = resolveObsConfig(
-    context.deploymentManifest.infra.obs,
+    context.infraManifest.infra.obs,
     context.storageMode,
   );
   const observabilityRecorder =

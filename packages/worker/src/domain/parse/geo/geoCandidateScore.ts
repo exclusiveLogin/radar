@@ -14,6 +14,10 @@ export type GeoScoreFactorWeights = {
   llmConfidence: number;
   /** Signed: confirm → +weight*c, reject → −weight*c */
   llmValidatorConfidence: number;
+  /** LLM предложил место, которого нет в каталоге, но есть в raw. */
+  llmOnly: number;
+  /** LLM предложил место без опоры в raw (галлюцинация). */
+  llmUngrounded: number;
 };
 
 export type LlmValidatorTriggerMode = "on" | "off" | "auto";
@@ -47,6 +51,8 @@ export type GeoScoreFactors = {
   llmValidatorVerdict?: "confirm" | "reject";
   /** 0..1 уверенность валидатора; отсутствует → фактор не применяется. */
   llmValidatorConfidence?: number;
+  llmOnly?: boolean;
+  llmUngrounded?: boolean;
 };
 
 export type GeoScoreResult = {
@@ -102,6 +108,8 @@ export function computeGeoCandidateScore(
   if (factors.minorityRegion) breakdown.minorityRegion = w.minorityRegion;
   if (factors.geoConflict) breakdown.geoConflict = w.geoConflict;
   if (factors.channelPromo) breakdown.channelPromo = w.channelPromo;
+  if (factors.llmOnly) breakdown.llmOnly = w.llmOnly;
+  if (factors.llmUngrounded) breakdown.llmUngrounded = w.llmUngrounded;
 
   const llmPart = scaledLlmConfidenceContribution(factors.llmConfidence, w.llmConfidence);
   if (llmPart !== 0) breakdown.llmConfidence = llmPart;

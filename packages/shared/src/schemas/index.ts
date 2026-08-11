@@ -75,7 +75,7 @@ export {
   syncPlacesCommandSchema,
   syncRegionsCommandSchema,
 } from "./cqrs";
-export { domainEventSchema, domainEventTypeSchema } from "./events";
+export { domainEventSchema, domainEventTypeSchema, domainEventMetaSchema } from "./events";
 export {
   placeStatusActionSchema,
   placeStatusEventSchema,
@@ -215,6 +215,13 @@ export {
   runHistoryEntrySchema,
   workbookObservabilityResponseSchema,
   runnerDiscoveryResponseSchema,
+  pipelineStepRunRequestSchema,
+  pipelineStepRunResponseSchema,
+  pipelineStepResetRequestSchema,
+  pipelineStepResetResponseSchema,
+  pipelineTopologyNodeSchema,
+  pipelineTopologyEdgeSchema,
+  pipelineTopologyResponseSchema,
 } from "./admin";
 export {
   obsPipelineRuntimeSchema,
@@ -236,7 +243,6 @@ export {
 export {
   deploymentHostSchema,
   deploymentSpawnSchema,
-  schedulingImplSchema,
   deploymentPipelineEntrySchema,
   deploymentRunnersSchema,
   deploymentInfraObsSchema,
@@ -244,9 +250,16 @@ export {
   deploymentTransportKindSchema,
   deploymentTransportRmqSchema,
   deploymentTransportSchema,
-  deploymentManifestSchema,
-  DEFAULT_DEPLOYMENT_MANIFEST,
-} from "../deployment/deploymentManifest.schema.js";
+  infraManifestSchema,
+  DEFAULT_INFRA_MANIFEST,
+} from "../infra/infraManifest.schema.js";
+export {
+  radarRoutingKeySchema,
+  stepDescriptorSchema,
+  pipelineManifestSchema,
+  DEFAULT_PIPELINE_MANIFEST,
+} from "../pipeline/pipelineManifest.schema.js";
+
 
 // --- type-only exports ---
 export type { HealthResponse, ReadyResponse } from "./health";
@@ -446,6 +459,13 @@ export type {
   RunHistoryEntry,
   WorkbookObservabilityResponse,
   RunnerDiscoveryResponse,
+  PipelineStepRunRequest,
+  PipelineStepRunResponse,
+  PipelineStepResetRequest,
+  PipelineStepResetResponse,
+  PipelineTopologyNode,
+  PipelineTopologyEdge,
+  PipelineTopologyResponse,
 } from "./admin";
 export type {
   ObsPipelineRuntime,
@@ -467,14 +487,18 @@ export type {
 export type {
   DeploymentHost,
   DeploymentSpawn,
-  SchedulingImpl,
   DeploymentPipelineEntry,
   DeploymentRunners,
   DeploymentInfraObs,
   DeploymentInfra,
   DeploymentTransport,
-  DeploymentManifest,
-} from "../deployment/deploymentManifest.schema.js";
+  InfraManifest,
+} from "../infra/infraManifest.schema.js";
+export type {
+  StepDescriptor,
+  PipelineManifest,
+} from "../pipeline/pipelineManifest.schema.js";
+
 
 export {
   EVENT_HEATMAP_FILTER_TYPES,

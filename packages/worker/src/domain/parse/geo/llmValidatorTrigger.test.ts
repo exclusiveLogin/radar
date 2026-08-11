@@ -22,6 +22,8 @@ const BASE_MATRIX: GeoScoreMatrix = {
     channelPromo: -0.7,
     llmConfidence: 0.25,
     llmValidatorConfidence: 0.3,
+    llmOnly: -0.35,
+    llmUngrounded: -1.05,
   },
   llmValidator: { trigger: "auto", borderlineMargin: 0.15 },
 };
@@ -93,10 +95,22 @@ test("trigger=on → все geo-кандидаты", () => {
   assert.equal(selected.length, 2);
 });
 
-test("trigger=auto → только borderline", () => {
+test("trigger=auto → borderline", () => {
   const near = candidate("Северск", 0.2);
   const far = candidate("Анапа", 1.0, 20);
   const selected = selectLlmValidatorCandidates([near, far], BASE_MATRIX);
   assert.equal(selected.length, 1);
   assert.equal(selected[0]!.anchor.name, "Северск");
+});
+
+test("trigger=auto → llmOnly и llmUngrounded всегда, даже вне borderline", () => {
+  const llmOnly = candidate("НовыйХутор", 1.0, 0);
+  llmOnly.extras = { ...llmOnly.extras, llmOnly: true };
+  const ungrounded = candidate("Выдумкино", 1.0, 30);
+  ungrounded.extras = { ...ungrounded.extras, llmUngrounded: true };
+  const solid = candidate("Анапа", 1.0, 60);
+  const selected = selectLlmValidatorCandidates([llmOnly, ungrounded, solid], BASE_MATRIX);
+  assert.equal(selected.length, 2);
+  const names = selected.map((c) => c.anchor.name).sort();
+  assert.deepEqual(names, ["Выдумкино", "НовыйХутор"]);
 });

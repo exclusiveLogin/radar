@@ -5,7 +5,7 @@
  * --obs / --llm / --llm-ui: дополнительно observability / ollama (+ open-webui).
  * --no-infra: не трогать Docker (если infra уже поднята).
  */
-import { loadDeploymentManifest } from '@radar/shared/deployment/deploymentManifest.loader.js';
+import { loadInfraManifest } from '@radar/shared/infra/infraManifest.loader.js';
 import { spawn } from 'node:child_process';
 import { freeDevPorts } from './free-dev-ports.mjs';
 import { repoRoot, run } from './utils.mjs';
@@ -29,7 +29,7 @@ const libsReady =
   'file:packages/shared/dist/index.js file:packages/persistence/dist/index.js file:packages/transport-rmq/dist/index.js';
 const waitTimeoutMs = 120_000;
 
-const manifest = loadDeploymentManifest({ repoRoot });
+const manifest = loadInfraManifest({ repoRoot });
 const apiPort = Number(process.env.PORT) || manifest.infra.compose.apiPort;
 const apiReady = `http://127.0.0.1:${apiPort}/api/ready`;
 

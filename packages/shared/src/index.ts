@@ -202,11 +202,17 @@ export {
   runHistoryEntrySchema,
   workbookObservabilityResponseSchema,
   runnerDiscoveryResponseSchema,
+  pipelineStepRunRequestSchema,
+  pipelineStepRunResponseSchema,
+  pipelineStepResetRequestSchema,
+  pipelineStepResetResponseSchema,
+  pipelineTopologyNodeSchema,
+  pipelineTopologyEdgeSchema,
+  pipelineTopologyResponseSchema,
   obsIngestBatchSchema,
   runtimeObservabilitySnapshotSchema,
   deploymentHostSchema,
   deploymentSpawnSchema,
-  schedulingImplSchema,
   deploymentPipelineEntrySchema,
   deploymentRunnersSchema,
   deploymentInfraObsSchema,
@@ -214,15 +220,21 @@ export {
   deploymentTransportKindSchema,
   deploymentTransportRmqSchema,
   deploymentTransportSchema,
-  deploymentManifestSchema,
-  DEFAULT_DEPLOYMENT_MANIFEST,
+  infraManifestSchema,
+  DEFAULT_INFRA_MANIFEST,
+  radarRoutingKeySchema,
+  stepDescriptorSchema,
+  pipelineManifestSchema,
+  DEFAULT_PIPELINE_MANIFEST,
 } from "./schemas";
+
 export {
   RADAR_TOPICS,
   radarTopicRoutingKeySchema,
-  defaultTopicForEvent,
+  topicForKnownEventType,
   drainTopicForPhaseScope,
-  listRadarTopicRoutingKeys,
+  listSystemTopicRoutingKeys,
+  buildTopicCatalog,
   createCompositeTransportDedup,
   createLruTransportDedup,
   rmqTopicSlug,
@@ -539,6 +551,31 @@ export {
   createPipelineStabilizedEvent,
   createChannelBackfillCompletedEvent,
 } from "./domain/pipeline/cascadeEvents";
+export {
+  createStepRunRequestedEvent,
+  createStepResetRequestedEvent,
+  createStepStartedEvent,
+  createStepDrainedEvent,
+  createStepFailedEvent,
+  createSystemInitEvent,
+  createSystemDrainEvent,
+} from "./domain/pipeline/step/systemEvents";
+export type {
+  StepRunContext,
+  StepEmit,
+  StepTriggerSource,
+} from "./domain/pipeline/step/stepRunContext";
+export type { DomainEventMeta } from "./schemas/events/domain-event";
+export {
+  buildPipelineGraph,
+  downstreamStepIds,
+  cascadeResetOrder,
+  stabilizedEmitKeyForPipeline,
+  type PipelineGraph,
+  type PipelineGraphEdge,
+} from "./pipeline/pipelineGraph";
+export { generatePipelineTriggersDoc } from "./pipeline/generatePipelineTriggersDoc";
+export { stepIdForPhaseScope } from "./pipeline/stepPhaseMap";
 export { phaseRunsOverviewSchema, type PhaseRunsOverview } from "./schemas/enrichment/phase-admin";
 export { SourceUniquenessRegistry } from "./ports/source-uniqueness";
 export type {
@@ -571,7 +608,6 @@ export type {
 export type {
   DeploymentHost,
   DeploymentSpawn,
-  SchedulingImpl,
   DeploymentPipelineEntry,
   DeploymentRunners,
   DeploymentInfraObs,
@@ -579,8 +615,13 @@ export type {
   DeploymentTransportKind,
   DeploymentTransportRmq,
   DeploymentTransport,
-  DeploymentManifest,
-} from "./deployment/deploymentManifest";
+  InfraManifest,
+} from "./infra/infraManifest";
+export type {
+  StepDescriptor,
+  PipelineManifest,
+} from "./pipeline/pipelineManifest";
+
 export {
   loadTrackingPipelineManifest,
   DEFAULT_TRACKING_PIPELINE_MANIFEST,
@@ -805,6 +846,13 @@ export type {
   RunHistoryEntry,
   WorkbookObservabilityResponse,
   RunnerDiscoveryResponse,
+  PipelineStepRunRequest,
+  PipelineStepRunResponse,
+  PipelineStepResetRequest,
+  PipelineStepResetResponse,
+  PipelineTopologyNode,
+  PipelineTopologyEdge,
+  PipelineTopologyResponse,
 } from "./schemas";
 export type {
   ProfileKinematics,
@@ -891,6 +939,11 @@ export type {
   IPhaseDefinitionRepository,
   PhaseDefinitionRecord,
   IPhaseRunRepository,
+  IStepRunRepository,
+  StepRunOpenInput,
+  StepRunRecord,
+  StepRunStatus,
+  StepRunSuppressedEmit,
   PhaseRunFilter,
   ChannelRecord,
   PlaceAliasRecord,

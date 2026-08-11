@@ -47,6 +47,15 @@ export {
   workbookObservabilityResponseSchema,
 } from "./workbook";
 export { runnerDiscoveryResponseSchema } from "./runner-discovery";
+export {
+  pipelineStepRunRequestSchema,
+  pipelineStepRunResponseSchema,
+  pipelineStepResetRequestSchema,
+  pipelineStepResetResponseSchema,
+  pipelineTopologyNodeSchema,
+  pipelineTopologyEdgeSchema,
+  pipelineTopologyResponseSchema,
+} from "./pipeline-topology";
 
 // --- type-only exports ---
 export type {
@@ -96,3 +105,12 @@ export type {
   WorkbookObservabilityResponse,
 } from "./workbook";
 export type { RunnerDiscoveryResponse } from "./runner-discovery";
+export type {
+  PipelineStepRunRequest,
+  PipelineStepRunResponse,
+  PipelineStepResetRequest,
+  PipelineStepResetResponse,
+  PipelineTopologyNode,
+  PipelineTopologyEdge,
+  PipelineTopologyResponse,
+} from "./pipeline-topology";

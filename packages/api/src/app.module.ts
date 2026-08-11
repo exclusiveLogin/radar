@@ -16,6 +16,7 @@ import { WorkerModule } from "./worker/worker.module";
 import { WorkbookAdminModule } from "./workbook-admin/workbook-admin.module";
 import { ObservabilityAdminModule } from "./observability-admin/observability-admin.module";
 import { MetricsModule } from "./metrics/metrics.module";
+import { PipelineAdminModule } from "./pipeline-admin/pipeline-admin.module";
 
 @Module({
   imports: [
@@ -43,6 +44,7 @@ import { MetricsModule } from "./metrics/metrics.module";
     IngestAdminModule,
     MapModule,
     PhasesAdminModule,
+    PipelineAdminModule,
     ParsePipelineAdminModule,
     TrackingAdminModule,
     ReadSideModule,

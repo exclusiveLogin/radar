@@ -20,15 +20,15 @@ export function buildObsHostId(workerRole: string): string {
 }
 
 /**
- * Резолвит obs-конфиг из deployment manifest (ADR-021).
- * dockerize/dockerizeAll → service; default embedded при db storage, иначе noop.
+ * Резолвит obs-конфиг из infra manifest.
+ * dockerize → service; default embedded при db storage, иначе noop.
  */
 export function resolveObsConfig(
   obs: DeploymentInfraObs,
   storageMode: WorkerStorageMode,
 ): ResolvedObsConfig {
   let mode: ObsMode = obs.mode;
-  if (obs.dockerize || obs.dockerizeAll) {
+  if (obs.dockerize) {
     mode = "service";
   }
   if (storageMode !== WorkerStorageMode.Db && mode === "embedded") {
@@ -43,20 +43,4 @@ export function resolveObsConfig(
     staleMs: obs.staleMs,
     staleIntervalMs: obs.staleIntervalMs,
   };
-}
-
-/** @deprecated Используй resolveObsConfig(manifest.infra.obs, storageMode). */
-export function resolveObsModeFromEnv(
-  storageMode: WorkerStorageMode,
-  _env: NodeJS.ProcessEnv = process.env,
-): ObsMode {
-  return storageMode === WorkerStorageMode.Db ? "embedded" : "noop";
-}
-
-/** @deprecated Используй resolveObsConfig().serviceUrl */
-export function resolveObsServiceUrl(
-  env: NodeJS.ProcessEnv = process.env,
-): string {
-  const raw = env.RADAR_OBS_SERVICE_URL?.trim();
-  return raw && raw.length > 0 ? raw : "http://127.0.0.1:3020";
 }

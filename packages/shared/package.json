@@ -9,10 +9,15 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
-    "./deployment/deploymentManifest.loader.js": {
-      "types": "./dist/deployment/deploymentManifest.loader.d.ts",
-      "default": "./dist/deployment/deploymentManifest.loader.js"
+    "./infra/infraManifest.loader.js": {
+      "types": "./dist/infra/infraManifest.loader.d.ts",
+      "default": "./dist/infra/infraManifest.loader.js"
     },
+    "./pipeline/pipelineManifest.loader.js": {
+      "types": "./dist/pipeline/pipelineManifest.loader.d.ts",
+      "default": "./dist/pipeline/pipelineManifest.loader.js"
+    },
+
     "./manifest/domains/workerRuntime.loader.js": {
       "types": "./dist/manifest/domains/workerRuntime.loader.d.ts",
       "default": "./dist/manifest/domains/workerRuntime.loader.js"
@@ -49,8 +54,10 @@
     "zod": "^3.24.1"
   },
   "devDependencies": {
+    "@repo/root": "*",
     "@types/amqplib": "^0.10.8",
     "@types/cli-progress": "^3.11.6",
+    "@types/node": "^22.10.2",
     "typescript": "^5.7.2"
   }
 }

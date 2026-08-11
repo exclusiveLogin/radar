@@ -11,6 +11,7 @@ import {
   PhaseRunEntity,
   PlaceEnrichmentJobEntity,
   StatusDictionaryEntity,
+  StepRunEntity,
 } from "./events";
 import {
   GeoFeatureEntity,
@@ -72,6 +73,7 @@ export const typeOrmEntities = [
   RawMessageTelegramEntity,
   RegionEntity,
   StatusDictionaryEntity,
+  StepRunEntity,
 ];
 
 export * from "./events";

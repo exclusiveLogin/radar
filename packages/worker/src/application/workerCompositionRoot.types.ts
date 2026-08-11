@@ -1,5 +1,6 @@
 import type {
   HostSnapshot,
+  IEventTransport,
   IObservabilityRecorder,
   IPlaceCacheRepository,
   IPlaceScanPort,
@@ -41,7 +42,7 @@ export type WorkerCompositionOptions = {
   placeScan?: IPlaceScanPort;
   /**
    * Override ingestParse-фаз для offline CLI (snap/report).
-   * Default / `{ kind: "manifest" }` — enabled из DB / deployment.manifest.phases.
+   * Default / `{ kind: "manifest" }` — enabled из DB / pipeline.manifest.phases.
    */
   ingestParsePhaseSelection?: IngestParsePhaseSelection;
   /**
@@ -81,5 +82,6 @@ export type WorkerCompositionRoot = {
   workerRepos: WorkerDbRepositories | undefined;
   operationalSql: OperationalSql | undefined;
   dataSource: DataSource | undefined;
+  eventTransport: IEventTransport | undefined;
   shutdown: (() => Promise<void>) | undefined;
 };

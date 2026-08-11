@@ -7,6 +7,7 @@ import { createLlmChatClient } from "./llmChatClient.js";
 import type { LlmRuntimeConfig } from "./llmRuntimeConfig.js";
 import { LLM_VALIDATOR_SYSTEM_PROMPT } from "./llmValidatorSystemPrompt.js";
 import { normalizeLlmConfidence } from "./normalizeLlmConfidence.js";
+import type { LlmOpResult } from "../../domain/parse/geo/llmOpResult.js";
 
 const verdictSchema = z.object({
   candidateId: z.string().min(1),
@@ -64,9 +65,9 @@ export class LlmValidatorEnricher {
   async validate(input: {
     rawText: string;
     candidates: LlmValidatorCandidateInput[];
-  }): Promise<LlmValidatorResponse | null> {
-    if (!this.config.enabled) return null;
-    if (input.candidates.length === 0) return null;
+  }): Promise<LlmOpResult<LlmValidatorResponse>> {
+    if (!this.config.enabled) return { ok: false, reason: "disabled" };
+    if (input.candidates.length === 0) return { ok: false, reason: "no-signal" };
 
     const allowedIds = new Set(input.candidates.map((c) => c.id));
     const userPayload = JSON.stringify({
@@ -75,6 +76,7 @@ export class LlmValidatorEnricher {
     });
 
     const attempts = Math.max(1, this.config.retryCount + 1);
+    let lastFail: "transport" | "json" | "schema" = "transport";
 
     for (let attempt = 1; attempt <= attempts; attempt += 1) {
       const controller = new AbortController();
@@ -104,7 +106,8 @@ export class LlmValidatorEnricher {
           parsedJson = JSON.parse(unwrapJsonPayload(result.content));
         } catch (parseErr) {
           process.stderr.write(`[llm-validator] JSON parse failed: ${String(parseErr)}\n`);
-          if (attempt >= attempts) return null;
+          lastFail = "json";
+          if (attempt >= attempts) return { ok: false, reason: "json" };
           continue;
         }
 
@@ -113,7 +116,8 @@ export class LlmValidatorEnricher {
           process.stderr.write(
             `[llm-validator] schema failed: ${JSON.stringify(parsed.error.issues)}\n`,
           );
-          if (attempt >= attempts) return null;
+          lastFail = "schema";
+          if (attempt >= attempts) return { ok: false, reason: "schema" };
           continue;
         }
 
@@ -129,7 +133,10 @@ export class LlmValidatorEnricher {
         process.stderr.write(
           `[llm-validator] ok — ${result.latencyMs}ms verdicts=${verdicts.length}\n`,
         );
-        return { verdicts, model: result.model, latencyMs: result.latencyMs };
+        return {
+          ok: true,
+          data: { verdicts, model: result.model, latencyMs: result.latencyMs },
+        };
       } catch (err) {
         const isAbort = err instanceof Error && err.name === "AbortError";
         process.stderr.write(
@@ -137,12 +144,13 @@ export class LlmValidatorEnricher {
             err instanceof Error ? err.message : String(err)
           }\n`,
         );
-        if (attempt >= attempts) return null;
+        lastFail = "transport";
+        if (attempt >= attempts) return { ok: false, reason: "transport" };
       } finally {
         clearTimeout(timer);
       }
     }
 
-    return null;
+    return { ok: false, reason: lastFail };
   }
 }

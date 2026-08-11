@@ -32,7 +32,7 @@ import {
   type CreateIngestProvider,
   type CreateBackfillJob,
   type DomainEvent,
-  defaultTopicForEvent,
+  topicForKnownEventType,
   type IngestBindingRecord,
   type IngestProviderRecord,
   type ManualIngestRequest,
@@ -454,9 +454,10 @@ export class IngestAdminService implements OnModuleInit, OnModuleDestroy {
         providerKey: raw.providerKey,
         hash: raw.hash,
         materializationIds: [aggregateId],
+        ingestMode: raw.ingestMode ?? "manual",
       },
     };
-    const topic = defaultTopicForEvent(event.type);
+    const topic = topicForKnownEventType(event.type);
     if (!topic) return;
     await this.deps.transport.publish(topic, [event]);
   }

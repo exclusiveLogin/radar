@@ -31,27 +31,54 @@ function resolveHeaders(env: NodeJS.ProcessEnv): Record<string, string> {
   return headers;
 }
 
-/** LLM runtime из geo.enrichers.manifest (+ секреты из env). */
+function resolveManifest(
+  manifestOrEnv: GeoEnrichersManifest | NodeJS.ProcessEnv,
+): GeoEnrichersManifest {
+  if (manifestOrEnv && typeof manifestOrEnv === "object" && "version" in manifestOrEnv) {
+    return manifestOrEnv as GeoEnrichersManifest;
+  }
+  return loadGeoEnrichersManifest({
+    repoRoot: MONOREPO_ROOT,
+    env: manifestOrEnv as NodeJS.ProcessEnv,
+  });
+}
+
+function parseLlmSection(
+  section: GeoEnrichersManifest["llm"],
+  env: NodeJS.ProcessEnv,
+): LlmRuntimeConfig {
+  return llmRuntimeConfigSchema.parse({
+    enabled: section.enabled,
+    provider: section.provider,
+    baseUrl: section.baseUrl,
+    model: section.model,
+    timeoutMs: section.timeoutMs,
+    maxTokens: section.maxTokens,
+    temperature: section.temperature,
+    jsonMode: section.jsonMode,
+    retryCount: section.retryCount,
+    apiKey: env.RADAR_LLM_API_KEY?.trim() || env.OPENAI_API_KEY?.trim() || undefined,
+    headers: resolveHeaders(env),
+  });
+}
+
+/** LLM geocoder runtime из geo.enrichers.manifest.llm (+ секреты из env). */
 export function loadLlmRuntimeConfig(
   manifestOrEnv: GeoEnrichersManifest | NodeJS.ProcessEnv = process.env,
   env: NodeJS.ProcessEnv = process.env,
 ): LlmRuntimeConfig {
-  const manifest =
-    manifestOrEnv && typeof manifestOrEnv === "object" && "version" in manifestOrEnv
-      ? (manifestOrEnv as GeoEnrichersManifest)
-      : loadGeoEnrichersManifest({ repoRoot: MONOREPO_ROOT, env: manifestOrEnv as NodeJS.ProcessEnv });
-  const llm = manifest.llm;
-  return llmRuntimeConfigSchema.parse({
-    enabled: llm.enabled,
-    provider: llm.provider,
-    baseUrl: llm.baseUrl,
-    model: llm.model,
-    timeoutMs: llm.timeoutMs,
-    maxTokens: llm.maxTokens,
-    temperature: llm.temperature,
-    jsonMode: llm.jsonMode,
-    retryCount: llm.retryCount,
-    apiKey: env.RADAR_LLM_API_KEY?.trim() || env.OPENAI_API_KEY?.trim() || undefined,
-    headers: resolveHeaders(env),
-  });
+  const manifest = resolveManifest(manifestOrEnv);
+  return parseLlmSection(manifest.llm, env);
+}
+
+/**
+ * LLM Validator runtime из geo.enrichers.manifest.llmValidator
+ * (fallback на llm, если секция не задана).
+ */
+export function loadLlmValidatorRuntimeConfig(
+  manifestOrEnv: GeoEnrichersManifest | NodeJS.ProcessEnv = process.env,
+  env: NodeJS.ProcessEnv = process.env,
+): LlmRuntimeConfig {
+  const manifest = resolveManifest(manifestOrEnv);
+  return parseLlmSection(manifest.llmValidator ?? manifest.llm, env);
 }

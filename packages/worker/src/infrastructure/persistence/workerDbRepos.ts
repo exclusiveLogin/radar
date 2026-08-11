@@ -19,6 +19,7 @@ import {
   TypeOrmPlaceEnrichmentJobRepository,
   TypeOrmPlaceRepository,
   TypeOrmPipelineStabilityRepository,
+  TypeOrmStepRunRepository,
   TypeOrmRawMessageRepository,
   TypeOrmRegionRepository,
   TypeOrmStatusDictionaryRepository,
@@ -51,6 +52,7 @@ export async function createWorkerDbRepositories(
     enrichmentQueue: new TypeOrmEnrichmentQueueRepository(dataSource),
     phaseDefinitions: new TypeOrmPhaseDefinitionRepository(dataSource),
     phaseRuns: new TypeOrmPhaseRunRepository(dataSource),
+    stepRuns: new TypeOrmStepRunRepository(dataSource),
     pipelineStability: new TypeOrmPipelineStabilityRepository(dataSource),
   };
 }

@@ -5,7 +5,13 @@
  * purpose: Запускает domain runtime и связывает его с transport lifecycle.
  * ---
  */
-import { resolveGeoEnrichmentProvider, resolveRmqConsumerSuffix } from "@radar/shared";
+import {
+  resolveGeoEnrichmentProvider,
+  resolveRmqConsumerSuffix,
+  stabilizedEmitKeyForPipeline,
+} from "@radar/shared";
+import { loadPipelineManifest } from "@radar/shared/pipeline/pipelineManifest.loader.js";
+import { MONOREPO_ROOT } from "@repo/root";
 import { bootBackfill } from "../../domain-boots/bootBackfill.js";
 import { bootGeo } from "../../domain-boots/bootGeo.js";
 import { bootIngest } from "../../domain-boots/bootIngest.js";
@@ -13,8 +19,6 @@ import { createRawMessageIngestedHandler } from "../../application/subscribers/r
 import { createPhaseIngestHandler } from "../../application/subscribers/phaseIngestSubscriber.js";
 import { createChannelBackfillCompletedHandler } from "../../application/subscribers/channelBackfillCompletedSubscriber.js";
 import { IngestRawMessageHandler } from "../../application/handlers/ingestRawMessageHandler.js";
-import { PhaseManualRunPoller } from "../../application/phases/phaseManualRunPoller.js";
-import { runGeoPhaseDrain } from "../../application/geo-parse/runGeoPhaseDrain.js";
 import { SessionResolver } from "../../application/sessions/sessionResolver.js";
 import {
   resolveTelegramAppCredentials,
@@ -44,6 +48,9 @@ import {
 } from "../../application/cascade/pendingWorkPredicates.js";
 import type { JobKernelObsPort } from "../../application/runtime/runner-platform/jobKernel.js";
 import type { PipelineKey } from "@radar/shared";
+import { createPhaseOperationalDeps } from "../../application/phases/phaseOperationalDeps.js";
+import { runStepCascadeReset } from "../../application/runtime/step/stepCascadeReset.js";
+import { RADAR_TOPICS } from "@radar/shared";
 
 type BootstrapContext = ReturnType<typeof resolveWorkerBootstrapContext>;
 type WorkerPersistence = Awaited<ReturnType<typeof createWorkerPersistence>>;
@@ -91,11 +98,11 @@ export async function wireWorkerRuntime(
     channels,
     backfillJobs,
     cursors,
+    operationalSql,
   } = persistence;
   const {
     coverageEnqueuer,
     phasePlatform,
-    phaseRunSession,
     phaseRunner,
     placeEnrichmentRunner,
   } = phaseApplication;
@@ -109,13 +116,13 @@ export async function wireWorkerRuntime(
   let ingestParseDaemon: WorkerRuntime["ingestParseDaemon"];
   let placeEnrichmentDaemon: WorkerRuntime["placeEnrichmentDaemon"];
   let trackingLauncher: WorkerRuntime["trackingLauncher"];
-  let phaseManualRunPoller: PhaseManualRunPoller | undefined;
 
   const stabilityEngine =
     workerRepos?.pipelineStability != null
       ? createStabilityEngine(toStabilityStore(workerRepos.pipelineStability))
       : undefined;
 
+  const pipelineManifestForCascade = loadPipelineManifest({ repoRoot: MONOREPO_ROOT });
   const stabilityObsByPipeline: Partial<Record<PipelineKey, JobKernelObsPort>> = {};
   if (stabilityEngine && workerRepos && phasePlatform) {
     if (hasCap(context.caps, "parse")) {
@@ -123,6 +130,10 @@ export async function wireWorkerRuntime(
         engine: stabilityEngine,
         transport: eventTransport,
         pipelineKey: "parse",
+        stabilizedRoutingKey: stabilizedEmitKeyForPipeline(
+          pipelineManifestForCascade,
+          "parse",
+        ),
         hasPendingWork: () =>
           hasPendingPhaseCoverageWork({
             phases: workerRepos.phaseDefinitions,
@@ -136,6 +147,10 @@ export async function wireWorkerRuntime(
         engine: stabilityEngine,
         transport: eventTransport,
         pipelineKey: "geo-enrich",
+        stabilizedRoutingKey: stabilizedEmitKeyForPipeline(
+          pipelineManifestForCascade,
+          "geo-enrich",
+        ),
         hasPendingWork: () =>
           hasPendingGeoPlaceWork({
             phases: workerRepos.phaseDefinitions,
@@ -182,30 +197,8 @@ export async function wireWorkerRuntime(
           context.pipelineLaunchers.wake("parse");
         });
       }
-
-      phaseManualRunPoller = new PhaseManualRunPoller(
-        workerRepos.phaseDefinitions,
-        workerRepos.phaseRuns,
-        {
-          runDrain: async (input) => {
-            if (input.phase.scope !== "geoParse") return phaseRunner.runDrain(input);
-            if (!placeEnrichmentRunner || !phaseRunSession) {
-              throw new Error("geo drain: placeEnrichmentRunner/session missing");
-            }
-            return runGeoPhaseDrain(
-              {
-                placeEnrichmentRunner,
-                placeEnrichmentJobs: workerRepos.placeEnrichmentJobs,
-                session: phaseRunSession,
-              },
-              input,
-            );
-          },
-        },
-        context.workerRuntime.phase.manualPollMs,
-      );
-      phaseManualRunPoller.start();
-      context.lifecycle.register(() => phaseManualRunPoller?.stop());
+      // Manual phase runs: StepRunRequested → stepTriggerRouter → wake(parse/geo).
+      // Drain signals (publishDrainForPhase) remain for targeted catch-up.
     }
 
     if (hasCap(context.caps, "geo")) {
@@ -329,7 +322,7 @@ export async function wireWorkerRuntime(
     observabilityRecorder: observability.observabilityRecorder,
     bridgeToBus:
       context.storageMode === WorkerStorageMode.Db &&
-      context.deploymentManifest.transport.kind === "rmq" &&
+      context.infraManifest.transport.kind === "rmq" &&
       context.needsParseStack
         ? context.bus
         : undefined,
@@ -403,7 +396,38 @@ export async function wireWorkerRuntime(
             parseHandler: parseApplication.parseRawMessageHandler,
           })
         : undefined,
+    pipelineManifest: loadPipelineManifest({ repoRoot: MONOREPO_ROOT }),
   });
+
+  // StepResetRequested → cascade apply (dryRun обрабатывает API sync preview).
+  if (workerRepos && operationalSql) {
+    const pipelineManifest = loadPipelineManifest({ repoRoot: MONOREPO_ROOT });
+    const resetDeps = createPhaseOperationalDeps(operationalSql, {
+      phaseCoverage: workerRepos.phaseCoverage,
+      phaseDefinitions: workerRepos.phaseDefinitions,
+      phaseRuns: workerRepos.phaseRuns,
+      placeEnrichmentJobs: workerRepos.placeEnrichmentJobs,
+    });
+    context.lifecycle.register(
+      eventTransport.subscribe(
+        RADAR_TOPICS.STEP_RESET_REQUESTED,
+        async (event) => {
+          if (event.type !== "StepResetRequested") return;
+          const stepId = String(event.payload.stepId ?? "");
+          if (!stepId) return;
+          if (event.payload.dryRun === true) return;
+          await runStepCascadeReset({
+            deps: resetDeps,
+            manifest: pipelineManifest,
+            rootStepId: stepId,
+            cascade: event.payload.cascade !== false,
+            dryRun: false,
+          });
+        },
+        { queueSuffix: "step-reset" },
+      ),
+    );
+  }
 
   return {
     ingestRawMessageHandler,

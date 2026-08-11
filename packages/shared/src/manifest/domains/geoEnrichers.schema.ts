@@ -34,6 +34,8 @@ export const geoEnrichersManifestSchema = z.object({
   dadata: geoEnrichersDadataSchema.default({}),
   nominatim: geoEnrichersNominatimSchema.default({}),
   llm: geoEnrichersLlmSchema.default({}),
+  /** Отдельная модель/endpoint для валидатора (clone llm defaults). */
+  llmValidator: geoEnrichersLlmSchema.optional(),
   pipeline: geoEnrichersPipelineSchema.default({}),
 });
 

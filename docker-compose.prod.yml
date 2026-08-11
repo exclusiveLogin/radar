@@ -10,8 +10,8 @@ x-prod-env: &prod-env
   restart: unless-stopped
 
 x-rmq-transport: &rmq-transport
-  DEPLOY__transport__kind: rmq
-  DEPLOY__transport__rmq__url: amqp://${RMQ_USER:-radar}:${RMQ_PASSWORD:-radar}@rabbitmq:5672/${RMQ_VHOST:-radar}
+  INFRA__transport__kind: rmq
+  INFRA__transport__rmq__url: amqp://${RMQ_USER:-radar}:${RMQ_PASSWORD:-radar}@rabbitmq:5672/${RMQ_VHOST:-radar}
 
 x-worker-prod: &worker-prod
   <<: *prod-env

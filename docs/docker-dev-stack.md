@@ -125,7 +125,7 @@ Open WebUI: `docker compose --profile llm-ui up -d`.
 
 ---
 
-## Observability sidecar (`deployment.manifest.json` → `infra.obs`)
+## Observability sidecar (`infra.manifest.json` → `infra.obs`)
 
 Флаги в manifest поднимают obs-service (profile `obs`) и переключают worker write-path на `service`.
 
@@ -133,20 +133,20 @@ Open WebUI: `docker compose --profile llm-ui up -d`.
 |----------|--------|
 | `infra.obs.dockerize: true` | `docker compose --profile obs up -d` |
 | `infra.obs.mode: service` | worker push в obs sidecar |
-| `DEPLOY__infra__obs__dockerize=true` | env overlay поверх manifest |
+| `INFRA__infra__obs__dockerize=true` | env overlay поверх manifest |
 
 ```powershell
-# deployment.manifest.json или env overlay:
-# DEPLOY__infra__obs__dockerize=true
-# DEPLOY__infra__obs__mode=service
-# DEPLOY__infra__obs__serviceUrl=http://observability:3020
+# infra.manifest.json или env overlay:
+# INFRA__infra__obs__dockerize=true
+# INFRA__infra__obs__mode=service
+# INFRA__infra__obs__serviceUrl=http://observability:3020
 
 npm run radar -- stack docker-dev
 # или host dev:
 npm run radar -- stack dev
 ```
 
-`dev-stack.mjs` / `cold-up.mjs` читают `loadDeploymentManifest()` — override в `deployment.local.json` или `DEPLOY__*`:
+`dev-stack.mjs` / `cold-up.mjs` читают `loadInfraManifest()` — override в `infra.local.json` или `INFRA__*`:
 
 ```json
 "infra": { "obs": { "dockerize": true, "mode": "service" } }

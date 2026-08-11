@@ -6,7 +6,6 @@ import type {
   IWorkQueue,
   PhaseCoverageTask,
   PhaseDefinitionRecord,
-  PhaseTriggerMode,
   PlaceEnrichmentJobRecord,
   WorkItemResult,
 } from "@radar/shared";
@@ -29,29 +28,13 @@ export type PhaseDriver<TWorkItem> = {
   schedule: PhaseDriverSchedule;
 };
 
-/**
- * triggerMode → ScheduleMode workload.
- * timeout/both: локальный interval снят — тики только по RMQ wake(∅) из phaseWakeScheduler.
- */
-export function triggerModeToSchedule(
-  triggerMode: PhaseTriggerMode | undefined,
-  _intervalMs: number,
-): PhaseDriverSchedule {
-  void _intervalMs;
-  void triggerMode;
-  return { mode: "event" };
-}
-
-function resolveIntervalMs(phase: PhaseDefinitionRecord): number {
-  return Math.max(phase.policy.intervalMs, phase.policy.minIntervalMs, 1000);
-}
-
 /** Фабрика домена по scope phase_definitions. */
 export async function buildPhaseDriver(
   phase: PhaseDefinitionRecord,
   deps: PhasePlatformDeps,
 ): Promise<PhaseDriver<PhaseCoverageTask | PlaceEnrichmentJobRecord>> {
-  const schedule = triggerModeToSchedule(phase.triggerMode, resolveIntervalMs(phase));
+  // Тики только по RMQ wake(∅) из phaseWakeScheduler (timer→RMQ).
+  const schedule = { mode: "event" as const };
 
   if (phase.scope === "ingestParse") {
     if (!deps.parseTool) {

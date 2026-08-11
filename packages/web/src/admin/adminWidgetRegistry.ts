@@ -7,6 +7,7 @@ import { ChannelStatusWidget } from "./widgets/ChannelStatusWidget";
 import { ParsePipelineWidget } from "./widgets/ParsePipelineWidget";
 import { PhasesWidget } from "./widgets/PhasesWidget";
 import { OverviewPipelineWidget } from "./widgets/OverviewPipelineWidget";
+import { PipelineMapWidget } from "./widgets/PipelineMapWidget";
 import { OverviewIngestKpiWidget } from "./widgets/OverviewIngestKpiWidget";
 import { OverviewParseKpiWidget } from "./widgets/OverviewParseKpiWidget";
 import { OverviewInfraKpiWidget } from "./widgets/OverviewInfraKpiWidget";
@@ -45,6 +46,7 @@ export const ADMIN_LAYOUT_SECTIONS: AdminLayoutSection[] = [
     title: "Обзор",
     widgets: [
       { id: "overview-pipeline", component: OverviewPipelineWidget, span: 12 },
+      { id: "pipeline-map", component: PipelineMapWidget, span: 12 },
       { id: "overview-ingest-kpi", component: OverviewIngestKpiWidget, span: 4 },
       { id: "overview-parse-kpi", component: OverviewParseKpiWidget, span: 4 },
       { id: "overview-infra-kpi", component: OverviewInfraKpiWidget, span: 4 },

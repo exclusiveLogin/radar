@@ -21,6 +21,8 @@ const MATRIX: GeoScoreMatrix = {
     channelPromo: -0.7,
     llmConfidence: 0.25,
     llmValidatorConfidence: 0.3,
+    llmOnly: -0.35,
+    llmUngrounded: -1.05,
   },
   llmValidator: { trigger: "auto", borderlineMargin: 0.15 },
 };

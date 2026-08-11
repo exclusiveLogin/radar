@@ -21,6 +21,8 @@ const MATRIX: GeoScoreMatrix = {
     channelPromo: -0.7,
     llmConfidence: 0.25,
     llmValidatorConfidence: 0.3,
+    llmOnly: -0.35,
+    llmUngrounded: -1.05,
   },
   llmValidator: { trigger: "auto", borderlineMargin: 0.15 },
 };
@@ -131,4 +133,40 @@ test("regression: borderline + reject → score ниже materialize gate", () =
     }),
     false,
   );
+});
+
+test("инвариант: reject только аннотирует — кандидат остаётся active", () => {
+  const rawMessageId = "33333333-3333-3333-3333-333333333333";
+  const a = place({ rawMessageId, name: "Анапа", regionCode: "RU-KDA", start: 0 });
+  const beforeStatus = a.status;
+  const beforeId = a.id;
+
+  const artifact: GeoEnrichmentArtifact = {
+    llmValidator: {
+      schemaVersion: 1,
+      verdicts: [
+        {
+          candidateId: a.id,
+          verdict: "reject",
+          confidence: 1,
+          reason: "нет в raw",
+        },
+      ],
+    },
+  };
+
+  const ws: ParseWorkspace = {
+    ...createEmptyParseWorkspace(rawMessageId, "Анапа"),
+    candidates: [a],
+    namespaces: { geoArtifact: artifact },
+  };
+
+  runLlmValidatorProcessor(ws);
+
+  assert.equal(ws.candidates.length, 1);
+  assert.equal(a.status, beforeStatus);
+  assert.equal(a.status, "active");
+  assert.equal(a.id, beforeId);
+  assert.equal(a.extras.llmValidatorVerdict, "reject");
+  assert.equal(a.extras.llmValidatorConfidence, 1);
 });

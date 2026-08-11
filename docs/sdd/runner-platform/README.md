@@ -5,6 +5,8 @@
 
 Cross-context SDD — применяется одинаково к `tracking`, `parse`, `geo-enrich`. Доменные детали миграции каждого — в `docs/sdd/tracking/runner-platform-migration.md` и `docs/sdd/parse/runner-platform-migration.md`.
 
+**Step layer (поверх runner-platform):** декларативные шаги из `pipeline.manifest.json` — `StepTriggerRouter` → `StepRunner` → `StepEgressGate` (lane / isolate / reset cascade). Mill (`jobKernel` / PhaseDriver) остаётся внутри queue-шага; топология между доменами — совпадение `emits`↔`trigger.on`, не оркестратор. См. [../pipeline-steps/README.md](../pipeline-steps/README.md), [ADR-028](../../rfc/adr-028-infra-pipeline-manifests.md).
+
 ---
 
 ## Глоссарий
@@ -80,8 +82,8 @@ jobKernel.tick()
 
 | Scope | Событие | Кто публикует | Кто будит |
 |---|---|---|---|
-| `pipeline:parse` | `PipelineStabilized{parse}` | любая реплика parse-workload, выигравшая claim | `tracking` (`wireParseStabilizedTrigger`) |
-| `pipeline:geo-enrich` | `PipelineStabilized{geo-enrich}` | реплика geo-enrich | — (пока без подписчика; задел для будущих geo-derived pipeline) |
+| `pipeline:parse` | `PipelineStabilized` → `radar.parse.stabilized` | любая реплика parse-workload, выигравшая claim | `tracking` (DSL trigger.on) |
+| `pipeline:geo-enrich` | claim idle без bus-emit (`geo.emits: []`) | реплика geo-enrich | — (параллельно parse, без retrack) |
 | `channel-backfill:<id>` | `ChannelBackfillCompleted` | `BackfillDaemonService` при `historyExhausted` без других runnable job по каналу | `parse` (`channelBackfillCompletedSubscriber` снимает `inProgress`) |
 
 Подробности и код: [how-it-works.md#stability-cascade](../../domain/how-it-works.md#stability-cascade).

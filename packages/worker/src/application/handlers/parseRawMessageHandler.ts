@@ -86,6 +86,7 @@ export class ParseRawMessageHandler {
               rawMessageId,
               parserVersion: PARSER_VERSION,
               outcome: "skipped",
+              ingestMode: raw.ingestMode ?? "live",
             },
           }),
         ]);
@@ -158,6 +159,7 @@ export class ParseRawMessageHandler {
               severity: record.severity,
               direction: record.direction,
               postedAt: record.postedAt,
+              ingestMode: raw.ingestMode ?? "live",
               locations: (activation.isActive ? locations : []).map((location) => ({
                 id: location.id,
                 regionId: location.regionId,
@@ -193,6 +195,7 @@ export class ParseRawMessageHandler {
             parserVersion: PARSER_VERSION,
             outcome: "failed",
             errors: { message },
+            ingestMode: raw.ingestMode ?? "live",
           },
         }),
       ]);

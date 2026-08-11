@@ -8,7 +8,7 @@
  *          `trigger -> ingest(loadSlice) -> run(evaluate) -> materialize -> signaling(telemetry)`
  *          вместо ручного `setInterval` + инлайн-SQL в классе демона.
  *
- *          schedulingImpl в deployment.manifest.json (ADR-021).
+ *          Runtime: runner-platform (infra.manifest.json runners).
  *          Не валидирован против прод-нагрузки — включать только после отдельной проверки.
  * ---
  */

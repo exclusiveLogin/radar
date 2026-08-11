@@ -23,7 +23,7 @@ npm run radar -- stack dev
 | raw → parse | `RawMessageIngested` | 250ms |
 | parse → tracking | `MessageParsed` | 250ms |
 | parse → geo | `MessageParsed` | 250ms |
-| parse (дренирован) → tracking | `PipelineStabilized{parse}` | 250ms |
+| parse (дренирован) → tracking | `radar.parse.stabilized` (DSL) | 250ms |
 | backfill (канал исчерпан) → parse | `ChannelBackfillCompleted` | — |
 
 Polling (`hybrid schedule`) — резерв если событие потеряно. `PipelineStabilized` — доп. страховка на случай если единичный `MessageParsed` потерян/debounce съел последний тик (подробнее: [stability cascade](../domain/how-it-works.md#stability-cascade)).
@@ -51,6 +51,20 @@ Polling (`hybrid schedule`) — резерв если событие потер�
 
 ---
 
+## Step run / isolate
+
+| Сценарий | Как | Ожидание |
+|----------|-----|----------|
+| **Run from step** | Admin/CLI → `StepRunRequested{stepId}` (напр. `parse`) | только целевой шаг; upstream не трогаем |
+| **Isolate** | тот же запрос с `meta.isolate=true` | `mat_*` пишется; domain emits не в RMQ; `log_step_run.suppressed_emits` + `downstreamStepIds`; tracking не будится |
+| **Live cascade** | inject message без isolate | ingest → parse → `MessageParsed` → tracking |
+| **Backfill cascade** | backfill job → `ChannelBackfillCompleted` | parse снимает inProgress / дренирует канал |
+| **Reset from step** | `StepResetRequested{stepId, cascade, dryRun}` | `dryRun` = counts без изменений; cascade = потомки по графу emits→trigger |
+
+Топология ключей: [pipeline-triggers.md](../reference/pipeline-triggers.md). Хуки: [pipeline-hooks-and-events.md](../domain/pipeline-hooks-and-events.md).
+
+---
+
 ## CLI smoke
 
 ```powershell
@@ -59,4 +73,4 @@ npm run radar -- parse run
 npm run radar -- pipeline status
 ```
 
-Acceptance: trigger counters > 0, workloads drain, нет duplicate parse.
+Acceptance: trigger counters > 0, workloads drain, нет duplicate parse; isolate-прогон не будит tracking.

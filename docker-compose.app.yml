@@ -17,8 +17,8 @@ x-app: &app
   restart: "no"
 
 x-rmq: &rmq
-  DEPLOY__transport__kind: rmq
-  DEPLOY__transport__rmq__url: amqp://${RMQ_USER:-radar}:${RMQ_PASSWORD:-radar}@rabbitmq:5672/${RMQ_VHOST:-radar}
+  INFRA__transport__kind: rmq
+  INFRA__transport__rmq__url: amqp://${RMQ_USER:-radar}:${RMQ_PASSWORD:-radar}@rabbitmq:5672/${RMQ_VHOST:-radar}
 
 x-db-url: &db-url
   DATABASE_URL: postgresql://${POSTGRES_USER:-radar}:${POSTGRES_PASSWORD:-radar}@db:5432/${POSTGRES_DB:-radar}

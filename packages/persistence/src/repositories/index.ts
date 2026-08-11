@@ -2,6 +2,7 @@
 export { TypeOrmDomainEventRepository } from "./typeorm-domain-event.repository";
 export { TypeOrmPhaseCoverageRepository, TypeOrmEnrichmentQueueRepository } from "./typeorm-phase-coverage.repository";
 export { TypeOrmPhaseRunRepository } from "./typeorm-phase-run.repository";
+export { TypeOrmStepRunRepository } from "./typeorm-step-run.repository";
 export { TypeOrmEventLocationRepository } from "./typeorm-event-location.repository";
 export { TypeOrmEventEvidenceRepository } from "./typeorm-event-evidence.repository";
 export { TypeOrmIngestCursorRepository } from "./typeorm-ingest-cursor.repository";

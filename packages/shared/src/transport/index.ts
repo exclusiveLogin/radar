@@ -1,9 +1,10 @@
 ﻿export {
   RADAR_TOPICS,
   radarTopicRoutingKeySchema,
-  defaultTopicForEvent,
+  topicForKnownEventType,
   drainTopicForPhaseScope,
-  listRadarTopicRoutingKeys,
+  listSystemTopicRoutingKeys,
+  buildTopicCatalog,
 } from "./topicCatalog.js";
 export {
   createCompositeTransportDedup,

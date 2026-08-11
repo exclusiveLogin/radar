@@ -36,6 +36,9 @@ export class PhaseRunEntity {
   @Column({ type: "text", nullable: true })
   error!: string | null;
 
+  @Column({ name: "step_run_id", type: "uuid", nullable: true })
+  stepRunId!: string | null;
+
   @Column({ name: "started_at", type: "timestamptz", nullable: true })
   startedAt!: Date | null;
 

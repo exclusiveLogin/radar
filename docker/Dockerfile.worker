@@ -59,7 +59,7 @@ COPY --from=build /app/packages/transport-rmq/dist packages/transport-rmq/dist
 COPY --from=build /app/packages/monorepo-root/dist packages/monorepo-root/dist
 COPY --from=build /app/packages/worker/dist packages/worker/dist
 # Runtime manifests + geo data (MONOREPO_ROOT → /app)
-COPY deployment.manifest.json worker.runtime.manifest.json geo.enrichers.manifest.json ./
+COPY infra.manifest.json pipeline.manifest.json worker.runtime.manifest.json geo.enrichers.manifest.json ./
 COPY data/geo data/geo
 # Parse pipeline YAML (segmenter/processors/enrichers) — runtime read из MONOREPO_ROOT/data/parse
 COPY data/parse data/parse

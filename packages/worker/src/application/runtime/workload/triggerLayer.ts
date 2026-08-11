@@ -2,53 +2,73 @@
  * ---
  * layer: worker/runtime
  * domain: workload
- * purpose: Trigger layer — debounce + gating перед `workload.enqueue()`. Не перегружен сложными
- *          условиями запуска на первом этапе (см. план, "Trigger layer semantics") — расширяется
- *          через `gate` policy hook, без протаскивания богатых атрибутных объектов между слоями.
+ * purpose: Trigger layer — debounce + gating перед route. Контекст несёт DomainEvent.
  * ---
  */
-
+import type { DomainEvent } from "@radar/shared";
 import type { TriggerObsContext } from "../observability/workloadObsHooks.js";
 import { reportTrigger } from "../observability/workloadObsHooks.js";
 
-export type TriggerSource = "bus" | "scheduler" | "manual" | "cli";
+export type TriggerSource = "bus" | "scheduler" | "manual" | "cli" | "system";
+
+export type TriggerContext = {
+  source: TriggerSource;
+  topic?: string;
+  event?: DomainEvent;
+  ids?: string[];
+};
 
 export type TriggerLayerOptions = {
-  /** 0/undefined — без дебаунса, триггер идёт напрямую. */
   debounceMs?: number;
-  /** Гейтинг: false — триггер отбрасывается до route-to-workbook. */
-  gate?: (source: TriggerSource) => boolean;
-  /** route-to-workbook: обычно `workload.enqueue`. */
-  onRoute: () => void;
-  /** Iter 2: increment trigger counter при fire. */
+  gate?: (ctx: TriggerContext) => boolean;
+  /** Вызывается после debounce с накопленным контекстом (ids схлопнуты). */
+  onRoute: (ctx: TriggerContext) => void;
   obs?: TriggerObsContext;
 };
 
 export type TriggerLayer = {
-  fire: (source: TriggerSource) => void;
+  fire: (ctx: TriggerContext) => void;
   dispose: () => void;
 };
 
+function mergeIds(a?: string[], b?: string[]): string[] | undefined {
+  if (!a?.length && !b?.length) return undefined;
+  return [...new Set([...(a ?? []), ...(b ?? [])])];
+}
+
 export function createTriggerLayer(options: TriggerLayerOptions): TriggerLayer {
   let timer: ReturnType<typeof setTimeout> | null = null;
+  let pending: TriggerContext | null = null;
+
+  const flush = (): void => {
+    timer = null;
+    if (!pending) return;
+    const ctx = pending;
+    pending = null;
+    options.onRoute(ctx);
+  };
 
   return {
-    fire(source) {
-      if (options.gate && !options.gate(source)) return;
-      if (options.obs) reportTrigger(options.obs, source);
+    fire(ctx) {
+      if (options.gate && !options.gate(ctx)) return;
+      if (options.obs) reportTrigger(options.obs, ctx.source === "system" ? "manual" : ctx.source);
+
       if (!options.debounceMs) {
-        options.onRoute();
+        options.onRoute(ctx);
         return;
       }
+
+      pending = pending
+        ? { ...ctx, ids: mergeIds(pending.ids, ctx.ids) }
+        : { ...ctx, ids: ctx.ids ? [...ctx.ids] : undefined };
+
       if (timer) clearTimeout(timer);
-      timer = setTimeout(() => {
-        timer = null;
-        options.onRoute();
-      }, options.debounceMs);
+      timer = setTimeout(flush, options.debounceMs);
     },
     dispose() {
       if (timer) clearTimeout(timer);
       timer = null;
+      pending = null;
     },
   };
 }

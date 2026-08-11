@@ -18,6 +18,7 @@ import type {
   IPlaceEnrichmentJobRepository,
   IPlaceRepository,
   IPipelineStabilityRepository,
+  IStepRunRepository,
   IRawMessageRepository,
   IRegionRepository,
   IStatusDictionaryRepository,
@@ -46,5 +47,6 @@ export type WorkerDbRepositories = {
   phaseCoverage: IPhaseCoverageRepository;
   phaseDefinitions: IPhaseDefinitionRepository;
   phaseRuns: IPhaseRunRepository;
+  stepRuns: IStepRunRepository;
   pipelineStability: IPipelineStabilityRepository;
 };

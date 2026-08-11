@@ -50,7 +50,7 @@ export async function createWorkerPersistence(
     BootstrapContext,
     | "storageMode"
     | "workerRole"
-    | "deploymentManifest"
+    | "infraManifest"
     | "needsParseStack"
     | "bus"
     | "lifecycle"
@@ -79,7 +79,7 @@ export async function createWorkerPersistence(
     dataSource = await createWorkerDataSource();
     operationalSql = new TypeOrmOperationalSql(dataSource);
     eventTransport = createEventTransport({
-      transport: context.deploymentManifest.transport,
+      transport: context.infraManifest.transport,
       workerRole: context.workerRole,
       dataSource,
     });
@@ -113,7 +113,7 @@ export async function createWorkerPersistence(
     }
   } else {
     eventTransport = createEventTransport({
-      transport: context.deploymentManifest.transport,
+      transport: context.infraManifest.transport,
       workerRole: context.workerRole,
     });
     await eventTransport.start();

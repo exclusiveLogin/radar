@@ -1,0 +1,157 @@
+{
+  "version": 1,
+  "steps": [
+    {
+      "id": "ingest-live",
+      "kind": "source",
+      "pipelineKey": "ingest-live",
+      "label": "Live ingest (MTProto duty)",
+      "trigger": {
+        "on": ["radar.system.init"],
+        "accepts": { "lane": ["live"] },
+        "debounceMs": 0
+      },
+      "emits": ["radar.raw.ingested"],
+      "resets": { "handler": "ingest", "cascade": true },
+      "enabled": true
+    },
+    {
+      "id": "ingest-backfill",
+      "kind": "source",
+      "pipelineKey": "ingest-backfill",
+      "label": "Channel history backfill",
+      "trigger": {
+        "on": ["radar.step.run.requested"],
+        "accepts": { "lane": ["backfill", "manual"] },
+        "debounceMs": 0
+      },
+      "emits": ["radar.channel.backfill.completed", "radar.raw.ingested"],
+      "resets": { "handler": "ingest", "cascade": true },
+      "enabled": true
+    },
+    {
+      "id": "parse",
+      "kind": "queue",
+      "pipelineKey": "parse",
+      "label": "Parse ingest messages (catalog → llm → …)",
+      "trigger": {
+        "on": [
+          "radar.raw.ingested",
+          "radar.channel.backfill.completed",
+          "radar.step.run.requested"
+        ],
+        "debounceMs": 250
+      },
+      "phases": { "scope": "ingestParse" },
+      "emits": ["radar.message.parsed", "radar.parse.stabilized"],
+      "resets": { "handler": "parse", "cascade": true },
+      "enabled": true
+    },
+    {
+      "id": "geo-enrich",
+      "kind": "queue",
+      "pipelineKey": "geo-enrich",
+      "label": "Geo place enrichment",
+      "trigger": {
+        "on": ["radar.geo.enrich.request", "radar.step.run.requested"],
+        "debounceMs": 250
+      },
+      "phases": { "scope": "geoParse" },
+      "emits": [],
+      "resets": { "handler": "geo", "cascade": true },
+      "enabled": true
+    },
+    {
+      "id": "tracking",
+      "kind": "queue",
+      "pipelineKey": "tracking",
+      "label": "Track rebuild",
+      "trigger": {
+        "on": [
+          "radar.message.parsed",
+          "radar.parse.stabilized",
+          "radar.step.run.requested",
+          "radar.runner.drain.tracking"
+        ],
+        "debounceMs": 250
+      },
+      "emits": [],
+      "resets": { "handler": "tracking", "cascade": false },
+      "enabled": true
+    }
+  ],
+  "phases": [
+    {
+      "id": "catalog",
+      "triggerMode": "event",
+      "scope": "ingestParse",
+      "enrichers": ["catalog"],
+      "policy": { "batchSize": 100, "eagerMode": "queue", "minIntervalMs": 5000 },
+      "enabled": true,
+      "order": 0
+    },
+    {
+      "id": "llm",
+      "triggerMode": "both",
+      "scope": "ingestParse",
+      "enrichers": ["llm"],
+      "policy": { "batchSize": 50, "intervalMs": 60000, "minIntervalMs": 5000 },
+      "enabled": true,
+      "order": 1
+    },
+    {
+      "id": "llm-validator",
+      "triggerMode": "both",
+      "scope": "ingestParse",
+      "enrichers": ["llm-validator"],
+      "policy": { "batchSize": 50, "intervalMs": 60000, "minIntervalMs": 5000 },
+      "enabled": false,
+      "order": 2
+    },
+    {
+      "id": "dadata",
+      "triggerMode": "both",
+      "scope": "ingestParse",
+      "enrichers": ["dadata"],
+      "policy": { "batchSize": 100, "intervalMs": 120000 },
+      "enabled": false,
+      "order": 3
+    },
+    {
+      "id": "nominatim",
+      "triggerMode": "both",
+      "scope": "ingestParse",
+      "enrichers": ["nominatim"],
+      "policy": { "batchSize": 100, "intervalMs": 180000 },
+      "enabled": false,
+      "order": 4
+    },
+    {
+      "id": "geo-llm",
+      "triggerMode": "both",
+      "scope": "geoParse",
+      "enrichers": ["llm"],
+      "policy": { "batchSize": 50, "intervalMs": 60000, "minIntervalMs": 5000 },
+      "enabled": false,
+      "order": 10
+    },
+    {
+      "id": "geo-dadata",
+      "triggerMode": "both",
+      "scope": "geoParse",
+      "enrichers": ["dadata"],
+      "policy": { "batchSize": 100, "intervalMs": 120000 },
+      "enabled": false,
+      "order": 11
+    },
+    {
+      "id": "geo-nominatim",
+      "triggerMode": "both",
+      "scope": "geoParse",
+      "enrichers": ["nominatim"],
+      "policy": { "batchSize": 50, "intervalMs": 120000, "minIntervalMs": 1100 },
+      "enabled": true,
+      "order": 12
+    }
+  ]
+}

@@ -1713,6 +1713,16 @@ body {
   color: var(--text-muted);
 }
 
+.admin-pipeline--map {
+  gap: 8px 4px;
+}
+
+.admin-pipeline__arrow--suppressed {
+  opacity: 0.35;
+  text-decoration: line-through;
+  color: var(--status-warn);
+}
+
 .admin-dashboard-block__lead {
   margin: 0 0 10px;
   font-size: 12px;

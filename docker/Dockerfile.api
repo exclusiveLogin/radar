@@ -58,7 +58,7 @@ COPY --from=build /app/packages/persistence/dist packages/persistence/dist
 COPY --from=build /app/packages/transport-rmq/dist packages/transport-rmq/dist
 COPY --from=build /app/packages/monorepo-root/dist packages/monorepo-root/dist
 COPY --from=build /app/packages/api/dist packages/api/dist
-COPY deployment.manifest.json ./
+COPY infra.manifest.json ./
 # Контуры субъектов (regions-geojson) и geo catalog — runtime read из MONOREPO_ROOT/data
 COPY data/geo data/geo
 EXPOSE 3000

@@ -1,0 +1,56 @@
+{
+  "version": 1,
+  "process": {
+    "storageMode": "db"
+  },
+  "runners": {
+    "pipelines": [
+      {
+        "pipelineKey": "tracking",
+        "label": "NextGen track rebuild (cluster+field_train+join)",
+        "host": "tracking",
+        "spawn": "in-process",
+        "enabled": true
+      },
+      {
+        "pipelineKey": "parse",
+        "label": "ingestParse scheduled phases (job_parse_phase claim-drain)",
+        "host": "parse",
+        "spawn": "in-process",
+        "enabled": true
+      },
+      {
+        "pipelineKey": "geo-enrich",
+        "label": "geoParse scheduled phases (dadata → nominatim → llm)",
+        "host": "geo",
+        "spawn": "in-process",
+        "enabled": true
+      }
+    ]
+  },
+  "infra": {
+    "obs": {
+      "mode": "embedded",
+      "readMode": "embedded",
+      "serviceUrl": "http://127.0.0.1:3020",
+      "dockerize": false,
+      "port": 3020,
+      "host": "0.0.0.0",
+      "staleMs": 120000,
+      "staleIntervalMs": 30000
+    },
+    "compose": {
+      "apiPort": 3000,
+      "webPort": 5173
+    }
+  },
+  "transport": {
+    "kind": "rmq",
+    "rmq": {
+      "url": "amqp://radar:radar@127.0.0.1:5672/radar",
+      "exchange": "radar.events",
+      "prefetch": 10,
+      "dedupTable": true
+    }
+  }
+}

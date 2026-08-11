@@ -32,7 +32,7 @@ const RUSSIA_REGIONS_GEOJSON = path.join(
 
 const IMAGE_ASSETS = {
   api: [
-    "deployment.manifest.json",
+    "infra.manifest.json",
     RUSSIA_REGIONS_GEOJSON,
     "data/geo/catalog/regions.json",
     "data/geo/dictionaries/adjacency.json",
@@ -40,7 +40,8 @@ const IMAGE_ASSETS = {
     "data/geo/artifacts/manifest.json",
   ],
   worker: [
-    "deployment.manifest.json",
+    "infra.manifest.json",
+    "pipeline.manifest.json",
     "worker.runtime.manifest.json",
     "geo.enrichers.manifest.json",
     "packages/persistence/dist/index.js",

@@ -1,9 +1,9 @@
 import type { IPhaseDefinitionRepository, PhaseDefinitionRecord } from "@radar/shared";
 import { DEFAULT_PHASE_POLICY } from "@radar/shared";
-import { loadDeploymentManifest } from "@radar/shared/deployment/deploymentManifest.loader.js";
+import { loadPipelineManifest } from "@radar/shared/pipeline/pipelineManifest.loader.js";
 import { sortPhasesByOrder } from "../phases/phaseOrder.js";
 
-/** Fallback, если DB пуста и deployment недоступен (только catalog). */
+/** Fallback, если DB пуста и pipeline manifest недоступен (только catalog). */
 function defaultCatalogPhase(): PhaseDefinitionRecord[] {
   const updatedAt = new Date().toISOString();
   return [
@@ -37,10 +37,10 @@ async function loadFromDb(
   return sortPhasesByOrder(includeDisabled ? rows : rows.filter((phase) => phase.enabled));
 }
 
-/** Fallback без DB: deployment.manifest.json.phases (не .radar/phase.manifest). */
-function loadFromDeployment(repoRoot: string, includeDisabled: boolean): PhaseDefinitionRecord[] {
+/** Fallback без DB: pipeline.manifest.json.phases. */
+function loadFromPipeline(repoRoot: string, includeDisabled: boolean): PhaseDefinitionRecord[] {
   try {
-    const manifest = loadDeploymentManifest({ repoRoot });
+    const manifest = loadPipelineManifest({ repoRoot });
     const ingest = manifest.phases.filter((phase) => phase.scope === "ingestParse");
     const filtered = includeDisabled ? ingest : ingest.filter((phase) => phase.enabled);
     return sortPhasesByOrder(toRecords(filtered));
@@ -60,12 +60,12 @@ export async function loadAllIngestParsePhases(input: {
     const fromDb = await loadFromDb(input.phaseDefinitions, true);
     if (fromDb.length > 0) return fromDb;
   }
-  return loadFromDeployment(input.repoRoot, true);
+  return loadFromPipeline(input.repoRoot, true);
 }
 
 /**
  * SSOT: enabled ingestParse-фазы.
- * DB → deployment.manifest.phases.
+ * DB → pipeline.manifest.phases.
  */
 export async function loadIngestParsePhases(input: {
   repoRoot: string;
@@ -75,7 +75,7 @@ export async function loadIngestParsePhases(input: {
     const fromDb = await loadFromDb(input.phaseDefinitions, false);
     if (fromDb.length > 0) return fromDb;
   }
-  return loadFromDeployment(input.repoRoot, false);
+  return loadFromPipeline(input.repoRoot, false);
 }
 
 /** Политика выбора фаз для offline run. */
@@ -90,7 +90,7 @@ export type IngestParsePhaseSelection =
 /**
  * Выбор фаз поверх loadAllIngestParsePhases / loadIngestParsePhases.
  *
- * - default: `{ kind: "manifest" }` — enabled из DB/deployment
+ * - default: `{ kind: "manifest" }` — enabled из DB/pipeline
  * - CLI `--phases=llm,dadata`: `{ kind: "phase-ids", ... }` — override
  */
 export function selectIngestParsePhases(

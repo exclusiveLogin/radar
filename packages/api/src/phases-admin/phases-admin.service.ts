@@ -9,11 +9,14 @@ import {
 import { Inject } from "@nestjs/common";
 import { MapRealtimeBroadcastService } from "../map/map-realtime-broadcast.service";
 import {
+  createStepRunRequestedEvent,
   drainTopicForPhaseScope,
   manualRunScopeSchema,
   phaseReplayRequestSchema,
   RADAR_TOPICS,
   resolveGeoEnrichmentProvider,
+  stepIdForPhaseScope,
+  topicForKnownEventType,
   type IEventTransport,
   type PhaseDefinitionRecord,
   type PhaseRun,
@@ -182,7 +185,7 @@ export class PhasesAdminService implements OnModuleInit, OnModuleDestroy {
 
   /**
    * Передаёт enabled ingestParse-фазы durable manual run.
-   * Worker poller сам выполняет такой run батчами до опустошения очереди.
+   * Worker будит step `parse` через StepRunRequested / drain.
    */
   async catchUpEnabledIngestPhases(): Promise<{
     enqueued: number;
@@ -356,11 +359,21 @@ export class PhasesAdminService implements OnModuleInit, OnModuleDestroy {
       }
     }
 
+    // Step-level wake (declarative) + phase drain для targeted catch-up.
+    const stepId = stepIdForPhaseScope(phase.scope);
+    const stepEvent = createStepRunRequestedEvent({
+      stepId,
+      lane: "manual",
+    });
+    const topic = topicForKnownEventType(stepEvent.type);
+    if (topic) {
+      await this.transport.publish(topic, [stepEvent]);
+    }
     await this.publishDrainForPhase(phase);
     await this.runs.appendLog(run.id, {
       at: new Date().toISOString(),
       level: "info",
-      message: `drain signal scope=${phase.scope} phase=${phaseId}`,
+      message: `StepRunRequested step=${stepId}; drain signal scope=${phase.scope} phase=${phaseId}`,
     });
     return run;
   }

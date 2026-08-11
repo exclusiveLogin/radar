@@ -9,6 +9,7 @@ import type {
   ParsePipelineStatusResponse,
   PhaseRun,
   PhaseRunsOverview,
+  PipelineTopologyResponse,
   RunnerDiscoveryResponse,
   StatsOverview,
   TrackingStatusResponse,
@@ -46,6 +47,8 @@ export const trackingStatus$ = new BehaviorSubject<TrackingStatusResponse | null
 export const parsePipelineStatus$ = new BehaviorSubject<ParsePipelineStatusResponse | null>(null);
 /** Runner Platform discovery (WS runtime-discovery + REST fallback). */
 export const runnerDiscovery$ = new BehaviorSubject<RunnerDiscoveryResponse | null>(null);
+/** Declarative pipeline topology (WS pipeline-topology). */
+export const pipelineTopology$ = new BehaviorSubject<PipelineTopologyResponse | null>(null);
 
 const CHANNELS_POLL_MS = 30_000;
 const STATS_POLL_MS = 30_000;
@@ -76,6 +79,7 @@ export function startAdminStore(): void {
   startIntervalPoll(RUNNER_DISCOVERY_POLL_MS, refreshRunnerDiscovery);
   void refreshTrackingStatus();
   void refreshRunnerDiscovery();
+  void refreshPipelineTopology();
 
   selectedChannelKey$.subscribe((key) => void refreshChannelStats(key));
 
@@ -94,6 +98,8 @@ export function startAdminStore(): void {
       parsePipelineStatus$.next(message.payload);
     } else if (message.type === "runtime-discovery") {
       runnerDiscovery$.next(message.payload);
+    } else if (message.type === "pipeline-topology") {
+      pipelineTopology$.next(message.payload);
     }
   });
 }
@@ -257,5 +263,13 @@ export async function refreshRunnerDiscovery(): Promise<void> {
     runnerDiscovery$.next(await adminApi.runnerDiscovery());
   } catch (error) {
     reportAppError("Runner discovery", error);
+  }
+}
+
+export async function refreshPipelineTopology(): Promise<void> {
+  try {
+    pipelineTopology$.next(await adminApi.pipelineTopology());
+  } catch (error) {
+    reportAppError("Pipeline topology", error);
   }
 }

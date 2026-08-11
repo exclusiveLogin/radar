@@ -23,6 +23,10 @@ function defaultMatrix(): GeoScoreMatrix {
       channelPromo: -0.7,
       llmConfidence: 0.25,
       llmValidatorConfidence: 0.3,
+      // Калибровка: base+maxLlmConf+llmOnly+llmUngrounded ≤ threshold+margin (или ниже порога).
+      // llmOnly=-0.35, llmUngrounded=-1.05 → ungrounded с max conf ≈ 0.20 < threshold.
+      llmOnly: -0.35,
+      llmUngrounded: -1.05,
     },
     llmValidator: {
       trigger: "auto",
@@ -91,6 +95,8 @@ export function parseGeoScoreMatrixYaml(raw: string): GeoScoreMatrix {
       "llmValidatorConfidence",
       defaults.factors.llmValidatorConfidence,
     ),
+    llmOnly: readFactorWeight(raw, "llmOnly", defaults.factors.llmOnly),
+    llmUngrounded: readFactorWeight(raw, "llmUngrounded", defaults.factors.llmUngrounded),
   };
 
   return {

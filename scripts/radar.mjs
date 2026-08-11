@@ -7,7 +7,7 @@
  *
  * Старые npm-скрипты остаются как алиасы; SSOT — этот диспетчер.
  */
-import { loadDeploymentManifest } from '@radar/shared/deployment/deploymentManifest.loader.js';
+import { loadInfraManifest } from '@radar/shared/infra/infraManifest.loader.js';
 import { run, repoRoot } from './utils.mjs';
 
 const argv = process.argv.slice(2);
@@ -45,7 +45,7 @@ stack — инфраструктура и dev
   infra:down      остановить infra (включая llm/obs profiles)
   dev [--app-only][--llm][--no-infra]  host app; infra поднимается сама
   cold-up         первый холодный старт + migrate (+ -Geo -Tiles -Llm)
-  bootstrap       seed phase_definitions из deployment.manifest (-apply-config)
+  bootstrap       seed phase_definitions из pipeline.manifest (-apply-config)
   docker-dev      Docker: api/web + 5 worker-ролей (profile app)
   docker-prod     Docker prod: baked dist + nginx + 5 roles (profile prod)
   docker-prod:assets-check  проверка runtime-файлов в prod-контейнерах
@@ -211,9 +211,9 @@ const ACTIONS = {
     },
     'docker-prod:assets-check': () => nodeScript('scripts/docker-runtime-assets-check.mjs', ['--profile', 'prod']),
     'docker-dev': (pass) => {
-      const manifest = loadDeploymentManifest({ repoRoot });
+      const manifest = loadInfraManifest({ repoRoot });
       const obs = manifest.infra.obs;
-      if (obs.dockerize || obs.dockerizeAll) {
+      if (obs.dockerize) {
         process.env.RADAR_OBS_SERVICE_URL = obs.serviceUrl;
         process.env.OBS_PORT = String(obs.port);
         process.env.OBS_HOST = obs.host;

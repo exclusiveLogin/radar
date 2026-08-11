@@ -48,7 +48,7 @@ function fakeTransport(): IEventTransport & {
   };
 }
 
-test("live cascade: parse idle claim publishes PipelineStabilized once", async () => {
+test("live cascade: parse idle claim publishes on DSL stabilized key once", async () => {
   const transport = fakeTransport();
   const engine = createStabilityEngine(createMemoryStabilityStore());
   let pending = true;
@@ -56,6 +56,7 @@ test("live cascade: parse idle claim publishes PipelineStabilized once", async (
     engine,
     transport,
     pipelineKey: "parse",
+    stabilizedRoutingKey: RADAR_TOPICS.PARSE_STABILIZED,
     hasPendingWork: async () => pending,
   });
 
@@ -65,28 +66,47 @@ test("live cascade: parse idle claim publishes PipelineStabilized once", async (
   await obs.onIdle?.();
 
   const stabilized = transport.published.filter(
-    (p) => p.topic === RADAR_TOPICS.PIPELINE_STABILIZED,
+    (p) => p.topic === RADAR_TOPICS.PARSE_STABILIZED,
   );
   assert.equal(stabilized.length, 1);
   assert.equal(stabilized[0]!.events[0]!.payload.pipelineKey, "parse");
 });
 
-test("live cascade: PipelineStabilized{parse} wakes tracking via subscribe filter", async () => {
+test("live cascade: geo idle with null DSL key claims but does not publish", async () => {
+  const transport = fakeTransport();
+  const engine = createStabilityEngine(createMemoryStabilityStore());
+  const obs = createPipelineStabilityObsPort({
+    engine,
+    transport,
+    pipelineKey: "geo-enrich",
+    stabilizedRoutingKey: null,
+    hasPendingWork: async () => false,
+  });
+
+  await obs.onBusy?.();
+  await obs.onIdle?.();
+
+  assert.equal(transport.published.length, 0);
+});
+
+test("DSL topics: parse.stabilized wakes tracking; geo.stabilized does not share topic", async () => {
   const transport = fakeTransport();
   let trackingWakes = 0;
 
-  transport.subscribe(RADAR_TOPICS.PIPELINE_STABILIZED, async (event) => {
-    if ((event.payload as { pipelineKey?: string }).pipelineKey !== "parse") return;
+  transport.subscribe(RADAR_TOPICS.PARSE_STABILIZED, async () => {
     trackingWakes += 1;
   });
 
   await publishDomainEventViaTransport(
     transport,
     createPipelineStabilizedEvent({ pipelineKey: "parse" }),
+    RADAR_TOPICS.PARSE_STABILIZED,
   );
+  // geo без DSL emit — отдельный ключ / null; на parse.stabilized не попадает
   await publishDomainEventViaTransport(
     transport,
     createPipelineStabilizedEvent({ pipelineKey: "geo-enrich" }),
+    RADAR_TOPICS.GEO_STABILIZED,
   );
 
   assert.equal(trackingWakes, 1);

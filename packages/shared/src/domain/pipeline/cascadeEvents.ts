@@ -7,7 +7,7 @@
 import { randomUUID } from "node:crypto";
 import type { DomainEvent } from "../../schemas/events/domain-event.js";
 
-/** Parse/geo дренированы → downstream wake (tracking). */
+/** Parse/geo дренированы → DomainEvent; routing key задаёт DSL step.emits. */
 export function createPipelineStabilizedEvent(input: {
   pipelineKey: string;
   phaseKey?: string;

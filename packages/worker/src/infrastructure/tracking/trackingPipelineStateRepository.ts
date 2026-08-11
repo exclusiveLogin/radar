@@ -4,7 +4,7 @@
  * domain: tracking
  * purpose: SQL-порты жизненного цикла инкрементального прогона (state_track_pipeline,
  *          job_track_rebuild) — используются runner platform-раннером трекинга
- *          (`application/tracking/runner/*`, schedulingImpl из deployment.manifest.json).
+ *          (`application/tracking/runner/*`, runner-platform).
  *          Те же таблицы, что и у legacy `TrackingRebuildDaemon`, но раннеры взаимоисключающие
  *          (см. createWorkerCompositionRoot.ts) — гонки между ними нет.
  * ---

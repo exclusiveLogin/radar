@@ -19,6 +19,7 @@ import { PhasesAdminService } from "../phases-admin/phases-admin.service";
 import { ParsePipelineAdminService } from "../parse-admin/parse-pipeline-admin.service";
 import { TrackingAdminQueryService } from "../tracking-admin/tracking-admin.service";
 import { ObservabilityAdminService } from "../observability-admin/observability-admin.service";
+import { PipelineAdminService } from "../pipeline-admin/pipeline-admin.service";
 import { listParseAttemptsSince } from "../read-side/parse-attempt-admin.query";
 import {
   listActiveBackfillJobs,
@@ -35,6 +36,7 @@ const ALL_CHANNELS: AdminWsChannel[] = [
   "tracking-status",
   "parse-pipeline-status",
   "runtime-discovery",
+  "pipeline-topology",
 ];
 
 const WORKER_STATUS_POLL_MS = 5000;
@@ -44,6 +46,7 @@ const PHASES_POLL_MS = 3000;
 const TRACKING_POLL_MS = 3000;
 const PARSE_PIPELINE_POLL_MS = 2000;
 const RUNTIME_DISCOVERY_POLL_MS = 5000;
+const PIPELINE_TOPOLOGY_POLL_MS = 5000;
 
 /** Канал, к которому относится серверное сообщение админ-WS. */
 function channelOf(message: AdminWsServerMessage): AdminWsChannel {
@@ -78,6 +81,7 @@ export class AdminGateway
     private readonly parsePipelineAdmin: ParsePipelineAdminService,
     private readonly trackingAdmin: TrackingAdminQueryService,
     private readonly observabilityAdmin: ObservabilityAdminService,
+    private readonly pipelineAdmin: PipelineAdminService,
   ) {}
 
   onModuleInit(): void {
@@ -110,6 +114,10 @@ export class AdminGateway
       setInterval(
         () => this.runPoll("runtime-discovery", () => this.pollRuntimeDiscovery()),
         RUNTIME_DISCOVERY_POLL_MS,
+      ),
+      setInterval(
+        () => this.runPoll("pipeline-topology", () => this.pollPipelineTopology()),
+        PIPELINE_TOPOLOGY_POLL_MS,
       ),
     );
   }
@@ -269,6 +277,17 @@ export class AdminGateway
     } catch (err) {
       this.logger.warn(
         `pollRuntimeDiscovery failed: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  }
+
+  private async pollPipelineTopology(): Promise<void> {
+    try {
+      const payload = await this.pipelineAdmin.getTopology();
+      this.broadcast({ type: "pipeline-topology", payload });
+    } catch (err) {
+      this.logger.warn(
+        `pollPipelineTopology failed: ${err instanceof Error ? err.message : String(err)}`,
       );
     }
   }

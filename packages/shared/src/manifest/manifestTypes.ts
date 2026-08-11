@@ -9,9 +9,9 @@ export type ManifestSchema<T> = {
 export type LoadDomainManifestOptions<T> = {
   repoRoot: string;
   env?: NodeJS.ProcessEnv;
-  /** Базовое имя файла без суффикса: deployment → deployment.manifest.json */
+  /** Базовое имя файла без суффикса: infra → infra.manifest.json */
   fileBase: string;
-  /** Префикс env overlay: DEPLOY → DEPLOY__infra__obs__mode */
+  /** Префикс env overlay: INFRA → INFRA__infra__obs__mode */
   envPrefix: string;
   schema: ManifestSchema<T>;
   defaults: T;
