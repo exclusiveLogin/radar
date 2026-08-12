@@ -1,12 +1,16 @@
 import { useMemo, type ReactNode } from "react";
 import type { MessageFeedItem } from "@radar/shared";
+import { resolveThreatVisual } from "@radar/shared";
 import { Badge, EllipsisText, Panel, Tip, flattenText } from "../../shared/ds";
+import { ThreatIcon } from "../../shared/ds/ThreatIcon";
 import { EventTraitIcons } from "../../shared/components/EventTraitIcons";
+import { StatusReasonChip } from "../../shared/components/StatusReasonChip";
 import { useObservable } from "../../shared/hooks/useObservable";
 import { formatMessagePostedAt } from "../../shared/state/derivations";
 import { messagesFeed$ } from "../../shared/state/messagesStore";
 import { setHistoricalAsOf } from "../../shared/state/mapStore";
 import { selectRegion, selectedRegion$ } from "../../shared/state/selectionStore";
+import { statusTitle } from "../../shared/state/statusDictionaryStore";
 import type { WidgetProps } from "../widgetProps";
 
 function sourceLabel(row: MessageFeedItem): string {
@@ -60,30 +64,26 @@ function messageStatusBadge(row: MessageFeedItem): ReactNode {
       </Tip>
     );
   }
+  const eventType = row.eventType ?? undefined;
+
   if (row.stateLevel) {
+    const visual = resolveThreatVisual({ statusCode: eventType, traits: { mass: row.mass, uncertain: row.uncertain } });
     return (
-      <Tip
-        label={[
-          row.eventType ? `тип: ${row.eventType}` : null,
-          row.hasLocations ? "есть loc" : "без loc (канальный/массовый отбой)",
-        ]
-          .filter(Boolean)
-          .join(" · ")}
-      >
+      <>
         <Badge level={row.stateLevel} />
-      </Tip>
+        <ThreatIcon compact statusCode={eventType} traits={{ mass: row.mass, uncertain: row.uncertain }} />
+        {eventType && (
+          <Tip label={row.hasLocations ? "есть loc" : "без loc (канальный/массовый отбой)"}>
+            <StatusReasonChip label={statusTitle(eventType)} accentColor={visual?.accentColor} />
+          </Tip>
+        )}
+      </>
     );
   }
-  if (row.eventType) {
+  if (eventType) {
     return (
-      <Tip
-        label={
-          row.hasLocations
-            ? `Тип: ${row.eventType}`
-            : `Разобрано без loc: ${row.eventType}`
-        }
-      >
-        <span className="ds-message-feed__pending">{row.eventType}</span>
+      <Tip label={row.hasLocations ? "Разобрано с loc" : `Разобрано без loc: ${eventType}`}>
+        <StatusReasonChip label={statusTitle(eventType)} />
       </Tip>
     );
   }

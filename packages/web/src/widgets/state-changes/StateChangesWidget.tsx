@@ -1,18 +1,27 @@
 import { useMemo } from "react";
 import type { StateChangeEventItem } from "@radar/shared";
+import { resolveThreatVisual } from "@radar/shared";
 import { Accordion, Badge, Panel } from "../../shared/ds";
 import type { AccordionItem } from "../../shared/ds";
+import { ThreatIcon } from "../../shared/ds/ThreatIcon";
 import { RegionCodeChips } from "../../shared/components/RegionCodeChips";
 import { EventTraitIcons } from "../../shared/components/EventTraitIcons";
+import { StatusReasonChip } from "../../shared/components/StatusReasonChip";
 import { formatDateTime, formatTimeShort } from "../../shared/format/dateTime";
 import { useObservable } from "../../shared/hooks/useObservable";
 import { setHistoricalAsOf } from "../../shared/state/mapStore";
 import { stateChangesFeed$ } from "../../shared/state/stateChangesFeedStore";
 import { selectRegion, selectedRegion$ } from "../../shared/state/selectionStore";
+import { statusTitle } from "../../shared/state/statusDictionaryStore";
 import type { WidgetProps } from "../widgetProps";
 
 function sourceLabel(row: StateChangeEventItem): string {
   return row.channelTitle?.trim() || row.channelKey;
+}
+
+/** Код причины события: приоритет у eventType (совпадает со status_dictionary), иначе LLM-категория. */
+function reasonCode(row: StateChangeEventItem): string | undefined {
+  return row.eventType ?? row.eventCategory ?? undefined;
 }
 
 function parseMetaLine(row: StateChangeEventItem): string | null {
@@ -48,6 +57,8 @@ export function StateChangesWidget({
     const regionCodes = [...new Set(row.regionCodes)];
     const parseLine = parseMetaLine(row);
     const namesLine = regionsTip(row);
+    const code = reasonCode(row);
+    const visual = resolveThreatVisual({ statusCode: code, traits: { mass: row.mass, uncertain: row.uncertain } });
 
     return {
       id: row.parsedEventId,
@@ -62,31 +73,43 @@ export function StateChangesWidget({
         .filter(Boolean)
         .join("\n"),
       head: (
-        <>
-          <Badge level={row.stateLevel} />
-          <EventTraitIcons
-            repeat={row.repeat}
-            uncertain={row.uncertain}
-            multiple={row.multiple}
-            mass={row.mass}
-          />
-          <RegionCodeChips codes={regionCodes} inline />
-          <span className="ds-muted ds-accordion__head-time">
-            {formatTimeShort(row.postedAt)}
-          </span>
-          <button
-            type="button"
-            className="map-timeline__jump"
-            title="Карта на момент события"
-            aria-label="Карта на момент события"
-            onClick={(event) => {
-              event.stopPropagation();
-              void setHistoricalAsOf(row.postedAt);
-            }}
-          >
-            ⏱
-          </button>
-        </>
+        <div className="ds-event-card__head">
+          <div className="ds-event-card__row1">
+            <Badge level={row.stateLevel} />
+            <ThreatIcon
+              compact
+              statusCode={code}
+              traits={{ mass: row.mass, uncertain: row.uncertain }}
+              title={code ? statusTitle(code) : undefined}
+            />
+            {code && <StatusReasonChip label={statusTitle(code, code)} accentColor={visual?.accentColor} />}
+            <EventTraitIcons
+              repeat={row.repeat}
+              uncertain={row.uncertain}
+              multiple={row.multiple}
+              mass={row.mass}
+            />
+            <span className="ds-muted ds-accordion__head-time">
+              {formatTimeShort(row.postedAt)}
+            </span>
+            <button
+              type="button"
+              className="map-timeline__jump"
+              title="Карта на момент события"
+              aria-label="Карта на момент события"
+              onClick={(event) => {
+                event.stopPropagation();
+                void setHistoricalAsOf(row.postedAt);
+              }}
+            >
+              ⏱
+            </button>
+          </div>
+          <div className="ds-event-card__row2">
+            <RegionCodeChips codes={regionCodes} inline />
+            <span className="ds-event-card__row2-name">{sourceLabel(row)}</span>
+          </div>
+        </div>
       ),
       body: (
         <>

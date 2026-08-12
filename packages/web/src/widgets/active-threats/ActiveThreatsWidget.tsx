@@ -1,10 +1,12 @@
 import { useMemo } from "react";
 import type { MapPlaceSnapshot, MapRegionSnapshot, StateLevel } from "@radar/shared";
+import { resolveThreatVisual } from "@radar/shared";
 import { Accordion, Badge, Panel } from "../../shared/ds";
 import type { AccordionItem } from "../../shared/ds";
 import { ThreatIcon } from "../../shared/ds/ThreatIcon";
 import { EventTraitIcons } from "../../shared/components/EventTraitIcons";
 import { SourceMessageBlock } from "../../shared/components/SourceMessageBlock";
+import { StatusReasonChip } from "../../shared/components/StatusReasonChip";
 import { formatDateTime, formatTimeShort } from "../../shared/format/dateTime";
 import { useBehaviorSubject } from "../../shared/hooks/useBehaviorSubject";
 import { placesById$, regionsByCode$ } from "../../shared/state/mapStore";
@@ -62,82 +64,107 @@ export function ActiveThreatsWidget({
   }, [regions, places, selected]);
 
   const items: AccordionItem[] = [
-    ...regionRows.map((row) => ({
-      id: `region:${row.regionCode}`,
-      headTip: `${row.name}\n${row.regionCode}`,
-      head: (
-        <>
-          <Badge level={row.stateLevel} />
-          <ThreatIcon
-            compact
-            statusCode={row.statusCode}
-            traits={row.traits}
-            eventSubject={row.eventSubject}
-            title={statusTitle(row.statusCode)}
-          />
-          <EventTraitIcons
-            compact
-            mass={row.traits?.mass}
-            uncertain={row.traits?.uncertain}
-          />
-          <span title={statusTitle(row.statusCode)}>{row.name}</span>
-          <span className="ds-muted">{row.regionCode}</span>
-          {row.activity > 0 && (
-            <span className="ds-muted" style={{ marginLeft: "auto" }}>
-              ×{row.activity}
-            </span>
-          )}
-          <span className="ds-muted">{formatTimeShort(regionStatusAt(row))}</span>
-        </>
-      ),
-      body: (
-        <>
-          <div className="ds-muted" style={{ fontSize: 12 }}>
-            Статус с: {formatDateTime(regionStatusAt(row))}
+    ...regionRows.map((row) => {
+      const visual = resolveThreatVisual({
+        statusCode: row.statusCode,
+        traits: row.traits,
+        eventSubject: row.eventSubject,
+      });
+      return {
+        id: `region:${row.regionCode}`,
+        headTip: `${row.name}\n${row.regionCode}`,
+        head: (
+          <div className="ds-event-card__head">
+            <div className="ds-event-card__row1">
+              <Badge level={row.stateLevel} />
+              <ThreatIcon
+                compact
+                statusCode={row.statusCode}
+                traits={row.traits}
+                eventSubject={row.eventSubject}
+                title={statusTitle(row.statusCode)}
+              />
+              {row.statusCode && (
+                <StatusReasonChip label={statusTitle(row.statusCode)} accentColor={visual?.accentColor} />
+              )}
+              <EventTraitIcons
+                compact
+                mass={row.traits?.mass}
+                uncertain={row.traits?.uncertain}
+              />
+              {row.activity > 0 && (
+                <span className="ds-muted" style={{ marginLeft: "auto" }}>
+                  ×{row.activity}
+                </span>
+              )}
+              <span className={`ds-muted${row.activity > 0 ? "" : " ds-accordion__head-time"}`}>
+                {formatTimeShort(regionStatusAt(row))}
+              </span>
+            </div>
+            <div className="ds-event-card__row2">
+              <span className="ds-event-card__row2-name">{row.name}</span>
+              <span>{row.regionCode}</span>
+            </div>
           </div>
-          <SourceMessageBlock regionCode={row.regionCode} />
-          <button
-            type="button"
-            className="ds-accordion__head"
-            style={{ width: "100%", marginTop: 8, justifyContent: "flex-start" }}
-            onClick={() => selectRegion(row.regionCode)}
-          >
-            Контур на карте
-          </button>
-        </>
-      ),
-    })),
-    ...placeRows.map((row) => ({
-      id: `place:${row.placeId}`,
-      headTip: `${row.placeName}\n${row.regionCode} · ${row.statusCode}`,
-      head: (
-        <>
-          <Badge level={row.stateLevel} />
-          <span>{row.placeName}</span>
-          <span className="ds-muted">{row.regionCode}</span>
-          <span className="ds-muted" style={{ marginLeft: "auto" }}>
-            {formatTimeShort(placeStatusAt(row))}
-          </span>
-        </>
-      ),
-      body: (
-        <>
-          <div className="ds-muted" style={{ fontSize: 12 }}>
-            Статус с: {formatDateTime(placeStatusAt(row))}
+        ),
+        body: (
+          <>
+            <div className="ds-muted" style={{ fontSize: 12 }}>
+              Статус с: {formatDateTime(regionStatusAt(row))}
+            </div>
+            <SourceMessageBlock regionCode={row.regionCode} />
+            <button
+              type="button"
+              className="ds-accordion__head"
+              style={{ width: "100%", marginTop: 8, justifyContent: "flex-start" }}
+              onClick={() => selectRegion(row.regionCode)}
+            >
+              Контур на карте
+            </button>
+          </>
+        ),
+      };
+    }),
+    ...placeRows.map((row) => {
+      const visual = resolveThreatVisual({ statusCode: row.statusCode });
+      return {
+        id: `place:${row.placeId}`,
+        headTip: `${row.placeName}\n${row.regionCode} · ${statusTitle(row.statusCode)}`,
+        head: (
+          <div className="ds-event-card__head">
+            <div className="ds-event-card__row1">
+              <Badge level={row.stateLevel} />
+              <ThreatIcon compact statusCode={row.statusCode} title={statusTitle(row.statusCode)} />
+              <StatusReasonChip label={statusTitle(row.statusCode)} accentColor={visual?.accentColor} />
+              <span className="ds-muted ds-accordion__head-time">
+                {formatTimeShort(placeStatusAt(row))}
+              </span>
+            </div>
+            <div className="ds-event-card__row2">
+              <span className="ds-event-card__row2-name">{row.placeName}</span>
+              <span>{row.regionCode}</span>
+            </div>
           </div>
-          <div className="ds-muted">{row.statusCode}</div>
-          <SourceMessageBlock placeId={row.placeId} />
-          <button
-            type="button"
-            className="ds-accordion__head"
-            style={{ width: "100%", marginTop: 8, justifyContent: "flex-start" }}
-            onClick={() => selectRegion(row.regionCode)}
-          >
-            Показать регион на карте
-          </button>
-        </>
-      ),
-    })),
+        ),
+        body: (
+          <>
+            <div className="ds-muted" style={{ fontSize: 12 }}>
+              Статус с: {formatDateTime(placeStatusAt(row))}
+            </div>
+            <div className="ds-muted">{statusTitle(row.statusCode)}</div>
+            <SourceMessageBlock placeId={row.placeId} />
+            <button
+              type="button"
+              className="ds-accordion__head"
+              style={{ width: "100%", marginTop: 8, justifyContent: "flex-start" }}
+              onClick={() => selectRegion(row.regionCode)}
+            >
+              Показать регион на карте
+            </button>
+          </>
+        ),
+      };
+    }),
   ];
 
   const filterAction = selected ? (
