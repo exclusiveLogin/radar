@@ -26,7 +26,10 @@
   --radius: 6px;
   --radius-sm: 4px;
   --gap: 12px;
-  --rail-width: 320px;
+  /* Рейл растёт вместе с viewport (2K/4K не должны оставлять карточки узкими) */
+  --rail-width: clamp(320px, 20vw, 480px);
+  /* Правый рейл (ленты событий) — шире левого: там основной объём читаемого текста */
+  --rail-width-right: clamp(360px, 26vw, 600px);
   --header-height: 52px;
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --scrollbar-size: 6px;
@@ -313,6 +316,7 @@ body {
   font-size: 11px;
   font-weight: 600;
   white-space: nowrap;
+  flex-shrink: 0;
   /* Solid level-бейджи задают background inline — тёмный текст читаем на цветной заливке */
   color: #080d14;
 }
@@ -459,6 +463,82 @@ body {
 
 .ds-muted {
   color: var(--text-muted);
+}
+
+/* ── Карточка события: 2 строки (статус+причина / регион+источник) ── */
+.ds-event-card__head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1 1 100%;
+  min-width: 0;
+  /* Ширина считается от реального контейнера (рейл 320px / 50% / 100%), а не от viewport */
+  container-type: inline-size;
+}
+
+.ds-event-card__row1 {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+
+/* Время — фиксированное; уходит на новую строку целиком, если ряду не хватает места */
+.ds-event-card__row1 > .ds-accordion__head-time {
+  flex-shrink: 0;
+}
+
+.ds-event-card__row2 {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.ds-event-card__row2-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  flex-shrink: 1;
+}
+
+/* Список ISO-чипов региона сжимается и переносится сам (внутренний flex-wrap) */
+.ds-event-card__row2 > .ds-region-chips {
+  flex-shrink: 1;
+  min-width: 0;
+}
+
+/* Чип причины/типа события (pvo_work, danger, cleared…) — вторичный к Badge уровня.
+   Усекается многоточием, если не влезает по ширине контейнера — полный текст в title. */
+.ds-status-chip {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  max-width: 100%;
+  flex-shrink: 1;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--bg-elev) 60%, transparent);
+}
+
+/* Узкий рейл (мобильный breakpoint секции: 100% ширины строкой) — чип не тянется, время уходит на новую строку */
+@container (max-width: 260px) {
+  .ds-status-chip {
+    max-width: 120px;
+  }
 }
 
 /* ── KPI-плитка ── */
@@ -767,18 +847,21 @@ body {
 .ds-message-feed__meta {
   display: flex;
   align-items: center;
-  gap: 8px;
+  flex-wrap: wrap;
+  gap: 6px;
   margin-bottom: 4px;
   font-size: 10px;
+  container-type: inline-size;
 }
 
 .ds-message-feed__source {
   color: var(--accent);
   font-weight: 600;
-  max-width: 45%;
+  max-width: 32%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  flex-shrink: 1;
 }
 
 .ds-message-feed__time {
@@ -1714,7 +1797,120 @@ body {
 }
 
 .admin-pipeline--map {
-  gap: 8px 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: stretch;
+}
+
+.admin-pipeline__columns {
+  display: grid;
+  gap: 10px 14px;
+  align-items: start;
+  width: 100%;
+}
+
+.admin-pipeline__column {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.admin-pipeline__column-rank {
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.admin-pipeline__body--card {
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--bg) 55%, transparent);
+}
+
+.admin-pipeline__card-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.admin-pipeline__badge {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  flex-shrink: 0;
+}
+
+.admin-pipeline__phases {
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.35;
+  word-break: break-word;
+}
+
+.admin-pipeline__actions {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+}
+
+.admin-pipeline__edges {
+  list-style: none;
+  margin: 0;
+  padding: 8px 0 0;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.admin-pipeline__edges-empty {
+  margin: 0;
+  font-size: 12px;
+  padding-top: 4px;
+  border-top: 1px solid var(--border);
+}
+
+.admin-pipeline__edge {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.admin-pipeline__edge code {
+  font-size: 11px;
+  color: var(--text);
+}
+
+.admin-pipeline__edge-key {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  color: var(--accent);
+}
+
+.admin-pipeline__edge-flag {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--status-warn);
+}
+
+.admin-pipeline__edge--suppressed {
+  opacity: 0.45;
+}
+
+.admin-pipeline__edge--suppressed .admin-pipeline__edge-key {
+  text-decoration: line-through;
+  color: var(--status-warn);
 }
 
 .admin-pipeline__arrow--suppressed {
@@ -1918,7 +2114,7 @@ body {
   left: 50%;
   top: 50%;
   transform: translate(-50%, -50%);
-  width: min(400px, calc(100% - 2 * var(--rail-width) - 64px));
+  width: min(400px, calc(100% - var(--rail-width) - var(--rail-width-right) - 64px));
   max-height: min(75vh, calc(100% - 80px));
   overflow-y: auto;
   background: var(--bg-panel);
