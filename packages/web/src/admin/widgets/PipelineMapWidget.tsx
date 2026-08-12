@@ -1,13 +1,25 @@
 import { useCallback, useState } from "react";
-import type { PipelineTopologyResponse } from "@radar/shared";
+import type {
+  PipelineTopologyEdge,
+  PipelineTopologyNode,
+  PipelineTopologyResponse,
+} from "@radar/shared";
 import { Button, Panel } from "../../shared/ds";
 import { useObservable } from "../../shared/hooks/useObservable";
 import { adminApi } from "../../shared/api/adminApi";
 import { pipelineTopology$ } from "../../shared/state/adminStore";
 import { reportAppError } from "../../shared/state/appLogStore";
 import { fmt } from "../components/statsOverviewParts";
+import { layoutPipelineColumns, shortRoutingKey } from "../pipelineMapLayout";
 
-/** Карта declarative pipeline steps: run / isolate / reset с dryRun preview. */
+const STATUS_TONE: Record<string, string> = {
+  running: "var(--status-warn)",
+  drained: "var(--status-ok)",
+  completed: "var(--status-ok)",
+  failed: "var(--status-error)",
+};
+
+/** Карта declarative pipeline steps: граф из topology DSL + run / isolate / reset. */
 export function PipelineMapWidget() {
   const topology = useObservable(pipelineTopology$, null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -77,6 +89,9 @@ export function PipelineMapWidget() {
     );
   }
 
+  const layout = layoutPipelineColumns(topology.nodes, topology.edges);
+  const activeIsolate = isolateHighlight ?? topology.isolateStepId;
+
   return (
     <Panel
       title="Pipeline map"
@@ -96,84 +111,147 @@ export function PipelineMapWidget() {
       )}
 
       <div className="admin-pipeline admin-pipeline--map">
-        {topology.nodes.map((node, i) => {
-          const outEdges = topology.edges.filter((e) => e.fromStepId === node.id);
-          const highlight =
-            isolateHighlight === node.id || topology.isolateStepId === node.id;
-          return (
-            <div key={node.id} className="admin-pipeline__step">
-              {i > 0 && (
-                <span
-                  className={
-                    topology.edges.some(
-                      (e) =>
-                        e.toStepId === node.id &&
-                        (e.suppressed ||
-                          (isolateHighlight != null && e.fromStepId === isolateHighlight)),
-                    )
-                      ? "admin-pipeline__arrow admin-pipeline__arrow--suppressed"
-                      : "admin-pipeline__arrow"
+        <div
+          className="admin-pipeline__columns"
+          style={{
+            gridTemplateColumns: `repeat(${Math.max(layout.columns.length, 1)}, minmax(140px, 1fr))`,
+          }}
+        >
+          {layout.columns.map((col) => (
+            <div key={col.rank} className="admin-pipeline__column">
+              <span className="admin-pipeline__column-rank">L{col.rank}</span>
+              {col.nodes.map((node) => (
+                <StepCard
+                  key={node.id}
+                  node={node}
+                  highlight={activeIsolate === node.id}
+                  busy={busy != null}
+                  onRun={() => void runStep(node.id, false)}
+                  onIsolate={() => void runStep(node.id, true)}
+                  onReset={
+                    node.resetsHandler ? () => void resetStep(node.id) : undefined
                   }
-                  aria-hidden
-                >
-                  →
-                </span>
-              )}
-              <div
-                className="admin-pipeline__body"
-                style={{
-                  outline: highlight ? "1px solid var(--accent)" : undefined,
-                  opacity: node.enabled ? 1 : 0.55,
-                }}
-              >
-                <span className="admin-pipeline__label" title={node.pipelineKey}>
-                  {node.label ?? node.id}
-                </span>
-                <span className="admin-pipeline__value">{node.id}</span>
-                <span className="admin-pipeline__sub">
-                  {node.queueDepth
-                    ? `q ${fmt(node.queueDepth.pending + node.queueDepth.processing)}`
-                    : node.kind}
-                  {node.lastStepRun ? ` · ${node.lastStepRun.status}` : ""}
-                </span>
-                {outEdges.length > 0 && (
-                  <span className="admin-pipeline__sub" title={outEdges.map((e) => e.key).join(", ")}>
-                    emits {outEdges.length}
-                    {outEdges.some((e) => e.suppressed) ? " · suppressed" : ""}
-                  </span>
-                )}
-                <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 6 }}>
-                  <Button
-                    variant="ghost"
-                    disabled={busy != null}
-                    onClick={() => void runStep(node.id, false)}
-                  >
-                    Run
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    disabled={busy != null}
-                    title="Isolate: без downstream emits"
-                    onClick={() => void runStep(node.id, true)}
-                  >
-                    Isolate
-                  </Button>
-                  {node.resetsHandler && (
-                    <Button
-                      variant="danger"
-                      disabled={busy != null}
-                      onClick={() => void resetStep(node.id)}
-                    >
-                      Reset
-                    </Button>
-                  )}
-                </div>
-              </div>
+                />
+              ))}
             </div>
-          );
-        })}
+          ))}
+        </div>
+
+        <EdgeList
+          edges={layout.edges.map((e) => ({ ...e, suppressed: e.suppressed ?? false }))}
+          isolateStepId={activeIsolate}
+        />
       </div>
     </Panel>
+  );
+}
+
+function StepCard(props: {
+  node: PipelineTopologyNode;
+  highlight: boolean;
+  busy: boolean;
+  onRun: () => void;
+  onIsolate: () => void;
+  onReset?: () => void;
+}) {
+  const { node, highlight, busy, onRun, onIsolate, onReset } = props;
+  const status = node.lastStepRun?.status;
+  const statusColor = status ? (STATUS_TONE[status] ?? "var(--text-muted)") : undefined;
+  const q = node.queueDepth;
+
+  return (
+    <div
+      className="admin-pipeline__body admin-pipeline__body--card"
+      style={{
+        outline: highlight ? "1px solid var(--accent)" : undefined,
+        opacity: node.enabled ? 1 : 0.55,
+      }}
+    >
+      <div className="admin-pipeline__card-head">
+        <span className="admin-pipeline__label" title={node.pipelineKey}>
+          {node.label ?? node.id}
+        </span>
+        {status && (
+          <span
+            className="admin-pipeline__badge"
+            style={{ color: statusColor }}
+            title={node.lastStepRun?.id}
+          >
+            {status}
+          </span>
+        )}
+      </div>
+      <span className="admin-pipeline__value">{node.id}</span>
+      <span className="admin-pipeline__sub">
+        {node.kind}
+        {q ? ` · q p:${fmt(q.pending)} pr:${fmt(q.processing)}` : ""}
+      </span>
+      {node.phases.length > 0 && (
+        <span className="admin-pipeline__phases" title="phases в scope шага">
+          {node.phases
+            .slice()
+            .sort((a, b) => a.order - b.order)
+            .map((p) => `${p.id}${p.enabled ? "" : "✗"}`)
+            .join(" · ")}
+        </span>
+      )}
+      <div className="admin-pipeline__actions">
+        <Button variant="ghost" disabled={busy} onClick={onRun}>
+          Run
+        </Button>
+        <Button
+          variant="ghost"
+          disabled={busy}
+          title="Isolate: без downstream emits"
+          onClick={onIsolate}
+        >
+          Isolate
+        </Button>
+        {onReset && (
+          <Button variant="danger" disabled={busy} onClick={onReset}>
+            Reset
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function EdgeList(props: {
+  edges: PipelineTopologyEdge[];
+  isolateStepId: string | null;
+}) {
+  const { edges, isolateStepId } = props;
+  if (edges.length === 0) {
+    return <p className="admin-pipeline__edges-empty ds-muted">Нет рёбер emits→trigger</p>;
+  }
+
+  return (
+    <ul className="admin-pipeline__edges">
+      {edges.map((e) => {
+        const suppressed =
+          e.suppressed ||
+          (isolateStepId != null && e.fromStepId === isolateStepId);
+        return (
+          <li
+            key={`${e.fromStepId}->${e.toStepId}:${e.key}`}
+            className={
+              suppressed
+                ? "admin-pipeline__edge admin-pipeline__edge--suppressed"
+                : "admin-pipeline__edge"
+            }
+          >
+            <code>{e.fromStepId}</code>
+            <span aria-hidden>→</span>
+            <code>{e.toStepId}</code>
+            <span className="admin-pipeline__edge-key" title={e.key}>
+              {shortRoutingKey(e.key)}
+            </span>
+            {suppressed && <span className="admin-pipeline__edge-flag">suppressed</span>}
+          </li>
+        );
+      })}
+    </ul>
   );
 }
 
