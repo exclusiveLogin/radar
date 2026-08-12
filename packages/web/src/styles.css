@@ -153,8 +153,8 @@
 /* ── Боковые рейлы (glass-панели поверх карты) ── */
 .shell__rail {
   position: absolute;
-  top: 12px;
-  bottom: 12px;
+  top: var(--rail-inset);
+  bottom: var(--rail-inset);
   width: var(--rail-width);
   z-index: 10;
   display: flex;
@@ -166,11 +166,11 @@
 }
 
 .shell__rail--left {
-  left: 12px;
+  left: var(--rail-inset);
 }
 
 .shell__rail--right {
-  right: 12px;
+  right: var(--rail-inset);
   width: var(--rail-width-right);
 }
 
@@ -220,7 +220,7 @@
 .geo-map-panel__stats {
   position: absolute;
   top: 8px;
-  left: calc(var(--rail-width) + 24px);
+  left: calc(var(--rail-inset) + var(--rail-width) + var(--rail-dock-gap));
   z-index: 5;
   pointer-events: none;
   font-size: 12px;
@@ -375,9 +375,10 @@
 /* ── Bottom dock: таймлайн (слой timeline) ── */
 .map-bottom-dock {
   position: absolute;
-  left: calc(var(--rail-width) + 16px);
-  right: calc(var(--rail-width-right) + 16px);
-  bottom: 16px;
+  /* inset рейла + его ширина + явный зазор до панелек */
+  left: calc(var(--rail-inset) + var(--rail-width) + var(--rail-dock-gap));
+  right: calc(var(--rail-inset) + var(--rail-width-right) + var(--rail-dock-gap));
+  bottom: var(--rail-inset);
   transform: none;
   z-index: 15;
   width: auto;
@@ -392,10 +393,13 @@
 .map-top-dock {
   position: absolute;
   left: 50%;
-  top: 12px;
+  top: var(--rail-inset);
   transform: translateX(-50%);
   z-index: 20;
-  width: min(720px, calc(100% - var(--rail-width) - var(--rail-width-right) - 48px));
+  width: min(
+    720px,
+    calc(100% - var(--rail-width) - var(--rail-width-right) - 2 * var(--rail-inset) - 2 * var(--rail-dock-gap))
+  );
   pointer-events: none;
 }
 
@@ -951,16 +955,21 @@
 }
 
 @media (max-width: 900px) {
+  :root {
+    --rail-inset: 8px;
+    --rail-dock-gap: 12px;
+  }
+
   .shell__rail {
     width: calc(50% - 18px);
   }
 
   .shell__rail--left {
-    left: 8px;
+    left: var(--rail-inset);
   }
 
   .shell__rail--right {
-    right: 8px;
+    right: var(--rail-inset);
   }
 
   .shell__rail-item {
@@ -972,14 +981,14 @@
   }
 
   .geo-map-panel__stats {
-    left: 8px;
+    left: var(--rail-inset);
     top: auto;
     bottom: 8px;
   }
 
   .map-bottom-dock {
-    left: 8px;
-    right: 8px;
+    left: var(--rail-inset);
+    right: var(--rail-inset);
   }
 
   .map-timeline__scales .ds-btn {

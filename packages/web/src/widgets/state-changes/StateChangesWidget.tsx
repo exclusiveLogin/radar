@@ -1,12 +1,12 @@
 import { useMemo } from "react";
 import type { StateChangeEventItem } from "@radar/shared";
 import { resolveThreatVisual } from "@radar/shared";
-import { Accordion, Badge, Panel } from "../../shared/ds";
+import { Accordion, Panel } from "../../shared/ds";
 import type { AccordionItem } from "../../shared/ds";
 import { ThreatIcon } from "../../shared/ds/ThreatIcon";
+import { EventCardHead } from "../../shared/components/EventCardHead";
 import { RegionCodeChips } from "../../shared/components/RegionCodeChips";
 import { EventTraitIcons } from "../../shared/components/EventTraitIcons";
-import { StatusReasonChip } from "../../shared/components/StatusReasonChip";
 import { formatDateTime, formatTimeShort } from "../../shared/format/dateTime";
 import { useObservable } from "../../shared/hooks/useObservable";
 import { setHistoricalAsOf } from "../../shared/state/mapStore";
@@ -24,18 +24,18 @@ function reasonCode(row: StateChangeEventItem): string | undefined {
   return row.eventType ?? row.eventCategory ?? undefined;
 }
 
-function parseMetaLine(row: StateChangeEventItem): string | null {
-  const parts = [
-    row.eventType ? `тип: ${row.eventType}` : null,
-    row.eventCategory ? `категория: ${row.eventCategory}` : null,
-  ].filter(Boolean);
-  return parts.length > 0 ? parts.join(" · ") : null;
-}
-
 function regionsTip(row: StateChangeEventItem): string {
   const names = [...new Set(row.regionNames)].filter(Boolean);
   if (names.length === 0) return row.regionCodes.join(", ");
   return names.join(" · ");
+}
+
+function primaryTitle(row: StateChangeEventItem): string {
+  const names = [...new Set(row.regionNames)].filter(Boolean);
+  if (names.length === 1) return names[0]!;
+  if (names.length > 1) return `${names[0]} +${names.length - 1}`;
+  const codes = [...new Set(row.regionCodes)].filter(Boolean);
+  return codes[0] ?? sourceLabel(row);
 }
 
 /**
@@ -55,10 +55,14 @@ export function StateChangesWidget({
 
   const items: AccordionItem[] = visible.map((row) => {
     const regionCodes = [...new Set(row.regionCodes)];
-    const parseLine = parseMetaLine(row);
     const namesLine = regionsTip(row);
     const code = reasonCode(row);
-    const visual = resolveThreatVisual({ statusCode: code, traits: { mass: row.mass, uncertain: row.uncertain } });
+    const reason = code ? statusTitle(code, code) : undefined;
+    const visual = resolveThreatVisual({
+      statusCode: code,
+      traits: { mass: row.mass, uncertain: row.uncertain },
+    });
+    const raw = row.rawText.trim();
 
     return {
       id: row.parsedEventId,
@@ -67,31 +71,35 @@ export function StateChangesWidget({
         ...regionCodes,
         sourceLabel(row),
         formatDateTime(row.postedAt),
-        parseLine,
-        row.rawText.trim(),
+        reason,
+        raw,
       ]
         .filter(Boolean)
         .join("\n"),
       head: (
-        <div className="ds-event-card__head">
-          <div className="ds-event-card__row1">
-            <Badge level={row.stateLevel} />
+        <EventCardHead
+          title={primaryTitle(row)}
+          level={row.stateLevel}
+          icon={
             <ThreatIcon
               compact
               statusCode={code}
               traits={{ mass: row.mass, uncertain: row.uncertain }}
-              title={code ? statusTitle(code) : undefined}
+              title={reason}
             />
-            {code && <StatusReasonChip label={statusTitle(code, code)} accentColor={visual?.accentColor} />}
+          }
+          reason={reason}
+          reasonColor={visual?.accentColor}
+          traits={
             <EventTraitIcons
               repeat={row.repeat}
               uncertain={row.uncertain}
               multiple={row.multiple}
               mass={row.mass}
             />
-            <span className="ds-muted ds-accordion__head-time">
-              {formatTimeShort(row.postedAt)}
-            </span>
+          }
+          time={formatTimeShort(row.postedAt)}
+          timeAction={
             <button
               type="button"
               className="map-timeline__jump"
@@ -104,40 +112,40 @@ export function StateChangesWidget({
             >
               ⏱
             </button>
-          </div>
-          <div className="ds-event-card__row2">
-            <RegionCodeChips codes={regionCodes} inline />
-            <span className="ds-event-card__row2-name">{sourceLabel(row)}</span>
-          </div>
-        </div>
+          }
+          meta={
+            <>
+              <RegionCodeChips codes={regionCodes} inline />
+              <span className="ds-event-card__meta-source">{sourceLabel(row)}</span>
+            </>
+          }
+        />
       ),
       body: (
         <>
-          <div className="ds-muted" style={{ fontSize: 12 }}>
-            {sourceLabel(row)} · {formatDateTime(row.postedAt)}
-          </div>
-          {namesLine && (
-            <div className="ds-muted" style={{ fontSize: 12, marginTop: 4 }}>
-              {namesLine}
+          <dl className="ds-event-card__facts">
+            <div className="ds-event-card__fact">
+              <dt>Источник</dt>
+              <dd>{sourceLabel(row)}</dd>
             </div>
-          )}
-          {parseLine && (
-            <div className="ds-muted" style={{ fontSize: 12, marginTop: 4 }}>
-              {parseLine}
+            <div className="ds-event-card__fact">
+              <dt>Время</dt>
+              <dd>{formatDateTime(row.postedAt)}</dd>
             </div>
-          )}
-          <pre
-            style={{
-              margin: "8px 0 0",
-              whiteSpace: "pre-wrap",
-              wordBreak: "break-word",
-              fontFamily: "inherit",
-              fontSize: 12,
-              color: "var(--text)",
-            }}
-          >
-            {row.rawText.trim()}
-          </pre>
+            {namesLine && (
+              <div className="ds-event-card__fact">
+                <dt>Регионы</dt>
+                <dd>{namesLine}</dd>
+              </div>
+            )}
+            {reason && (
+              <div className="ds-event-card__fact">
+                <dt>Тип</dt>
+                <dd>{reason}{code ? ` (${code})` : ""}</dd>
+              </div>
+            )}
+          </dl>
+          {raw && <pre className="ds-event-card__quote">{raw}</pre>}
         </>
       ),
     };
@@ -146,8 +154,8 @@ export function StateChangesWidget({
   const filterAction = selected ? (
     <button
       type="button"
-      className="ds-accordion__head"
-      style={{ width: "auto", padding: "2px 8px" }}
+      className="ds-event-card__action"
+      style={{ marginTop: 0, padding: "2px 8px" }}
       onClick={() => selectRegion(null)}
     >
       Сбросить фильтр: {selected}

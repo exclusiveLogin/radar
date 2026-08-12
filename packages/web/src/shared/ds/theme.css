@@ -30,6 +30,9 @@
   --rail-width: clamp(320px, 20vw, 480px);
   /* Правый рейл (ленты событий) — шире левого: там основной объём читаемого текста */
   --rail-width-right: clamp(360px, 26vw, 600px);
+  /* Отступ рейла от края stage + зазор до таймлайна/доков между панелями */
+  --rail-inset: 12px;
+  --rail-dock-gap: 16px;
   --header-height: 52px;
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --scrollbar-size: 6px;
@@ -423,19 +426,55 @@ body {
   border-bottom: none;
 }
 
+.ds-accordion__item.is-open {
+  background: color-mix(in srgb, var(--bg-elev) 45%, transparent);
+}
+
 .ds-accordion__head {
   width: 100%;
   text-align: left;
   background: transparent;
   border: 0;
   color: var(--text);
-  padding: 8px 2px;
+  padding: 8px 6px;
   cursor: pointer;
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
   gap: 8px;
   font-size: 13px;
+  border-radius: var(--radius-sm);
+  transition: background 0.15s ease;
+}
+
+.ds-accordion__head:hover {
+  background: color-mix(in srgb, var(--bg-elev) 70%, transparent);
+}
+
+.ds-accordion__head:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.ds-accordion__chevron {
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+  color: var(--text-muted);
+  background: currentColor;
+  opacity: 0.7;
+  clip-path: polygon(35% 20%, 75% 50%, 35% 80%);
+  transition: transform 0.15s ease, opacity 0.15s ease;
+}
+
+.ds-accordion__item.is-open .ds-accordion__chevron {
+  transform: rotate(90deg);
+  opacity: 1;
+  color: var(--accent);
+}
+
+.ds-accordion__head-content {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .ds-accordion__head-title {
@@ -451,12 +490,8 @@ body {
   flex-shrink: 0;
 }
 
-.ds-accordion__head:hover {
-  color: var(--accent);
-}
-
 .ds-accordion__body {
-  padding: 0 4px 10px;
+  padding: 0 8px 12px 28px;
   color: var(--text-muted);
   font-size: 12px;
 }
@@ -465,56 +500,197 @@ body {
   color: var(--text-muted);
 }
 
-/* ── Карточка события: 2 строки (статус+причина / регион+источник) ── */
-.ds-event-card__head {
+/* ── Карточка события в рейле: title → reason → meta ── */
+.ds-event-card {
+  display: grid;
+  grid-template-columns: 3px minmax(0, 1fr);
+  gap: 0 10px;
+  align-items: stretch;
+  width: 100%;
+  min-width: 0;
+}
+
+.ds-event-card__accent {
+  border-radius: 2px;
+  background: var(--border-strong);
+  min-height: 100%;
+}
+
+.ds-event-card__main {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  flex: 1 1 100%;
+  gap: 3px;
   min-width: 0;
-  /* Ширина считается от реального контейнера (рейл 320px / 50% / 100%), а не от viewport */
-  container-type: inline-size;
 }
 
-.ds-event-card__row1 {
+.ds-event-card__top {
   display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 6px;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
   min-width: 0;
 }
 
-/* Время — фиксированное; уходит на новую строку целиком, если ряду не хватает места */
-.ds-event-card__row1 > .ds-accordion__head-time {
+.ds-event-card__title {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ds-event-card__time-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   flex-shrink: 0;
 }
 
-.ds-event-card__row2 {
+.ds-event-card__time {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+  letter-spacing: 0.02em;
+}
+
+.ds-event-card__reason {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  font-size: 12px;
+  line-height: 1.3;
+}
+
+.ds-event-card__reason-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.ds-event-card__meta {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: 4px 8px;
   min-width: 0;
-  font-size: 12px;
+  font-size: 11px;
   color: var(--text-muted);
 }
 
-.ds-event-card__row2-name {
+/* В meta чипы не растягиваются — иначе снова «дыра» до источника справа */
+.ds-event-card__meta > .ds-region-chips {
+  flex: 0 1 auto;
+}
+
+.ds-event-card__meta-code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--bg) 70%, transparent);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+}
+
+.ds-event-card__meta-source {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  min-width: 0;
-  flex-shrink: 1;
 }
 
-/* Список ISO-чипов региона сжимается и переносится сам (внутренний flex-wrap) */
-.ds-event-card__row2 > .ds-region-chips {
-  flex-shrink: 1;
+.ds-event-card__meta-activity {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.ds-event-card__body {
+  margin-top: 4px;
   min-width: 0;
 }
 
-/* Чип причины/типа события (pvo_work, danger, cleared…) — вторичный к Badge уровня.
-   Усекается многоточием, если не влезает по ширине контейнера — полный текст в title. */
+/* Раскрытое тело: факты + цитата исходника */
+.ds-event-card__facts {
+  display: grid;
+  gap: 4px;
+  margin: 0 0 8px;
+  padding: 0;
+}
+
+.ds-event-card__fact {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: 8px;
+  align-items: baseline;
+}
+
+.ds-event-card__fact dt {
+  margin: 0;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.ds-event-card__fact dd {
+  margin: 0;
+  color: var(--text);
+  word-break: break-word;
+}
+
+.ds-event-card__quote {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--bg) 55%, transparent);
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text);
+}
+
+.ds-event-card__source {
+  margin-top: 4px;
+}
+
+.ds-event-card__source .ds-region-chips {
+  margin-bottom: 6px;
+}
+
+.ds-event-card__action {
+  display: inline-flex;
+  align-items: center;
+  margin-top: 8px;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--bg-elev) 70%, transparent);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.ds-event-card__action:hover {
+  border-color: var(--border-strong);
+  background: var(--bg-elev);
+}
+
+/* Чип причины — запасной компактный маркер вне event-card */
 .ds-status-chip {
   display: inline-flex;
   align-items: center;
@@ -532,13 +708,6 @@ body {
   color: var(--text-muted);
   border: 1px solid var(--border);
   background: color-mix(in srgb, var(--bg-elev) 60%, transparent);
-}
-
-/* Узкий рейл (мобильный breakpoint секции: 100% ширины строкой) — чип не тянется, время уходит на новую строку */
-@container (max-width: 260px) {
-  .ds-status-chip {
-    max-width: 120px;
-  }
 }
 
 /* ── KPI-плитка ── */
@@ -618,7 +787,85 @@ body {
 .ds-sparkline,
 .ds-bar-mini {
   display: block;
+  max-width: 100%;
+}
+
+.ds-chart-fluid {
   width: 100%;
+  min-width: 0;
+}
+
+/* ── Топ активности: одна строка ── */
+.ds-top-activity__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+}
+
+.ds-top-activity__accent {
+  width: 4px;
+  height: 18px;
+  border-radius: 2px;
+  flex-shrink: 0;
+  background: var(--border-strong);
+  box-shadow: 0 0 0 1px color-mix(in srgb, currentColor 25%, transparent);
+}
+
+.ds-top-activity__rank {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+  min-width: 1.6em;
+}
+
+.ds-top-activity__name {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ds-top-activity__count {
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+
+.ds-top-activity__bar-track {
+  flex-shrink: 0;
+  width: 56px;
+  height: 4px;
+  display: flex;
+  align-items: center;
+}
+
+.ds-top-activity__bar {
+  display: block;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--accent);
+  opacity: 0.55;
+}
+
+.ds-top-activity__code {
+  flex-shrink: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--bg) 70%, transparent);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
 }
 
 /* ── Статус-точка ── */
@@ -826,7 +1073,7 @@ body {
   border-radius: 2px;
 }
 
-/* ── Лента сообщений ── */
+/* ── Лента сообщений / единый список карточек в рейле ── */
 .ds-message-feed {
   list-style: none;
   margin: 0;
@@ -836,12 +1083,22 @@ body {
 }
 
 .ds-message-feed__item {
-  padding: 8px 0;
+  padding: 10px 2px;
   border-bottom: 1px solid var(--border);
 }
 
 .ds-message-feed__item:last-child {
   border-bottom: none;
+}
+
+.ds-message-feed__item--clickable {
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition: background 0.15s ease;
+}
+
+.ds-message-feed__item--clickable:hover {
+  background: color-mix(in srgb, var(--bg-elev) 55%, transparent);
 }
 
 .ds-message-feed__meta {
@@ -851,7 +1108,6 @@ body {
   gap: 6px;
   margin-bottom: 4px;
   font-size: 10px;
-  container-type: inline-size;
 }
 
 .ds-message-feed__source {

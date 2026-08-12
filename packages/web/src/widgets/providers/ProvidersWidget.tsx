@@ -1,4 +1,5 @@
 import { EllipsisText, Panel, StatusDot } from "../../shared/ds";
+import { EventCardHead } from "../../shared/components/EventCardHead";
 import { useObservable } from "../../shared/hooks/useObservable";
 import {
   formatAge,
@@ -10,6 +11,15 @@ import {
   workerStatus$,
 } from "../../shared/state/providersStore";
 import type { WidgetProps } from "../widgetProps";
+import type { StateLevel } from "@radar/shared";
+
+/** Маппинг display-статуса канала → цвет акцента карточки. */
+function providerLevel(kind: "ok" | "warn" | "error" | "neutral"): StateLevel {
+  if (kind === "ok") return "green";
+  if (kind === "warn") return "yellow";
+  if (kind === "error") return "red";
+  return "grey";
+}
 
 /** Статус ingest-провайдеров: live probe + heartbeat, не только поле status в БД. */
 export function ProvidersWidget({
@@ -46,45 +56,51 @@ export function ProvidersWidget({
             : "Нет провайдеров."}
         </p>
       ) : (
-        providers.map((p) => {
-          const connection =
-            workerStatus?.worker?.ingest.providers.find((c) => c.providerId === p.id) ?? null;
-          const display = resolveIngestProviderDisplayStatus(p, { ...liveCtx, connection });
-          return (
-            <div
-              key={p.id}
-              className="ds-metric-row"
-              style={{ flexDirection: "column", alignItems: "stretch" }}
-            >
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-                <EllipsisText
-                  text={p.title}
-                  className="ds-ellipsis"
-                  style={{ fontSize: 12, fontWeight: 600, flex: 1, minWidth: 0 }}
-                  tip={`${p.title}\n${p.key} · ${p.adapterKind}\nDB status: ${p.status}`}
+        <ul className="ds-message-feed">
+          {providers.map((p) => {
+            const connection =
+              workerStatus?.worker?.ingest.providers.find((c) => c.providerId === p.id) ?? null;
+            const display = resolveIngestProviderDisplayStatus(p, { ...liveCtx, connection });
+            const reason = [
+              p.adapterKind,
+              `heartbeat: ${formatAge(p.lastHeartbeatAt)}`,
+              !liveCtx.workerReachable && p.status === "active" ? "worker offline" : null,
+            ]
+              .filter(Boolean)
+              .join(" · ");
+
+            return (
+              <li key={p.id} className="ds-message-feed__item">
+                <EventCardHead
+                  title={p.title}
+                  level={providerLevel(display.kind)}
+                  reason={reason}
+                  timeAction={
+                    <StatusDot
+                      kind={display.kind}
+                      label={display.label}
+                      tip={display.tip}
+                      pulse={display.pulse}
+                    />
+                  }
+                  meta={
+                    <span className="ds-event-card__meta-code" title={p.key}>
+                      {p.key}
+                    </span>
+                  }
                 />
-                <StatusDot
-                  kind={display.kind}
-                  label={display.label}
-                  tip={display.tip}
-                  pulse={display.pulse}
-                />
-              </div>
-              <div className="ds-muted" style={{ fontSize: 12 }}>
-                {p.adapterKind} · heartbeat: {formatAge(p.lastHeartbeatAt)}
-                {!liveCtx.workerReachable && p.status === "active" ? " · worker offline" : null}
-              </div>
-              {p.lastError && (
-                <EllipsisText
-                  text={p.lastError}
-                  className="ds-ellipsis"
-                  style={{ fontSize: 12, color: "var(--status-error)", marginTop: 2 }}
-                  tip={p.lastError}
-                />
-              )}
-            </div>
-          );
-        })
+                {p.lastError && (
+                  <EllipsisText
+                    text={p.lastError}
+                    className="ds-message-feed__text"
+                    style={{ color: "var(--status-error)" }}
+                    tip={p.lastError}
+                  />
+                )}
+              </li>
+            );
+          })}
+        </ul>
       )}
     </Panel>
   );

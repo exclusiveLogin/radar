@@ -1,12 +1,14 @@
 import { useMemo, type ReactNode } from "react";
-import type { MessageFeedItem } from "@radar/shared";
+import type { MessageFeedItem, StateLevel } from "@radar/shared";
 import { resolveThreatVisual } from "@radar/shared";
-import { Badge, EllipsisText, Panel, Tip, flattenText } from "../../shared/ds";
+import { flattenText, Panel, Tip } from "../../shared/ds";
 import { ThreatIcon } from "../../shared/ds/ThreatIcon";
+import { EventCardHead } from "../../shared/components/EventCardHead";
 import { EventTraitIcons } from "../../shared/components/EventTraitIcons";
-import { StatusReasonChip } from "../../shared/components/StatusReasonChip";
+import { RegionCodeChips } from "../../shared/components/RegionCodeChips";
 import { useObservable } from "../../shared/hooks/useObservable";
 import { formatMessagePostedAt } from "../../shared/state/derivations";
+import { formatDateTime, formatTimeShort } from "../../shared/format/dateTime";
 import { messagesFeed$ } from "../../shared/state/messagesStore";
 import { setHistoricalAsOf } from "../../shared/state/mapStore";
 import { selectRegion, selectedRegion$ } from "../../shared/state/selectionStore";
@@ -17,18 +19,10 @@ function sourceLabel(row: MessageFeedItem): string {
   return row.channelTitle?.trim() || row.channelKey;
 }
 
-function formatPostedAtFull(iso: string): string {
-  return new Date(iso).toLocaleString("ru-RU", {
-    dateStyle: "medium",
-    timeStyle: "medium",
-    timeZone: "Europe/Moscow",
-  });
-}
-
 function messageTip(row: MessageFeedItem): string {
   const parts = [
     sourceLabel(row),
-    formatPostedAtFull(row.postedAt),
+    formatDateTime(row.postedAt),
     row.rawText.trim(),
     `content: ${row.contentKind}`,
     `parsed: ${row.parsedEventCount}`,
@@ -41,64 +35,57 @@ function messageTip(row: MessageFeedItem): string {
   return parts.join("\n\n");
 }
 
-/** Бейдж статуса raw: шум / meta / без parse / тип (в т.ч. clear без loc) / loc. */
-function messageStatusBadge(row: MessageFeedItem): ReactNode {
+type MessageHeadModel = {
+  level?: StateLevel;
+  reason?: string;
+  reasonColor?: string;
+  icon?: ReactNode;
+  tip?: string;
+};
+
+/** Поля шапки: уровень/причина или pending-метка (шум/meta/raw…). */
+function messageHeadModel(row: MessageFeedItem): MessageHeadModel {
   if (row.contentKind === "noise") {
-    return (
-      <Tip label="Шум канала (groom/noise)">
-        <span className="ds-message-feed__pending">шум</span>
-      </Tip>
-    );
+    return { reason: "шум", tip: "Шум канала (groom/noise)" };
   }
   if (row.contentKind === "meta") {
-    return (
-      <Tip label="Meta / сводка — не оперативное событие">
-        <span className="ds-message-feed__pending">meta</span>
-      </Tip>
-    );
+    return { reason: "meta", tip: "Meta / сводка — не оперативное событие" };
   }
   if (row.parsedEventCount === 0) {
-    return (
-      <Tip label="Не разобрано или отфильтровано на groom">
-        <span className="ds-message-feed__pending">raw</span>
-      </Tip>
-    );
+    return { reason: "raw", tip: "Не разобрано или отфильтровано на groom" };
   }
-  const eventType = row.eventType ?? undefined;
 
+  const eventType = row.eventType ?? undefined;
   if (row.stateLevel) {
-    const visual = resolveThreatVisual({ statusCode: eventType, traits: { mass: row.mass, uncertain: row.uncertain } });
-    return (
-      <>
-        <Badge level={row.stateLevel} />
-        <ThreatIcon compact statusCode={eventType} traits={{ mass: row.mass, uncertain: row.uncertain }} />
-        {eventType && (
-          <Tip label={row.hasLocations ? "есть loc" : "без loc (канальный/массовый отбой)"}>
-            <StatusReasonChip label={statusTitle(eventType)} accentColor={visual?.accentColor} />
-          </Tip>
-        )}
-      </>
-    );
+    const visual = resolveThreatVisual({
+      statusCode: eventType,
+      traits: { mass: row.mass, uncertain: row.uncertain },
+    });
+    return {
+      level: row.stateLevel,
+      reason: eventType ? statusTitle(eventType) : undefined,
+      reasonColor: visual?.accentColor,
+      tip: row.hasLocations ? "есть loc" : "без loc (канальный/массовый отбой)",
+      icon: (
+        <ThreatIcon
+          compact
+          statusCode={eventType}
+          traits={{ mass: row.mass, uncertain: row.uncertain }}
+          title={eventType ? statusTitle(eventType) : undefined}
+        />
+      ),
+    };
   }
   if (eventType) {
-    return (
-      <Tip label={row.hasLocations ? "Разобрано с loc" : `Разобрано без loc: ${eventType}`}>
-        <StatusReasonChip label={statusTitle(eventType)} />
-      </Tip>
-    );
+    return {
+      reason: statusTitle(eventType),
+      tip: row.hasLocations ? "Разобрано с loc" : `Разобрано без loc: ${eventType}`,
+    };
   }
   if (!row.hasLocations) {
-    return (
-      <Tip label="Parse без event_locations и без event_type">
-        <span className="ds-message-feed__pending">parse</span>
-      </Tip>
-    );
+    return { reason: "parse", tip: "Parse без event_locations и без event_type" };
   }
-  return (
-    <Tip label="Есть loc, тип не определён">
-      <span className="ds-message-feed__pending">loc</span>
-    </Tip>
-  );
+  return { reason: "loc", tip: "Есть loc, тип не определён" };
 }
 
 /** Лента ingest: все raw, независимо от parse/loc. */
@@ -117,8 +104,8 @@ export function MessagesFeedWidget({
   const filterAction = selected ? (
     <button
       type="button"
-      className="ds-accordion__head"
-      style={{ width: "auto", padding: "2px 8px" }}
+      className="ds-event-card__action"
+      style={{ marginTop: 0, padding: "2px 8px" }}
       onClick={() => selectRegion(null)}
     >
       Сбросить: {selected}
@@ -139,47 +126,50 @@ export function MessagesFeedWidget({
       ) : (
         <ul className="ds-message-feed">
           {visible.map((row) => {
-            const regionsLabel = [...new Set(row.regionCodes)].join(" · ");
+            const head = messageHeadModel(row);
+            const regionCodes = [...new Set(row.regionCodes)];
+            const text = flattenText(row.rawText);
+
             return (
               <li key={row.id} className="ds-message-feed__item">
-                <div className="ds-message-feed__meta">
-                  <EllipsisText
-                    text={sourceLabel(row)}
-                    className="ds-message-feed__source ds-ellipsis"
-                    tip={sourceLabel(row)}
-                  />
-                  <Tip label={formatPostedAtFull(row.postedAt)}>
-                    <span className="ds-message-feed__time">
-                      {formatMessagePostedAt(row.postedAt)}
-                    </span>
+                <EventCardHead
+                  title={sourceLabel(row)}
+                  level={head.level}
+                  icon={head.icon}
+                  reason={head.reason}
+                  reasonColor={head.reasonColor}
+                  traits={
+                    <EventTraitIcons
+                      repeat={row.repeat}
+                      uncertain={row.uncertain}
+                      multiple={row.multiple}
+                      mass={row.mass}
+                    />
+                  }
+                  time={formatTimeShort(row.postedAt)}
+                  timeAction={
+                    <button
+                      type="button"
+                      className="map-timeline__jump"
+                      title="Карта на момент события"
+                      aria-label="Карта на момент события"
+                      onClick={() => void setHistoricalAsOf(row.postedAt)}
+                    >
+                      ⏱
+                    </button>
+                  }
+                  meta={
+                    regionCodes.length > 0 ? (
+                      <RegionCodeChips codes={regionCodes} inline />
+                    ) : undefined
+                  }
+                >
+                  <Tip label={messageTip(row)} className="ds-tip--hint">
+                    <p className="ds-message-feed__text" title={head.tip}>
+                      {text}
+                    </p>
                   </Tip>
-                  <button
-                    type="button"
-                    className="map-timeline__jump"
-                    title="Карта на момент события"
-                    aria-label="Карта на момент события"
-                    onClick={() => void setHistoricalAsOf(row.postedAt)}
-                  >
-                    ⏱
-                  </button>
-                  {messageStatusBadge(row)}
-                  <EventTraitIcons
-                    repeat={row.repeat}
-                    uncertain={row.uncertain}
-                    multiple={row.multiple}
-                    mass={row.mass}
-                  />
-                </div>
-                <Tip label={messageTip(row)} className="ds-tip--hint">
-                  <p className="ds-message-feed__text">{flattenText(row.rawText)}</p>
-                </Tip>
-                {regionsLabel && (
-                  <EllipsisText
-                    text={regionsLabel}
-                    className="ds-message-feed__regions ds-ellipsis"
-                    tip={regionsLabel}
-                  />
-                )}
+                </EventCardHead>
               </li>
             );
           })}

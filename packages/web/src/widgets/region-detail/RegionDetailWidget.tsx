@@ -1,12 +1,16 @@
 import { useEffect, useState } from "react";
 import type { StateChangeEventItem } from "@radar/shared";
+import { resolveThreatVisual } from "@radar/shared";
 import { LEVEL_COLORS, LEVEL_LABELS } from "../../shared/config/mapConfig.service";
 import { mapApi } from "../../shared/api/mapApi";
 import { reportAppError } from "../../shared/state/appLogStore";
-import { formatDateTime } from "../../shared/format/dateTime";
+import { formatDateTime, formatTimeShort } from "../../shared/format/dateTime";
 import { derivedRegionCodes$, regionsByCode$ } from "../../shared/state/mapStore";
 import { selectRegion, selectedRegion$ } from "../../shared/state/selectionStore";
+import { statusTitle } from "../../shared/state/statusDictionaryStore";
+import { EventCardHead } from "../../shared/components/EventCardHead";
 import { EventTraitIcons } from "../../shared/components/EventTraitIcons";
+import { ThreatIcon } from "../../shared/ds/ThreatIcon";
 
 /** Панель с деталями выбранного региона: статус, источник, история событий. */
 export function RegionDetailWidget() {
@@ -107,7 +111,7 @@ export function RegionDetailWidget() {
             {expanded ? "▾" : "▸"} Исходное сообщение
           </button>
           {expanded ? (
-            <pre className="region-detail-panel__source-text">{sourceText}</pre>
+            <pre className="ds-event-card__quote">{sourceText}</pre>
           ) : null}
         </div>
       ) : null}
@@ -119,26 +123,45 @@ export function RegionDetailWidget() {
         ) : events.length === 0 ? (
           <div className="ds-muted">Нет данных</div>
         ) : (
-          <ul className="region-detail-panel__history-list">
-            {events.map((evt) => (
-              <li key={evt.parsedEventId} className="region-detail-panel__history-item">
-                <span
-                  className="region-detail-panel__history-dot"
-                  style={{ background: LEVEL_COLORS[evt.stateLevel] }}
-                />
-                <span className="region-detail-panel__history-time">
-                  {formatDateTime(evt.postedAt)}
-                </span>
-                <span className="region-detail-panel__history-type">{evt.eventType}</span>
-                <EventTraitIcons
-                  compact
-                  repeat={evt.repeat}
-                  uncertain={evt.uncertain}
-                  multiple={evt.multiple}
-                  mass={evt.mass}
-                />
-              </li>
-            ))}
+          <ul className="ds-message-feed">
+            {events.map((evt) => {
+              const codeReason = evt.eventType ?? evt.eventCategory ?? undefined;
+              const reason = codeReason ? statusTitle(codeReason, codeReason) : undefined;
+              const visual = resolveThreatVisual({
+                statusCode: codeReason,
+                traits: { mass: evt.mass, uncertain: evt.uncertain },
+              });
+              const source = evt.channelTitle?.trim() || evt.channelKey;
+
+              return (
+                <li key={evt.parsedEventId} className="ds-message-feed__item">
+                  <EventCardHead
+                    title={reason ?? codeReason ?? "событие"}
+                    level={evt.stateLevel}
+                    icon={
+                      <ThreatIcon
+                        compact
+                        statusCode={codeReason}
+                        traits={{ mass: evt.mass, uncertain: evt.uncertain }}
+                        title={reason}
+                      />
+                    }
+                    reason={source}
+                    reasonColor={visual?.accentColor}
+                    traits={
+                      <EventTraitIcons
+                        compact
+                        repeat={evt.repeat}
+                        uncertain={evt.uncertain}
+                        multiple={evt.multiple}
+                        mass={evt.mass}
+                      />
+                    }
+                    time={formatTimeShort(evt.postedAt)}
+                  />
+                </li>
+              );
+            })}
           </ul>
         )}
       </div>
