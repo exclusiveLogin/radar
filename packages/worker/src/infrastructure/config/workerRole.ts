@@ -7,6 +7,15 @@ export type WorkerRole = "ingest" | "backfill" | "parse" | "geo" | "tracking";
 /** Capability домена, которую поднимает boot (обычно = role). */
 export type DomainCap = WorkerRole;
 
+/** Pipeline keys, которые реально поднимает роль (не весь ODP-каталог стека). */
+export const PIPELINES_OWNED_BY_ROLE: Record<WorkerRole, readonly string[]> = {
+  ingest: [],
+  backfill: [],
+  parse: ["parse"],
+  geo: ["geo-enrich"],
+  tracking: ["tracking"],
+};
+
 const VALID_ROLES = new Set<WorkerRole>([
   "ingest",
   "backfill",

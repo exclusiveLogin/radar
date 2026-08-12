@@ -53,7 +53,10 @@ export type HostMonitorRow = {
   hostId: string;
   role: string;
   lastSeenAt: string;
+  startedAt: string;
   liveness: HostLiveness;
+  /** Что реально делает процесс: pipeline·runtime или domain duty. */
+  duty: string;
   pipelines: Array<{ pipelineKey: string; runtime: ObsPipelineRuntime; label: string }>;
 };
 
@@ -61,6 +64,12 @@ const PIPELINE_HOST_ROLE: Record<PipelineKey, string> = {
   tracking: "tracking",
   parse: "parse",
   "geo-enrich": "geo",
+};
+
+/** Роли без ODP-pipeline — domain duty для Hosts panel. */
+const DOMAIN_DUTY_BY_ROLE: Record<string, string> = {
+  ingest: "live ingest",
+  backfill: "backfill jobs",
 };
 
 const ACTIVE_RUN = new Set(["running", "paused", "pending"]);
@@ -306,22 +315,43 @@ export function buildRunnerMonitor(input: RunnerMonitorInput): PipelineMonitorSn
   return keys.map((key) => buildPipelineMonitor(key, input));
 }
 
-/** Строки панели Hosts (вместо пустых executors). */
+/** Строки панели Hosts: роль + duty (owned pipelines / domain), не весь ODP-каталог. */
 export function buildHostMonitorRows(
   hosts: HostSnapshot[],
   nowMs = Date.now(),
 ): HostMonitorRow[] {
   return [...hosts]
     .sort((a, b) => a.role.localeCompare(b.role))
-    .map((host) => ({
-      hostId: host.hostId,
-      role: host.role,
-      lastSeenAt: host.lastSeenAt,
-      liveness: resolveHostLiveness(host.lastSeenAt, nowMs),
-      pipelines: host.odpRuntime.map((entry) => ({
-        pipelineKey: entry.pipelineKey,
-        runtime: entry.runtime,
-        label: entry.label,
-      })),
-    }));
+    .map((host) => {
+      const ownedKeys = new Set(
+        (Object.entries(PIPELINE_HOST_ROLE) as Array<[PipelineKey, string]>)
+          .filter(([, role]) => role === host.role)
+          .map(([key]) => key),
+      );
+      // ingest/backfill: odp не владеет pipeline — игнор stale-каталога в heartbeat
+      const pipelines =
+        ownedKeys.size === 0
+          ? []
+          : host.odpRuntime
+              .filter((entry) => ownedKeys.has(entry.pipelineKey as PipelineKey))
+              .map((entry) => ({
+                pipelineKey: entry.pipelineKey,
+                runtime: entry.runtime,
+                label: entry.label,
+              }));
+      const duty =
+        pipelines.length > 0
+          ? pipelines.map((p) => `${p.pipelineKey} · ${p.runtime}`).join(", ")
+          : (DOMAIN_DUTY_BY_ROLE[host.role] ?? host.role);
+
+      return {
+        hostId: host.hostId,
+        role: host.role,
+        lastSeenAt: host.lastSeenAt,
+        startedAt: host.startedAt,
+        liveness: resolveHostLiveness(host.lastSeenAt, nowMs),
+        duty,
+        pipelines,
+      };
+    });
 }

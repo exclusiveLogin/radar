@@ -183,7 +183,7 @@ function PipelineMonitorCard({
   );
 }
 
-/** Панель живых worker-hosts (вместо пустых process/thread executors). */
+/** Панель живых worker-hosts: роль + что процесс реально делает. */
 function HostsPanel({
   rows,
 }: {
@@ -201,9 +201,9 @@ function HostsPanel({
           <span className="ds-muted" style={{ fontSize: 12 }}>
             {row.role}
           </span>
-          <span style={{ fontSize: 12 }}>{formatDateTime(row.lastSeenAt)}</span>
+          <span style={{ fontSize: 12 }}>{row.duty}</span>
           <span className="ds-muted" style={{ fontSize: 12 }}>
-            {row.pipelines.map((p) => p.pipelineKey).join(", ") || "—"}
+            seen {formatDateTime(row.lastSeenAt)} · up {formatDateTime(row.startedAt)}
           </span>
         </li>
       ))}
