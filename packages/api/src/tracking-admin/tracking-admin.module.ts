@@ -35,6 +35,6 @@ import { TrackingAdminQueryService } from "./tracking-admin.service";
       inject: [TrackingAdminQueryService],
     },
   ],
-  exports: [TrackingAdminQueryService],
+  exports: [TrackingAdminQueryService, SetTrackingEnabledUseCase],
 })
 export class TrackingAdminModule {}

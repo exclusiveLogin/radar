@@ -14,6 +14,7 @@ import {
 import { spawn, type ChildProcess } from "child_process";
 import { MONOREPO_ROOT } from "../monorepo-root";
 import { PhasesAdminService } from "../phases-admin/phases-admin.service";
+import { SetTrackingEnabledUseCase } from "../application/tracking-admin/tracking-admin-commands";
 import { ParseMaintenanceGate } from "./parse-maintenance.gate";
 
 type JobState = {
@@ -55,6 +56,7 @@ export class ParsePipelineAdminService implements OnModuleDestroy {
   constructor(
     private readonly phasesAdmin: PhasesAdminService,
     private readonly parseMaintenance: ParseMaintenanceGate,
+    private readonly setTrackingEnabled: SetTrackingEnabledUseCase,
   ) {}
 
   onModuleDestroy(): void {
@@ -80,6 +82,10 @@ export class ParsePipelineAdminService implements OnModuleDestroy {
   async startRebuild(): Promise<ParsePipelineStartResponse> {
     await this.assertNoRunningJob();
     this.parseMaintenance.pause();
+    // Tracking-раннер иначе почти непрерывно держит AccessShareLock на mat_parse_event/
+    // mat_parse_location (countTrackingPipelineRemaining на каждый tick) — TRUNCATE ниже
+    // с --no-force-locks делает только одну попытку и почти всегда ловит 55P03.
+    await this.setTrackingEnabled.execute(false);
     try {
       await this.parseMaintenance.waitForDrain();
       const stopped = await this.phasesAdmin.stopAllActiveRuns();
@@ -87,13 +93,14 @@ export class ParsePipelineAdminService implements OnModuleDestroy {
         `rebuild preflight: runsClosed=${stopped.phaseRunsClosed}, queueCleared=${stopped.queueCleared}`,
       );
       // --no-force-locks: не рвём DB-сессии живого API (иначе Nest падает → ECONNREFUSED).
-      // maintenance pause + stop runs уже сняли parse-конкуренцию; TRUNCATE soft-retry.
+      // maintenance pause + stop runs + пауза tracking уже сняли конкуренцию; TRUNCATE soft-retry.
       return await this.startJob("rebuild", "parse-engine:pipeline:reset", [
         "--no-catch-up",
         "--no-force-locks",
       ]);
     } catch (error) {
       this.parseMaintenance.resume();
+      await this.setTrackingEnabled.execute(true);
       throw error;
     }
   }
@@ -220,6 +227,11 @@ export class ParsePipelineAdminService implements OnModuleDestroy {
     if (kind !== "rebuild") return;
     if (!this.parseMaintenance.isPaused()) return;
     this.parseMaintenance.resume();
+    void this.setTrackingEnabled.execute(true).catch((err) =>
+      this.logger.warn(
+        `resume tracking after rebuild: ${err instanceof Error ? err.message : String(err)}`,
+      ),
+    );
   }
 
   private spawnWorkerScript(
@@ -262,11 +274,14 @@ export class ParsePipelineAdminService implements OnModuleDestroy {
       Awaited<ReturnType<PhasesAdminService["getIngestCatchUpState"]>>
     >,
   ): ParsePipelineStatusResponse {
-    const activeRuns = state.runs.filter((run) =>
-      ["pending", "running", "paused"].includes(run.status),
-    );
-    const displayedRuns = activeRuns.length > 0 ? activeRuns : state.runs;
     const remaining = state.counts.pending + state.counts.processing;
+    const activeRuns = state.runs.filter((run) => {
+      if (run.status === "running" || run.status === "paused") return true;
+      // orphan pending без старта не держит UI «running», если очередь уже пуста
+      if (run.status === "pending") return remaining > 0;
+      return false;
+    });
+    const displayedRuns = activeRuns.length > 0 ? activeRuns : state.runs;
     const totalMessages =
       remaining + state.counts.done + state.counts.failed;
     const processedMessages = state.counts.done + state.counts.failed;
