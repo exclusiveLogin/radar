@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useState, type CSSProperties } from "react";
 import type {
   PipelineTopologyEdge,
   PipelineTopologyNode,
@@ -113,9 +113,11 @@ export function PipelineMapWidget() {
       <div className="admin-pipeline admin-pipeline--map">
         <div
           className="admin-pipeline__columns"
-          style={{
-            gridTemplateColumns: `repeat(${Math.max(layout.columns.length, 1)}, minmax(140px, 1fr))`,
-          }}
+          style={
+            {
+              "--pipeline-cols": Math.max(layout.columns.length, 1),
+            } as CSSProperties
+          }
         >
           {layout.columns.map((col) => (
             <div key={col.rank} className="admin-pipeline__column">

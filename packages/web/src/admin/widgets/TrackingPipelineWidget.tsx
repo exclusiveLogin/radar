@@ -89,7 +89,7 @@ export function TrackingPipelineWidget() {
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))",
+            gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 140px), 1fr))",
             gap: 8,
             marginBottom: 10,
             fontSize: 12,

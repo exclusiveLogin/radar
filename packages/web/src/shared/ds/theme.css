@@ -1436,7 +1436,8 @@ body {
 
 .admin-shell .ds-stat-grid {
   gap: 8px;
-  grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+  /* auto-fit: пустые треки схлопываются — плитки реально занимают ширину панели */
+  grid-template-columns: repeat(auto-fit, minmax(84px, 1fr));
 }
 
 .admin-shell .ds-metric-row {
@@ -1808,6 +1809,8 @@ body {
   gap: 10px 14px;
   align-items: start;
   width: 100%;
+  /* Число колонок задаёт виджет через --pipeline-cols; на узком — одна колонка */
+  grid-template-columns: repeat(var(--pipeline-cols, 1), minmax(0, 1fr));
 }
 
 .admin-pipeline__column {
@@ -1942,12 +1945,13 @@ body {
 
 .admin-phase-enrich-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  /* auto-fit: при 1–2 карточках они растягиваются на всю ширину, а не оставляют дыру */
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 160px), 1fr));
   gap: 10px;
 }
 
 .admin-phase-enrich-grid--wide {
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
 }
 
 .admin-phase-enrich-card {
@@ -2018,6 +2022,10 @@ body {
   .admin-section--overview .ds-stat-grid {
     grid-template-columns: 1fr;
   }
+
+  .admin-shell .ds-slider-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .admin-section--enrichment .admin-grid__cell--8 .ds-panel,
@@ -2027,9 +2035,11 @@ body {
 
 .admin-grid {
   display: grid;
-  grid-template-columns: repeat(12, 1fr);
+  grid-template-columns: repeat(12, minmax(0, 1fr));
   gap: var(--gap);
   align-items: stretch;
+  width: 100%;
+  min-width: 0;
 }
 
 /* Discovery: 3 панели пайплайнов + executors ниже */
@@ -2073,14 +2083,19 @@ body {
   height: auto;
 }
 
+/* Узкий/планшет: панели на всю ширину — без полупустых рядов от span-6 */
 @media (max-width: 1100px) {
-  .admin-grid__cell--3,
-  .admin-grid__cell--4 { grid-column: span 6; }
-  .admin-grid__cell--8 { grid-column: span 12; }
+  .admin-grid__cell { grid-column: span 12; }
+
+  .admin-pipeline__columns {
+    grid-template-columns: 1fr;
+  }
 }
 
-@media (max-width: 720px) {
-  .admin-grid__cell { grid-column: span 12; }
+@media (max-width: 900px) {
+  .admin-shell__stage {
+    padding: 10px 10px 18px;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
