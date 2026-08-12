@@ -1983,6 +1983,19 @@ body {
   gap: 16px;
 }
 
+/* Системный лог — отдельная панель внизу stage (не floating overlay) */
+.admin-shell__log {
+  flex: 0 0 auto;
+  min-width: 0;
+}
+
+.admin-app-log {
+  max-height: min(28vh, 260px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  margin: -2px 0;
+}
+
 .admin-section {
   display: flex;
   flex-direction: column;

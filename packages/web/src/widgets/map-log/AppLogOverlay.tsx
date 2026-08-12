@@ -1,11 +1,11 @@
 import { useEffect, useRef } from "react";
 import { useObservable } from "../../shared/hooks/useObservable";
 import { appLogEntries$ } from "../../shared/state/appLogStore";
+import { AppLogList } from "../../shared/components/AppLogList";
 
 /**
- * Глобальная лента событий/ошибок — правый нижний угол (fixed).
- * host: pointer-events none (карта кликабельна мимо ленты);
- * rail: pointer-events auto — иначе :hover и scroll не работают.
+ * Лента событий на карте — левый нижний угол, ширина как у левого рейла.
+ * host: pointer-events none; rail: auto — иначе hover/scroll не работают.
  */
 export function AppLogOverlay() {
   const entries = useObservable(appLogEntries$, []);
@@ -39,14 +39,7 @@ export function AppLogOverlay() {
   return (
     <div className="app-log-rail-host" aria-live="polite" aria-label="Системные события">
       <div ref={railRef} className="app-log-rail">
-        {entries.map((entry) => (
-          <div
-            key={entry.id}
-            className={`app-log-rail__item app-log-rail__item--${entry.level}`}
-          >
-            {entry.source ? `${entry.source}: ${entry.message}` : entry.message}
-          </div>
-        ))}
+        <AppLogList entries={entries} />
       </div>
     </div>
   );

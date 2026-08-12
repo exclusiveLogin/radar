@@ -15,6 +15,7 @@ import { MapTimelineBar } from "../widgets/map-timeline/MapTimelineBar";
 import { MapLayersPanel } from "../widgets/map-layers/MapLayersPanel";
 import { GeoMapOverlays } from "../widgets/map-overlays/GeoMapOverlays";
 import { CriticalThreatsBar } from "../widgets/critical-threats/CriticalThreatsBar";
+import { AppLogOverlay } from "../widgets/map-log/AppLogOverlay";
 import { useObservable } from "../shared/hooks/useObservable";
 import { geoMapLayers$ } from "../shared/state/mapLayerStore";
 import { readWidgetVisibility, writeWidgetVisibility } from "../shared/state/uiPreferencesStore";
@@ -163,6 +164,8 @@ export function AppShell() {
             <MapTimelineBar />
           </div>
         )}
+
+        <AppLogOverlay />
       </main>
     </div>
   );

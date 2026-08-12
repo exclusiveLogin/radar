@@ -241,28 +241,25 @@
 }
 
 /**
- * Глобальная лента событий — host не перехватывает клики вне блока ленты.
- * Прижата к левому краю, ширина как у карточек правого рейла (--rail-width-right).
+ * Глобальная лента событий на карте — host не перехватывает клики вне блока.
+ * Ширина и inset как у левого рейла (--rail-width / --rail-inset).
  */
 .app-log-rail-host {
   position: fixed;
-  left: 10px;
-  bottom: 10px;
+  left: var(--rail-inset);
+  bottom: var(--rail-inset);
   z-index: 1000;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  width: var(--rail-width-right);
-  max-width: calc(100% - 20px);
+  width: var(--rail-width);
+  max-width: calc(100% - 2 * var(--rail-inset));
   pointer-events: none;
 }
 
 /** Скроллируемая лента — единая glass-карточка (как основные панели), pointer-events auto для :hover/scroll. */
 .app-log-rail {
   pointer-events: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
   width: 100%;
   max-height: min(40vh, 420px);
   overflow-y: auto;
@@ -282,8 +279,14 @@
   opacity: 1;
 }
 
-/** Тип сообщения — только цветом вертикальной черты слева; сам текст на прозрачном фоне, без обёртки-бокса. */
-.app-log-rail__item {
+.app-log-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/** Тип сообщения — только цветом вертикальной черты слева. */
+.app-log-list__item {
   font-size: 12px;
   line-height: 1.35;
   padding: 3px 10px 3px 9px;
@@ -293,15 +296,15 @@
   animation: app-log-in 0.2s ease-out;
 }
 
-.app-log-rail__item--info {
+.app-log-list__item--info {
   border-left-color: #8eb4d9;
 }
 
-.app-log-rail__item--warn {
+.app-log-list__item--warn {
   border-left-color: #e6c84a;
 }
 
-.app-log-rail__item--error {
+.app-log-list__item--error {
   border-left-color: #ff8f8f;
 }
 

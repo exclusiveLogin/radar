@@ -8,11 +8,12 @@ import {
 import { AdminWsBadge } from "./AdminWsBadge";
 import { startAdminStore } from "../shared/state/adminStore";
 import { ADMIN_LAYOUT_SECTIONS } from "./adminWidgetRegistry";
+import { AdminAppLogWidget } from "./widgets/AdminAppLogWidget";
 
 const ADMIN_ACTIVE_TAB_KEY = "admin.activeTab";
 
 /**
- * Оболочка админ-панели: хедер + табы разделов + грид активного раздела.
+ * Оболочка админ-панели: хедер + табы разделов + грид активного раздела + лог.
  */
 export function AdminAppShell() {
   const defaultTabId = ADMIN_LAYOUT_SECTIONS[0]?.id ?? "overview";
@@ -81,6 +82,10 @@ export function AdminAppShell() {
             ))}
           </div>
         </section>
+
+        <aside className="admin-shell__log" aria-label="Системный лог">
+          <AdminAppLogWidget />
+        </aside>
       </main>
     </div>
   );
