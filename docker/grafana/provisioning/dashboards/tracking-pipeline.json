@@ -114,7 +114,7 @@
     {
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": { "defaults": {}, "overrides": [] },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "gridPos": { "h": 14, "w": 12, "x": 0, "y": 4 },
       "id": 5,
       "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
       "targets": [
@@ -133,7 +133,7 @@
         "defaults": { "unit": "ops" },
         "overrides": []
       },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+      "gridPos": { "h": 14, "w": 12, "x": 12, "y": 4 },
       "id": 6,
       "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
       "targets": [
@@ -152,7 +152,7 @@
         "defaults": { "unit": "ops" },
         "overrides": []
       },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
+      "gridPos": { "h": 14, "w": 12, "x": 0, "y": 18 },
       "id": 7,
       "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
       "targets": [
@@ -171,7 +171,7 @@
         "defaults": { "unit": "ops" },
         "overrides": []
       },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
+      "gridPos": { "h": 14, "w": 12, "x": 12, "y": 18 },
       "id": 8,
       "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
       "targets": [
@@ -190,7 +190,7 @@
         "defaults": { "unit": "s" },
         "overrides": []
       },
-      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 20 },
+      "gridPos": { "h": 12, "w": 24, "x": 0, "y": 32 },
       "id": 9,
       "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
       "targets": [

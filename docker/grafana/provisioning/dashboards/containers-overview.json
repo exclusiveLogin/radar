@@ -217,7 +217,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 4 },
+      "gridPos": { "h": 16, "w": 12, "x": 0, "y": 4 },
       "id": 5,
       "options": {
         "legend": { "calcs": ["lastNotNull", "max", "mean"], "displayMode": "table", "placement": "bottom", "showLegend": true },
@@ -264,7 +264,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 4 },
+      "gridPos": { "h": 16, "w": 12, "x": 12, "y": 4 },
       "id": 6,
       "options": {
         "legend": { "calcs": ["lastNotNull", "max", "mean"], "displayMode": "table", "placement": "bottom", "showLegend": true },
@@ -311,7 +311,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 13 },
+      "gridPos": { "h": 18, "w": 12, "x": 0, "y": 20 },
       "id": 7,
       "options": {
         "legend": { "calcs": ["lastNotNull", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true },
@@ -365,7 +365,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 13 },
+      "gridPos": { "h": 18, "w": 12, "x": 12, "y": 20 },
       "id": 8,
       "options": {
         "legend": { "calcs": ["lastNotNull", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true },
@@ -407,7 +407,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 22 },
+      "gridPos": { "h": 14, "w": 12, "x": 0, "y": 38 },
       "id": 9,
       "options": {
         "displayMode": "gradient",
@@ -464,7 +464,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 22 },
+      "gridPos": { "h": 14, "w": 12, "x": 12, "y": 38 },
       "id": 10,
       "options": {
         "legend": { "calcs": ["lastNotNull", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true },
@@ -496,7 +496,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 30 },
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 52 },
       "id": 11,
       "options": {
         "colorMode": "value",
@@ -537,7 +537,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 30 },
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 52 },
       "id": 12,
       "options": {
         "colorMode": "value",
@@ -578,7 +578,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 30 },
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 52 },
       "id": 13,
       "options": {
         "colorMode": "value",
@@ -628,7 +628,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 30 },
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 52 },
       "id": 14,
       "options": {
         "colorMode": "background",
@@ -674,7 +674,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 9, "w": 24, "x": 0, "y": 34 },
+      "gridPos": { "h": 14, "w": 24, "x": 0, "y": 56 },
       "id": 15,
       "options": {
         "alignValue": "left",
