@@ -52,19 +52,28 @@ export function createUnifiedPhaseWorkload(
       });
 
       const driver = await buildPhaseDriver(slice.phase, deps);
-      const tick = await createUnifiedRunner({
+      const runner = createUnifiedRunner({
         queue: driver.queue,
         batchSize: slice.phase.policy.batchSize,
         handle: driver.runItem,
-      }).drainOnce();
+      });
 
-      const totals: PhaseRunStats = {
-        claimed: tick.claimed,
-        processed: tick.processed,
-        ok: tick.ok,
-        failed: tick.failed,
-      };
-      await deps.session.phaseRuns.updateStats(run.id, totals);
+      // Один wake = drain до пустой очереди (иначе event-mode catalog
+      // обрабатывает batchSize и засыпает при backlog после rebuild).
+      const totals: PhaseRunStats = { claimed: 0, processed: 0, ok: 0, failed: 0 };
+      for (;;) {
+        const midControl = await ctx.checkControl();
+        if (midControl !== "continue") break;
+
+        const tick = await runner.drainOnce();
+        totals.claimed += tick.claimed;
+        totals.processed += tick.processed;
+        totals.ok += tick.ok;
+        totals.failed += tick.failed;
+        await deps.session.phaseRuns.updateStats(run.id, totals);
+        if (tick.claimed === 0) break;
+      }
+
       await deps.session.finalize(run.id, "completed", totals);
       return { artifact: { phaseId: slice.phase.id, stats: totals }, nextCursor: {} };
     },

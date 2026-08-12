@@ -207,6 +207,13 @@ export class PhasesAdminService implements OnModuleInit, OnModuleDestroy {
       await this.runs.create({ phaseId: phase.id, trigger: "manual" });
       queued += queuedForPhase;
       failed += counts.failed;
+
+      // Без wake catch-up кладёт jobs в PG и молчит: catalog=event не имеет timer.
+      const stepId = stepIdForPhaseScope(phase.scope);
+      const stepEvent = createStepRunRequestedEvent({ stepId, lane: "manual" });
+      const topic = topicForKnownEventType(stepEvent.type);
+      if (topic) await this.transport.publish(topic, [stepEvent]);
+      await this.publishDrainForPhase(phase, "full", { catchUp: true });
     }
 
     return { enqueued, queued, failed, phaseIds: phases.map((phase) => phase.id) };
