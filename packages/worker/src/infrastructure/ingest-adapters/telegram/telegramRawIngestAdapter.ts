@@ -201,7 +201,12 @@ export class TelegramRawIngestAdapter implements IRawIngestAdapter {
         apiId,
         apiHash,
         {
-          connectionRetries: 5,
+          // Одна попытка TCP — остывание/повтор делает IngestOrchestrator (backoff до 2 мин).
+          // Иначе GramJS долбит connectionRetries=5 без паузы и выглядит как «вечный reconnect».
+          connectionRetries: 1,
+          reconnectRetries: 0,
+          autoReconnect: false,
+          retryDelay: 1000,
           ...(proxy
             ? {
                 proxy: {
@@ -217,7 +222,15 @@ export class TelegramRawIngestAdapter implements IRawIngestAdapter {
       wireMtprotoClientErrorHandler(client, ctx.provider);
       wireMtprotoConnectionState(client, ctx.provider);
       try {
-        await client.connect();
+        // GramJS не throw'ит при исчерпании retries — возвращает false.
+        const connected = await client.connect();
+        if (!connected) {
+          throw new Error(
+            proxy
+              ? `MTProto connect failed via MTProxy ${proxy.ip}:${proxy.port}`
+              : "MTProto connect failed (direct DC)",
+          );
+        }
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         ingestConnectionStatus.set({
@@ -226,6 +239,7 @@ export class TelegramRawIngestAdapter implements IRawIngestAdapter {
           phase: "error",
           detail: message,
         });
+        await client.destroy().catch(() => undefined);
         throw err;
       }
       ingestConnectionStatus.set({

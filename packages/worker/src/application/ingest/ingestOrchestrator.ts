@@ -8,6 +8,17 @@ import type {
   TelegramMtprotoAppCredentials,
 } from "@radar/shared";
 import { randomUUID } from "node:crypto";
+import {
+  BehaviorSubject,
+  from,
+  ignoreElements,
+  Observable,
+  Subject,
+  Subscription,
+  throwError,
+  timer,
+} from "rxjs";
+import { catchError, switchMap, takeUntil, tap } from "rxjs/operators";
 import { buildDomainEvent } from "../handlers/domainEventFactory.js";
 import type { IngestRawMessageHandler } from "../handlers/ingestRawMessageHandler.js";
 import { createRawIngestAdapter } from "../../infrastructure/ingest-adapters/adapterRegistry.js";
@@ -17,22 +28,30 @@ import { ingestNormalizedToRaw } from "./ingestMessageMapper.js";
 import { ingestConnectionStatus } from "./ingestConnectionStatus.js";
 import { workerRuntimeStatus } from "../workerRuntimeStatus.js";
 
-/** Первая пауза после неудачного connect/duty (пока не было live). */
 const CONNECT_BACKOFF_MS_INITIAL = 5_000;
-/** Потолок остывания перед следующей попыткой. */
 const CONNECT_BACKOFF_MS_MAX = 120_000;
+
+/** 0 неудач → сразу, далее 5s → 10s → … → cap 2 мин. */
+const retryDelayMs = (fails: number): number =>
+  fails === 0
+    ? 0
+    : Math.min(CONNECT_BACKOFF_MS_INITIAL * 2 ** (fails - 1), CONNECT_BACKOFF_MS_MAX);
+
+/** Обрыв уже поднятой сессии: следующая попытка без задержки. */
+const LIVE_LOST = new Error("live lost");
 
 type AdapterEntry = { providerId: string; stop: () => Promise<void> };
 
 /**
- * Use case: загрузить active providers, подключить adapters, sink → IngestRawMessageHandler.
- * Пока нет live — backoff до 2 мин и повтор connect/duty; процесс не умирает и остаётся healthy.
+ * Use case: active providers → adapters → sink.
+ * Supervise: attempt → delay → connect → catch → attempt.
  */
 export class IngestOrchestrator {
   private running = false;
   private adapters: AdapterEntry[] = [];
   private heartbeatTimer: ReturnType<typeof setInterval> | undefined;
-  private lifecycleAbort: AbortController | null = null;
+  private readonly stop$ = new Subject<void>();
+  private sessions = new Subscription();
 
   constructor(
     private readonly providers: IIngestProviderRepository,
@@ -47,8 +66,7 @@ export class IngestOrchestrator {
   async start(): Promise<void> {
     if (this.running) return;
     this.running = true;
-    this.lifecycleAbort = new AbortController();
-    const signal = this.lifecycleAbort.signal;
+    this.sessions = new Subscription();
 
     const activeProviders = await this.providers.listActive();
     console.log(`Ingest orchestrator: ${activeProviders.length} active provider(s).`);
@@ -71,46 +89,59 @@ export class IngestOrchestrator {
     }, 30_000);
 
     for (const provider of activeProviders) {
-      void this.superviseUntilLive(provider, signal);
+      this.sessions.add(this.superviseProvider$(provider).subscribe());
     }
   }
 
-  /**
-   * Пока не live: connect → duty; при ошибке — остывание (cap 2 мин) и повтор.
-   * После live GramJS сам reconnect'ит TCP; цикл сюда не возвращается.
-   */
-  private async superviseUntilLive(
-    provider: IngestProviderRecord,
-    signal: AbortSignal,
-  ): Promise<void> {
-    let backoffMs = CONNECT_BACKOFF_MS_INITIAL;
+  /** attempt(fails) → delay → connect → hold live → catch → attempt(fails + 1). */
+  private superviseProvider$(provider: IngestProviderRecord): Observable<never> {
+    const attempt$ = new BehaviorSubject(0);
 
-    while (this.running && !signal.aborted) {
-      try {
-        await this.bringUpProvider(provider);
-        return;
-      } catch (err) {
-        if (!this.running || signal.aborted) return;
+    return attempt$.pipe(
+      switchMap((fails) =>
+        timer(retryDelayMs(fails)).pipe(
+          switchMap(() => this.holdLiveSession$(provider)),
+          catchError((reason) =>
+            from(this.releaseProvider(provider, reason)).pipe(
+              tap(() => attempt$.next(reason === LIVE_LOST ? 0 : fails + 1)),
+            ),
+          ),
+          ignoreElements(),
+        ),
+      ),
+      takeUntil(this.stop$),
+    );
+  }
 
-        const message = err instanceof Error ? err.message : String(err);
-        await this.providers.updateStatus(provider.id, "error", message);
-        workerRuntimeStatus.setError(message);
-        ingestConnectionStatus.setDutyActive(provider.id, false);
-        ingestConnectionStatus.set({
-          providerId: provider.id,
-          providerKey: provider.key,
-          phase: "reconnecting",
-          detail: `Connect/duty fail: ${message}. Повтор через ${Math.round(backoffMs / 1000)}с`,
-        });
-        console.error(
-          `Provider ${provider.key}: нет live (${message}). Backoff ${backoffMs}ms…`,
-        );
+  /** Живёт, пока сессия live; завершается ошибкой — причиной следующей попытки. */
+  private holdLiveSession$(provider: IngestProviderRecord): Observable<never> {
+    return from(this.bringUpProvider(provider)).pipe(
+      switchMap(() => ingestConnectionStatus.untilDown$(provider.id)),
+      switchMap(() => throwError(() => LIVE_LOST)),
+    );
+  }
 
-        const ok = await this.waitBackoff(backoffMs, signal);
-        if (!ok) return;
-        backoffMs = Math.min(backoffMs * 2, CONNECT_BACKOFF_MS_MAX);
-      }
-    }
+  /** Гасит adapter и переводит provider в reconnecting перед следующей попыткой. */
+  private async releaseProvider(provider: IngestProviderRecord, reason: unknown): Promise<void> {
+    const detail = reason instanceof Error ? reason.message : String(reason);
+    console.error(`Provider ${provider.key}: ${detail} — переподключение`);
+    await this.stopProviderAdapter(provider.id);
+    await this.providers.updateStatus(provider.id, "error", detail).catch(() => undefined);
+    workerRuntimeStatus.setError(detail);
+    ingestConnectionStatus.setDutyActive(provider.id, false);
+    ingestConnectionStatus.set({
+      providerId: provider.id,
+      providerKey: provider.key,
+      phase: "reconnecting",
+      detail,
+    });
+  }
+
+  private async stopProviderAdapter(providerId: string): Promise<void> {
+    const entry = this.adapters.find((a) => a.providerId === providerId);
+    if (!entry) return;
+    this.adapters = this.adapters.filter((a) => a.providerId !== providerId);
+    await entry.stop().catch(() => undefined);
   }
 
   /** Один проход connect + startDuty. При ошибке чистит adapter. */
@@ -133,7 +164,7 @@ export class IngestOrchestrator {
         phase: "disconnected",
         detail: "Нет enabled bindings",
       });
-      return;
+      throw new Error("Нет enabled bindings");
     }
 
     const channelKeyByBinding = new Map<string, string>();
@@ -202,19 +233,6 @@ export class IngestOrchestrator {
     }
   }
 
-  private async waitBackoff(ms: number, signal: AbortSignal): Promise<boolean> {
-    if (signal.aborted) return false;
-    await new Promise<void>((resolve) => {
-      const timer = setTimeout(resolve, ms);
-      const onAbort = () => {
-        clearTimeout(timer);
-        resolve();
-      };
-      signal.addEventListener("abort", onAbort, { once: true });
-    });
-    return !signal.aborted && this.running;
-  }
-
   private async touchProviderHeartbeats(providerIds: string[]): Promise<void> {
     workerRuntimeStatus.touchHeartbeat();
     for (const id of providerIds) {
@@ -228,8 +246,9 @@ export class IngestOrchestrator {
 
   async stop(): Promise<void> {
     this.running = false;
-    this.lifecycleAbort?.abort();
-    this.lifecycleAbort = null;
+    this.stop$.next();
+    this.sessions.unsubscribe();
+    this.sessions = new Subscription();
     if (this.heartbeatTimer) {
       clearInterval(this.heartbeatTimer);
       this.heartbeatTimer = undefined;
