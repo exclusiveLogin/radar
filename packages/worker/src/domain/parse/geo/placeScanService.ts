@@ -6,7 +6,7 @@ import type {
 } from "@radar/shared";
 import { tokenizeGeoSpans } from "./geoSpanTokenizer.js";
 import { PlaceScanIndex, mergeSpanHit } from "./placeScanIndex.js";
-import { pickRegionScopeIso, resolveStemToEntry } from "./placeResolvePolicy.js";
+import { resolveRegionScopeIds, resolveStemToEntry } from "./placeResolvePolicy.js";
 
 /** Domain service: DB-backed geo scan для parse (implements IPlaceScanPort). */
 export class PlaceScanService implements IPlaceScanPort {
@@ -28,12 +28,12 @@ export class PlaceScanService implements IPlaceScanPort {
   }
 
   matchPlaces(text: string, ctx: PlaceResolveContext): PlaceScanHit[] {
-    const regionScopeIso = ctx.regionScopeIso
-      ?? pickRegionScopeIso(ctx.explicitRegionIsos);
-    const regionScopeId = ctx.regionScopeId
-      ?? (regionScopeIso
-        ? this.index.regionEntries.find((e) => e.regionIso === regionScopeIso)?.regionId
-        : undefined);
+    const regionScopeIds = resolveRegionScopeIds({
+      regionScopeId: ctx.regionScopeId,
+      regionScopeIso: ctx.regionScopeIso,
+      explicitRegionIsos: ctx.explicitRegionIsos,
+      regionEntries: this.index.regionEntries,
+    });
 
     const hits: PlaceScanHit[] = [];
     const seen = new Set<string>();
@@ -46,12 +46,11 @@ export class PlaceScanService implements IPlaceScanPort {
     };
 
     // ADR-012: без regionScope — phrase только city+; stem-путь дублирует с kindFloor.
-    // regionScoped → разрешаем голый locality (потом фильтр по региону ниже).
+    // regionScopeIds сужает пул внутри резолва: однозначное имя среди найденных субъектов.
     for (const hit of this.index.matchPlacesByPhrase(text, {
       minKind: "city",
-      regionScoped: !!regionScopeId,
+      regionScopeIds,
     })) {
-      if (regionScopeId && hit.entry.regionId !== regionScopeId) continue;
       pushHit(hit);
     }
 
@@ -59,8 +58,7 @@ export class PlaceScanService implements IPlaceScanPort {
       const resolved = resolveStemToEntry(this.index.entriesByStem, {
         label: token.lookupLabel,
         kindHint: token.kindHint,
-        regionScopeId,
-        regionScopeIso,
+        regionScopeIds,
         allowDistrict: token.kindHint === "district",
       });
       if (!resolved) continue;

@@ -48,6 +48,7 @@ export async function wireParseApplication(
     | "eventLocations"
     | "eventEvidence"
     | "regions"
+    | "regionAdjacency"
     | "places"
     | "aliases"
   >,
@@ -88,11 +89,13 @@ export async function wireParseApplication(
     placeScanEntries,
     placeScanRevision: placeScan.revision(),
   };
+  const externalEnricher = createParseExternalEnricher(persistence.regionAdjacency);
   const pipeline = createParsePipeline({
     placeScan,
     regions: persistence.regions,
     ingestParsePhases,
     places: persistence.places,
+    externalEnricher,
   }).pipeline;
   const validation = new GeoValidationService(
     persistence.regions,
@@ -124,7 +127,7 @@ export async function wireParseApplication(
     parsedEvents: persistence.parsedEvents,
     eventLocations: persistence.eventLocations,
     messageParseWorkspaces: persistence.messageParseWorkspaces,
-    externalEnricher: createParseExternalEnricher(),
+    externalEnricher,
   });
   const parseRawMessageHandler = new ParseRawMessageHandler(
     workspaceService,

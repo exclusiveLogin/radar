@@ -11,6 +11,7 @@ import { createParseWorkspaceMessageService } from "./createParseWorkspaceMessag
 import { createTestGeoValidation } from "./createTestGeoValidation.js";
 import { ParsePipelineService } from "./parsePipelineService.js";
 import { PlaceScanService } from "../../domain/parse/geo/placeScanService.js";
+import type { ParseExternalEnricher } from "./parseExternalEnricher.js";
 
 /** Конфиг worker_threads: сериализуемые ingestParse-фазы + scan entries. */
 export type ParsePipelineWorkerConfig = {
@@ -28,6 +29,8 @@ export type CreateParsePipelineDeps = {
   messageParseWorkspaces?: InMemoryMessageParseWorkspaceRepository;
   places?: IPlaceRepository;
   aliases?: InMemoryPlaceAliasRepository;
+  /** LLM / dadata / nominatim — без этого phase_enrich падает на external enricher. */
+  externalEnricher?: ParseExternalEnricher;
 };
 
 /**
@@ -55,6 +58,7 @@ export function createParsePipeline(deps: CreateParsePipelineDeps): {
     parsedEvents,
     eventLocations,
     messageParseWorkspaces,
+    externalEnricher: deps.externalEnricher,
   });
 
   const pipeline = new ParsePipelineService({

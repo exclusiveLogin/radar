@@ -65,20 +65,19 @@ export function runGeoProcessor(input: {
     localityAnchors,
   );
   const explicitRegionIsos = regionHits.map((h) => h.entry.regionIso);
-  const regionScopeIso =
-    explicitRegionIsos.length === 1 ? explicitRegionIsos[0] : undefined;
-  const scopedPlaceHits = regionScopeIso
-    ? placeScan.matchPlaces(text, { regionScopeIso, explicitRegionIsos })
+  const hasExplicitRegions = explicitRegionIsos.length > 0;
+  // Уникальность place — внутри найденных субъектов (1 или N), не по всему каталогу.
+  const scopedPlaceHits = hasExplicitRegions
+    ? placeScan.matchPlaces(text, { explicitRegionIsos })
     : unscopedPlaceHits;
 
   detectGeoConflict(workspace, regionHits, unscopedPlaceHits);
   const rawPlaceHits =
     workspace.namespaces.geoConflict === true ? unscopedPlaceHits : scopedPlaceHits;
 
-  // Co-mention disambiguation: применяем только когда нет явного региона в тексте и нет конфликта,
-  // то есть именно в случаях когда оба места «свободно» матчились без контекста.
+  // Co-mention disambiguation: только когда субъектов в тексте нет и нет конфликта.
   const placeHits =
-    !regionScopeIso && workspace.namespaces.geoConflict !== true
+    !hasExplicitRegions && workspace.namespaces.geoConflict !== true
       ? inferScopeFromCompanions(rawPlaceHits, placeScan)
       : rawPlaceHits;
 

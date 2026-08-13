@@ -9,6 +9,10 @@ const DEFAULT_MODEL = "qwen2.5:3b";
 /**
  * Включает LLM-геокодер и переносит `--base-url`/`--model` в env.
  * Порядок: .env уже загружен вызывающим, CLI-флаги имеют приоритет.
+ *
+ * SSOT включения enricher — geo.enrichers.manifest + GEO__ overlay;
+ * RADAR_LLM_* оставляем для совместимости / клиентов, но без GEO__llm__enabled
+ * LlmEnricher вернёт reason=disabled.
  */
 export function applyLlmEnv(map: CliFlagMap): OllamaLlmConfig {
   const baseUrl = readStringFlag(map, ["base-url"]);
@@ -18,6 +22,22 @@ export function applyLlmEnv(map: CliFlagMap): OllamaLlmConfig {
   process.env.RADAR_LLM_PROVIDER = process.env.RADAR_LLM_PROVIDER || "ollama";
   if (baseUrl) process.env.RADAR_LLM_BASE_URL = baseUrl;
   if (model) process.env.RADAR_LLM_MODEL = model;
+
+  // Manifest overlay (реально читается loadLlmRuntimeConfig).
+  process.env.GEO__llm__enabled = "true";
+  process.env.GEO__llmValidator__enabled = "true";
+  if (process.env.RADAR_LLM_BASE_URL) {
+    process.env.GEO__llm__baseUrl = process.env.RADAR_LLM_BASE_URL;
+    process.env.GEO__llmValidator__baseUrl = process.env.RADAR_LLM_BASE_URL;
+  }
+  if (process.env.RADAR_LLM_MODEL) {
+    process.env.GEO__llm__model = process.env.RADAR_LLM_MODEL;
+    process.env.GEO__llmValidator__model = process.env.RADAR_LLM_MODEL;
+  }
+  if (process.env.RADAR_LLM_TIMEOUT_MS) {
+    process.env.GEO__llm__timeoutMs = process.env.RADAR_LLM_TIMEOUT_MS;
+    process.env.GEO__llmValidator__timeoutMs = process.env.RADAR_LLM_TIMEOUT_MS;
+  }
 
   return {
     baseUrl: process.env.RADAR_LLM_BASE_URL || DEFAULT_BASE_URL,

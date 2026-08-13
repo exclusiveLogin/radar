@@ -238,7 +238,10 @@ async function main(): Promise<void> {
   await runParseSnap(process.argv);
 }
 
-main().catch((error) => {
-  console.error(error);
-  process.exit(1);
-});
+const isMain = process.argv[1]?.replace(/\\/g, "/").endsWith("parseSnap.ts");
+if (isMain) {
+  main().catch((error) => {
+    console.error(error);
+    process.exit(1);
+  });
+}
