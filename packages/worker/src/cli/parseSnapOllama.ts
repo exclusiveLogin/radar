@@ -9,7 +9,10 @@ import { parseLongFlagsMap } from "./workerCliArgs.js";
  * (позиционный путь к снапу + общие флаги), плюс preflight ollama и перенос
  * `--base-url`/`--model` в env. LLM-обогащение включается принудительно.
  *
- * Usage: npm run parse:snap:ollama -- <path-to-snap.txt> [--model qwen2.5:3b] [--base-url http://127.0.0.1:11434/v1] [--storage-mode=memory|db|fs]
+ * Usage: npm run parse:snap:ollama -- <path-to-snap.txt> [--model qwen2.5:14b] [--base-url http://127.0.0.1:11434/v1] [--storage-mode=memory|db|fs]
+ *
+ * Config: DEFAULT → geo.enrichers.manifest → GEO__ → CLI `--model`/`--base-url`.
+ * Enricher llm включается на время CLI; phase_definitions / админка не меняются.
  */
 async function main(): Promise<void> {
   loadRootEnv(MONOREPO_ROOT);

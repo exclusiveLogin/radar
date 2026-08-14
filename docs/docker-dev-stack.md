@@ -86,7 +86,23 @@ flowchart TB
 | `ollama` | `app` | **11434** | LLM для geo |
 | `observability` | `obs` | 3020 | Obs sidecar |
 
-Файлы: `docker-compose.yml`, `docker-compose.app.yml`.
+Файлы: через `COMPOSE_FILE` в `.env` (Windows `;`):
+
+```text
+COMPOSE_FILE=docker-compose.yml;docker-compose.app.yml;docker-compose.override.yml
+```
+
+`docker-compose.override.yml` — NVIDIA GPU для `ollama`. Без GPU убери override из списка.
+
+Дальше достаточно:
+
+```powershell
+docker compose --profile app up -d
+docker compose --profile llm up -d ollama
+docker compose logs -f ollama
+```
+
+Не нужно каждый раз писать `-f docker-compose.yml -f docker-compose.app.yml …`.
 
 ---
 
@@ -96,30 +112,41 @@ flowchart TB
 
 При старте контейнера `docker/ollama-entrypoint.sh`:
 1. поднимает `ollama serve`;
-2. проверяет `RADAR_LLM_MODEL` (из `.env`, дефолт `qwen2.5:3b`);
+2. проверяет `GEO__llm__model` (из `.env` / manifest overlay, дефолт `qwen2.5:14b`);
 3. делает `ollama pull`, если модели нет в volume.
 
 `worker-geo` ждёт **healthy** ollama (модель уже в volume). Первый pull большой модели — до ~30 мин (`start_period` healthcheck).
+
+### GPU (NVIDIA)
+
+Override резервирует все GPU для `ollama`. Нужны: драйвер NVIDIA на хосте, Docker Desktop → Settings → Resources → GPU / WSL2.
+
+Проверка:
+
+```powershell
+docker compose --profile llm up -d --force-recreate ollama
+docker compose exec ollama nvidia-smi
+```
+
+Если `could not select device driver ""` / нет `nvidia-smi` в контейнере — GPU не проброшен (toolkit / Docker Desktop GPU). Без GPU убери `docker-compose.override.yml` из `COMPOSE_FILE`.
 
 Проверка с хоста:
 
 ```powershell
 curl http://127.0.0.1:11434/api/tags
-docker compose -f docker-compose.yml -f docker-compose.app.yml logs -f ollama
+docker compose logs -f ollama
 ```
 
-Смена модели: поменять `RADAR_LLM_MODEL` в `.env` и пересоздать ollama:
+Смена модели: поменять `GEO__llm__model` в `.env` и пересоздать ollama:
 
 ```powershell
-docker compose -f docker-compose.yml -f docker-compose.app.yml up -d --force-recreate ollama
+docker compose up -d --force-recreate ollama
 ```
 
-| Где | `RADAR_LLM_BASE_URL` |
-|-----|----------------------|
+| Где | `GEO__llm__baseUrl` |
+|-----|---------------------|
 | **Хост** (`stack dev`) | `http://127.0.0.1:11434/v1` |
 | **worker-geo** (compose) | `http://ollama:11434/v1` |
-
-GPU (опционально): `docker-compose.override.yml` с `deploy.resources.reservations.devices` для `ollama`.
 
 Open WebUI: `docker compose --profile llm-ui up -d`.
 

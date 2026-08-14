@@ -1,8 +1,8 @@
 #!/bin/sh
-# Ollama в docker:dev: persistent volume + ensure RADAR_LLM_MODEL при старте.
+# Ollama в docker:dev: persistent volume + ensure GEO__llm__model при старте.
 set -eu
 
-MODEL="${RADAR_LLM_MODEL:-qwen2.5:3b}"
+MODEL="${GEO__llm__model:-qwen2.5:14b}"
 export OLLAMA_HOST="${OLLAMA_HOST:-0.0.0.0:11434}"
 
 echo "[ollama] data dir: /root/.ollama (volume radar_ollama_data)"

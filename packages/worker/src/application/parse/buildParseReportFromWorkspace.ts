@@ -3,7 +3,10 @@ import { parseReportSchema } from "@radar/shared";
 import { createHash } from "node:crypto";
 import { PARSER_VERSION } from "../../domain/parsing/version.js";
 import { inferSeverity } from "../../domain/parsing/inferSeverity.js";
-import { resolveEventTypeForCandidate } from "../../domain/parse/resolveEventTypeForCandidate.js";
+import {
+  pickPrimaryCandidate,
+  resolveEventTypeForCandidate,
+} from "../../domain/parse/resolveEventTypeForCandidate.js";
 import { materializeCandidateExtras } from "../../domain/parse/resolveTraitsForCandidate.js";
 
 type BuildReportInput = {
@@ -20,7 +23,7 @@ type BuildReportInput = {
 /** Проекция ParseWorkspace → ParseReport (CLI / offline). */
 export function buildParseReportFromWorkspace(input: BuildReportInput): ParseReport {
   const hash = createHash("sha256").update(input.rawText, "utf8").digest("hex");
-  const primary = input.workspace.candidates[0];
+  const primary = pickPrimaryCandidate(input.workspace);
   const resolvedType = primary
     ? resolveEventTypeForCandidate(primary, input.workspace)
     : "unknown";

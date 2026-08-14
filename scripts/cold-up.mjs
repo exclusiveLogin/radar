@@ -117,7 +117,7 @@ async function main() {
   const llm =
     llmFlag ||
     llmUiFlag ||
-    envTruthy('RADAR_LLM_GEOCODER_ENABLED') ||
+    envTruthy('GEO__llm__enabled') ||
     envTruthy('COLD_UP_WITH_LLM');
   if (llm) {
     console.log('\n\x1b[32m[llm] docker compose --profile llm up -d (модель — entrypoint ollama)\x1b[0m');

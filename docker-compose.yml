@@ -242,7 +242,7 @@ services:
       - .env
     environment:
       OLLAMA_HOST: 0.0.0.0:11434
-      RADAR_LLM_MODEL: ${RADAR_LLM_MODEL:-qwen2.5:3b}
+      GEO__llm__model: ${GEO__llm__model:-qwen2.5:14b}
     ports:
       - "${OLLAMA_PORT:-11434}:11434"
     volumes:
@@ -259,7 +259,7 @@ services:
       retries: 12
       start_period: 1800s
     stop_grace_period: 30s
-    # GPU: docker-compose.override.yml → deploy.resources.reservations.devices (см. docker-dev-stack.md)
+    # GPU: docker-compose.override.yml + COMPOSE_FILE (см. .env / docker-dev-stack.md)
 
   open-webui:
     image: ghcr.io/open-webui/open-webui:main

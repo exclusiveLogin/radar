@@ -13,9 +13,7 @@ export const TILES_BUILD_STEPS = [
   ['verify', 'scripts/tiles/verify-tiles.mjs'],
 ];
 
-const COMPOSE_FILES = ['-f', 'docker-compose.yml', '-f', 'docker-compose.app.yml'];
-
-const COMPOSE_PROFILE_APP = ['compose', ...COMPOSE_FILES, '--profile', 'app'];
+const COMPOSE_PROFILE_APP = ['compose', '--profile', 'app'];
 
 /**
  * @param {string} rel

@@ -222,12 +222,9 @@ const ACTIONS = {
       console.log('Сервисы: api :3000 | web :5173 | tiles :8081 | ollama :11434 | worker-*');
       console.log('Tiles: data/tiles/output (stub до stack tiles:sync)\n');
       nodeScript('scripts/dev-stack-prepare.mjs', pass.filter((a) => a === '--no-clean'));
+      // COMPOSE_FILE из .env: yml + app + override (GPU)
       run('docker', [
         'compose',
-        '-f',
-        'docker-compose.yml',
-        '-f',
-        'docker-compose.app.yml',
         '--profile',
         'app',
         'up',

@@ -9,12 +9,12 @@
     "maxRetries": 4
   },
   "llm": {
-    "enabled": false,
+    "enabled": true,
     "provider": "ollama",
     "baseUrl": "http://127.0.0.1:11434/v1",
-    "model": "qwen2.5:3b",
-    "timeoutMs": 5000,
-    "maxTokens": 220,
+    "model": "qwen2.5:14b",
+    "timeoutMs": 120000,
+    "maxTokens": 512,
     "temperature": 0,
     "jsonMode": true,
     "retryCount": 1
@@ -23,9 +23,9 @@
     "enabled": false,
     "provider": "ollama",
     "baseUrl": "http://127.0.0.1:11434/v1",
-    "model": "qwen2.5:3b",
-    "timeoutMs": 5000,
-    "maxTokens": 220,
+    "model": "qwen2.5:14b",
+    "timeoutMs": 120000,
+    "maxTokens": 512,
     "temperature": 0,
     "jsonMode": true,
     "retryCount": 1

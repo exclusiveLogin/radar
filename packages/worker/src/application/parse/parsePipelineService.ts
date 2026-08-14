@@ -13,9 +13,8 @@ import type { IRegionRepository } from "@radar/shared";
 import type { GeoValidationService } from "./geoValidationService.js";
 import { candidateToParsedEvent } from "../../domain/parse/candidateToParsedEvent.js";
 import { buildMaterializedEventLocations } from "../../domain/parse/buildMaterializedEventLocations.js";
-import { resolveEventTypeForCandidate } from "../../domain/parse/resolveEventTypeForCandidate.js";
+import { pickPrimaryCandidate } from "../../domain/parse/resolveEventTypeForCandidate.js";
 import { createEmptyParseWorkspace } from "../../domain/parse/parseWorkspaceFactory.js";
-import { listActiveCandidates } from "../../domain/parse/parseProcessorContract.js";
 import type { ParseWorkspaceMessageService } from "./ParseWorkspaceMessageService.js";
 import {
   lastEventPass,
@@ -61,15 +60,6 @@ function enricherRunLogToGeoPipeline(workspace: ParseWorkspace): GeoPipelineRepo
       durationMs: entry.durationMs,
     })),
   };
-}
-
-function pickPrimaryCandidate(workspace: ParseWorkspace): ParseWorkspace["candidates"][number] | undefined {
-  return (
-    listActiveCandidates(workspace).find(
-      (c) => resolveEventTypeForCandidate(c, workspace) !== "unknown",
-    )
-    ?? listActiveCandidates(workspace)[0]
-  );
 }
 
 async function collectMaterializedLocations(

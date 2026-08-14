@@ -358,7 +358,7 @@ npm run radar -- stack dev
 | **`-Tiles`** | self-host OSM basemap (`tiles:sync`, 30–90 мин, ≥30 GB) — [map-tiles-selfhost.md](docs/map-tiles-selfhost.md) |
 | **`-Verbose`** | подробный вывод CLI (`RADAR_CLI_VERBOSE`) |
 | **`-Dev`** | сразу запустить dev-стек после cold |
-| **`-Llm`** | Docker profile `llm` (ollama + auto-pull `RADAR_LLM_MODEL` в volume) |
+| **`-Llm`** | Docker profile `llm` (ollama + GPU via `docker-compose.override.yml`, auto-pull `GEO__llm__model`) |
 | **`-LlmUi`** | + Open WebUI |
 
 Пример: `npm run radar -- stack cold-up -- -Geo -Dev`
@@ -453,15 +453,15 @@ docker compose --profile llm-ui up -d
 - Базовый сценарий: если регион найден локально, используем словарь; если в тексте есть уточнение — добираем через enrichers.
 - Для карт/time-machine статусы place вычисляются read-side из fold (`event_locations`); `cleared` — action=clear или отсутствие raise в TTL-окне.
 
-### LLM runtime config (env)
+### LLM runtime config (ADR-021)
 
-- `RADAR_STORAGE_MODE`: режим хранилища worker (`memory|db|fs`), по умолчанию `memory`.
-- `RADAR_LLM_GEOCODER_ENABLED`: включает/выключает LLM fallback.
-- `RADAR_LLM_PROVIDER`: `ollama` или `openai-compatible`.
-- `RADAR_LLM_BASE_URL`: endpoint OpenAI-compatible API, по умолчанию `http://127.0.0.1:11434/v1`.
-- `RADAR_LLM_MODEL`: имя модели в runtime (`qwen2.5:3b` и т.п.).
-- `RADAR_LLM_TIMEOUT_MS`, `RADAR_LLM_RETRY_COUNT`: сетевые guardrails.
-- `RADAR_LLM_MAX_TOKENS`, `RADAR_LLM_TEMPERATURE`, `RADAR_LLM_JSON_MODE`: режим генерации.
+Цепочка: `DEFAULT` → `geo.enrichers.manifest.json` → `GEO__*` env → CLI (`parse:snap:ollama --model`).
+
+- `GEO__llm__enabled` — включить enricher (фаза `llm` в админке — отдельно).
+- `GEO__llm__provider` — `ollama` | `openai-compatible`.
+- `GEO__llm__baseUrl` — OpenAI-compatible endpoint (хост: `http://127.0.0.1:11434/v1`).
+- `GEO__llm__model`, `GEO__llm__timeoutMs`, `GEO__llm__maxTokens`, `GEO__llm__temperature`, `GEO__llm__jsonMode`, `GEO__llm__retryCount`.
+- Секрет облака: `RADAR_LLM_API_KEY` (или `OPENAI_API_KEY`).
 
 Подробный гайд по параметрам семплинга, гибридному CPU+GPU режиму и сравнению локальных/облачных моделей:
 - [docs/ollama-sampling-and-model-tuning.md](docs/ollama-sampling-and-model-tuning.md)

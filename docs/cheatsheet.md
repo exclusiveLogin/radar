@@ -269,7 +269,7 @@ npm run radar -- pipeline rebuild
 
 **Прогресс:** `GET /api/admin/phases/runs/overview`, WS `phases-update`, виджеты **Сводка** + **Parse-engine**.
 
-**Env:** `RADAR_STORAGE_MODE=db`, `RADAR_PHASE_DAEMON_ENABLED` (scheduled), `RADAR_LLM_*`.
+**Env:** `RADAR_STORAGE_MODE=db`, `RADAR_PHASE_DAEMON_ENABLED` (scheduled), `GEO__llm__*`.
 
 Статус: [phase-pipeline-status.md](./phase-pipeline-status.md) · админка: [api/phases-admin.md](./api/phases-admin.md).
 
