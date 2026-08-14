@@ -1,6 +1,6 @@
 {
   "annotations": { "list": [] },
-  "description": "Ollama container (cAdvisor/health) + LLM enricher / validator (radar_llm_* с worker-geo/parse).",
+  "description": "Ollama (cAdvisor/health) + NVIDIA GPU (nvidia_smi_*) + LLM enricher/validator (radar_llm_*).",
   "editable": true,
   "graphTooltip": 1,
   "panels": [
@@ -55,21 +55,23 @@
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
-          "decimals": 1,
+          "decimals": 0,
+          "max": 100,
+          "min": 0,
           "thresholds": {
             "mode": "absolute",
             "steps": [
               { "color": "green", "value": null },
-              { "color": "yellow", "value": 100 },
-              { "color": "red", "value": 300 }
+              { "color": "yellow", "value": 70 },
+              { "color": "red", "value": 90 }
             ]
           },
           "unit": "percent"
         },
         "overrides": []
       },
-      "gridPos": { "h": 4, "w": 5, "x": 4, "y": 0 },
-      "id": 2,
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 0 },
+      "id": 12,
       "options": {
         "colorMode": "value",
         "graphMode": "area",
@@ -78,12 +80,12 @@
       },
       "targets": [
         {
-          "expr": "sum(rate(container_cpu_usage_seconds_total{image!=\"\",container_label_com_docker_compose_service=\"ollama\"}[$__rate_interval])) * 100",
-          "legendFormat": "CPU",
+          "expr": "avg(nvidia_smi_utilization_gpu_ratio) * 100",
+          "legendFormat": "GPU",
           "refId": "A"
         }
       ],
-      "title": "Ollama CPU",
+      "title": "GPU util",
       "type": "stat"
     },
     {
@@ -95,16 +97,16 @@
             "mode": "absolute",
             "steps": [
               { "color": "green", "value": null },
-              { "color": "yellow", "value": 8589934592 },
-              { "color": "red", "value": 17179869184 }
+              { "color": "yellow", "value": 12000000000 },
+              { "color": "red", "value": 15000000000 }
             ]
           },
           "unit": "bytes"
         },
         "overrides": []
       },
-      "gridPos": { "h": 4, "w": 5, "x": 9, "y": 0 },
-      "id": 3,
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 0 },
+      "id": 13,
       "options": {
         "colorMode": "value",
         "graphMode": "area",
@@ -113,12 +115,48 @@
       },
       "targets": [
         {
-          "expr": "sum(container_memory_working_set_bytes{image!=\"\",container_label_com_docker_compose_service=\"ollama\"})",
-          "legendFormat": "RAM",
+          "expr": "sum(nvidia_smi_memory_used_bytes)",
+          "legendFormat": "VRAM",
           "refId": "A"
         }
       ],
-      "title": "Ollama RAM",
+      "title": "VRAM used",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 75 },
+              { "color": "red", "value": 85 }
+            ]
+          },
+          "unit": "celsius"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 0 },
+      "id": 14,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "expr": "max(nvidia_smi_temperature_gpu)",
+          "legendFormat": "temp",
+          "refId": "A"
+        }
+      ],
+      "title": "GPU temp",
       "type": "stat"
     },
     {
@@ -127,7 +165,7 @@
         "defaults": { "unit": "ops" },
         "overrides": []
       },
-      "gridPos": { "h": 4, "w": 5, "x": 14, "y": 0 },
+      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 0 },
       "id": 4,
       "options": {
         "colorMode": "value",
@@ -161,7 +199,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 4, "w": 5, "x": 19, "y": 0 },
+      "gridPos": { "h": 4, "w": 4, "x": 20, "y": 0 },
       "id": 5,
       "options": {
         "colorMode": "value",
@@ -182,10 +220,95 @@
     {
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": {
-        "defaults": { "unit": "percent" },
+        "defaults": {
+          "max": 100,
+          "min": 0,
+          "unit": "percent"
+        },
         "overrides": []
       },
       "gridPos": { "h": 10, "w": 12, "x": 0, "y": 4 },
+      "id": 15,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "nvidia_smi_utilization_gpu_ratio * 100",
+          "legendFormat": "util {{uuid}}",
+          "refId": "A"
+        }
+      ],
+      "title": "GPU utilization",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "unit": "bytes" },
+        "overrides": []
+      },
+      "gridPos": { "h": 10, "w": 12, "x": 12, "y": 4 },
+      "id": 16,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "nvidia_smi_memory_used_bytes",
+          "legendFormat": "used {{uuid}}",
+          "refId": "A"
+        },
+        {
+          "expr": "nvidia_smi_memory_total_bytes",
+          "legendFormat": "total {{uuid}}",
+          "refId": "B"
+        }
+      ],
+      "title": "VRAM",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "unit": "celsius" },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 14 },
+      "id": 17,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "nvidia_smi_temperature_gpu",
+          "legendFormat": "temp {{uuid}}",
+          "refId": "A"
+        }
+      ],
+      "title": "GPU temperature",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "unit": "watt" },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 14 },
+      "id": 18,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "nvidia_smi_power_draw_watts",
+          "legendFormat": "power {{uuid}}",
+          "refId": "A"
+        }
+      ],
+      "title": "GPU power",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "unit": "percent" },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 22 },
       "id": 6,
       "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
       "targets": [
@@ -204,7 +327,7 @@
         "defaults": { "unit": "bytes" },
         "overrides": []
       },
-      "gridPos": { "h": 10, "w": 12, "x": 12, "y": 4 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 22 },
       "id": 7,
       "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
       "targets": [
@@ -223,7 +346,7 @@
         "defaults": { "unit": "ops" },
         "overrides": []
       },
-      "gridPos": { "h": 10, "w": 12, "x": 0, "y": 14 },
+      "gridPos": { "h": 10, "w": 12, "x": 0, "y": 30 },
       "id": 8,
       "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
       "targets": [
@@ -242,7 +365,7 @@
         "defaults": { "unit": "ops" },
         "overrides": []
       },
-      "gridPos": { "h": 10, "w": 12, "x": 12, "y": 14 },
+      "gridPos": { "h": 10, "w": 12, "x": 12, "y": 30 },
       "id": 9,
       "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
       "targets": [
@@ -261,7 +384,7 @@
         "defaults": { "unit": "s" },
         "overrides": []
       },
-      "gridPos": { "h": 12, "w": 24, "x": 0, "y": 24 },
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 40 },
       "id": 10,
       "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
       "targets": [
@@ -298,7 +421,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 36 },
+      "gridPos": { "h": 6, "w": 24, "x": 0, "y": 50 },
       "id": 11,
       "options": {
         "alignValue": "left",
@@ -320,9 +443,9 @@
   ],
   "refresh": "15s",
   "schemaVersion": 39,
-  "tags": ["radar", "llm", "ollama", "geo"],
+  "tags": ["radar", "llm", "ollama", "gpu", "geo"],
   "time": { "from": "now-3h", "to": "now" },
   "title": "Radar — LLM / Ollama",
   "uid": "radar-llm-ollama",
-  "version": 1
+  "version": 2
 }

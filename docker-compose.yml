@@ -207,6 +207,18 @@ services:
       retries: 5
       start_period: 15s
 
+  # NVML backend: nvidia_smi_* (util/VRAM/temp/power). GPU devices — в override (как у ollama).
+  nvidia-gpu-exporter:
+    image: utkuozdemir/nvidia_gpu_exporter:latest-nvml
+    container_name: radar-nvidia-gpu-exporter
+    restart: unless-stopped
+    profiles: ["obs"]
+    environment:
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: utility,compute
+    networks:
+      - radar_net
+
   grafana:
     image: grafana/grafana:11.5.2
     container_name: radar-grafana
