@@ -41,7 +41,11 @@ export type JobKernelStatus = {
 
 export type JobKernelConfig<TCursor, TSlice, TArtifact> = {
   pipelineKey: string;
-  schedule: { mode: ScheduleMode; intervalMs?: number };
+  /**
+   * `drainUntilEmpty` — после непустого тика сразу планировать следующий, не дожидаясь
+   * таймера/события. Порядок сохраняется: lock не пускает параллельные тики.
+   */
+  schedule: { mode: ScheduleMode; intervalMs?: number; drainUntilEmpty?: boolean };
   cursorStore: CursorStore<TCursor>;
   callbacks: PipelineCallbacks<TCursor, TSlice, TArtifact>;
   /** Кооперативный control (pause/cancel) — источник хранения (DB/memory) решает вызывающая сторона. */
@@ -104,6 +108,8 @@ export function createJobKernel<TCursor, TSlice, TArtifact>(
         await config.callbacks.emitProgress(envelope);
       }
       config.obs?.onTickEnd?.({ runId, pipelineKey: config.pipelineKey });
+      // Работа была — очередь почти наверняка не пуста, продолжаем без паузы.
+      if (config.schedule.drainUntilEmpty) schedule.wake();
     } catch (error) {
       config.onUnhandledError?.(error);
       config.obs?.onTickEnd?.({

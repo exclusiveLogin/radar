@@ -5,7 +5,11 @@
  * purpose: Связывает внешние geo-провайдеры с parse application port.
  * ---
  */
-import type { GeoEnrichmentArtifact, ParseWorkspace } from "@radar/shared";
+import type {
+  GeoEnrichmentArtifact,
+  IRegionAdjacencyRepository,
+  ParseWorkspace,
+} from "@radar/shared";
 import { DadataStep } from "../../application/geo-pipeline/steps/DadataStep.js";
 import type { GeoPipelineContext } from "../../application/geo-pipeline/GeoPipelineContext.js";
 import type { ParseExternalEnricher } from "../../application/parse/parseExternalEnricher.js";
@@ -33,8 +37,14 @@ function ensureGeoArtifact(workspace: ParseWorkspace): GeoEnrichmentArtifact {
   return artifact;
 }
 
-/** Создаёт lazy HTTP enrichers для parse workspace. */
-export function createParseExternalEnricher(): ParseExternalEnricher {
+/**
+ * Создаёт lazy HTTP enrichers для parse workspace.
+ * `regionAdjacency` расширяет список допустимых регионов в промпте LLM;
+ * без БД (in-memory режим) подсказка соседей просто не добавляется.
+ */
+export function createParseExternalEnricher(
+  regionAdjacency?: IRegionAdjacencyRepository,
+): ParseExternalEnricher {
   let llm: LlmEnricher | undefined;
   let llmValidator: LlmValidatorEnricher | undefined;
   let dadata: DadataEnricher | undefined;
@@ -62,7 +72,7 @@ export function createParseExternalEnricher(): ParseExternalEnricher {
 
       if (enricherId === "llm") {
         llm ??= new LlmEnricher(loadLlmRuntimeConfig());
-        await new LlmStep(llm, GeoCatalog.loadFromArtifacts()).run(context);
+        await new LlmStep(llm, GeoCatalog.loadFromArtifacts(), regionAdjacency).run(context);
         return;
       }
 

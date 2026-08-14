@@ -56,5 +56,21 @@ describe("tracking research harness", () => {
     expect(noDirection.preservation.missingEventLocationIds).toEqual([]);
     expect(baseline.membership).toEqual(repeated.membership);
     expect(baseline.stats.field.vectors).not.toEqual(noDirection.stats.field.vectors);
+    expect(baseline.quality.tracksTotal).toBe(baseline.stats.tracks);
+    expect(baseline.quality.feasiblePairs).toBeGreaterThanOrEqual(0);
+  });
+
+  test("applies configPatch without mutating baseline config object", () => {
+    const candidates = [
+      candidate("a", "2026-01-01T00:00:00.000Z", 31),
+      candidate("b", "2026-01-01T00:30:00.000Z", 31.1),
+    ];
+    const config = trackingPipelineConfigSchema.parse({});
+    const patched = runTrackingResearchVariant(candidates, config, {
+      id: "loose-chi2",
+      configPatch: { profiles: { uav: { chi2Threshold: 100 } } },
+    });
+    expect(patched.variant).toBe("loose-chi2");
+    expect(patched.quality.tracksTotal).toBeGreaterThanOrEqual(1);
   });
 });

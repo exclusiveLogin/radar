@@ -21,6 +21,7 @@ import {
   TypeOrmPipelineStabilityRepository,
   TypeOrmStepRunRepository,
   TypeOrmRawMessageRepository,
+  TypeOrmRegionAdjacencyRepository,
   TypeOrmRegionRepository,
   TypeOrmStatusDictionaryRepository,
 } from "@radar/persistence";
@@ -37,6 +38,7 @@ export async function createWorkerDbRepositories(
     eventLocations: new TypeOrmEventLocationRepository(dataSource),
     eventEvidence: new TypeOrmEventEvidenceRepository(dataSource),
     regions: new TypeOrmRegionRepository(dataSource),
+    regionAdjacency: new TypeOrmRegionAdjacencyRepository(dataSource),
     places: new TypeOrmPlaceRepository(dataSource),
     aliases: new TypeOrmPlaceAliasRepository(dataSource),
     placeEnrichmentJobs: new TypeOrmPlaceEnrichmentJobRepository(dataSource),

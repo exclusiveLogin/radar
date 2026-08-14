@@ -134,6 +134,14 @@ export interface IRegionRepository {
   upsertMany(regions: RegionRecord[]): Promise<void>;
 }
 
+/**
+ * Граф смежности субъектов (ISO → соседние ISO).
+ * Наполняется импортом geo-каталога; в рантайме читается только на чтение.
+ */
+export interface IRegionAdjacencyRepository {
+  load(): Promise<Record<string, string[]>>;
+}
+
 export interface IPlaceRepository {
   findById(id: string): Promise<PlaceRecord | null>;
   findByFias(fiasId: string): Promise<PlaceRecord | null>;

@@ -84,6 +84,7 @@ export {
   STATE_LEVEL_RANK,
   regionStateRecordSchema,
   regionStateEventSchema,
+  regionLevelReasonSchema,
   layoutTileSchema,
   mapRegionSnapshotSchema,
   mapPlaceSnapshotSchema,
@@ -423,6 +424,7 @@ export type {
   FoldVicinityScopeMapStateInput,
   VicinityScopeWinner,
 } from "./domain/region-state/mapStateFold";
+export { resolveNeighborRedHighlights } from "./domain/region-state/neighborRedHighlight";
 export {
   CRITICAL_WINDOW_MS,
   THREAT_MAP_STATUS_CODES,
@@ -734,6 +736,7 @@ export type {
   StateLevel,
   RegionStateRecord,
   RegionStateEvent,
+  RegionLevelReason,
   LayoutTile,
   MapRegionSnapshot,
   MapRegionTraits,
@@ -928,6 +931,7 @@ export type {
   IPlaceRepository,
   IRawMessageRepository,
   IRegionRepository,
+  IRegionAdjacencyRepository,
   IStatusDictionaryRepository,
   ISyncAuditRepository,
   IEnrichmentQueueRepository,

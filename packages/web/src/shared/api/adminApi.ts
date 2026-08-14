@@ -260,6 +260,22 @@ export const adminApi = {
   parsePipelineRebuild: (): Promise<ParsePipelineStartResponse> =>
     postJson("/api/admin/parse/rebuild", undefined, parsePipelineStartResponseSchema),
 
+  /** Зависшие claim'ы упавшего worker: processing → pending, без wipe. */
+  parsePipelineReleaseStuck: (): Promise<{
+    ok: true;
+    released: number;
+    phaseIds: string[];
+  }> =>
+    postJson(
+      "/api/admin/parse/release-stuck",
+      undefined,
+      z.object({
+        ok: z.literal(true),
+        released: z.number().int().nonnegative(),
+        phaseIds: z.array(z.string()),
+      }),
+    ),
+
   workbookObservability: (): Promise<WorkbookObservabilityResponse> =>
     getJson("/api/admin/workbook/observability", workbookObservabilityResponseSchema),
 

@@ -2,7 +2,7 @@
  * ---
  * layer: worker/infrastructure
  * domain: tracking
- * purpose: Persisted event-time strobe membership and lifecycle.
+ * purpose: Persisted event-time strobe membership and lifecycle (grid bins).
  * ---
  */
 import type { DataSource } from "typeorm";
@@ -13,6 +13,7 @@ import {
   type FlowMapSnapshot,
   type TrackingCandidate,
   type TrackingPipelineConfig,
+  type TrackingWatermark,
 } from "@radar/shared";
 
 export type TrackingStrobe = {
@@ -59,7 +60,7 @@ export async function stageTrackingCandidates(
   );
 }
 
-/** Первый strobe без materialized winner: единственная точка входа provisional replay. */
+/** Первый strobe без materialized winner: точка входа phase A (cluster). */
 export async function loadDirtyTrackingStrobe(ds: DataSource): Promise<TrackingStrobe | null> {
   const [row] = await ds.query<StrobeRow[]>(
     `SELECT id, first_at, closes_at, status, winner_event_location_ids, flow_snapshot
@@ -71,17 +72,25 @@ export async function loadDirtyTrackingStrobe(ds: DataSource): Promise<TrackingS
   return row ? toStrobe(row) : null;
 }
 
-/** Open strobes, закрываемые timer/frontier на данном tick. */
+/** Open strobes, закрываемые timer/frontier после того, как phase B забрала всех winners. */
 export async function loadReadyTrackingStrobes(
   ds: DataSource,
   frontier: Date,
 ): Promise<TrackingStrobe[]> {
   const rows = await ds.query<StrobeRow[]>(
     `SELECT id, first_at, closes_at, status, winner_event_location_ids, flow_snapshot
-     FROM state_track_strobe
+     FROM state_track_strobe s
      WHERE status = 'open'
        AND winner_event_location_ids <> '[]'::jsonb
-       AND closes_at < $1
+       AND closes_at <= $1
+       AND NOT EXISTS (
+         SELECT 1
+         FROM jsonb_array_elements_text(s.winner_event_location_ids) AS w(id)
+         WHERE NOT EXISTS (
+           SELECT 1 FROM state_track_consumed c
+           WHERE c.event_location_id = w.id::uuid
+         )
+       )
      ORDER BY first_at ASC, id ASC`,
     [frontier.toISOString()],
   );
@@ -89,6 +98,98 @@ export async function loadReadyTrackingStrobes(
     { firstOccurredAt: strobe.firstAt, closesAt: strobe.closesAt },
     frontier,
   ));
+}
+
+/**
+ * Строб, чьи точки удалены parse rebuild, данных не несёт и не может получить winner —
+ * без удаления он навсегда остаётся dirty и блокирует очередь. Члены уходят каскадом.
+ */
+export async function deleteTrackingStrobe(ds: DataSource, strobeId: string): Promise<void> {
+  await ds.query(`DELETE FROM state_track_strobe WHERE id = $1`, [strobeId]);
+}
+
+/** Остались ли стробы к обработке: dirty (без winner) либо закрытые по frontier. */
+export async function hasUnprocessedTrackingStrobes(
+  ds: DataSource,
+  frontier: Date,
+): Promise<boolean> {
+  const rows = await ds.query<{ exists: number }[]>(
+    `SELECT 1 AS exists
+     FROM state_track_strobe
+     WHERE winner_event_location_ids = '[]'::jsonb
+        OR (status = 'open' AND closes_at <= $1)
+     LIMIT 1`,
+    [frontier.toISOString()],
+  );
+  return rows.length > 0;
+}
+
+/**
+ * Есть ли winners, ещё не прошедшие phase B (join): materialized strobe, id не в consumed.
+ * Курсор join — watermark пайплайна, не граница строба.
+ */
+export async function hasPendingJoinWinners(ds: DataSource): Promise<boolean> {
+  const rows = await ds.query<{ exists: number }[]>(
+    `SELECT 1 AS exists
+     FROM state_track_strobe s
+     CROSS JOIN LATERAL jsonb_array_elements_text(s.winner_event_location_ids) AS w(id)
+     WHERE s.winner_event_location_ids <> '[]'::jsonb
+       AND NOT EXISTS (
+         SELECT 1 FROM state_track_consumed c
+         WHERE c.event_location_id = w.id::uuid
+       )
+     LIMIT 1`,
+  );
+  return rows.length > 0;
+}
+
+/**
+ * Следующая страница winner id по event-time курсору (watermark).
+ * Батч — только перфоманс; окно алгоритма join задаётся seeds as-of + maxGapMs.
+ */
+export async function loadJoinWinnerIds(
+  ds: DataSource,
+  watermark: TrackingWatermark | null,
+  limit: number,
+): Promise<string[]> {
+  const rows = watermark
+    ? await ds.query<{ event_location_id: string }[]>(
+      `SELECT el.id AS event_location_id
+       FROM state_track_strobe s
+       CROSS JOIN LATERAL jsonb_array_elements_text(s.winner_event_location_ids) AS w(id)
+       JOIN mat_parse_location el ON el.id = w.id::uuid
+       LEFT JOIN mat_parse_event pe ON pe.id = el.parsed_event_id
+       LEFT JOIN mat_ingest_raw rm ON rm.id = pe.raw_message_id
+       WHERE s.winner_event_location_ids <> '[]'::jsonb
+         AND NOT EXISTS (
+           SELECT 1 FROM state_track_consumed c
+           WHERE c.event_location_id = el.id
+         )
+         AND (
+           COALESCE(el.occurred_at, rm.posted_at, pe.parsed_at),
+           el.id
+         ) > ($1::timestamptz, $2::uuid)
+       ORDER BY COALESCE(el.occurred_at, rm.posted_at, pe.parsed_at) ASC, el.id ASC
+       LIMIT $3`,
+      [watermark.lastOccurredAt, watermark.lastEventLocationId, limit],
+    )
+    : await ds.query<{ event_location_id: string }[]>(
+      `SELECT el.id AS event_location_id
+       FROM state_track_strobe s
+       CROSS JOIN LATERAL jsonb_array_elements_text(s.winner_event_location_ids) AS w(id)
+       JOIN mat_parse_location el ON el.id = w.id::uuid
+       LEFT JOIN mat_parse_event pe ON pe.id = el.parsed_event_id
+       LEFT JOIN mat_ingest_raw rm ON rm.id = pe.raw_message_id
+       WHERE s.winner_event_location_ids <> '[]'::jsonb
+         AND NOT EXISTS (
+           SELECT 1 FROM state_track_consumed c
+           WHERE c.event_location_id = el.id
+         )
+       ORDER BY COALESCE(el.occurred_at, rm.posted_at, pe.parsed_at) ASC, el.id ASC
+       LIMIT $1`,
+      [limit],
+    );
+  return rows.map(row => row.event_location_id);
 }
 
 /** Финализация выполняется в checkpoint-транзакции после materialize. */
@@ -104,14 +205,26 @@ export async function finalizeTrackingStrobe(
   );
 }
 
-/** Закрывает уже materialized strobe без повторного обучения FlowMap. */
+/** Закрывает уже materialized strobe и фиксирует FlowMap после phase B. */
 export async function finalizeTrackingStrobeAtomically(
   ds: DataSource,
   strobeId: string,
 ): Promise<void> {
   await withTrackingL1Transaction(
     fn => ds.transaction(async em => fn((sql, params) => em.query(sql, params))),
-    query => finalizeTrackingStrobe(query, strobeId),
+    async query => {
+      const [pipeline] = await query(
+        `SELECT flow_snapshot FROM state_track_pipeline WHERE id = 'default'`,
+      ) as Array<{ flow_snapshot: FlowMapSnapshot | null }>;
+      await query(
+        `UPDATE state_track_strobe
+         SET status = 'final',
+             flow_snapshot = COALESCE($2::jsonb, flow_snapshot),
+             updated_at = now()
+         WHERE id = $1 AND status = 'open'`,
+        [strobeId, JSON.stringify(pipeline?.flow_snapshot ?? { vectors: {}, mass: {} })],
+      );
+    },
   );
 }
 
@@ -182,32 +295,42 @@ type StrobeRow = {
   flow_snapshot?: FlowMapSnapshot | null;
 };
 
+/**
+ * Идемпотентный upsert бина (threat_profile, first_at).
+ * Границы считает createTrackingStrobeBounds — точка сама определяет свой бин.
+ */
 async function resolveStrobe(
   query: (sql: string, params?: unknown[]) => Promise<unknown>,
   candidate: TrackingCandidate,
   config: TrackingPipelineConfig,
 ): Promise<TrackingStrobe> {
-  const rows = await query(
-    `SELECT id, first_at, closes_at, status, winner_event_location_ids, flow_snapshot
-     FROM state_track_strobe
-     WHERE threat_profile = $1
-       AND first_at <= $2
-       AND closes_at >= $2
-     ORDER BY first_at ASC, id ASC
-     LIMIT 1
-     FOR UPDATE`,
-    [candidate.threatProfile, candidate.occurredAt.toISOString()],
-  ) as StrobeRow[];
-  if (rows[0]) return toStrobe(rows[0]);
-
   const bounds = createTrackingStrobeBounds(candidate.occurredAt, config.strobe);
   const [created] = await query(
     `INSERT INTO state_track_strobe (threat_profile, first_at, closes_at, status)
      VALUES ($1, $2, $3, 'open')
+     ON CONFLICT (threat_profile, first_at) DO NOTHING
      RETURNING id, first_at, closes_at, status, winner_event_location_ids, flow_snapshot`,
-    [candidate.threatProfile, bounds.firstOccurredAt.toISOString(), bounds.closesAt.toISOString()],
+    [
+      candidate.threatProfile,
+      bounds.firstOccurredAt.toISOString(),
+      bounds.closesAt.toISOString(),
+    ],
   ) as StrobeRow[];
-  return toStrobe(created!);
+  if (created) return toStrobe(created);
+
+  const [existing] = await query(
+    `SELECT id, first_at, closes_at, status, winner_event_location_ids, flow_snapshot
+     FROM state_track_strobe
+     WHERE threat_profile = $1 AND first_at = $2
+     LIMIT 1`,
+    [candidate.threatProfile, bounds.firstOccurredAt.toISOString()],
+  ) as StrobeRow[];
+  if (!existing) {
+    throw new Error(
+      `resolveStrobe: bin missing after upsert (${candidate.threatProfile}, ${bounds.firstOccurredAt.toISOString()})`,
+    );
+  }
+  return toStrobe(existing);
 }
 
 function toStrobe(row: StrobeRow): TrackingStrobe {

@@ -29,7 +29,7 @@ export type WorkloadIoPorts<TCursor, TSlice, TArtifact> = {
 export type CreateWorkloadOptions<TCursor, TSlice, TArtifact> = {
   workbook: WorkbookInstance<TCursor, TSlice, TArtifact>;
   io: WorkloadIoPorts<TCursor, TSlice, TArtifact>;
-  schedule: { mode: ScheduleMode; intervalMs?: number };
+  schedule: { mode: ScheduleMode; intervalMs?: number; drainUntilEmpty?: boolean };
   readControl?: () => Promise<"continue" | "pause" | "cancel">;
   onUnhandledError?: (error: unknown) => void;
   /** Optional observability callback port. */

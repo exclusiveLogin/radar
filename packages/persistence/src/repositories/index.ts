@@ -18,6 +18,7 @@ export { TypeOrmPlaceAliasRepository } from "./typeorm-place-alias.repository";
 export { TypeOrmPlaceEnrichmentJobRepository } from "./typeorm-place-enrichment-job.repository";
 export { TypeOrmPlaceRepository } from "./typeorm-place.repository";
 export { TypeOrmRawMessageRepository } from "./typeorm-raw-message.repository";
+export { TypeOrmRegionAdjacencyRepository } from "./typeorm-region-adjacency.repository";
 export { TypeOrmRegionRepository } from "./typeorm-region.repository";
 export { TypeOrmStatusDictionaryRepository } from "./typeorm-status-dictionary.repository";
 export { TypeOrmSyncAuditRepository } from "./typeorm-sync-audit.repository";

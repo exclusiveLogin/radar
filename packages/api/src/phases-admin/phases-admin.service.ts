@@ -219,6 +219,32 @@ export class PhasesAdminService implements OnModuleInit, OnModuleDestroy {
     return { enqueued, queued, failed, phaseIds: phases.map((phase) => phase.id) };
   }
 
+  /**
+   * Осиротевшие claim'ы ingestParse: processing → pending + wake раннера.
+   * Возникают, когда worker умер между claim и завершением задачи — очередь
+   * остаётся «занятой» без владельца и фаза вечно висит в draining.
+   */
+  async releaseStuckIngestProcessing(): Promise<{
+    ok: true;
+    released: number;
+    phaseIds: string[];
+  }> {
+    const phases = await this.phases.listEnabled(undefined, "ingestParse");
+    const touched: string[] = [];
+    let released = 0;
+
+    for (const phase of phases) {
+      const count = await this.coverage.resetProcessingForPhase(phase.id);
+      if (count === 0) continue;
+      released += count;
+      touched.push(phase.id);
+      // catalog=event не имеет таймера: без drain строки останутся pending до следующего события.
+      await this.publishDrainForPhase(phase, "full");
+    }
+
+    return { ok: true, released, phaseIds: touched };
+  }
+
   /** Текущее состояние выбранных ingestParse-очередей. */
   async getIngestQueueCounts(phaseIds: string[]): Promise<{
     pending: number;

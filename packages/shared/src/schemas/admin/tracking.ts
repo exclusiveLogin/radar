@@ -165,14 +165,15 @@ export const trackingPipelineConfigSchema = z.object({
   /** Точек, читаемых и назначаемых за один bounded tick. */
   batchSize: z.number().int().min(10).max(20000).default(500),
   /**
-   * Фиксированный event-time предел incident-strobe от его первой точки.
-   * ε ST-DBSCAN определяет соседство, strobe запрещает бесконечную транзитивную цепочку.
+   * Шаг сетки event-time бинов: binStart = floor(t / maxWindowMs) * maxWindowMs.
+   * ε ST-DBSCAN определяет соседство внутри бина; бин запрещает бесконечную транзитивную цепочку.
    */
   strobe: z.object({
     maxWindowMs: z.number().int().min(60_000).max(24 * 60 * 60 * 1000)
       .default(DEFAULT_TRACKING_STROBE_MAX_WINDOW_MS),
   }).default({}),
   daemonIntervalMs: z.number().int().min(5000).max(300000).optional(),
+  /** Зарезервировано: порог seedScore. NextGen join пока сидит любую ноду без link. */
   seedMin: z.number().min(0).max(5).default(0.45),
   /** Seed только если front_distance_km ≤ порога (км от фронта). */
   seedMaxFrontDistanceKm: z.number().positive().max(10000).default(450),
@@ -206,9 +207,12 @@ export const trackingPipelineConfigSchema = z.object({
     .object({
       /** Разрешение H3 сетки для глобального векторного поля. */
       h3Resolution: z.number().int().min(4).max(12).default(8),
-      /** Минимальная масса отрезка, чтобы он стал центром гравитации (Фаза 3). */
+      /** Зарезервировано: порог массы центра гравитации (фаза не подключена). */
       gravityCenterMassThreshold: z.number().min(0).default(5),
-      /** Порог расстояния Махаланобиса для слияния с магистралью. */
+      /**
+       * Зарезервировано: отдельный χ² локуса.
+       * Runtime gate использует profiles.*.chi2Threshold.
+       */
       kalmanLocusChi2Threshold: z.number().min(0).default(5.99),
       /** Мин. число нод, чтобы цепочка стала сплошной магистралью (иначе — пунктир-сателлит). */
       minBackboneNodes: z.number().int().min(2).max(10).default(3),
@@ -216,7 +220,7 @@ export const trackingPipelineConfigSchema = z.object({
       turnPenaltyWeight: z.number().min(0).max(10).default(3),
       /** Жёсткий запрет поворота круче этого (град): шаг назад по курсу = разрыв трассы. */
       maxTurnDeg: z.number().min(0).max(180).default(135),
-      /** Включить ли 4 фазу (Reverse Forward Loop). */
+      /** Зарезервировано: Reverse Forward Loop (фаза 4 не реализована). */
       rflEnabled: z.boolean().default(true),
       /**
        * Мягкий порог cos для Phase2 (ниже — отрезок не строится).
@@ -225,7 +229,10 @@ export const trackingPipelineConfigSchema = z.object({
       rflPenaltyThreshold: z.number().min(-1).max(1).optional(),
     })
     .default({}),
-  /** Параметры магнитной фазы и cost-хелпера. */
+  /**
+   * Параметры магнитной фазы. Активны только при clusteringMode=magnet;
+   * в collapse (default) не влияют на join.
+   */
   magnet: z
     .object({
       wMag: z.number().min(0).max(20).default(1),

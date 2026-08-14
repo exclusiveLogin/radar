@@ -16,11 +16,11 @@ import { STATE_LEVEL_RANK, eventHeatmapPeriodMs } from "@radar/shared";
 import type { EventType } from "@radar/shared";
 import { StatusDictionaryEntity } from "@radar/persistence";
 import { PlaceEntity, RegionEntity } from "@radar/persistence";
-import { loadRegionAdjacency } from "./adjacency.loader";
 import type { GeoRegionRef, PlaceRef } from "./map.dto";
 import { ParseMaintenanceGate } from "../parse-admin/parse-maintenance.gate";
 import { MapGeoJsonQueryService } from "./map-geojson-query.service";
 import { MapSnapshotQueryService } from "./map-snapshot-query.service";
+import { RegionAdjacencyRepository } from "./region-adjacency.repository";
 
 type RegionStateLevel = MapRegionSnapshot["stateLevel"];
 
@@ -38,6 +38,7 @@ export class MapQueryService {
     private readonly mapSnapshotQuery: MapSnapshotQueryService,
     private readonly mapGeoJsonQuery: MapGeoJsonQueryService,
     private readonly parseMaintenance: ParseMaintenanceGate,
+    private readonly regionAdjacency: RegionAdjacencyRepository,
   ) {}
 
   getActiveDistrictsGeoJsonLayer() {
@@ -257,9 +258,9 @@ export class MapQueryService {
       }));
     });
   }
-  /** Смежность регионов (ISO → соседние ISO) из adjacency.json — для read-side вычисления уровня соседей. */
-  getRegionAdjacency(): Record<string, string[]> {
-    return loadRegionAdjacency();
+  /** Смежность регионов (ISO → соседние ISO) из region_adjacency — диагностика графа. */
+  async getRegionAdjacency(): Promise<Record<string, string[]>> {
+    return this.regionAdjacency.load();
   }
 
   /**

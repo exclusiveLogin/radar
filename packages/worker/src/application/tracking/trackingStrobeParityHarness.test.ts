@@ -66,6 +66,7 @@ async function drainByPageSize(batchSize: number): Promise<ParityArtifact> {
       config,
       flowField,
       fullPendingIds: new Set(strobe.candidates.map(candidate => candidate.eventLocationId)),
+      phase: "full",
       rebuildAt: new Date(FIXTURE_START + 2 * STROBE_WINDOW_MS),
       rebuildGen: "parity",
     });
@@ -80,12 +81,15 @@ async function drainByPageSize(batchSize: number): Promise<ParityArtifact> {
     consumed: [...consumed].sort(),
     flowSnapshot: flowField.exportSnapshot(),
     nodes: Object.keys(research.membership).sort(),
-    strobes: strobes.map(({ candidates: members }) => ({
-      closesAt: createTrackingStrobeBounds(members[0]!.occurredAt, config.strobe).closesAt.toISOString(),
-      eventLocationIds: members.map(candidate => candidate.eventLocationId),
-      firstAt: members[0]!.occurredAt.toISOString(),
-      profile: members[0]!.threatProfile,
-    })),
+    strobes: strobes.map(({ candidates: members }) => {
+      const bounds = createTrackingStrobeBounds(members[0]!.occurredAt, config.strobe);
+      return {
+        closesAt: bounds.closesAt.toISOString(),
+        eventLocationIds: members.map(candidate => candidate.eventLocationId),
+        firstAt: bounds.firstOccurredAt.toISOString(),
+        profile: members[0]!.threatProfile,
+      };
+    }),
     tracks: research.tracks,
     watermark,
     winners: [...winners].sort(),
@@ -94,35 +98,33 @@ async function drainByPageSize(batchSize: number): Promise<ParityArtifact> {
 
 /**
  * Модель persisted membership: page size меняет лишь момент staging,
- * а не состав закрытого event-time strobe.
+ * а не состав закрытого event-time strobe (сетка floor(t/window)).
  */
 function collectStrobes(
   candidates: TrackingCandidate[],
   batchSize: number,
   maxWindowMs: number,
 ): Array<{ id: string; candidates: TrackingCandidate[] }> {
-  const byProfile = new Map<string, Array<{ id: string; candidates: TrackingCandidate[] }>>();
+  const byBin = new Map<string, { id: string; candidates: TrackingCandidate[] }>();
 
   for (let offset = 0; offset < candidates.length; offset += batchSize) {
     for (const candidate of candidates.slice(offset, offset + batchSize)) {
-      const profileStrobes = byProfile.get(candidate.threatProfile) ?? [];
-      const current = profileStrobes.at(-1);
-      const bounds = current && createTrackingStrobeBounds(
-        current.candidates[0]!.occurredAt,
-        { maxWindowMs },
-      );
-      const strobe = bounds && candidate.occurredAt <= bounds.closesAt
-        ? current
-        : { id: `strobe-${candidate.threatProfile}-${profileStrobes.length}`, candidates: [] };
-
-      if (!current || strobe !== current) profileStrobes.push(strobe);
+      const bounds = createTrackingStrobeBounds(candidate.occurredAt, { maxWindowMs });
+      const key = `${candidate.threatProfile}:${bounds.firstOccurredAt.toISOString()}`;
+      const strobe = byBin.get(key) ?? {
+        id: `strobe-${candidate.threatProfile}-${byBin.size}`,
+        candidates: [],
+      };
       strobe.candidates.push(candidate);
-      byProfile.set(candidate.threatProfile, profileStrobes);
+      byBin.set(key, strobe);
     }
   }
 
-  return [...byProfile.values()]
-    .flat()
+  return [...byBin.values()]
+    .map(strobe => ({
+      ...strobe,
+      candidates: [...strobe.candidates].sort(compareTrackingCandidates),
+    }))
     .sort((left, right) => compareTrackingCandidates(left.candidates[0]!, right.candidates[0]!));
 }
 

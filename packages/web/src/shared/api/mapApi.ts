@@ -183,9 +183,6 @@ export const mapApi = {
     if (since) qs.set("since", since);
     return getJson(`/api/map/pvo-reports?${qs}`, pvoReportsResponseSchema);
   },
-  /** Смежность регионов — для read-side вычисления уровня соседей (загружается однократно). */
-  regionAdjacency: (): Promise<Record<string, string[]>> =>
-    getJson("/api/map/region-adjacency", z.record(z.string(), z.array(z.string()))),
   /** Топ регионов по danger-событиям за 7 дней (для TopActivityWidget). */
   topActivity: (limit = 10): Promise<{ items: TopActivityRow[] }> =>
     getJson(

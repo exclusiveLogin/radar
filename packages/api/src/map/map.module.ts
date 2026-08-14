@@ -13,6 +13,7 @@ import { MapGeoJsonQueryService } from "./map-geojson-query.service";
 import { MapSnapshotQueryService } from "./map-snapshot-query.service";
 import { MapRealtimeBroadcastService } from "./map-realtime-broadcast.service";
 import { MapTracksService } from "./map-tracks.service";
+import { RegionAdjacencyRepository } from "./region-adjacency.repository";
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { MapTracksService } from "./map-tracks.service";
   ],
   providers: [
     MapFactsRepository,
+    RegionAdjacencyRepository,
     MapSnapshotQueryService,
     MapGeoJsonQueryService,
     MapMessageFeedQueryService,

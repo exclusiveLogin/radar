@@ -19,6 +19,7 @@ import type {
   IPlaceAliasRepository,
   IPlaceRepository,
   IRawMessageRepository,
+  IRegionAdjacencyRepository,
   IRegionRepository,
 } from "@radar/shared";
 import type { DataSource } from "typeorm";
@@ -66,6 +67,8 @@ export async function createWorkerPersistence(
   let eventLocations: IEventLocationRepository = new InMemoryEventLocationRepository();
   let eventEvidence: IEventEvidenceRepository = new InMemoryEventEvidenceRepository();
   let regions: IRegionRepository = new InMemoryRegionRepository();
+  // Смежность живёт только в БД: в in-memory режиме соседей нет (граф пустой).
+  let regionAdjacency: IRegionAdjacencyRepository | undefined;
   let places: IPlaceRepository = new InMemoryPlaceRepository();
   let aliases: IPlaceAliasRepository = new InMemoryPlaceAliasRepository();
   let cursors: IIngestCursorRepository | undefined;
@@ -97,6 +100,7 @@ export async function createWorkerPersistence(
       eventLocations,
       eventEvidence,
       regions,
+      regionAdjacency,
       places,
       aliases,
       cursors,
@@ -130,6 +134,7 @@ export async function createWorkerPersistence(
     eventLocations,
     eventEvidence,
     regions,
+    regionAdjacency,
     places,
     aliases,
     cursors,

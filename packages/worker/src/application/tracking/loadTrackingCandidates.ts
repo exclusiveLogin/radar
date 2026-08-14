@@ -166,6 +166,24 @@ export async function loadTrackingStrobeCandidates(
   return rows.map(toCandidate).filter(canEnterPipeline);
 }
 
+/** Загрузка кандидатов по id (phase B: winners page). */
+export async function loadTrackingCandidatesByIds(
+  ds: DataSource,
+  eventLocationIds: readonly string[],
+): Promise<TrackingCandidate[]> {
+  if (eventLocationIds.length === 0) return [];
+  const rows = await ds.query<RawRow[]>(
+    `
+    ${CANDIDATES_SELECT}
+    ${CANDIDATES_FROM_SQL}
+    WHERE el.id = ANY($1::uuid[])
+    ORDER BY ${EVENT_AT_SQL} ASC, el.id ASC
+    `,
+    [eventLocationIds],
+  );
+  return rows.map(toCandidate).filter(canEnterPipeline);
+}
+
 const CONSUMED_ANCHOR_SQL = `
   AND EXISTS (
     SELECT 1 FROM state_track_consumed tpc
@@ -234,6 +252,19 @@ type CountRemainingOptions = {
   excludeConsumed?: boolean;
 };
 
+const REMAINING_FROM_SQL = `
+  FROM mat_parse_location el
+  JOIN mat_parse_event pe ON pe.id = el.parsed_event_id
+  LEFT JOIN mat_ingest_raw rm ON rm.id = pe.raw_message_id`;
+
+const REMAINING_WHERE_SQL = `
+  WHERE
+    ${EVENT_AT_SQL} <= $1
+    AND el.lat IS NOT NULL
+    AND el.lon IS NOT NULL
+    AND pe.is_active IS DISTINCT FROM false
+    AND pe.event_type IN (${PIPELINE_TYPES_IN})`;
+
 /** Необработанные pipeline-кандидаты — очередь rebuild. */
 export async function countTrackingPipelineRemaining(
   ds: DataSource,
@@ -244,20 +275,34 @@ export async function countTrackingPipelineRemaining(
   const [{ count }] = await ds.query<{ count: string }[]>(
     `
     SELECT COUNT(*)::text AS count
-    FROM mat_parse_location el
-    JOIN mat_parse_event pe ON pe.id = el.parsed_event_id
-    LEFT JOIN mat_ingest_raw rm ON rm.id = pe.raw_message_id
-    WHERE
-      ${EVENT_AT_SQL} <= $1
-      AND el.lat IS NOT NULL
-      AND el.lon IS NOT NULL
-      AND pe.is_active IS DISTINCT FROM false
-      AND pe.event_type IN (${PIPELINE_TYPES_IN})
+    ${REMAINING_FROM_SQL}
+    ${REMAINING_WHERE_SQL}
       ${excludeConsumed ? NOT_PROCESSED_SQL : ""}
     `,
     [opts.until.toISOString()],
   );
   return Number(count);
+}
+
+/**
+ * Тот же предикат, что и в count, но с ранним выходом: полный COUNT сканирует всю
+ * mat_parse_location (~13 c на архиве), а для «остались ли ещё точки» хватает первой строки.
+ */
+export async function hasPendingTrackingCandidates(
+  ds: DataSource,
+  opts: { until: Date },
+): Promise<boolean> {
+  const rows = await ds.query<{ exists: number }[]>(
+    `
+    SELECT 1 AS exists
+    ${REMAINING_FROM_SQL}
+    ${REMAINING_WHERE_SQL}
+      ${NOT_PROCESSED_SQL}
+    LIMIT 1
+    `,
+    [opts.until.toISOString()],
+  );
+  return rows.length > 0;
 }
 
 /** Помечает точки как обработанные пайплайном (внутри L1 xact). */

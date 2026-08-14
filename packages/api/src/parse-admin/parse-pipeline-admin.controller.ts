@@ -20,4 +20,12 @@ export class ParsePipelineAdminController {
   rebuild() {
     return this.parsePipeline.startRebuild();
   }
+
+  @Post("release-stuck")
+  @ApiOperation({
+    summary: "Вернуть зависшие processing → pending (claim'ы упавшего worker)",
+  })
+  releaseStuck() {
+    return this.parsePipeline.releaseStuckProcessing();
+  }
 }

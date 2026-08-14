@@ -105,6 +105,11 @@ export class ParsePipelineAdminService implements OnModuleDestroy {
     }
   }
 
+  /** Мягкая починка очереди без wipe: осиротевшие claim'ы возвращаются в pending. */
+  releaseStuckProcessing(): Promise<{ ok: true; released: number; phaseIds: string[] }> {
+    return this.phasesAdmin.releaseStuckIngestProcessing();
+  }
+
   private async startJob(
     kind: ParsePipelineJobKind,
     npmScript: string,

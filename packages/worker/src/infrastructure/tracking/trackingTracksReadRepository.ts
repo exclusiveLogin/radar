@@ -17,26 +17,31 @@ import {
 
 export type TrackingOpenTrackSeed = NextGenSeedTrack & { profile: ThreatProfile };
 
-/** Макс. окно «продолжения» недавно закрытого трека (staleAfterMs по профилям). */
-function maxStaleWindowMs(config?: TrackingPipelineConfig): number {
+/**
+ * Окно continuation: не меньше maxGapMs профиля, иначе as-of seeds режут линки,
+ * которые Step3 обязан рассматривать.
+ */
+function seedWindowMs(config?: TrackingPipelineConfig): number {
   const overrides = config?.profiles;
   return Math.max(
     ...(Object.keys(PROFILE_KINEMATICS) as ThreatProfile[]).map(p =>
-      resolveProfileKinematics(p, overrides).staleAfterMs,
+      resolveProfileKinematics(p, overrides).maxGapMs,
     ),
   );
 }
 
 /**
- * Треки, к которым можно прилинковать новые точки: active + недавно closed/stale
- * (в пределах staleAfterMs) — иначе каждый burst даёт 2-нодовую цепочку.
+ * Треки, к которым можно прилинковать новые точки по event-time срезу.
+ * asOf — время среза (не wall-clock): last_at ∈ [asOf - seedWindow, asOf].
+ * Status не участвует — иначе retracking истории всегда видит пустой seed pool.
  */
 export async function loadOpenTrackSeeds(
   ds: DataSource,
-  rebuildAt: Date,
+  asOf: Date,
   config?: TrackingPipelineConfig,
 ): Promise<TrackingOpenTrackSeed[]> {
-  const continuableSince = new Date(rebuildAt.getTime() - maxStaleWindowMs(config));
+  const windowMs = seedWindowMs(config);
+  const since = new Date(asOf.getTime() - windowMs);
 
   const trackRows = await ds.query<
     {
@@ -49,9 +54,9 @@ export async function loadOpenTrackSeeds(
   >(
     `SELECT id, threat_profile, total_distance_m, last_lat, last_lon
      FROM mat_track
-     WHERE status = 'active'
-        OR (status IN ('closed', 'stale') AND last_at >= $1)`,
-    [continuableSince.toISOString()],
+     WHERE last_at <= $1
+       AND last_at >= $2`,
+    [asOf.toISOString(), since.toISOString()],
   );
   if (trackRows.length === 0) return [];
 

@@ -35,6 +35,7 @@ function formatElapsed(startedAt: string | null | undefined): string | null {
 export function ParsePipelineWidget() {
   const status = useObservable(parsePipelineStatus$, null);
   const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
   const [, setTick] = useState(0);
 
   const isRunning = status?.status === "running";
@@ -57,6 +58,17 @@ export function ParsePipelineWidget() {
       setBusy(false);
     }
   };
+
+  const releaseStuck = () =>
+    run(async () => {
+      setNotice(null);
+      const result = await adminApi.parsePipelineReleaseStuck();
+      setNotice(
+        result.released > 0
+          ? `Возвращено в очередь: ${result.released} (${result.phaseIds.join(", ")})`
+          : "Зависших задач нет",
+      );
+    });
 
   const percent = status?.percentApprox ?? 0;
   const processed = status?.processedMessages ?? 0;
@@ -89,6 +101,14 @@ export function ParsePipelineWidget() {
         >
           Rebuild
         </Button>
+        <Button
+          variant="ghost"
+          disabled={busy || isRunning}
+          title="Вернуть зависшие processing → pending (claim'ы упавшего worker). Архив и parsed не трогает."
+          onClick={() => void releaseStuck()}
+        >
+          Вернуть зависшие
+        </Button>
         <span style={{ color: "var(--text-muted)", fontSize: 12 }}>
           {status?.kind === "rebuild" ? "Rebuild" : "—"}
           {phaseLabel ? ` · ${phaseLabel}` : ""} ·{" "}
@@ -106,6 +126,10 @@ export function ParsePipelineWidget() {
           </span>
         )}
       </div>
+
+      {notice && (
+        <p style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 8 }}>{notice}</p>
+      )}
 
       {status?.detail && (
         <p style={{ fontSize: 12, color: "var(--text)", marginTop: 8 }}>

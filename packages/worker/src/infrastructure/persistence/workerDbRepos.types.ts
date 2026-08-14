@@ -20,6 +20,7 @@ import type {
   IPipelineStabilityRepository,
   IStepRunRepository,
   IRawMessageRepository,
+  IRegionAdjacencyRepository,
   IRegionRepository,
   IStatusDictionaryRepository,
 } from "@radar/shared";
@@ -31,6 +32,7 @@ export type WorkerDbRepositories = {
   eventLocations: IEventLocationRepository;
   eventEvidence: IEventEvidenceRepository;
   regions: IRegionRepository;
+  regionAdjacency: IRegionAdjacencyRepository;
   places: IPlaceRepository;
   aliases: IPlaceAliasRepository;
   placeEnrichmentJobs: IPlaceEnrichmentJobRepository;

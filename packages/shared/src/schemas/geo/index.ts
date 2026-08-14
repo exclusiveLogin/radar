@@ -22,6 +22,7 @@ export { stateLevelSchema, STATE_LEVEL_RANK } from "./state-level";
 export {
   regionStateRecordSchema,
   regionStateEventSchema,
+  regionLevelReasonSchema,
   layoutTileSchema,
   mapRegionSnapshotSchema,
   mapRegionTraitsSchema,
@@ -47,6 +48,7 @@ export type { StateLevel } from "./state-level";
 export type {
   RegionStateRecord,
   RegionStateEvent,
+  RegionLevelReason,
   LayoutTile,
   MapRegionSnapshot,
   MapRegionTraits,

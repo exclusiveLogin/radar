@@ -121,45 +121,6 @@ export function topRegionsByActivity(
     .slice(0, limit);
 }
 
-/**
- * Производит карту регионов с учётом соседней подсветки (read-side derivation).
- *
- * Правило: если у региона stateLevel === 'grey' И хотя бы один сосед имеет
- * собственный уровень 'red' — регион получает производный уровень 'yellow'.
- * Любой собственный сигнал (включая green = явный отбой) приоритетнее.
- * statusEventAt производного yellow = statusEventAt красного соседа, чтобы
- * яркость затухания синхронизировалась с источником угрозы.
- * Возвращает новую Map только если есть хотя бы один производный yellow.
- */
-export function deriveNeighborLevels(
-  regions: Map<string, MapRegionSnapshot>,
-  adjacency: Record<string, string[]>,
-): Map<string, MapRegionSnapshot> {
-  // Собираем red-регионы с их statusEventAt для передачи соседям
-  const redRegions = new Map<string, string | undefined>();
-  for (const region of regions.values()) {
-    if (region.stateLevel === "red") redRegions.set(region.regionCode, region.statusEventAt);
-  }
-  if (redRegions.size === 0) return regions;
-
-  let changed = false;
-  const next = new Map(regions);
-  for (const [code, region] of regions) {
-    if (region.stateLevel !== "grey") continue;
-    const neighbors = adjacency[code] ?? [];
-    const redNeighbor = neighbors.find((n) => redRegions.has(n));
-    if (!redNeighbor) continue;
-    // Берём statusEventAt красного соседа — fade синхронизирован с источником
-    next.set(code, {
-      ...region,
-      stateLevel: "yellow",
-      statusEventAt: redRegions.get(redNeighbor) ?? region.statusEventAt,
-    });
-    changed = true;
-  }
-  return changed ? next : regions;
-}
-
 /** Число активных регионов (stateLevel ≠ grey). */
 export function countActiveRegions(
   regions: Map<string, MapRegionSnapshot>,

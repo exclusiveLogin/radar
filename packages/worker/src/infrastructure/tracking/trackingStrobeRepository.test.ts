@@ -56,7 +56,10 @@ describe("tracking strobe tail replay", () => {
         body({
           query: async (sql: string, params?: unknown[]) => {
             calls.push({ sql, params });
-            if (sql.includes("FROM state_track_strobe") && sql.includes("FOR UPDATE")) {
+            if (sql.includes("INSERT INTO state_track_strobe") && sql.includes("ON CONFLICT")) {
+              return [];
+            }
+            if (sql.includes("FROM state_track_strobe") && sql.includes("threat_profile")) {
               return [strobeRow];
             }
             if (sql.includes("INSERT INTO state_track_strobe_member")) {

@@ -1,11 +1,10 @@
-import type { GeoNode } from "@radar/shared";
+import type { GeoNode, IRegionAdjacencyRepository } from "@radar/shared";
 import { normalizeRegionCodeAlias } from "@radar/shared";
 import {
   isBlockedRegionCatalogLookup,
   lookupLocalityRegionForPlace,
   resolvePlaceRegionCodeInContext,
 } from "../../../domain/geo/geographicTextContext.js";
-import { loadRegionAdjacency } from "../../../infrastructure/geo-catalog/adjacencyLoader.js";
 import type { GeoCatalog } from "../../../infrastructure/geo-catalog/index.js";
 import type { LlmEnricher } from "../../../infrastructure/enrichers/llmEnricher.js";
 import { isLlmOpHardFailure } from "../../../domain/parse/geo/llmOpResult.js";
@@ -33,9 +32,11 @@ function resolvePriorPlaces(ctx: GeoPipelineContext) {
   }));
 }
 
-/** Prior region codes + соседи из adjacency.json для промпта LLM. */
-function buildKnownRegionCodes(priorRegionCodes: string[]): string[] {
-  const adjacency = loadRegionAdjacency();
+/** Prior region codes + смежные субъекты — подсказка LLM о допустимых регионах. */
+function expandWithNeighbors(
+  priorRegionCodes: string[],
+  adjacency: Record<string, string[]>,
+): string[] {
   const codes = new Set(priorRegionCodes);
   for (const code of priorRegionCodes) {
     for (const neighbor of adjacency[code] ?? []) {
@@ -60,6 +61,7 @@ export class LlmStep implements GeoPipelineStep {
   constructor(
     private readonly enricher: LlmEnricher,
     private readonly geoCatalog: GeoCatalog,
+    private readonly regionAdjacency?: IRegionAdjacencyRepository,
   ) {}
 
   async run(ctx: GeoPipelineContext): Promise<void> {
@@ -69,6 +71,10 @@ export class LlmStep implements GeoPipelineStep {
     const localityCatalog = this.geoCatalog.listLocalityCatalog();
     const regionCode = priorRegions[0]?.code;
     const priorRegionCodes = priorRegions.map((region) => region.code);
+    const knownRegionCodes =
+      priorRegionCodes.length > 0
+        ? expandWithNeighbors(priorRegionCodes, (await this.regionAdjacency?.load()) ?? {})
+        : undefined;
 
     const result = await this.enricher.enrich({
       rawText: ctx.rawText,
@@ -81,8 +87,7 @@ export class LlmStep implements GeoPipelineStep {
         ctx.priorValidatedLocations && ctx.priorValidatedLocations.length > 0
           ? ctx.priorValidatedLocations
           : undefined,
-      knownRegionCodes:
-        priorRegionCodes.length > 0 ? buildKnownRegionCodes(priorRegionCodes) : undefined,
+      knownRegionCodes,
     });
 
     if (!result.ok) {

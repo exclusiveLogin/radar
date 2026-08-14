@@ -66,7 +66,11 @@ export type IncrementalBatchOptions = {
   /** Все pending в очереди (для consumed после глобального dedup). */
   fullPendingIds?: ReadonlySet<string>;
   rebuildGen: string;
-  rebuildAt?: Date;
+  /**
+   * Event-time среза (max occurredAt chunk / strobe closesAt).
+   * Wall-clock запрещён: иначе seeds и status треков ломают retracking.
+   */
+  rebuildAt: Date;
   config?: TrackingPipelineConfig;
   /** Run-scoped H3-поле NextGen: батчи прогона обогащают его, ребилд обнуляет. */
   flowField?: H3VectorFlowMap;
@@ -76,6 +80,12 @@ export type IncrementalBatchOptions = {
   finalizeStrobeId?: string;
   /** Provisional winner и FlowMap checkpoint принадлежат тому же L1 commit. */
   checkpointStrobeId?: string;
+  /**
+   * cluster — phase A: ST-DBSCAN → winners, без join/tracks.
+   * join — phase B: Kalman на winners + seeds as-of.
+   * full — совместимость parity/tests (cluster+join в одном тике).
+   */
+  phase?: "cluster" | "join" | "full";
   onProgress?: (stats: Partial<TrackingRebuildStats>) => void | Promise<void>;
 };
 
@@ -116,13 +126,16 @@ export async function runIncrementalBatch(
   ds: DataSource,
   opts: IncrementalBatchOptions,
 ): Promise<IncrementalBatchResult> {
-  const rebuildAt = opts.rebuildAt ?? new Date();
+  const rebuildAt = opts.rebuildAt;
+  const phase = opts.phase ?? "full";
   const chunkIds = new Set(opts.candidates.map(c => c.eventLocationId));
   const fullPendingIds = opts.fullPendingIds ?? chunkIds;
   const candidateWindow = opts.candidateWindow ?? opts.candidates;
   await emitProgress(opts.onProgress, { stage: "loading" });
 
-  const openTrackSeeds = await loadOpenTrackSeeds(ds, rebuildAt, opts.config);
+  const openTrackSeeds = phase === "cluster"
+    ? []
+    : await loadOpenTrackSeeds(ds, rebuildAt, opts.config);
   const byProfile = groupByProfile(candidateWindow);
   let collapsedByDedup = 0;
   let stdbscanClusters = 0;
@@ -178,10 +191,23 @@ export async function runIncrementalBatch(
       stdbscanCollapsed: collapsedByDedup,
     });
 
+    if (phase === "cluster") {
+      for (const c of toAssign) handledIds.add(c.eventLocationId);
+      continue;
+    }
+
     await emitProgress(opts.onProgress, { stage: "join" });
     const kin = resolveProfileKinematics(profile, opts.config?.profiles);
     const seeds = pickProfileSeeds(openTrackSeeds, profile);
-    const profileBuilt = buildTracksNextGenForProfile(toAssign, profile, kin, opts.config, opts.flowField, seeds);
+    const profileBuilt = buildTracksNextGenForProfile(
+      toAssign,
+      profile,
+      kin,
+      opts.config,
+      opts.flowField,
+      seeds,
+      rebuildAt,
+    );
     for (const c of toAssign) handledIds.add(c.eventLocationId);
     built.tracks.push(...profileBuilt.tracks);
     built.nodes.push(...profileBuilt.nodes);
@@ -225,6 +251,11 @@ export async function runIncrementalBatch(
     });
   }
 
+  // Пустой winner после cluster оставляет строб dirty навсегда — pass-through всех точек chunk.
+  if (phase === "cluster" && dedupWinnerIds.size === 0) {
+    for (const id of chunkIds) dedupWinnerIds.add(id);
+  }
+
   await emitProgress(opts.onProgress, {
     stage: "persisting",
     stdbscanClusters,
@@ -241,26 +272,28 @@ export async function runIncrementalBatch(
     ),
   });
 
-  // Точки текущего chunk всегда consumed после попытки assign — иначе winner без link
-  // блокирует очередь на одном и том же срезе (залипание ~30% пайплайна).
-  const consumedIds = resolvePendingConsumedAfterClustering(
-    fullPendingIds,
-    chunkIds,
-    dedupWinnerIds,
-    opts.config?.clusteringMode ?? "collapse",
-    opts.config?.reuseAcrossTracks ?? false,
-  ).filter(
-    id => chunkIds.has(id) || !dedupWinnerIds.has(id) || handledIds.has(id),
-  );
+  // Phase A: non-winners consumed сразу; winners ждут phase B.
+  // Phase B / full: chunk всегда consumed после попытки assign.
+  const consumedIds = phase === "cluster"
+    ? [...chunkIds].filter(id => !dedupWinnerIds.has(id))
+    : resolvePendingConsumedAfterClustering(
+      fullPendingIds,
+      chunkIds,
+      dedupWinnerIds,
+      opts.config?.clusteringMode ?? "collapse",
+      opts.config?.reuseAcrossTracks ?? false,
+    ).filter(
+      id => chunkIds.has(id) || !dedupWinnerIds.has(id) || handledIds.has(id),
+    );
 
-  const watermark = consumedIds.length > 0 ? computeWatermark(opts.candidates) : null;
+  const watermark = opts.candidates.length > 0 ? computeWatermark(opts.candidates) : null;
   const flowSnapshot = opts.flowField?.exportSnapshot() ?? null;
   let consumedCount = 0;
   if (await isTrackingPipelineEnabled(ds)) {
     await withTrackingL1Transaction(
       fn => ds.transaction(async em => fn((sql, params) => em.query(sql, params))),
       async query => {
-        if (built.tracks.length > 0 || built.nodes.length > 0) {
+        if (phase !== "cluster" && (built.tracks.length > 0 || built.nodes.length > 0)) {
           await writeTracksL1(query, built, opts.rebuildGen, { pruneByRebuildGen: false });
         }
         await markPipelineCandidatesConsumedTx(query, consumedIds);
@@ -276,18 +309,16 @@ export async function runIncrementalBatch(
           await query(
             `UPDATE state_track_strobe
              SET winner_event_location_ids = $1::jsonb,
-                 flow_snapshot = $2::jsonb,
                  replay_from = NULL,
                  updated_at = now()
-             WHERE id = $3`,
+             WHERE id = $2`,
             [
               JSON.stringify([...dedupWinnerIds].sort()),
-              JSON.stringify(flowSnapshot ?? { vectors: {}, mass: {} }),
               opts.checkpointStrobeId,
             ],
           );
         }
-        if (watermark && opts.checkpoint) {
+        if (watermark && opts.checkpoint && phase !== "cluster") {
           await query(
             `UPDATE state_track_pipeline
              SET watermark = $1::jsonb, total_candidates = $2,
@@ -499,6 +530,7 @@ function buildTracksNextGenForProfile(
   config: TrackingPipelineConfig | undefined,
   flowField: H3VectorFlowMap | undefined,
   seeds: TrackingOpenTrackSeed[],
+  rebuildAt: Date,
 ): BuiltTracks & NextGenBuildProgress {
   const flowMap = flowField ?? new H3VectorFlowMap(config?.nextgen?.h3Resolution ?? 8);
   const eligible = candidates.filter(canEnterAttention);
@@ -519,7 +551,7 @@ function buildTracksNextGenForProfile(
   }));
 
   return {
-    ...finalizeTracks(drafts, new Date()),
+    ...finalizeTracks(drafts, rebuildAt),
     nextgenCluster: built.cluster,
     nextgenStep2: {
       step2PairsConsidered: built.step2.pairsConsidered,

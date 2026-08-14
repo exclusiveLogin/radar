@@ -3,12 +3,12 @@
  * layer: shared
  * kind: domain
  * domain: tracking
- * purpose: Детерминированный event-time strobe для накопления дублей одного инцидента.
+ * purpose: Детерминированный event-time strobe: фиксированная сетка бинов floor(t/window).
  * ---
  */
 import type { TrackingCandidate } from "./types";
 
-/** Максимальная длина event-time окна от первой точки strobe. */
+/** Максимальная длина event-time окна (и шаг сетки бинов). */
 export const DEFAULT_TRACKING_STROBE_MAX_WINDOW_MS = 20 * 60 * 1000;
 
 export type TrackingStrobeConfig = {
@@ -21,33 +21,37 @@ export type TrackingStrobeBounds = {
 };
 
 /**
- * Граница strobe зависит только от первой event-time точки.
- * Поздние точки не расширяют окно и не меняют его идентичность.
+ * Бин зависит только от event-time точки: binStart = floor(t / W) * W.
+ * Порядок обработки не влияет на идентичность strobe.
+ * Полуинтервал [binStart, closesAt): точка на границе принадлежит следующему бину.
  */
 export function createTrackingStrobeBounds(
-  firstOccurredAt: Date,
+  occurredAt: Date,
   config: TrackingStrobeConfig,
 ): TrackingStrobeBounds {
+  const windowMs = config.maxWindowMs;
+  const binStartMs = Math.floor(occurredAt.getTime() / windowMs) * windowMs;
   return {
-    firstOccurredAt,
-    closesAt: new Date(firstOccurredAt.getTime() + config.maxWindowMs),
+    firstOccurredAt: new Date(binStartMs),
+    closesAt: new Date(binStartMs + windowMs),
   };
 }
 
-/** Точка принадлежит strobe, пока не вышла за фиксированную event-time границу. */
+/** Точка принадлежит strobe в полуинтервале [first, closes). */
 export function belongsToTrackingStrobe(
   candidate: Pick<TrackingCandidate, "occurredAt">,
   bounds: TrackingStrobeBounds,
 ): boolean {
-  return candidate.occurredAt.getTime() <= bounds.closesAt.getTime();
+  const t = candidate.occurredAt.getTime();
+  return t >= bounds.firstOccurredAt.getTime() && t < bounds.closesAt.getTime();
 }
 
-/** Strobe можно финализировать по event-time frontier либо по wall-clock таймеру. */
+/** Strobe готов к финализации, когда frontier достиг или прошёл closesAt. */
 export function isTrackingStrobeReady(
   bounds: TrackingStrobeBounds,
   frontier: Date,
 ): boolean {
-  return frontier.getTime() > bounds.closesAt.getTime();
+  return frontier.getTime() >= bounds.closesAt.getTime();
 }
 
 /**

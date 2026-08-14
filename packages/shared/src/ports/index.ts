@@ -63,6 +63,7 @@ export type {
   IPlaceCacheRepository,
   IPlaceRepository,
   IRegionRepository,
+  IRegionAdjacencyRepository,
   IStatusDictionaryRepository,
   ISyncAuditRepository,
   PlaceAliasRecord,

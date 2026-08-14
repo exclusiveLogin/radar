@@ -3,6 +3,7 @@ import { InjectDataSource } from "@nestjs/typeorm";
 import type { DataSource } from "typeorm";
 import { In } from "typeorm";
 import type {
+  LayoutTile,
   MapPlaceSnapshot,
   MapPlacesStateResponse,
   MapRegionSnapshot,
@@ -18,6 +19,7 @@ import {
   foldVicinityScopeMapState,
   maxStateLevel,
   resolveMapStateTtlMs,
+  resolveNeighborRedHighlights,
   type EventLocationFact,
   type MapEntityWinner,
   type VicinityScopeWinner,
@@ -28,13 +30,40 @@ import { ParseMaintenanceGate } from "../parse-admin/parse-maintenance.gate";
 import { resolvePlaceMapMarkerCoords, resolveRegionCentroid } from "./map-centroid.resolver";
 import { loadLayout } from "./layout.loader";
 import { MapFactsRepository } from "./map-facts.repository";
+import { RegionAdjacencyRepository } from "./region-adjacency.repository";
 
 type RegionStateLevel = MapRegionSnapshot["stateLevel"];
+
+/** Поля региона, не зависящие от происхождения уровня. */
+type RegionSnapshotBase = Pick<
+  MapRegionSnapshot,
+  "regionId" | "regionCode" | "name" | "layout" | "centroidLat" | "centroidLon"
+>;
+
+/** Справочные данные для сборки регионов снапшота (загружаются один раз на вызов). */
+type RegionRenderContext = {
+  regions: RegionEntity[];
+  layoutTiles: Record<string, LayoutTile>;
+  placeCentroidByRegion: Map<string, { lat: number; lon: number }>;
+};
+
+type RegionWinnerMeta = {
+  mass: boolean;
+  uncertain: boolean;
+  eventSubject?: MapRegionSnapshot["eventSubject"];
+};
+
+type RegionWinnerMetaMap = Map<string, RegionWinnerMeta>;
 
 function toNumber(value: string | null): number | undefined {
   if (value === null) return undefined;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+/** Код региона на карте: ISO, иначе ФИАС, иначе имя (совпадает с layout.json). */
+function resolveRegionCode(region: RegionEntity): string {
+  return region.iso ?? region.fiasId ?? region.name;
 }
 
 /** Use-case: fold фактов на asOf + enrich geo/layout → layered map state. */
@@ -44,6 +73,7 @@ export class MapSnapshotQueryService {
     @InjectDataSource() private readonly dataSource: DataSource,
     private readonly factsRepository: MapFactsRepository,
     private readonly parseMaintenance: ParseMaintenanceGate,
+    private readonly regionAdjacency: RegionAdjacencyRepository,
   ) {}
 
   async getRegionsStateAt(asOf: Date): Promise<MapRegionsStateResponse> {
@@ -167,59 +197,130 @@ export class MapSnapshotQueryService {
     return items;
   }
 
+  /**
+   * Регионы карты: собственные статусы из fold + превентивный yellow у соседей red.
+   * Обе ветки идут одним списком, поэтому REST-снапшот, WS-дельты и replay
+   * видят одинаковую картину.
+   */
   private async buildRegionSnapshots(
     winners: MapEntityWinner[],
     _asOf: Date,
   ): Promise<MapRegionSnapshot[]> {
-    const regions = await this.dataSource.getRepository(RegionEntity).find({
-      where: { isActive: true },
-      order: { name: "ASC" },
-    });
-    const winnerByRegionId = new Map(winners.map((winner) => [winner.regionId, winner]));
+    const context = await this.loadRegionRenderContext();
     const winnerMeta = await this.loadRegionWinnerMeta(winners);
-    const placeCentroidByRegion = await this.loadPlaceCentroidByRegion();
-    const layout = loadLayout();
+    const own = this.buildOwnRegionSnapshots(winners, winnerMeta, context);
+    const neighborRed = await this.buildNeighborRedSnapshots(own, context);
+    return [...own, ...neighborRed];
+  }
 
-    const regionItems: MapRegionSnapshot[] = [];
-    for (const region of regions) {
+  /** Справочник активных регионов + всё, что нужно для их отрисовки. */
+  private async loadRegionRenderContext(): Promise<RegionRenderContext> {
+    const [regions, placeCentroidByRegion] = await Promise.all([
+      this.dataSource.getRepository(RegionEntity).find({
+        where: { isActive: true },
+        order: { name: "ASC" },
+      }),
+      this.loadPlaceCentroidByRegion(),
+    ]);
+    return { regions, layoutTiles: loadLayout().tiles, placeCentroidByRegion };
+  }
+
+  /** Идентификаторы и геометрия отображения — общие для обеих веток уровня. */
+  private buildRegionBase(
+    region: RegionEntity,
+    context: RegionRenderContext,
+  ): RegionSnapshotBase {
+    const code = resolveRegionCode(region);
+    const centroid = resolveRegionCentroid({
+      region,
+      placeFallback: context.placeCentroidByRegion.get(region.id),
+    });
+    return {
+      regionId: region.id,
+      regionCode: code,
+      name: region.name,
+      layout: context.layoutTiles[code],
+      centroidLat: centroid?.lat,
+      centroidLon: centroid?.lon,
+    };
+  }
+
+  /** Регионы с собственным winner-фактом. */
+  private buildOwnRegionSnapshots(
+    winners: MapEntityWinner[],
+    winnerMeta: RegionWinnerMetaMap,
+    context: RegionRenderContext,
+  ): MapRegionSnapshot[] {
+    const winnerByRegionId = new Map(winners.map((winner) => [winner.regionId, winner]));
+
+    const items: MapRegionSnapshot[] = [];
+    for (const region of context.regions) {
       const winner = winnerByRegionId.get(region.id);
       if (!winner) continue;
 
-      const code = region.iso ?? region.fiasId ?? region.name;
-      const tile = layout.tiles[code];
-      const centroid = resolveRegionCentroid({
-        region,
-        placeFallback: placeCentroidByRegion.get(region.id),
-      });
       const meta = winnerMeta.get(winner.regionId);
       const traits: MapRegionTraits | undefined =
         meta?.mass || meta?.uncertain
           ? { mass: meta.mass || undefined, uncertain: meta.uncertain || undefined }
           : undefined;
 
-      regionItems.push({
-        regionId: region.id,
-        regionCode: code,
-        name: region.name,
+      items.push({
+        ...this.buildRegionBase(region, context),
         stateLevel: winner.stateLevel as RegionStateLevel,
         activity: 0,
-        layout: tile,
-        centroidLat: centroid?.lat,
-        centroidLon: centroid?.lon,
         statusEventAt: winner.occurredAt,
         statusAction: winner.action,
         statusCode: winner.statusCode,
         traits,
         eventSubject: meta?.eventSubject,
+        levelReason: "self",
       });
     }
-    return regionItems;
+    return items;
+  }
+
+  /**
+   * Превентивный yellow для соседей красных регионов.
+   *
+   * Регион без собственных фактов в fold отсутствует, поэтому запись создаётся
+   * здесь. Статус источника не наследуется (это не его событие) — только
+   * `statusEventAt`, чтобы затухание шло синхронно с угрозой.
+   */
+  private async buildNeighborRedSnapshots(
+    own: MapRegionSnapshot[],
+    context: RegionRenderContext,
+  ): Promise<MapRegionSnapshot[]> {
+    const selfLevelByCode = new Map(own.map((item) => [item.regionCode, item.stateLevel]));
+    const highlights = resolveNeighborRedHighlights(
+      selfLevelByCode,
+      await this.regionAdjacency.load(),
+    );
+    if (highlights.size === 0) return [];
+
+    const statusEventAtByCode = new Map(
+      own.map((item) => [item.regionCode, item.statusEventAt]),
+    );
+
+    const items: MapRegionSnapshot[] = [];
+    for (const region of context.regions) {
+      const sourceCode = highlights.get(resolveRegionCode(region));
+      if (!sourceCode) continue;
+
+      items.push({
+        ...this.buildRegionBase(region, context),
+        stateLevel: "yellow",
+        activity: 0,
+        statusEventAt: statusEventAtByCode.get(sourceCode),
+        levelReason: "neighbor-red",
+      });
+    }
+    return items;
   }
 
   /** Traits и subject победителя из parsed_event, привязанного к winner fact. */
   private async loadRegionWinnerMeta(
     winners: MapEntityWinner[],
-  ): Promise<Map<string, { mass: boolean; uncertain: boolean; eventSubject?: MapRegionSnapshot["eventSubject"] }>> {
+  ): Promise<RegionWinnerMetaMap> {
     if (winners.length === 0) return new Map();
 
     const regionIds = winners.map((w) => w.regionId);
@@ -243,7 +344,7 @@ export class MapSnapshotQueryService {
       event_subject: string | null;
     }>;
 
-    const meta = new Map<string, { mass: boolean; uncertain: boolean; eventSubject?: MapRegionSnapshot["eventSubject"] }>();
+    const meta: RegionWinnerMetaMap = new Map();
     for (const row of rows) {
       const subject = row.event_subject;
       meta.set(row.region_id, {

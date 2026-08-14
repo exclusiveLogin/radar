@@ -3,10 +3,6 @@
  * layer: worker/application
  * domain: tracking/runner
  * purpose: Типы для tracking-workload на runner platform (Wave 3).
- *          Runtime: runner-platform (infra.manifest.json runners).
- *          Cursor — снимок state_track_pipeline (enabled/config/watermark/activeRunId);
- *          могут меняться из админки в любой момент, поэтому перечитываются каждый тик — так же,
- *          как это делает существующий legacy-демон.
  * ---
  */
 import type {
@@ -20,10 +16,15 @@ import type { TrackingActiveRun, TrackingPipelineState } from "../../../infrastr
 
 export type TrackingCursorSnapshot = TrackingPipelineState;
 
+/** Phase A = cluster strobe; Phase B = join winners; finalize = close ready strobe. */
+export type TrackingRunnerPhase = "cluster" | "join" | "finalize";
+
 export type TrackingRunnerSlice = {
   run: TrackingActiveRun;
+  phase: TrackingRunnerPhase;
   strobeId: string;
-  finalizeOnly: boolean;
+  /** Event-time среза для seeds / track status. */
+  rebuildAt: Date;
   chunk: TrackingCandidate[];
   window: TrackingCandidate[];
   fullPendingIds: ReadonlySet<string>;

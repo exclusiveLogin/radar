@@ -52,6 +52,7 @@ export async function wirePhasePlatform(
     placeEnrichmentJobs,
     places,
     rawMessages,
+    regionAdjacency,
     regions,
   } = workerRepos;
   const hasGeo = context.caps.has("geo");
@@ -84,7 +85,7 @@ export async function wirePhasePlatform(
         validation: parseApplication.validation,
         placeScan: parseApplication.placeScan,
         events: new TransportEventPublisher(eventTransport),
-        externalEnricher: createParseExternalEnricher(),
+        externalEnricher: createParseExternalEnricher(regionAdjacency),
       })
     : undefined;
   const phaseRunSession =

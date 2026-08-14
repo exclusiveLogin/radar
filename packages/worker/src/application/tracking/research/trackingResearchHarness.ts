@@ -19,16 +19,36 @@ import {
   resolveNextGenRflPenaltyThreshold,
   resolveNextGenTurnPenalty,
   resolveProfileKinematics,
+  resolveTrackingPipelineConfig,
   type NextGenAcceptedLink,
   type ThreatProfile,
   type TrackingCandidate,
   type TrackingPipelineConfig,
 } from "@radar/shared";
+import {
+  computeTrackingResearchQuality,
+  type TrackingResearchQuality,
+} from "./trackingResearchQuality.js";
 
-export type TrackingResearchVariant =
+/** Preset наполнения H3-поля (исторические A/B-варианты). */
+export type TrackingResearchFieldMode =
   | "baseline"
   | "no-field-direction"
   | "empty-environment";
+
+/**
+ * Спека прогона: id для артефактов + опциональный patch конфига + режим поля.
+ * Строковые aliases (`baseline` и т.п.) остаются совместимы с CLI/тестами.
+ */
+export type TrackingResearchSpec =
+  | TrackingResearchFieldMode
+  | {
+      id: string;
+      fieldMode?: TrackingResearchFieldMode;
+      configPatch?: Record<string, unknown>;
+    };
+
+export type TrackingResearchVariant = string;
 
 type ResearchLink = {
   trackKey: string;
@@ -60,7 +80,7 @@ export type TrackingResearchArtifact = {
   membership: Record<string, string>;
   stats: {
     inputCandidates: number;
-      candidatesWithFrontDistance: number;
+    candidatesWithFrontDistance: number;
     assignedCandidates: number;
     tracks: number;
     reverseLinks: number;
@@ -68,6 +88,7 @@ export type TrackingResearchArtifact = {
     step3Rejects: Record<string, number>;
     field: ReturnType<H3VectorFlowMap["exportSnapshot"]>;
   };
+  quality: TrackingResearchQuality;
   preservation: {
     missingEventLocationIds: string[];
     duplicatedEventLocationIds: string[];
@@ -76,16 +97,45 @@ export type TrackingResearchArtifact = {
 
 const REVERSE_FRONT_DELTA_KM = -5;
 
+const FIELD_PRESETS: readonly TrackingResearchFieldMode[] = [
+  "baseline",
+  "no-field-direction",
+  "empty-environment",
+];
+
+/** Нормализует строковый alias или объектную спеку к единому виду. */
+export function resolveTrackingResearchSpec(spec: TrackingResearchSpec): {
+  id: string;
+  fieldMode: TrackingResearchFieldMode;
+  configPatch: Record<string, unknown>;
+} {
+  if (typeof spec === "string") {
+    return { id: spec, fieldMode: spec, configPatch: {} };
+  }
+  return {
+    id: spec.id,
+    fieldMode: spec.fieldMode ?? "baseline",
+    configPatch: spec.configPatch ?? {},
+  };
+}
+
+/** Baseline H3 A/B + произвольные patch-варианты из CLI. */
+export function defaultTrackingResearchSpecs(): TrackingResearchSpec[] {
+  return [...FIELD_PRESETS];
+}
+
 /**
  * Собирает один вариант из тех же Step1/2/3, что использует production pipeline.
- * Различается только наполненность in-memory H3 map.
+ * Различается наполненность in-memory H3 map и/или patch конфига.
  */
 export function runTrackingResearchVariant(
   candidates: TrackingCandidate[],
   config: TrackingPipelineConfig,
-  variant: TrackingResearchVariant,
+  variant: TrackingResearchSpec,
 ): TrackingResearchArtifact {
-  const flowMap = new H3VectorFlowMap(config.nextgen?.h3Resolution ?? 8);
+  const resolved = resolveTrackingResearchSpec(variant);
+  const effectiveConfig = resolveTrackingPipelineConfig(config, resolved.configPatch);
+  const flowMap = new H3VectorFlowMap(effectiveConfig.nextgen?.h3Resolution ?? 8);
   const byProfile = groupByProfile(candidates.filter(canEnterAttention));
   const tracks: ResearchTrack[] = [];
   const links: ResearchLink[] = [];
@@ -100,9 +150,9 @@ export function runTrackingResearchVariant(
     const profileResult = runProfile(
       byProfile[profile]!,
       profile,
-      config,
+      effectiveConfig,
       flowMap,
-      variant,
+      resolved.fieldMode,
     );
 
     Object.assign(step3Rejects, prefixRejectStats(profile, profileResult.step3));
@@ -147,9 +197,8 @@ export function runTrackingResearchVariant(
     .filter(([, count]) => count > 1)
     .map(([id]) => id);
   const linksWithFrontDistance = links.filter(link => link.frontDeltaKm !== null);
-
-  return {
-    variant,
+  const artifactBase = {
+    variant: resolved.id,
     tracks,
     links,
     membership,
@@ -169,6 +218,11 @@ export function runTrackingResearchVariant(
     },
     preservation: { missingEventLocationIds, duplicatedEventLocationIds },
   };
+
+  return {
+    ...artifactBase,
+    quality: computeTrackingResearchQuality(artifactBase, candidates, effectiveConfig),
+  };
 }
 
 function runProfile(
@@ -176,7 +230,7 @@ function runProfile(
   profile: ThreatProfile,
   config: TrackingPipelineConfig,
   flowMap: H3VectorFlowMap,
-  variant: TrackingResearchVariant,
+  fieldMode: TrackingResearchFieldMode,
 ) {
   const kin = resolveProfileKinematics(profile, config.profiles);
   const nodes = NextGenStep1.execute(candidates, {
@@ -185,7 +239,7 @@ function runProfile(
     minPts: kin.stdbscanMinPts,
   });
 
-  if (variant !== "empty-environment") registerNodeMasses(flowMap, nodes);
+  if (fieldMode !== "empty-environment") registerNodeMasses(flowMap, nodes);
 
   const flowWeights = resolveNextGenFlowWeights(config);
   const step2 = NextGenStep2.execute(
@@ -195,7 +249,7 @@ function runProfile(
     flowWeights,
     resolveNextGenRflPenaltyThreshold(config),
   );
-  if (variant === "baseline") registerSegmentFlows(flowMap, step2.segments);
+  if (fieldMode === "baseline") registerSegmentFlows(flowMap, step2.segments);
 
   const step3 = NextGenStep3.assemble(
     nodes,

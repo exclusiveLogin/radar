@@ -92,14 +92,14 @@ export async function restartTrackingDrainTx(
      WHERE status IN ('running', 'paused')`,
   );
   await query(TRACKING_RESET_TRUNCATE_SQL);
+  // Сначала job, потом active_run_id — иначе FK tracking_pipeline_state_active_run_id_fkey.
   await query(
     `UPDATE state_track_pipeline
      SET watermark = '{}'::jsonb,
          flow_snapshot = '{"vectors":{},"mass":{}}'::jsonb,
-         active_run_id = $1, enabled = true,
+         active_run_id = NULL, enabled = true,
          applied_config_revision = config_revision, updated_at = now()
      WHERE id = 'default'`,
-    [restart.id],
   );
   await query(
     `INSERT INTO job_track_rebuild
@@ -112,5 +112,11 @@ export async function restartTrackingDrainTx(
       restart.rebuildGen,
       JSON.stringify({ stage: "loading", elapsedMs: 0 }),
     ],
+  );
+  await query(
+    `UPDATE state_track_pipeline
+     SET active_run_id = $1, updated_at = now()
+     WHERE id = 'default'`,
+    [restart.id],
   );
 }
