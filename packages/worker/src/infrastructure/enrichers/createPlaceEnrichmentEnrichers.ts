@@ -4,6 +4,7 @@ import { LlmEnricher } from "./llmEnricher.js";
 import { loadLlmRuntimeConfig } from "./llmRuntimeConfig.js";
 import { NominatimEnricher } from "./nominatimEnricher.js";
 import type { PlaceEnrichmentEnrichers } from "../../application/geo-parse/placeGeoEnricherPort.js";
+import { getLlmMetricsRecorder } from "../metrics/prometheusLlmMetricsRecorder.js";
 
 /** Wire concrete enrichers за port-контракт (только composition/boot). */
 export function createPlaceEnrichmentEnrichers(): PlaceEnrichmentEnrichers {
@@ -14,6 +15,6 @@ export function createPlaceEnrichmentEnrichers(): PlaceEnrichmentEnrichers {
       return dadata;
     },
     nominatim: new NominatimEnricher(),
-    llm: new LlmEnricher(loadLlmRuntimeConfig()),
+    llm: new LlmEnricher(loadLlmRuntimeConfig(), undefined, getLlmMetricsRecorder()),
   };
 }

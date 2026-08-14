@@ -26,6 +26,7 @@ import {
   loadLlmValidatorRuntimeConfig,
 } from "../../infrastructure/enrichers/llmRuntimeConfig.js";
 import { NominatimEnricher } from "../../infrastructure/enrichers/nominatimEnricher.js";
+import { getLlmMetricsRecorder } from "../../infrastructure/metrics/prometheusLlmMetricsRecorder.js";
 import { syncCatalogArtifactFromWorkspace } from "../../domain/parse/syncCatalogArtifactFromWorkspace.js";
 
 function ensureGeoArtifact(workspace: ParseWorkspace): GeoEnrichmentArtifact {
@@ -56,7 +57,11 @@ export function createParseExternalEnricher(
 
       // LLM Validator работает с workspace (candidate.id + geoScore), не с GeoPipelineContext.
       if (enricherId === "llm-validator") {
-        llmValidator ??= new LlmValidatorEnricher(loadLlmValidatorRuntimeConfig());
+        llmValidator ??= new LlmValidatorEnricher(
+          loadLlmValidatorRuntimeConfig(),
+          undefined,
+          getLlmMetricsRecorder(),
+        );
         await new LlmValidatorStep(llmValidator).run(workspace);
         return;
       }
@@ -71,7 +76,7 @@ export function createParseExternalEnricher(
       };
 
       if (enricherId === "llm") {
-        llm ??= new LlmEnricher(loadLlmRuntimeConfig());
+        llm ??= new LlmEnricher(loadLlmRuntimeConfig(), undefined, getLlmMetricsRecorder());
         await new LlmStep(llm, GeoCatalog.loadFromArtifacts(), regionAdjacency).run(context);
         return;
       }

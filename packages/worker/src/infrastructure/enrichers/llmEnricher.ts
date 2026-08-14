@@ -6,6 +6,7 @@ import { createLlmChatClient } from "./llmChatClient.js";
 import type { LlmRuntimeConfig } from "./llmRuntimeConfig.js";
 import { normalizeLlmConfidence } from "./normalizeLlmConfidence.js";
 import type { LlmOpResult } from "../../domain/parse/geo/llmOpResult.js";
+import type { ILlmMetricsRecorder } from "../metrics/prometheusLlmMetricsRecorder.js";
 
 // ─── Response schema (multi-place) ────────────────────────────────────────
 
@@ -54,8 +55,15 @@ export class LlmEnricher {
   constructor(
     private readonly config: LlmRuntimeConfig,
     client?: ILlmChatClient,
+    private readonly metrics?: ILlmMetricsRecorder,
   ) {
     this.client = client ?? createLlmChatClient(config);
+  }
+
+  /** Фиксирует исход вызова в Prometheus (если recorder передан из composition). */
+  private finish(startedAt: number, result: LlmOpResult<LlmEnrichOk>): LlmOpResult<LlmEnrichOk> {
+    this.metrics?.record("llm", result.ok ? "ok" : result.reason, Date.now() - startedAt);
+    return result;
   }
 
   async enrich(input: {
@@ -81,7 +89,8 @@ export class LlmEnricher {
     }>;
     knownRegionCodes?: string[];
   }): Promise<LlmOpResult<LlmEnrichOk>> {
-    if (!this.config.enabled) return { ok: false, reason: "disabled" };
+    const startedAt = Date.now();
+    if (!this.config.enabled) return this.finish(startedAt, { ok: false, reason: "disabled" });
 
     const attempts = Math.max(1, this.config.retryCount + 1);
     let lastFail: "transport" | "json" | "schema" = "transport";
@@ -139,7 +148,7 @@ export class LlmEnricher {
         } catch (parseErr) {
           process.stderr.write(`[llm] JSON parse failed: ${String(parseErr)}\n`);
           lastFail = "json";
-          if (attempt >= attempts) return { ok: false, reason: "json" };
+          if (attempt >= attempts) return this.finish(startedAt, { ok: false, reason: "json" });
           continue;
         }
 
@@ -149,7 +158,7 @@ export class LlmEnricher {
             `[llm] schema validation failed: ${JSON.stringify(parsed.error.issues)}\n`,
           );
           lastFail = "schema";
-          if (attempt >= attempts) return { ok: false, reason: "schema" };
+          if (attempt >= attempts) return this.finish(startedAt, { ok: false, reason: "schema" });
           continue;
         }
 
@@ -157,28 +166,28 @@ export class LlmEnricher {
         const hasSignal = data.places.length > 0 || Boolean(data.regionCode);
         if (!hasSignal) {
           process.stderr.write(`[llm] no signal\n`);
-          return { ok: false, reason: "no-signal" };
+          return this.finish(startedAt, { ok: false, reason: "no-signal" });
         }
 
         process.stderr.write(
           `[llm] ok — ${result.latencyMs}ms places=${data.places.length} confidence=${data.confidence}\n`,
         );
-        return {
+        return this.finish(startedAt, {
           ok: true,
           data: { ...data, model: result.model, latencyMs: result.latencyMs },
-        };
+        });
       } catch (err) {
         const isAbort = err instanceof Error && err.name === "AbortError";
         process.stderr.write(
           `[llm] ${isAbort ? "timeout" : "error"} attempt ${attempt}/${attempts}: ${err instanceof Error ? err.message : String(err)}\n`,
         );
         lastFail = "transport";
-        if (attempt >= attempts) return { ok: false, reason: "transport" };
+        if (attempt >= attempts) return this.finish(startedAt, { ok: false, reason: "transport" });
       } finally {
         clearTimeout(timer);
       }
     }
 
-    return { ok: false, reason: lastFail };
+    return this.finish(startedAt, { ok: false, reason: lastFail });
   }
 }
