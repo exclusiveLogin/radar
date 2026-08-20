@@ -1,19 +1,20 @@
 /**
- * Запуск фазы по phase_id (ADR-003 v2). Алиас: worker:enrich:run -- --stage= → --phase=
+ * Запуск фазы по phase_id через StepRunRequested (worker daemon будит step).
  *
  * Usage:
- *   npm run parse-engine:phase:run -- --phase=llm --batch=100 [--watch]
- *   npm run parse-engine:phase:run -- --phase=catalog --from=2024-01-01 --limit=50
+ *   npm run parse-engine:phase:run -- --phase=llm
+ *   npm run parse-engine:phase:run -- --phase=catalog --isolate
  */
 import { MONOREPO_ROOT } from "@repo/root";
+import {
+  createStepRunRequestedEvent,
+  stepIdForPhaseScope,
+  topicForKnownEventType,
+} from "@radar/shared";
 import { createWorkerCompositionRoot } from "../application/createWorkerCompositionRoot.js";
-import { createWorkerDbRepositories } from "../infrastructure/persistence/workerDbRepos.js";
-import { WorkerStorageMode } from "../infrastructure/persistence/storageMode.js";
 import { loadRootEnv } from "../infrastructure/config/loadRootEnv.js";
-import { createProgress } from "./progress.js";
+import { cliWorkerRuntime } from "./cliWorkerRuntime.js";
 import { hasAnyFlag, parseLongFlagsMap, readStringFlag } from "./workerCliArgs.js";
-
-const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
 export async function runPhaseCli(): Promise<void> {
   loadRootEnv(MONOREPO_ROOT);
@@ -25,69 +26,37 @@ export async function runPhaseCli(): Promise<void> {
       process.exit(1);
     })();
 
-  const batchSize = Number(readStringFlag(map, ["batch", "batch-size"]) ?? "100");
-  const watch = hasAnyFlag(map, ["watch"]);
-  const watchIdleMs = Number(readStringFlag(map, ["watch-idle-ms"]) ?? "5000");
+  const isolate = hasAnyFlag(map, ["isolate"]);
 
-  const runtime = await createWorkerCompositionRoot({
-    storageMode: WorkerStorageMode.Db,
-    startIngestParseDaemon: false,
-  });
-  if (!runtime.dataSource || !runtime.phaseRunner || !runtime.workerRepos) {
-    console.error("parse-engine:phase:run: нужен RADAR_STORAGE_MODE=db");
+  const runtime = await createWorkerCompositionRoot(cliWorkerRuntime("parse", ["parse", "geo"]));
+  if (!runtime.dataSource || !runtime.workerRepos || !runtime.eventTransport) {
+    console.error("parse-engine:phase:run: нужен RADAR_STORAGE_MODE=db + transport");
     process.exit(1);
   }
 
-  const repos = runtime.workerRepos;
-  const phase = await repos.phaseDefinitions.findById(phaseId);
+  const phase = await runtime.workerRepos.phaseDefinitions.findById(phaseId);
   if (!phase) {
     console.error(`Фаза '${phaseId}' не найдена. npm run phase:manifest:import`);
     process.exit(1);
   }
 
-  const manualScope = {
-    fromPostedAt: readStringFlag(map, ["from", "from-posted-at"]),
-    toPostedAt: readStringFlag(map, ["to", "to-posted-at"]),
-    limit: Number(readStringFlag(map, ["limit"]) ?? "0") || undefined,
-    tail: hasAnyFlag(map, ["tail"]),
-  };
-
-  const rawIds = await repos.phaseRuns.findRawIdsForManualRun(phaseId, manualScope);
-  if (rawIds.length > 0) {
-    for (const rawMessageId of rawIds) {
-      await repos.phaseCoverage.enqueuePending({ rawMessageId, phaseId });
-    }
+  const stepId = stepIdForPhaseScope(phase.scope);
+  const event = createStepRunRequestedEvent({
+    stepId,
+    lane: "manual",
+    isolate,
+  });
+  const topic = topicForKnownEventType(event.type);
+  if (!topic) {
+    console.error("StepRunRequested topic missing");
+    process.exit(1);
   }
 
-  console.log(`phase:run phase=${phaseId} batch=${batchSize} watch=${watch}`);
-  const initial = await repos.phaseCoverage.countByStatus(phaseId);
-  console.log(`coverage[${phaseId}]: ${JSON.stringify(initial)}`);
-
-  let ok = 0;
-  let failed = 0;
-  const progress = createProgress(`phase:${phaseId}`, watch ? 0 : initial.pending);
-
-  for (;;) {
-    const stats = await runtime.phaseRunner.runPhaseTick({
-      phase,
-      trigger: "manual",
-      batchSize,
-    });
-    ok += stats.ok;
-    failed += stats.failed;
-    progress.tick(stats.processed, { ok, failed });
-
-    if (stats.claimed === 0) {
-      if (!watch) break;
-      await sleep(watchIdleMs);
-      continue;
-    }
-    if (!watch) continue;
-  }
-
-  progress.stop();
-  const finalCounts = await repos.phaseCoverage.countByStatus(phaseId);
-  console.log(`\nphase:run[${phaseId}] ok=${ok} failed=${failed}; coverage=${JSON.stringify(finalCounts)}`);
+  await runtime.eventTransport.start();
+  await runtime.eventTransport.publish(topic, [event]);
+  console.log(
+    `phase:run published StepRunRequested step=${stepId} phase=${phaseId} isolate=${isolate} event=${event.id}`,
+  );
   await runtime.shutdown?.();
 }
 

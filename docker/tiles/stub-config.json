@@ -1,0 +1,14 @@
+{
+  "options": {
+    "paths": {
+      "root": "/data",
+      "fonts": "/data/fonts",
+      "sprites": "/data/sprites",
+      "styles": "/data/styles",
+      "mbtiles": "/data"
+    },
+    "serveAllFonts": true
+  },
+  "data": {},
+  "styles": {}
+}

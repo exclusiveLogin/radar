@@ -1,3 +1,5 @@
+﻿> **Имена таблиц:** актуальные — [database-table-naming.md](./database-table-naming.md). Ниже — исторический контекст.
+
 # ADR-008: Мультимодальная селекция событий (кинематика vs статика)
 
 Дата: 2026-06-12  
@@ -24,16 +26,16 @@
 | `correct` | `kalman.correct(observation)` | Точки движения: радар, визуально, movement |
 | `attach_only` | **не вызывается** | Стационарные: перехват, взрыв, impact |
 
-Узел `attach_only` всё равно попадает в `trajectory_nodes` (для карты и Kill/Pass), но не меняет `[vx, vy]` и не сбрасывает ковариацию по позиции как полноценное kinematic observation.
+Узел `attach_only` всё равно попадает в `mat_track_node` (для карты и Kill/Pass), но не меняет `[vx, vy]` и не сбрасывает ковариацию по позиции как полноценное kinematic observation.
 
-### Источник классификации
+### Рсточник классификации
 
 Приоритет (сверху вниз):
 
 1. `status_dictionary.affects_kinematics` — boolean flag на `event_type` (новое поле, additive migration).
 2. `extras.eventCategory` из LLM/parse:
-   - `movement`, `threat` → `correct` (если есть lat/lon и не overridden)
-   - `impact`, `all_clear`, `other` → `attach_only`
+   - `movement`, `threat` в†’ `correct` (если есть lat/lon и не overridden)
+   - `impact`, `all_clear`, `other` в†’ `attach_only`
 3. Явный denylist `event_type`: `pvo_report`, `cleared` → `attach_only`.
 
 Таблица-ориентир (уточняется при импорте `status_dictionary`):
@@ -46,7 +48,7 @@
 | eventCategory=impact | `attach_only` |
 | взрыв / падение (impact codes) | `attach_only` |
 
-### Инварианты
+### Рнварианты
 
 - Статическая точка **никогда** не вызывает `kalman.correct()`.
 - Kinematic точка без lat/lon **не** участвует в Kalman (skip или attach с warning).
@@ -70,8 +72,8 @@ function resolveNodeMode(input: {
 
 ## Не делаем
 
-- Дублирование классификации на API read-side — mode хранится в `trajectory_nodes.mode`.
-- Изменение LLM prompt на первом этапе — достаточно `eventCategory` + dictionary flag.
+- Дублирование классификации на API read-side — mode хранится в `mat_track_node.mode`.
+- Рзменение LLM prompt на первом этапе — достаточно `eventCategory` + dictionary flag.
 
 ---
 
@@ -88,3 +90,4 @@ function resolveNodeMode(input: {
 
 - Unit-тесты `resolveNodeMode` на все коды из таблицы.
 - Integration: трек со статичной точкой (`attach_only`) посередине сохраняет velocity через узел.
+

@@ -1,62 +1,35 @@
 import { MONOREPO_ROOT } from "@repo/root";
-import type { PlaceEnrichmentProvider } from "@radar/shared";
+import { createStepRunRequestedEvent, topicForKnownEventType } from "@radar/shared";
 import { createWorkerCompositionRoot } from "../application/createWorkerCompositionRoot.js";
 import { loadRootEnv } from "../infrastructure/config/loadRootEnv.js";
-import { WorkerStorageMode } from "../infrastructure/persistence/storageMode.js";
+import { cliWorkerRuntime } from "./cliWorkerRuntime.js";
 import { parseLongFlagsMap, readStringFlag } from "./workerCliArgs.js";
-import { createProgress } from "./progress.js";
 
-function resolveProvider(
-  enrichers: string[],
-  override?: string,
-): PlaceEnrichmentProvider | null {
-  if (override === "llm" || override === "dadata" || override === "nominatim") {
-    return override;
-  }
-  if (enrichers.includes("llm")) return "llm";
-  if (enrichers.includes("dadata")) return "dadata";
-  if (enrichers.includes("nominatim")) return "nominatim";
-  return null;
-}
-
-/** One-shot drain scheduled geoParse (как тик PlaceEnrichmentDaemon). */
+/** Публикует StepRunRequested для geo-enrich. */
 async function main(): Promise<void> {
   loadRootEnv(MONOREPO_ROOT);
   const flags = parseLongFlagsMap(process.argv);
   const phaseFilter = readStringFlag(flags, ["phase"])?.trim();
-  const providerFilter = readStringFlag(flags, ["provider"])?.trim();
 
-  const runtime = await createWorkerCompositionRoot({
-    storageMode: WorkerStorageMode.Db,
-    startIngestParseDaemon: false,
+  const runtime = await createWorkerCompositionRoot(cliWorkerRuntime("geo", ["geo"]));
+  if (!runtime.eventTransport) {
+    throw new Error("parse-engine:geo:drain: требуется db mode + transport");
+  }
+
+  const event = createStepRunRequestedEvent({
+    stepId: "geo-enrich",
+    lane: "manual",
   });
-  if (!runtime.workerRepos || !runtime.placeEnrichmentRunner) {
-    throw new Error("parse-engine:geo:drain: требуется db mode");
-  }
+  const topic = topicForKnownEventType(event.type);
+  if (!topic) throw new Error("StepRunRequested topic missing");
 
-  let geoPhases = await runtime.workerRepos.phaseDefinitions.listEnabled(
-    "scheduled",
-    "geoParse",
+  await runtime.eventTransport.start();
+  await runtime.eventTransport.publish(topic, [event]);
+  console.log(
+    `geo drain: StepRunRequested step=geo-enrich event=${event.id}${
+      phaseFilter ? ` (phase note=${phaseFilter})` : ""
+    }`,
   );
-  if (phaseFilter) {
-    geoPhases = geoPhases.filter((phase) => phase.id === phaseFilter);
-    if (geoPhases.length === 0) {
-      throw new Error(`scheduled geoParse фаза '${phaseFilter}' не найдена`);
-    }
-  }
-
-  for (const phase of geoPhases) {
-    const provider = resolveProvider(phase.enrichers, providerFilter);
-    if (!provider) continue;
-    const result = await runtime.placeEnrichmentRunner.runDrain(
-      provider,
-      phase.policy.batchSize,
-    );
-    console.log(
-      `geo drained phase=${phase.id} provider=${provider} processed=${result.processed} failed=${result.failed}`,
-    );
-  }
-
   await runtime.shutdown?.();
 }
 

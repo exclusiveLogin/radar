@@ -1,3 +1,5 @@
+﻿> **Имена таблиц:** актуальные — [database-table-naming.md](./database-table-naming.md). Ниже — исторический контекст.
+
 # ADR-007: Фоновая сборка графа траекторий (Kalman worker)
 
 Дата: 2026-06-12  
@@ -26,24 +28,24 @@ OSINT-поток даёт до ~150k геоточек без стабильны�
 Фоновый job (не на write-line parse) выполняет пайплайн:
 
 ```text
-load event_locations (window)
-  → pre-collapse (ADR-009)
-  → kinematic/static routing (ADR-008)
+load mat_parse_location (window)
+  в†’ pre-collapse (ADR-009)
+  в†’ kinematic/static routing (ADR-008)
   → spatio-temporal linking (предок → потомок)
-  → Kalman correct/predict per track
-  → persist trajectory_*
+  в†’ Kalman correct/predict per track
+  в†’ persist trajectory_*
 ```
 
 **Принципы:**
 
 - **Spatio-Temporal Clustering** — связь точек по близости в пространстве и времени.
 - **Kalman Filtering** — состояние `[x, y, vx, vy]`; матрица шума процесса Q масштабируется от `dt³`, `dt⁴`.
-- **Directed graph** — узлы (`trajectory_nodes`) и рёбра parent→child внутри трека.
+- **Directed graph** — узлы (`mat_track_node`) и рёбра parent→child внутри трека.
 
 ### Хранение (предложение)
 
 ```sql
-trajectory_tracks (
+mat_track (
   id              uuid PK,
   status          text,       -- active | closed | stale
   first_at        timestamptz,
@@ -57,9 +59,9 @@ trajectory_tracks (
   updated_at      timestamptz
 )
 
-trajectory_nodes (
+mat_track_node (
   id              uuid PK,
-  track_id        uuid FK → trajectory_tracks,
+  track_id        uuid FK в†’ mat_track,
   seq             int,        -- порядок в треке
   occurred_at     timestamptz,
   lat             numeric,
@@ -72,7 +74,7 @@ trajectory_nodes (
 )
 ```
 
-Индексы: `(track_id, seq)`, `(occurred_at)`, `(event_location_id)` unique where not null.
+Рндексы: `(track_id, seq)`, `(occurred_at)`, `(event_location_id)` unique where not null.
 
 ### SSOT логики
 
@@ -127,7 +129,7 @@ type TrajectoryTrack = {
 ## Не делаем
 
 - Realtime Kalman на write-line parse — только batch/инкрементальный worker.
-- Изменение operational fold или `parsed_events` schema на первом этапе.
+- Рзменение operational fold или `mat_parse_event` schema на первом этапе.
 - Жёсткая привязка к бортовому номеру — трек = emergent cluster.
 
 ---
@@ -144,6 +146,7 @@ type TrajectoryTrack = {
 
 ## Критерии принятия
 
-- Worker пересобирает треки из `event_locations` идемпотентно (re-run safe).
+- Worker пересобирает треки из `mat_parse_location` идемпотентно (re-run safe).
 - API отдаёт `TrajectoryTrack` валидируемый Zod.
 - Unit-тесты на link + Kalman step в `@radar/shared`.
+

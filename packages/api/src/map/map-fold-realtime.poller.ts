@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, ServiceUnavailableException } from "@nestjs/common";
 import {
   isPgContendedReadError,
   type MapPlaceSnapshot,
@@ -57,6 +57,10 @@ export class MapFoldRealtimePoller {
     try {
       await this.tickOnce(emit);
     } catch (error) {
+      if (error instanceof ServiceUnavailableException) {
+        console.warn("[MapFoldRealtimePoller] parse maintenance — пропуск тика");
+        return;
+      }
       if (isPgContendedReadError(error)) {
         console.warn("[MapFoldRealtimePoller] read contention — пропуск тика (rebuild/heal)");
         return;
@@ -101,6 +105,7 @@ export class MapFoldRealtimePoller {
         && prev.statusCode === region.statusCode
         && prev.traits?.mass === region.traits?.mass
         && prev.traits?.uncertain === region.traits?.uncertain
+        && prev.levelReason === region.levelReason
       ) {
         continue;
       }
@@ -123,10 +128,13 @@ export class MapFoldRealtimePoller {
           statusCode: region.statusCode,
           traits: region.traits,
           eventSubject: region.eventSubject,
+          levelReason: region.levelReason,
         },
       });
 
-      if (region.stateLevel !== "grey") {
+      // Производный yellow — не событие: факта в mat_parse_location у него нет,
+      // и REST-фид warnings его не вернёт. Иначе лента расходилась бы с БД.
+      if (region.stateLevel !== "grey" && region.levelReason !== "neighbor-red") {
         emit({
           type: "warning",
           payload: {

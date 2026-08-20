@@ -1,9 +1,5 @@
-import { canonicalRegionCode, isGeoEnrichEligibleKind, type IPlaceAliasRepository, type IPlaceEnrichmentJobRepository, type IPlaceRepository, type IRegionRepository, type PlaceContribution, type PlaceEnrichmentProvider, type PlaceRecord, buildCatalogPlaceGeocodeQuery, parseRegionViewbox, resolveNominatimCountryCode } from "@radar/shared";
-import { DadataEnricher } from "../../infrastructure/enrichers/dadataEnricher.js";
-import { loadDadataToken } from "../../infrastructure/enrichers/dadataConfig.js";
-import { LlmEnricher } from "../../infrastructure/enrichers/llmEnricher.js";
-import { loadLlmRuntimeConfig } from "../../infrastructure/enrichers/llmRuntimeConfig.js";
-import { NominatimEnricher } from "../../infrastructure/enrichers/nominatimEnricher.js";
+import { canonicalRegionCode, isGeoEnrichEligibleKind, type IPlaceAliasRepository, type IPlaceEnrichmentJobRepository, type IPlaceRepository, type IRegionRepository, type PlaceContribution, type PlaceEnrichmentJobRecord, type PlaceEnrichmentProvider, type PlaceRecord, type WorkItemResult, buildCatalogPlaceGeocodeQuery, parseRegionViewbox, resolveNominatimCountryCode } from "@radar/shared";
+import type { PlaceEnrichmentEnrichers } from "./placeGeoEnricherPort.js";
 import {
   isGarbageIngestPlaceName,
   normalizePlaceLabelForGeocode,
@@ -31,27 +27,28 @@ function toTrust(score: number): {
 }
 
 export class PlaceEnrichmentRunner {
-  private dadataEnricher: DadataEnricher | undefined;
-  private readonly nominatim = new NominatimEnricher();
-  private readonly llm = new LlmEnricher(loadLlmRuntimeConfig());
-
   constructor(
     private readonly jobs: IPlaceEnrichmentJobRepository,
     private readonly places: IPlaceRepository,
     private readonly aliases: IPlaceAliasRepository,
     private readonly regions: IRegionRepository,
+    private readonly enrichers: PlaceEnrichmentEnrichers,
   ) {}
 
-  /** Токен из .env после loadRootEnv (не при импорте модуля). */
-  private getDadata(): DadataEnricher {
-    if (!this.dadataEnricher) {
-      this.dadataEnricher = new DadataEnricher(loadDadataToken());
-    }
-    return this.dadataEnricher;
+  private getDadata() {
+    return this.enrichers.getDadata();
+  }
+
+  private get nominatim() {
+    return this.enrichers.nominatim;
+  }
+
+  private get llm() {
+    return this.enrichers.llm;
   }
 
   private isDadataSuggestionsBlocked(provider: PlaceEnrichmentProvider): boolean {
-    return provider === "dadata" && this.getDadata().isSuggestionsBlocked();
+    return provider === "dadata" && Boolean(this.getDadata().isSuggestionsBlocked?.());
   }
 
   /** Мусорный place: не дергаем внешний API, помечаем провайдера в evidence — без повторного catch-up. */
@@ -119,12 +116,15 @@ export class PlaceEnrichmentRunner {
     provider: PlaceEnrichmentProvider,
     limit: number,
     logContext?: { phaseId?: string },
+    targetedPlaceIds?: string[],
   ): Promise<{ claimed: number; processed: number; failed: number }> {
     if (this.isDadataSuggestionsBlocked(provider)) {
       return { claimed: 0, processed: 0, failed: 0 };
     }
 
-    const claimed = await this.jobs.claimEligibleBatch(provider, limit);
+    const claimed = targetedPlaceIds?.length
+      ? await this.jobs.claimForPlaceIds(provider, targetedPlaceIds)
+      : await this.jobs.claimEligibleBatch(provider, limit);
     if (claimed.length === 0) {
       return { claimed: 0, processed: 0, failed: 0 };
     }
@@ -362,9 +362,11 @@ export class PlaceEnrichmentRunner {
       });
     }
 
-    const llm = await this.llm.enrich({ rawText: query, regionCode });
-    const best = llm?.places?.[0];
-    if (!llm || !best) return null;
+    const llmResult = await this.llm.enrich({ rawText: query, regionCode });
+    if (!llmResult.ok) return null;
+    const llm = llmResult.data;
+    const best = llm.places?.[0];
+    if (!best) return null;
     return this.toContribution(provider, placeId, {
       name: best.placeName,
       placeFias: best.placeFias ?? undefined,
@@ -375,6 +377,81 @@ export class PlaceEnrichmentRunner {
         best,
       },
     });
+  }
+
+  /**
+   * Domain eval одного claimed job — без mark (UnifiedRunner закрывает через IWorkQueue).
+   */
+  async processClaimedJob(
+    provider: PlaceEnrichmentProvider,
+    job: PlaceEnrichmentJobRecord,
+  ): Promise<WorkItemResult> {
+    if (this.isDadataSuggestionsBlocked(provider)) {
+      return { outcome: "skipped", detail: "dadata_blocked" };
+    }
+    try {
+      const place = await this.places.findById(job.placeId);
+      if (!place || place.kind === "region") {
+        return { outcome: "skipped", detail: "skip_region" };
+      }
+      if (!isGeoEnrichEligibleKind(place.kind)) {
+        return { outcome: "skipped", detail: "kind_below_city" };
+      }
+      const region = (await this.regions.listActive()).find((r) => r.id === place.regionId);
+      if (!region) {
+        return { outcome: "failed", detail: `${provider}: region not found` };
+      }
+      if (isGarbageIngestPlaceName(place.name)) {
+        return { outcome: "skipped", detail: "non_geocodable" };
+      }
+      const regionCode = canonicalRegionCode(region);
+      const parent = place.parentPlaceId ? await this.places.findById(place.parentPlaceId) : undefined;
+      const placeLabel = normalizePlaceLabelForGeocode(place.name);
+      const query = buildCatalogPlaceGeocodeQuery({
+        placeName: placeLabel,
+        placeNameWithType: place.nameWithType
+          ? normalizePlaceLabelForGeocode(place.nameWithType)
+          : undefined,
+        region,
+        parentPlaceName: parent?.name,
+        parentPlaceNameWithType: parent?.nameWithType,
+      });
+      const nominatimHints =
+        provider === "nominatim"
+          ? {
+              countryCode: resolveNominatimCountryCode(region.iso),
+              viewbox: parseRegionViewbox(region.bbox),
+            }
+          : undefined;
+      const contribution = await this.buildContribution(
+        provider,
+        place.id,
+        query,
+        regionCode,
+        nominatimHints,
+      );
+      if (!contribution) {
+        if (this.isDadataSuggestionsBlocked(provider)) {
+          return { outcome: "skipped", detail: "dadata_blocked" };
+        }
+        return { outcome: "failed", detail: enrichmentMissError(provider) };
+      }
+      const applied = await this.applyContribution(place.id, provider, contribution);
+      if (!applied.ok) {
+        return { outcome: "failed", detail: applied.reason };
+      }
+      if (contribution.fields.name) {
+        await this.aliases.upsertAlias({
+          placeId: place.id,
+          alias: contribution.fields.name,
+          source: "auto",
+        });
+      }
+      return { outcome: "completed" };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return { outcome: "failed", detail: message };
+    }
   }
 
   private toContribution(

@@ -1,0 +1,218 @@
+{
+  "annotations": { "list": [] },
+  "description": "Parse pipeline: obs workload/triggers/materialize + worker domain events + RMQ consume.",
+  "editable": true,
+  "graphTooltip": 1,
+  "panels": [
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "green", "value": 1 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+      "id": 1,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "expr": "sum(radar_obs_workload_up{pipeline_key=\"parse\",status=~\"running|idle\"}) or vector(0)",
+          "instant": true,
+          "legendFormat": "alive",
+          "refId": "A"
+        }
+      ],
+      "title": "Parse workloads alive",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "unit": "s" },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+      "id": 2,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "expr": "max(radar_obs_workload_last_tick_seconds{pipeline_key=\"parse\"})",
+          "instant": true,
+          "legendFormat": "tick age",
+          "refId": "A"
+        }
+      ],
+      "title": "Last tick age",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "unit": "ops" },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
+      "id": 3,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(radar_obs_materialize_events{pipeline_key=\"parse\"}[$__rate_interval]))",
+          "legendFormat": "materialize/s",
+          "refId": "A"
+        }
+      ],
+      "title": "Materialize rate",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "unit": "ops" },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 },
+      "id": 4,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(radar_transport_messages_total{role=\"parse\",result=\"nack\"}[$__rate_interval])) or vector(0)",
+          "legendFormat": "nack/s",
+          "refId": "A"
+        }
+      ],
+      "title": "RMQ nack rate",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "gridPos": { "h": 14, "w": 12, "x": 0, "y": 4 },
+      "id": 5,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (status) (radar_obs_workload_up{pipeline_key=\"parse\"})",
+          "legendFormat": "{{status}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Workload status",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "unit": "ops" },
+        "overrides": []
+      },
+      "gridPos": { "h": 14, "w": 12, "x": 12, "y": 4 },
+      "id": 6,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (event_type, source) (rate(radar_obs_trigger_events{pipeline_key=\"parse\"}[$__rate_interval]))",
+          "legendFormat": "{{event_type}}/{{source}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Trigger events rate",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "unit": "ops" },
+        "overrides": []
+      },
+      "gridPos": { "h": 14, "w": 12, "x": 0, "y": 18 },
+      "id": 7,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (event_type) (rate(radar_worker_domain_events_total{role=\"parse\"}[$__rate_interval]))",
+          "legendFormat": "{{event_type}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Domain events (parse worker)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "unit": "ops" },
+        "overrides": []
+      },
+      "gridPos": { "h": 14, "w": 12, "x": 12, "y": 18 },
+      "id": 8,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (routing_key, result) (rate(radar_transport_messages_total{role=\"parse\"}[$__rate_interval]))",
+          "legendFormat": "{{routing_key}}/{{result}}",
+          "refId": "A"
+        }
+      ],
+      "title": "RMQ consume rate",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "unit": "s" },
+        "overrides": []
+      },
+      "gridPos": { "h": 12, "w": 24, "x": 0, "y": 32 },
+      "id": 9,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (le, routing_key) (rate(radar_transport_message_duration_seconds_bucket{role=\"parse\"}[$__rate_interval])))",
+          "legendFormat": "p95 {{routing_key}}",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.50, sum by (le, routing_key) (rate(radar_transport_message_duration_seconds_bucket{role=\"parse\"}[$__rate_interval])))",
+          "legendFormat": "p50 {{routing_key}}",
+          "refId": "B"
+        }
+      ],
+      "title": "RMQ consume latency",
+      "type": "timeseries"
+    }
+  ],
+  "schemaVersion": 39,
+  "tags": ["radar", "parse"],
+  "time": { "from": "now-1h", "to": "now" },
+  "title": "Radar — Parse Pipeline",
+  "uid": "radar-parse-pipeline",
+  "version": 1
+}

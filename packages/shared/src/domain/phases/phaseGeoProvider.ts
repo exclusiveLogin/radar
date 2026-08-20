@@ -1,4 +1,4 @@
-import type { PlaceEnrichmentProvider } from "../../ports/repositories.js";
+import type { PlaceEnrichmentProvider } from "../../ports/geo-repositories.js";
 import type { PhaseManifestEntry } from "../../schemas/enrichment/phase.js";
 
 /** Провайдер geoParse-фазы из enrichers (один внешний источник на фазу). */

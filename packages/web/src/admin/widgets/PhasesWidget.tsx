@@ -52,8 +52,8 @@ function PhaseRow({
   return (
     <li className="ds-log-list__item" style={{ gap: 6, flexWrap: "wrap" }}>
       <span style={{ fontWeight: 600, minWidth: 88 }}>{phaseId}</span>
-      <span style={{ color: "var(--text-muted)", fontSize: 10 }}>{trigger}</span>
-      <span style={{ fontSize: 10 }} title={queueLabel}>
+      <span style={{ color: "var(--text-muted)", fontSize: 12 }}>{trigger}</span>
+      <span style={{ fontSize: 12 }} title={queueLabel}>
         {formatQueue(queue)}
       </span>
       <Button
@@ -195,7 +195,7 @@ export function PhasesWidget() {
 
       <section style={{ marginBottom: 16 }}>
         <h4 style={{ fontSize: 12, margin: "0 0 4px" }}>Ingest — сообщения → parsed_events</h4>
-        <p style={{ fontSize: 10, color: "var(--text-muted)", margin: "0 0 8px", lineHeight: 1.35 }}>
+        <p style={{ fontSize: 12, color: "var(--text-muted)", margin: "0 0 8px", lineHeight: 1.35 }}>
           Очередь <code>phase_coverage</code> (raw × фаза). Catalog eager inline после ingest;
           scheduled (llm) — IngestParseDaemon. DaData — только geo-dadata.
         </p>
@@ -206,7 +206,7 @@ export function PhasesWidget() {
               <PhaseRow
                 key={phase.id}
                 phaseId={phase.id}
-                trigger={phase.trigger}
+                trigger={phase.triggerMode}
                 enabled={phase.enabled}
                 queueLabel="phase_coverage"
                 queue={row?.coverage ?? { pending: 0, processing: 0, done: 0, failed: 0 }}
@@ -222,7 +222,7 @@ export function PhasesWidget() {
 
       <section style={{ marginBottom: 16 }}>
         <h4 style={{ fontSize: 12, margin: "0 0 4px" }}>Geo — каталог places</h4>
-        <p style={{ fontSize: 10, color: "var(--text-muted)", margin: "0 0 8px", lineHeight: 1.35 }}>
+        <p style={{ fontSize: 12, color: "var(--text-muted)", margin: "0 0 8px", lineHeight: 1.35 }}>
           Очередь <code>place_enrichment_jobs</code>: places без провайдера в{" "}
           <code>evidence_providers</code>. Не зависит от парса. GeoParseDaemon / Run → catch-up + drain.
         </p>
@@ -233,7 +233,7 @@ export function PhasesWidget() {
               <PhaseRow
                 key={phase.id}
                 phaseId={phase.id}
-                trigger={phase.trigger}
+                trigger={phase.triggerMode}
                 enabled={phase.enabled}
                 queueLabel={row?.provider ? `jobs:${row.provider}` : "jobs"}
                 queue={row?.jobs ?? { pending: 0, processing: 0, done: 0, failed: 0 }}
@@ -256,7 +256,7 @@ export function PhasesWidget() {
           margin: "12px 0 4px",
         }}
       >
-        <h4 style={{ fontSize: 11, color: "var(--text-muted)", margin: 0 }}>
+        <h4 style={{ fontSize: 12, color: "var(--text-muted)", margin: 0 }}>
           Запуски · активных: {overview?.runningCount ?? "—"}
         </h4>
         <Button
@@ -273,7 +273,7 @@ export function PhasesWidget() {
         </Button>
       </div>
       {stopAllNotice && (
-        <p style={{ fontSize: 10, color: "var(--status-ok)", margin: "0 0 6px" }}>{stopAllNotice}</p>
+        <p style={{ fontSize: 12, color: "var(--status-ok)", margin: "0 0 6px" }}>{stopAllNotice}</p>
       )}
       <ul className="ds-log-list">
         {runs.map((run) => {
@@ -285,10 +285,10 @@ export function PhasesWidget() {
                 [{scopeTag}] {run.phaseId} · {run.trigger}
               </span>
               <span style={{ color: STATUS_COLOR[run.status] }}>{run.status}</span>
-              <span style={{ fontSize: 10, color: "var(--text-muted)" }}>
+              <span style={{ fontSize: 12, color: "var(--text-muted)" }}>
                 ok={String(run.stats.ok ?? 0)} pending={String(run.stats.pendingRemaining ?? "?")}
               </span>
-              <span style={{ fontSize: 10 }}>{formatDateTime(run.startedAt ?? run.createdAt)}</span>
+              <span style={{ fontSize: 12 }}>{formatDateTime(run.startedAt ?? run.createdAt)}</span>
               {ACTIVE_RUN_STATUSES.has(run.status) && (
                 <>
                   <PhaseRunProgressBar stats={run.stats} />

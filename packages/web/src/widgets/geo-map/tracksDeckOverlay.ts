@@ -1,4 +1,6 @@
 import type { Map as MapLibreMap } from "maplibre-gl";
+import type { TripsLayer } from "@deck.gl/geo-layers";
+import type { MapboxOverlay } from "@deck.gl/mapbox";
 import { TRACKS_ORIGIN_LAYER, TRACKS_TRIPS_DECK_LAYER } from "./geoMapLayerIds";
 import { threatProfileRgba } from "./tracksMapPaint";
 import {
@@ -15,8 +17,8 @@ const TRAIL_LENGTH = TRIPS_ANIM_WINDOW * 0.15;
 const TRIPS_WIDTH_MIN_PIXELS = 2.5;
 
 type DeckModules = {
-  MapboxOverlay: typeof import("@deck.gl/mapbox").MapboxOverlay;
-  TripsLayer: typeof import("@deck.gl/geo-layers").TripsLayer;
+  MapboxOverlay: typeof MapboxOverlay;
+  TripsLayer: typeof TripsLayer;
 };
 
 export type TracksDeckOverlay = {

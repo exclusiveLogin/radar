@@ -4,12 +4,13 @@
  * kind: schema
  * domain: admin
  * tooling: zod
- * purpose: Статус операций parse pipeline (reset / reparse) из админки.
+ * purpose: Статус операции parse rebuild из админки.
  * ---
  */
 import { z } from "zod";
 
-export const parsePipelineJobKindSchema = z.enum(["reset", "reparse"]);
+/** Единственная штатная операция: wipe parse-слоя + enqueue catch-up. */
+export const parsePipelineJobKindSchema = z.enum(["rebuild"]);
 export type ParsePipelineJobKind = z.infer<typeof parsePipelineJobKindSchema>;
 
 export const parsePipelineJobStatusSchema = z.enum([
@@ -20,10 +21,21 @@ export const parsePipelineJobStatusSchema = z.enum([
 ]);
 export type ParsePipelineJobStatus = z.infer<typeof parsePipelineJobStatusSchema>;
 
-/** Ответ GET /admin/parse/status — прогресс фоновой CLI-операции. */
+/** Этап внутри rebuild — для понятного UI вместо «висит». */
+export const parsePipelinePhaseSchema = z.enum([
+  "wiping",
+  "enqueueing",
+  "processing",
+]);
+export type ParsePipelinePhase = z.infer<typeof parsePipelinePhaseSchema>;
+
+/** Ответ GET /admin/parse/status — прогресс rebuild (CLI wipe, затем очередь). */
 export const parsePipelineStatusResponseSchema = z.object({
   status: parsePipelineJobStatusSchema,
   kind: parsePipelineJobKindSchema.nullable(),
+  phase: parsePipelinePhaseSchema.nullable(),
+  detail: z.string().nullable(),
+  logTail: z.string().nullable(),
   startedAt: z.string().datetime().nullable(),
   finishedAt: z.string().datetime().nullable(),
   error: z.string().nullable(),

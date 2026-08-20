@@ -27,6 +27,9 @@ export {
   PROFILE_KINEMATICS,
   resolveProfileKinematics,
 } from "./domain/tracking/profileKinematics";
+export {
+  DEFAULT_TRACKING_STROBE_MAX_WINDOW_MS,
+} from "./domain/tracking/strobePolicy";
 
 export { observationCovarianceMeters } from "./domain/tracking/observationCovariance";
 
@@ -38,11 +41,6 @@ export {
 export type { SeedWeights } from "./domain/tracking/pointWeightModel";
 export { DEFAULT_FLOW_ALIGNMENT } from "./domain/tracking/flowAlignment";
 export type { FlowAlignmentWeights } from "./domain/tracking/flowAlignment";
-export {
-  DEFAULT_GREEDY_FLOW,
-} from "./domain/tracking/greedyFlowAssociation";
-export type { GreedyFlowWeights } from "./domain/tracking/greedyFlowAssociation";
-export type { AssociationAlgorithm } from "./domain/tracking/associationDispatch";
 export {
   DEFAULT_MAGNETIZE_WEIGHTS,
 } from "./domain/tracking/stdbscan/stdbscanMagnetize";
@@ -65,3 +63,14 @@ export {
 export type { KalmanLocusEllipseInput } from "./domain/tracking/kalmanLocus";
 export { bearingDeg, resolveFlowBearingDeg } from "./domain/tracking/flowAlignment";
 export { DEFAULT_TURN_PENALTY } from "./domain/tracking/nextgen/nextgenGravity";
+
+export { NEXTGEN_RECOMMENDED_BATCH_SIZE } from "./domain/tracking/trackingBatchConstants";
+
+export {
+  createWorkbook,
+  type WorkbookPhaseDescriptor,
+  type WorkbookDescriptor,
+  type WorkbookEvalFn,
+  type WorkbookDefinition,
+  type WorkbookInstance,
+} from "./domain/workbook";

@@ -13,7 +13,7 @@ import {
 import { mapApi } from "../api/mapApi";
 import { connectMapWs } from "../realtime/ws";
 import { reportAppError } from "./appLogStore";
-import { deriveNeighborLevels, isRegionVisibleOnMap } from "./derivations";
+import { isRegionVisibleOnMap } from "./derivations";
 import { bumpTracksRevision } from "./trackStore";
 
 /** Состояние регионов по regionCode (ISO) — источник для всех карт-виджетов. */
@@ -40,7 +40,7 @@ export const lastSnapshotAt$ = new BehaviorSubject<string | null>(null);
 /** Маркер исторического просмотра; live WS игнорируется пока !== null. */
 export const historicalAsOf$ = new BehaviorSubject<string | null>(null);
 
-/** true пока mapStateEffects грузит fold-state (scrub / live-return). */
+/** true пока mapLiveReplayEffects грузит fold-state (scrub / live-return). */
 export const mapHistoricalLoading$ = new BehaviorSubject(false);
 
 /**
@@ -54,14 +54,11 @@ export function isHistoricalMapView(): boolean {
 }
 
 /**
- * Коды регионов, ставших yellow исключительно по производному правилу соседства
- * (реальный уровень — grey, но сосед red → визуально yellow).
- * Используется тултипами и деталь-панелью.
+ * Коды регионов, чей yellow получен по соседству с red, а не из собственных
+ * фактов (`levelReason: "neighbor-red"` из снапшота). Используется тултипами
+ * и деталь-панелью, чтобы не выдавать подсветку за собственное событие.
  */
 export const derivedRegionCodes$ = new BehaviorSubject<Set<string>>(new Set());
-
-/** Смежность регионов — загружается однократно, используется для производного yellow. */
-let adjacency: Record<string, string[]> = {};
 
 /**
  * Справочник имён регионов по ISO-коду (SSOT — /api/geo/regions).
@@ -71,7 +68,6 @@ let adjacency: Record<string, string[]> = {};
 let regionNamesByCode: Map<string, string> = new Map();
 
 let started = false;
-let liveAnchorSub: { unsubscribe(): void } | undefined;
 
 /** Хук перед установкой asOf (подгонка окна таймлайна). */
 let beforeHistoricalSetHook: ((iso: string) => void) | null = null;
@@ -92,7 +88,7 @@ function refreshMapViewAnchor(): void {
   mapViewAnchor$.next(resolveMapViewAnchorMs());
 }
 
-/** Установить asOf — REST загрузка в mapStateEffects (switchMap). */
+/** Установить asOf — REST загрузка в mapLiveReplayEffects (switchMap). */
 export function setHistoricalAsOf(iso: string | null): void {
   if (iso === historicalAsOf$.value) return;
   if (iso) beforeHistoricalSetHook?.(iso);
@@ -109,7 +105,7 @@ export function clearHistoricalView(): void {
   setHistoricalAsOf(null);
 }
 
-/** Применить REST-снапшот (mapStateEffects / ручной refetch). */
+/** Применить REST-снапшот (mapLiveReplayEffects / ручной refetch). */
 export function applyMapSnapshot(
   regions: MapRegionSnapshot[],
   places: MapPlaceSnapshot[],
@@ -125,39 +121,13 @@ export function startMapStore(): void {
   started = true;
 
   historicalAsOf$.subscribe(() => refreshMapViewAnchor());
-  liveAnchorSub = timer(60_000, 60_000)
+  timer(60_000, 60_000)
     .pipe(filter(() => historicalAsOf$.value === null))
     .subscribe(() => refreshMapViewAnchor());
 
-  // Загружаем смежность однократно — нужна для производного yellow у соседей red-регионов
-  void mapApi.regionAdjacency()
-    .then(async (adj) => {
-      adjacency = adj;
-      if (regionsByCode$.value.size === 0) return;
-
-      const rawRegions = regionsByCode$.value;
-      const derived = deriveNeighborLevels(rawRegions, adjacency);
-      const regionsChanged = !isSameRegionSnapshotMap(derived, regionsByCode$.value);
-      if (regionsChanged) {
-        derivedRegionCodes$.next(extractDerivedCodes(rawRegions, derived));
-        regionsByCode$.next(derived);
-      }
-
-      // Всегда подгружаем места через быстрый placesState после adjacency:
-      // WS snapshot отдаёт places=[] (только регионы), а /api/map/snapshot медленный.
-      // Если regionsChanged — используем derived (с раскрытыми соседями-yellow),
-      // иначе — текущий regionsByCode$ (без изменений).
-      if (historicalAsOf$.value !== null) return;
-      try {
-        const regionsForPrune = regionsChanged ? derived : regionsByCode$.value;
-        const placesResp = await mapApi.placesState();
-        const rawPlaces = new Map(placesResp.places.map((place) => [place.placeId, place]));
-        placesById$.next(prunePlacesForRegions(rawPlaces, regionsForPrune));
-      } catch (error) {
-        reportError(error);
-      }
-    })
-    .catch(reportError);
+  // WS snapshot отдаёт places=[] (только регионы), а /api/map/snapshot медленный —
+  // места тянем отдельным быстрым запросом.
+  void loadPlacesState();
 
   // Однократно грузим справочник имён регионов — SSOT для имени производного региона
   void mapApi.geoRegions()
@@ -172,6 +142,18 @@ export function startMapStore(): void {
   });
 
   void mapApi.warnings().then((items) => stateChanges$.next(items)).catch(reportError);
+}
+
+/** Загружает активные места и подрезает их по текущему состоянию регионов. */
+async function loadPlacesState(): Promise<void> {
+  if (historicalAsOf$.value !== null) return;
+  try {
+    const response = await mapApi.placesState();
+    const raw = new Map(response.places.map((place) => [place.placeId, place]));
+    placesById$.next(prunePlacesForRegions(raw, regionsByCode$.value));
+  } catch (error) {
+    reportError(error);
+  }
 }
 
 /** Пропуск emit, если снапшот места не изменился (снижает шторм WS → MapLibre). */
@@ -237,17 +219,11 @@ function pruneVicinityScopesForRegions(
   return next;
 }
 
-/** Извлекает коды регионов, уровень которых изменился в результате производного правила. */
-function extractDerivedCodes(
-  before: Map<string, MapRegionSnapshot>,
-  after: Map<string, MapRegionSnapshot>,
-): Set<string> {
+/** Коды регионов с подсветкой от красного соседа (read-side пометка бэкенда). */
+function collectDerivedCodes(regions: Map<string, MapRegionSnapshot>): Set<string> {
   const derived = new Set<string>();
-  for (const [code, afterRegion] of after) {
-    const beforeRegion = before.get(code);
-    if (beforeRegion?.stateLevel === "grey" && afterRegion.stateLevel === "yellow") {
-      derived.add(code);
-    }
+  for (const [code, region] of regions) {
+    if (region.levelReason === "neighbor-red") derived.add(code);
   }
   return derived;
 }
@@ -271,6 +247,7 @@ function isSameRegionSnapshotMap(
       || region.traits?.uncertain !== other.traits?.uncertain
       || region.centroidLat !== other.centroidLat
       || region.centroidLon !== other.centroidLon
+      || region.levelReason !== other.levelReason
     ) {
       return false;
     }
@@ -284,10 +261,9 @@ function seedSnapshot(
   generatedAt?: string,
   vicinityScopes: MapVicinityScopeSnapshot[] = [],
 ): void {
-  const rawRegions = new Map<string, MapRegionSnapshot>();
-  for (const region of regions) rawRegions.set(region.regionCode, region);
-  const nextRegions = deriveNeighborLevels(rawRegions, adjacency);
-  derivedRegionCodes$.next(extractDerivedCodes(rawRegions, nextRegions));
+  const nextRegions = new Map<string, MapRegionSnapshot>();
+  for (const region of regions) nextRegions.set(region.regionCode, region);
+  derivedRegionCodes$.next(collectDerivedCodes(nextRegions));
   regionsByCode$.next(nextRegions);
 
   const rawPlaces = new Map<string, MapPlaceSnapshot>();
@@ -306,10 +282,9 @@ function applyRegionsSnapshotOnly(
   regions: MapRegionSnapshot[],
   generatedAt?: string,
 ): void {
-  const rawRegions = new Map<string, MapRegionSnapshot>();
-  for (const region of regions) rawRegions.set(region.regionCode, region);
-  const nextRegions = deriveNeighborLevels(rawRegions, adjacency);
-  derivedRegionCodes$.next(extractDerivedCodes(rawRegions, nextRegions));
+  const nextRegions = new Map<string, MapRegionSnapshot>();
+  for (const region of regions) nextRegions.set(region.regionCode, region);
+  derivedRegionCodes$.next(collectDerivedCodes(nextRegions));
   regionsByCode$.next(nextRegions);
 
   const pruned = prunePlacesForRegions(placesById$.value, nextRegions);
@@ -319,18 +294,9 @@ function applyRegionsSnapshotOnly(
 
   lastSnapshotAt$.next(generatedAt ?? new Date().toISOString());
 
-  // WS snapshot отдаёт places=[] (только регионы). Если места ещё не загружены,
-  // сразу тянем их через быстрый REST-эндпоинт (/api/map/places-state).
   // Условие size===0: избегаем повторных fetch при обычных WS-обновлениях регионов.
-  if (placesById$.value.size === 0 && historicalAsOf$.value === null) {
-    void mapApi.placesState()
-      .then((resp) => {
-        const rawPlaces = new Map<string, MapPlaceSnapshot>(
-          resp.places.map((place) => [place.placeId, place]),
-        );
-        placesById$.next(prunePlacesForRegions(rawPlaces, regionsByCode$.value));
-      })
-      .catch(reportError);
+  if (placesById$.value.size === 0) {
+    void loadPlacesState();
   }
 }
 
@@ -368,8 +334,8 @@ function applyMessage(message: WsServerMessage): void {
  * Если регион новый (нет layout из предыдущего snapshot), планируем дозагрузку snapshot.
  */
 function applyRegionState(event: RegionStateEvent): void {
-  const raw = new Map(regionsByCode$.value);
-  const existing = raw.get(event.regionCode);
+  const next = new Map(regionsByCode$.value);
+  const existing = next.get(event.regionCode);
   const layout = event.layout ?? existing?.layout;
   const calm = event.stateLevel === "grey" || event.stateLevel === "green";
   const updated: MapRegionSnapshot = {
@@ -386,10 +352,12 @@ function applyRegionState(event: RegionStateEvent): void {
     statusCode: event.statusCode ?? (calm ? undefined : existing?.statusCode),
     traits: event.traits ?? (calm ? undefined : existing?.traits),
     eventSubject: event.eventSubject ?? (calm ? undefined : existing?.eventSubject),
+    levelReason: event.levelReason,
   };
   if (
     existing
     && existing.stateLevel === updated.stateLevel
+    && existing.levelReason === updated.levelReason
     && existing.activity === updated.activity
     && existing.statusEventAt === updated.statusEventAt
     && existing.statusAction === updated.statusAction
@@ -402,12 +370,11 @@ function applyRegionState(event: RegionStateEvent): void {
   ) {
     return;
   }
-  raw.set(event.regionCode, updated);
-  const next = deriveNeighborLevels(raw, adjacency);
+  next.set(event.regionCode, updated);
   if (isSameRegionSnapshotMap(next, regionsByCode$.value)) {
     return;
   }
-  derivedRegionCodes$.next(extractDerivedCodes(raw, next));
+  derivedRegionCodes$.next(collectDerivedCodes(next));
   regionsByCode$.next(next);
   const pruned = prunePlacesForRegions(placesById$.value, next);
   if (pruned !== placesById$.value) {

@@ -27,7 +27,7 @@ raw
   → ParseWorkspaceOrchestrator (processor registry P3)
   → ParseWorkspaceMessageService (geo resolve + validate)
   → ParseWorkspacePersistService.finalize
-  → parsed_events + message_parse_workspace
+  → mat_parse_event + work_parse_message
   → MessageParsed (handler)
 ```
 
@@ -88,15 +88,16 @@ npm run parse-engine:rebuild -w @radar/worker
 
 ### Сборка и тесты
 
-- [ ] `npm run build -w @radar/shared`
-- [ ] `npm run build -w @radar/worker`
-- [ ] `npm run typecheck -w @radar/worker`
-- [ ] `node --import tsx --test packages/worker/src/domain/parse/ParseFinalizerService.test.ts packages/worker/src/domain/parse/parseWorkspace.golden.test.ts packages/worker/src/application/handlers/parseRawMessageHandler.enrich.test.ts`
+- [ ] `npm run build -w @radar/shared`
+- [ ] `npm run build -w @radar/worker`
+- [ ] `npm run typecheck -w @radar/worker`
+- [ ] 
+ode --import tsx --test packages/worker/src/domain/parse/ParseFinalizerService.test.ts packages/worker/src/domain/parse/parseWorkspace.golden.test.ts packages/worker/src/application/handlers/parseRawMessageHandler.enrich.test.ts`
 
 ### БД (staging / local db)
 
-- [ ] Миграция: `message_parse_workspace` + снят `uq_parsed_events_raw_parser`
-- [ ] Eager parse: строка в `message_parse_workspace` (`status=finalized`) + N строк в `parsed_events`
+- [ ] Миграция: `work_parse_message` + снят `uq_mat_parse_event_raw_parser`
+- [ ] Eager parse: строка в `work_parse_message` (`status=finalized`) + N строк в `mat_parse_event`
 - [ ] Reparse того же raw: старая workspace → `superseded`, без сирот (`candidate_event_map`)
 - [ ] `parse-engine:workspace:heal --dry-run` → план без SQL
 - [ ] `parse-engine:reset` / `clearParseLayerArtifacts`: TRUNCATE workspace + parsed
@@ -113,7 +114,7 @@ npm run parse-engine:rebuild -w @radar/worker
 
 ### Документация
 
-- [ ] [geo-clean-rebuild.md](../../runbook/geo-clean-rebuild.md) — `message_parse_workspace`, heal
+- [ ] [geo-clean-rebuild.md](../../runbook/geo-clean-rebuild.md) — `work_parse_message`, heal
 - [ ] `wipeLog` — workspace в плане system:wipe
 
 ---
@@ -131,7 +132,7 @@ npm run parse-engine:rebuild -w @radar/worker
 
 ## Коммиты (рекомендуемая нарезка)
 
-1. `feat(parse): shared schemas + migration message_parse_workspace`
+1. `feat(parse): shared schemas + migration work_parse_message`
 2. `feat(parse): workspace orchestrator, finalizer, persist`
 3. `feat(parse): wire handler, phase runner, heal CLI`
 4. `feat(parse): CLI SSOT (snap/report/eval) + processors registry`

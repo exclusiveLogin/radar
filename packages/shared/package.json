@@ -4,25 +4,60 @@
   "private": true,
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./infra/infraManifest.loader.js": {
+      "types": "./dist/infra/infraManifest.loader.d.ts",
+      "default": "./dist/infra/infraManifest.loader.js"
+    },
+    "./pipeline/pipelineManifest.loader.js": {
+      "types": "./dist/pipeline/pipelineManifest.loader.d.ts",
+      "default": "./dist/pipeline/pipelineManifest.loader.js"
+    },
+
+    "./manifest/domains/workerRuntime.loader.js": {
+      "types": "./dist/manifest/domains/workerRuntime.loader.d.ts",
+      "default": "./dist/manifest/domains/workerRuntime.loader.js"
+    },
+    "./manifest/domains/trackingPipeline.loader.js": {
+      "types": "./dist/manifest/domains/trackingPipeline.loader.d.ts",
+      "default": "./dist/manifest/domains/trackingPipeline.loader.js"
+    },
+    "./manifest/domains/geoEnrichers.loader.js": {
+      "types": "./dist/manifest/domains/geoEnrichers.loader.d.ts",
+      "default": "./dist/manifest/domains/geoEnrichers.loader.js"
+    },
+    "./manifest/domains/ingest.loader.js": {
+      "types": "./dist/manifest/domains/ingest.loader.d.ts",
+      "default": "./dist/manifest/domains/ingest.loader.js"
+    }
+  },
   "files": [
     "dist"
   ],
   "scripts": {
-    "dev": "tsc -p tsconfig.json --watch --preserveWatchOutput",
-    "build": "tsc -p tsconfig.json",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "dev": "tsc -p tsconfig.build.json --watch --preserveWatchOutput",
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.build.json --noEmit",
     "lint": "eslint \"src/**/*.ts\" --max-warnings 0"
   },
   "dependencies": {
     "@turf/bearing": "^7.3.5",
     "@turf/distance": "^7.3.5",
     "@turf/helpers": "^5.1.5",
+    "amqplib": "^2.0.1",
     "cli-progress": "^3.12.0",
     "h3-js": "^4.4.0",
     "zod": "^3.24.1"
   },
   "devDependencies": {
+    "@repo/root": "*",
+    "@types/amqplib": "^0.10.8",
     "@types/cli-progress": "^3.11.6",
+    "@types/node": "^22.10.2",
     "typescript": "^5.7.2"
   }
 }

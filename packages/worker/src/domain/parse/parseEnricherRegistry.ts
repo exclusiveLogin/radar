@@ -88,11 +88,18 @@ function defaultRegistry(): ParseEnricherRegistry {
         ],
       },
       { id: "llm", trust: 90, processorPriority: 60, processors: ["llm-processor"] },
+      {
+        id: "llm-validator",
+        trust: 85,
+        processorPriority: 55,
+        processors: ["llm-validator-processor"],
+      },
       { id: "dadata", trust: 75, processorPriority: 40, processors: ["dadata-processor"] },
       { id: "nominatim", trust: 70, processorPriority: 30, processors: ["nominatim-processor"] },
     ],
     processorTieBreak: {
       "llm-processor": 100,
+      "llm-validator-processor": 95,
       "event-type-processor": 90,
       "mass-clear-scope-processor": 85,
       "geo-processor": 80,

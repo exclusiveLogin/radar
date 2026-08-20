@@ -3,11 +3,11 @@ import * as path from "node:path";
 import { MONOREPO_ROOT } from "@repo/root";
 import {
   createWorkerCompositionRoot,
-  type WorkerCompositionOptions,
 } from "../application/createWorkerCompositionRoot.js";
 import { WorkerStorageMode } from "../infrastructure/persistence/storageMode.js";
 import { loadRootEnv } from "../infrastructure/config/loadRootEnv.js";
 import { resolveInputPath } from "./cliPaths.js";
+import { cliWorkerRuntime } from "./cliWorkerRuntime.js";
 import { splitMessageBlocks } from "../domain/parsing/index.js";
 import {
   parseLongFlagsMap,
@@ -70,16 +70,20 @@ function writeOut(outDir: string, name: string, content: string): void {
 export async function runParseInspect(argv: string[]): Promise<void> {
   const cli = parseInspectCli(argv);
   const source = resolveInputText(cli);
-  const runtime = await createWorkerCompositionRoot({
+  const runtime = await createWorkerCompositionRoot(cliWorkerRuntime("parse", ["parse"], {
     storageMode: cli.storageMode,
-    startIngestParseDaemon: false,
     ingestParsePhaseSelection: cli.ingestParsePhaseSelection,
-  });
+  }));
+  if (!runtime.parsePipelineService || !runtime.placeScan) {
+    throw new Error("parse stack не инициализирован (нужен cap parse).");
+  }
+  const parsePipeline = runtime.parsePipelineService;
+  const placeScan = runtime.placeScan;
 
   const blocks = splitMessageBlocks(source);
   const results = [];
   for (const [index, block] of blocks.entries()) {
-    const executed = await runtime.parsePipelineService.execute({
+    const executed = await parsePipeline.execute({
       rawText: block,
       index,
       file: cli.filePathArg || "stdin",
@@ -95,7 +99,7 @@ export async function runParseInspect(argv: string[]): Promise<void> {
   const eventKind = primary.report.classification.kind;
   if (eventKind === "event" && primary.workspace) {
     const text = primary.workspace.groomedText;
-    for (const hit of runtime.placeScan.matchRegions(text)) {
+    for (const hit of placeScan.matchRegions(text)) {
       geoHits.push({
         kind: "region",
         name: hit.entry.name,
@@ -104,7 +108,7 @@ export async function runParseInspect(argv: string[]): Promise<void> {
         span: hit.span,
       });
     }
-    for (const hit of runtime.placeScan.matchPlaces(text, {})) {
+    for (const hit of placeScan.matchPlaces(text, {})) {
       geoHits.push({
         kind: "place",
         name: hit.entry.name,

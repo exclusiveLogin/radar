@@ -1,5 +1,3 @@
-import type { DataSource } from "typeorm";
-import type { WorkerDbRepositories } from "../../../infrastructure/persistence/workerDbRepos.types.js";
 import {
   countTableRows,
   runSqlOptional,
@@ -8,11 +6,12 @@ import {
 } from "../../archive/wipeTableSql.js";
 import { runWipeStep, type WipeStepOptions } from "../../archive/wipeStepReporter.js";
 import { stopAllActivePhaseRuns } from "../stopAllActivePhaseRuns.js";
+import type { PhaseOperationalDeps } from "../phaseOperationalDeps.js";
 import type { PhaseMutationResult } from "./phaseLifecycle.types.js";
 
 const PLACES_TRUNCATE_TABLES = [
-  "place_enrichment_jobs",
-  "event_evidence",
+  "job_geo_place_enrich",
+  "mat_parse_evidence",
   "place_aliases",
   "places",
 ] as const;
@@ -22,8 +21,7 @@ const PLACES_TRUNCATE_TABLES = [
  */
 export async function wipeGeoPlacesPhase(
   input: {
-    dataSource: DataSource;
-    repos: WorkerDbRepositories;
+    deps: PhaseOperationalDeps;
     dryRun: boolean;
   } & WipeStepOptions,
 ): Promise<PhaseMutationResult> {
@@ -41,29 +39,28 @@ export async function wipeGeoPlacesPhase(
     };
   }
 
-  const { dataSource } = input;
+  const { operationalSql } = input.deps;
 
-  await runWipeStep(input, "остановка phase_runs (geo)", async () => {
+  await runWipeStep(input, "остановка log_parse_phase_run (geo)", async () => {
     const stopped = await stopAllActivePhaseRuns({
-      dataSource,
-      repos: input.repos,
+      deps: input.deps,
       reason: "geo:wipe",
     });
     input.log?.detail(
-      `geo stop: phase_runs=${stopped.phaseRunsClosed}, geo_jobs=${stopped.geoJobsCleared}`,
+      `geo stop: log_parse_phase_run=${stopped.phaseRunsClosed}, geo_jobs=${stopped.geoJobsCleared}`,
     );
     return stopped.phaseRunsClosed + stopped.geoJobsCleared;
   });
 
-  await runWipeStep(input, "unlink FK (regions, event_locations)", async () => {
+  await runWipeStep(input, "unlink FK (regions, mat_parse_location)", async () => {
     await runSqlOptional(
-      dataSource,
+      operationalSql,
       `UPDATE regions SET canonical_place_id = NULL WHERE canonical_place_id IS NOT NULL`,
       input.log,
     );
     await runSqlOptional(
-      dataSource,
-      `UPDATE event_locations SET place_id = NULL WHERE place_id IS NOT NULL`,
+      operationalSql,
+      `UPDATE mat_parse_location SET place_id = NULL WHERE place_id IS NOT NULL`,
       input.log,
     );
     return 0;
@@ -71,8 +68,8 @@ export async function wipeGeoPlacesPhase(
 
   const places = await runWipeStep(input, "places + зависимости (TRUNCATE CASCADE)", async () => {
     input.log?.detail(`таблицы: ${PLACES_TRUNCATE_TABLES.join(", ")}`);
-    const placesCount = await countTableRows(dataSource, "places", input.log);
-    await truncateGroupCounted(dataSource, [...PLACES_TRUNCATE_TABLES], {
+    const placesCount = await countTableRows(operationalSql, "places", input.log);
+    await truncateGroupCounted(operationalSql, [...PLACES_TRUNCATE_TABLES], {
       cascade: true,
       log: input.log,
       forceLocks: input.forceLocks,
@@ -92,8 +89,7 @@ export async function wipeGeoPlacesPhase(
  * geo:reset — снять обогащение (координаты, trust, bbox), строки places остаются.
  */
 export async function resetGeoEnrichmentPhase(input: {
-  dataSource: DataSource;
-  repos: WorkerDbRepositories;
+  deps: PhaseOperationalDeps;
   dryRun: boolean;
 }): Promise<PhaseMutationResult> {
   if (input.dryRun) {
@@ -103,23 +99,22 @@ export async function resetGeoEnrichmentPhase(input: {
       dryRun: true,
       counts: {},
       notes: [
-        "Обнулит centroid/bbox/trust на places; TRUNCATE event_evidence. Jobs сохраняются.",
+        "Обнулит centroid/bbox/trust на places; TRUNCATE mat_parse_evidence. Jobs сохраняются.",
         "geo_feature_id и каталог regions не трогает.",
       ],
     };
   }
 
   await stopAllActivePhaseRuns({
-    dataSource: input.dataSource,
-    repos: input.repos,
+    deps: input.deps,
     reason: "geo:reset",
     clearGeoJobs: false,
   });
 
-  const evidence = await truncateTableCounted(input.dataSource, "event_evidence");
+  const evidence = await truncateTableCounted(input.deps.operationalSql, "mat_parse_evidence");
 
-  const placesBefore = await countTableRows(input.dataSource, "places");
-  await input.dataSource.query(
+  const placesBefore = await countTableRows(input.deps.operationalSql, "places");
+  await input.deps.operationalSql.query(
     `UPDATE places SET
        centroid_lat = NULL,
        centroid_lon = NULL,
@@ -139,7 +134,7 @@ export async function resetGeoEnrichmentPhase(input: {
     dryRun: false,
     counts: {
       places_enrichment_cleared: placesBefore,
-      event_evidence: evidence,
+      mat_parse_evidence: evidence,
     },
   };
 }

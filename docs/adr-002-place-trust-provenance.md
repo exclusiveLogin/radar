@@ -36,7 +36,7 @@
 5. Базовая policy доверия (по умолчанию):
    - `catalog`: 1.00
    - `dadata`: 0.95
-   - `nominatim`: 0.80
+   - `nominatim`: 0.80
    - `llm`: 0.55
    - `operator`: 1.00
    - `system`: 0.70
@@ -54,5 +54,6 @@
 ## План развития
 
 Итерация 1 (выполнено): модель trust/provenance + `place_evidence` + запись evidence в realtime validation.  
-Итерация 2 (следующая): read-side поля, endpoint истории evidence, UI-ready `needsAttention`.  
+Итерация 2 (следующая): read-side поля, endpoint истории evidence, UI-ready 
+eedsAttention`.  
 Итерация 3: batch enrichment orchestration (rate limits, retry/backoff, promotion policy).

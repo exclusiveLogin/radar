@@ -25,9 +25,17 @@ import {
   trackingStatusResponseSchema,
   trackingRebuildRunSchema,
   trackingPipelineConfigSchema,
-  trackingTuneRunSchema,
   type TrackingPipelineConfig,
-  type TrackingTuneRun,
+  workbookObservabilityResponseSchema,
+  runnerDiscoveryResponseSchema,
+  type WorkbookObservabilityResponse,
+  type RunnerDiscoveryResponse,
+  pipelineTopologyResponseSchema,
+  pipelineStepRunResponseSchema,
+  pipelineStepResetResponseSchema,
+  type PipelineTopologyResponse,
+  type PipelineStepRunResponse,
+  type PipelineStepResetResponse,
 } from "@radar/shared";
 import type { PhaseDefinition, PhaseRun, TrackingStatusResponse, TrackingRebuildRun } from "@radar/shared";
 import { z } from "zod";
@@ -38,7 +46,6 @@ const parseAttemptsSchema = z.array(parseAttemptItemSchema);
 const phasesSchema = z.array(phaseDefinitionSchema);
 const phaseRunsSchema = z.array(phaseRunSchema);
 const trackingRunsSchema = z.array(trackingRebuildRunSchema);
-const trackingTuneRunsSchema = z.array(trackingTuneRunSchema);
 
 async function getJson<T>(url: string, schema: { parse: (data: unknown) => T }): Promise<T> {
   const response = await fetch(url);
@@ -124,6 +131,15 @@ export const adminApi = {
       backfillJobListItemSchema,
     ),
 
+  /** Убрать job из мониторинга (для running — сначала cancel). */
+  removeBackfillJob: (id: string): Promise<{ ok: true; removed: true }> =>
+    sendJson(
+      "DELETE",
+      `/api/admin/ingest/backfill-jobs/${encodeURIComponent(id)}`,
+      undefined,
+      z.object({ ok: z.literal(true), removed: z.literal(true) }),
+    ),
+
   telemetry: (): Promise<AdminTelemetry> =>
     getJson("/api/admin/telemetry", adminTelemetrySchema),
 
@@ -184,7 +200,13 @@ export const adminApi = {
   phasesCancelRun: (runId: string): Promise<{ ok: true }> =>
     postJson(`/api/admin/phases/runs/${encodeURIComponent(runId)}/cancel`, undefined, z.object({ ok: z.literal(true) })),
 
-  /** Как CLI phase:runs:stop-all — cancel runs + DELETE pending/processing в phase_coverage. */
+  phasesPauseRun: (runId: string): Promise<{ ok: true }> =>
+    postJson(`/api/admin/phases/runs/${encodeURIComponent(runId)}/pause`, undefined, z.object({ ok: z.literal(true) })),
+
+  phasesResumeRun: (runId: string): Promise<{ ok: true }> =>
+    postJson(`/api/admin/phases/runs/${encodeURIComponent(runId)}/resume`, undefined, z.object({ ok: z.literal(true) })),
+
+  /** Как CLI phase:runs:stop-all — cancel runs + DELETE pending/processing в queue_parse_coverage. */
   phasesStopAllRuns: (): Promise<{
     ok: true;
     phaseRunsClosed: number;
@@ -219,13 +241,6 @@ export const adminApi = {
   trackingRebuild: (): Promise<{ ok: true; runId: string }> =>
     postJson("/api/admin/tracking/rebuild", undefined, z.object({ ok: z.literal(true), runId: z.string().uuid() })),
 
-  trackingSoftRebuild: (): Promise<{ ok: true; runId: string }> =>
-    postJson(
-      "/api/admin/tracking/soft-rebuild",
-      undefined,
-      z.object({ ok: z.literal(true), runId: z.string().uuid() }),
-    ),
-
   trackingReset: (): Promise<{ ok: true }> =>
     postJson("/api/admin/tracking/reset", undefined, z.object({ ok: z.literal(true) })),
 
@@ -238,30 +253,55 @@ export const adminApi = {
   trackingCancel: (): Promise<{ ok: true }> =>
     postJson("/api/admin/tracking/cancel", undefined, z.object({ ok: z.literal(true) })),
 
-  trackingListTune: (limit = 20): Promise<TrackingTuneRun[]> =>
-    getJson(`/api/admin/tracking/tune?limit=${limit}`, trackingTuneRunsSchema),
-
-  trackingStartTune: (body: Record<string, unknown>): Promise<TrackingTuneRun> =>
-    postJson("/api/admin/tracking/tune", body, trackingTuneRunSchema),
-
-  trackingCancelTune: (id: string): Promise<{ ok: true }> =>
-    postJson(`/api/admin/tracking/tune/${id}/cancel`, undefined, z.object({ ok: z.literal(true) })),
-
-  trackingRestartTune: (id: string): Promise<TrackingTuneRun> =>
-    postJson(`/api/admin/tracking/tune/${id}/restart`, undefined, trackingTuneRunSchema),
-
-  trackingApplyTune: (id: string): Promise<TrackingPipelineConfig> =>
-    postJson(`/api/admin/tracking/tune/${id}/apply`, undefined, trackingPipelineConfigSchema),
-
-  trackingDeleteTune: (id: string): Promise<{ ok: true }> =>
-    sendJson("DELETE", `/api/admin/tracking/tune/${id}`, undefined, z.object({ ok: z.literal(true) })),
-
   parsePipelineGetStatus: (): Promise<ParsePipelineStatusResponse> =>
     getJson("/api/admin/parse/status", parsePipelineStatusResponseSchema),
 
-  parsePipelineReset: (): Promise<ParsePipelineStartResponse> =>
-    postJson("/api/admin/parse/reset", undefined, parsePipelineStartResponseSchema),
+  /** Wipe parse-слоя + enqueue catch-up (единая операция админки). */
+  parsePipelineRebuild: (): Promise<ParsePipelineStartResponse> =>
+    postJson("/api/admin/parse/rebuild", undefined, parsePipelineStartResponseSchema),
 
-  parsePipelineReparse: (): Promise<ParsePipelineStartResponse> =>
-    postJson("/api/admin/parse/reparse", undefined, parsePipelineStartResponseSchema),
+  /** Зависшие claim'ы упавшего worker: processing → pending, без wipe. */
+  parsePipelineReleaseStuck: (): Promise<{
+    ok: true;
+    released: number;
+    phaseIds: string[];
+  }> =>
+    postJson(
+      "/api/admin/parse/release-stuck",
+      undefined,
+      z.object({
+        ok: z.literal(true),
+        released: z.number().int().nonnegative(),
+        phaseIds: z.array(z.string()),
+      }),
+    ),
+
+  workbookObservability: (): Promise<WorkbookObservabilityResponse> =>
+    getJson("/api/admin/workbook/observability", workbookObservabilityResponseSchema),
+
+  runnerDiscovery: (): Promise<RunnerDiscoveryResponse> =>
+    getJson("/api/admin/runner/discovery", runnerDiscoveryResponseSchema),
+
+  pipelineTopology: (): Promise<PipelineTopologyResponse> =>
+    getJson("/api/admin/pipeline/topology", pipelineTopologyResponseSchema),
+
+  pipelineStepRun: (
+    stepId: string,
+    body: { isolate?: boolean; ids?: string[]; lane?: "manual" | "backfill" },
+  ): Promise<PipelineStepRunResponse> =>
+    postJson(
+      `/api/admin/pipeline/steps/${encodeURIComponent(stepId)}/run`,
+      body,
+      pipelineStepRunResponseSchema,
+    ),
+
+  pipelineStepReset: (
+    stepId: string,
+    body: { cascade?: boolean; dryRun?: boolean },
+  ): Promise<PipelineStepResetResponse> =>
+    postJson(
+      `/api/admin/pipeline/steps/${encodeURIComponent(stepId)}/reset`,
+      body,
+      pipelineStepResetResponseSchema,
+    ),
 };

@@ -33,7 +33,7 @@ npm run radar -- parse run
 npm run radar -- pipeline parity
 ```
 
-Опционально: `npm run radar -- geo catalog:import` если places неполные.
+Опционально: `npm run radar -- geo catalog:import` если places неполные.
 
 ## Тесты
 

@@ -22,8 +22,8 @@ import {
   geometryLinkFallbackKinds,
 } from "../../infrastructure/geo-catalog/osm-layer-kind";
 import { RegionGeometryCatalog } from "../../map/region-geometry.catalog";
-import { TypeOrmRegionRepository } from "../../infrastructure/persistence/typeorm-region.repository";
-import { TypeOrmPlaceRepository } from "../../infrastructure/persistence/typeorm-place.repository";
+import { TypeOrmRegionRepository } from "@radar/persistence";
+import { TypeOrmPlaceRepository } from "@radar/persistence";
 import { MONOREPO_ROOT } from "../../monorepo-root";
 
 // ─── Константы путей ──────────────────────────────────────────────────────────

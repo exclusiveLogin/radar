@@ -175,9 +175,9 @@ async function loadLocationFacts(
            el.lon,
            el.scope_radius_m,
            el.occurred_at AS occurred_at
-    FROM event_locations el
-    JOIN parsed_events pe ON pe.id = el.parsed_event_id
-    JOIN raw_messages rm ON rm.id = pe.raw_message_id
+    FROM mat_parse_location el
+    JOIN mat_parse_event pe ON pe.id = el.parsed_event_id
+    JOIN mat_ingest_raw rm ON rm.id = pe.raw_message_id
     JOIN channels c ON c.id = rm.channel_id
     LEFT JOIN regions r ON r.id = el.region_id
     LEFT JOIN status_dictionary sd
@@ -207,15 +207,15 @@ async function loadChannelClearFacts(
              rm.posted_at AS clear_at,
              c.key AS channel_key,
              COALESCE(pe.extras->'excludedRegionCodes', '[]'::jsonb) AS excluded_region_codes
-      FROM parsed_events pe
-      JOIN raw_messages rm ON rm.id = pe.raw_message_id
+      FROM mat_parse_event pe
+      JOIN mat_ingest_raw rm ON rm.id = pe.raw_message_id
       JOIN channels c ON c.id = rm.channel_id
       WHERE (pe.event_type = 'cleared' OR pe.is_active = false)
         AND COALESCE(pe.extras->>'massClearChannel', 'false') = 'true'
         AND rm.posted_at <= $1::timestamptz
         AND rm.posted_at > $2::timestamptz
         AND NOT EXISTS (
-          SELECT 1 FROM event_locations el WHERE el.parsed_event_id = pe.id
+          SELECT 1 FROM mat_parse_location el WHERE el.parsed_event_id = pe.id
         )
     )
     SELECT DISTINCT ON (gc.parsed_event_id, el.region_id)
@@ -227,11 +227,11 @@ async function loadChannelClearFacts(
            gc.channel_key AS author_channel_key,
            gc.clear_at AS occurred_at
     FROM global_clears gc
-    JOIN event_locations el ON el.action = 'raise'
+    JOIN mat_parse_location el ON el.action = 'raise'
       AND el.occurred_at > gc.clear_at - INTERVAL '24 hours'
       AND el.occurred_at <= $1::timestamptz
-    JOIN parsed_events pe_raise ON pe_raise.id = el.parsed_event_id
-    JOIN raw_messages rm_raise ON rm_raise.id = pe_raise.raw_message_id
+    JOIN mat_parse_event pe_raise ON pe_raise.id = el.parsed_event_id
+    JOIN mat_ingest_raw rm_raise ON rm_raise.id = pe_raise.raw_message_id
     JOIN channels c_raise ON c_raise.id = rm_raise.channel_id AND c_raise.key = gc.channel_key
     JOIN regions r ON r.id = el.region_id
     LEFT JOIN status_dictionary sd_clear
@@ -264,22 +264,22 @@ async function loadMassClearFacts(
            pe.event_type,
            (
              SELECT COUNT(*)::text
-             FROM event_locations el
+             FROM mat_parse_location el
              WHERE el.parsed_event_id = pe.id
                AND COALESCE(el.entity_kind, 'region') <> 'place'
            ) AS non_place_location_count,
            rm.posted_at AS occurred_at,
            COALESCE(sd_clear.code, 'cleared') AS status_code,
            COALESCE(sd_clear.state_level::text, 'green') AS state_level
-    FROM parsed_events pe
-    JOIN raw_messages rm ON rm.id = pe.raw_message_id
+    FROM mat_parse_event pe
+    JOIN mat_ingest_raw rm ON rm.id = pe.raw_message_id
     JOIN channels c ON c.id = rm.channel_id
     LEFT JOIN status_dictionary sd_clear
       ON sd_clear.code = 'cleared' AND sd_clear.is_active = true
     WHERE (pe.event_type = 'cleared' OR pe.is_active = false)
       AND rm.posted_at <= $1::timestamptz
       AND rm.posted_at > $2::timestamptz
-      AND EXISTS (SELECT 1 FROM event_locations el WHERE el.parsed_event_id = pe.id)
+      AND EXISTS (SELECT 1 FROM mat_parse_location el WHERE el.parsed_event_id = pe.id)
     `,
     [asOf.toISOString(), cutoff.toISOString()],
   );
@@ -337,7 +337,7 @@ async function loadActiveRegions(db: MapFoldDbQuery): Promise<MassClearRegionRef
 /**
  * Синтетические place-clear при региональном отбое.
  * Покрывает clearAuthorPlacesInRegion и applyRegionalClearToPlaces (sweep):
- * любой place raise в регионе до clear гасится, даже без строки в event_locations.
+ * любой place raise в регионе до clear гасится, даже без строки в mat_parse_location.
  */
 export function buildAuthorPlaceClearFacts(
   regionClearFacts: EventLocationFact[],

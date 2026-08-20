@@ -99,8 +99,6 @@ export function kalmanStep(
   ];
   const PP = mat4add(mat4mul(mat4mul(F, P), mat4transpose(F)), Q);
 
-  // H — матрица наблюдений (2×4)
-  const H = [[1, 0, 0, 0], [0, 1, 0, 0]];
   // R diagonal
   const Rmat = [[R.sigmaLonM ** 2, 0], [0, R.sigmaLatM ** 2]];
 

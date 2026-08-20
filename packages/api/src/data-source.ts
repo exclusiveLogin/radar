@@ -1,7 +1,10 @@
 import * as fs from "fs";
 import * as path from "path";
 import * as dotenv from "dotenv";
-import { DataSource } from "typeorm";function loadEnv(): void {
+import "reflect-metadata";
+import { typeOrmEntities } from "@radar/persistence";
+import { DataSource } from "typeorm";
+function loadEnv(): void {
   const root = path.resolve(__dirname, "../../..");
   const rootEnv = path.join(root, ".env");
   if (fs.existsSync(rootEnv)) {
@@ -21,7 +24,7 @@ if (!databaseUrl) {
 export default new DataSource({
   type: "postgres",
   url: databaseUrl,
-  entities: [path.join(__dirname, "**/*.entity.{ts,js}")],
+  entities: typeOrmEntities,
   migrations: [path.join(__dirname, "migrations", "*.{ts,js}")],
   synchronize: false,
 });

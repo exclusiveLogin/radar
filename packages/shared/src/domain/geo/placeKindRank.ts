@@ -1,4 +1,4 @@
-import type { PlaceRecord } from "../../ports/repositories.js";
+import type { PlaceRecord } from "../../ports/geo-repositories.js";
 
 const KIND_RANK: Record<PlaceRecord["kind"], number> = {
   region: 100,

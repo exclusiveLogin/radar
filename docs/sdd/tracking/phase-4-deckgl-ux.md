@@ -215,7 +215,7 @@ Fallback: MapLibre layers from phases 2/2b/2c/3.
 | unit | trackTripsTransform, trackColor, flowLineWidth |
 | component | useTrackingMapData toggles don't fetch when off |
 | manual | scrub timeline, 150k dataset smoke |
-| build | `npm run build` web passes |
+| build | `npm run build` web passes |
 
 ---
 

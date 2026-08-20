@@ -33,3 +33,18 @@ export function isCandidateGeoValid(input: {
   }
   return true;
 }
+
+/**
+ * ADR-027: тупой порог materialize по extras.geoScore.
+ * Нет score / gate выключен → пропускаем (heal/legacy/audit).
+ */
+export function isCandidateGeoScoreAcceptable(input: {
+  extras: Record<string, unknown>;
+  gateEnabled: boolean;
+  threshold: number;
+}): boolean {
+  if (!input.gateEnabled) return true;
+  const score = input.extras.geoScore;
+  if (typeof score !== "number" || Number.isNaN(score)) return true;
+  return score >= input.threshold;
+}

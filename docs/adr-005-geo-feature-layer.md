@@ -60,7 +60,7 @@ place_geo_link (
 
 | Поле | Тип | Назначение |
 |------|-----|-----------|
-| `name_stem` | text | Стем для быстрого матча без alias-роста |
+| `name_stem` | text | Стем для быстрого матча без alias-роста |
 | `geo_feature_id` | uuid FK | Ссылка на геометрию; заполняется при import или parse-match |
 
 ---
@@ -94,7 +94,7 @@ geo:features:import
 ### `data/geo/catalog/regions.json` — SSOT идентичности
 
 89 записей: 83 стандартных субъекта РФ + Крым + Севастополь + 4 НТ.  
-Включает: `iso`, `name`, `nameWithType`, `shortName`, `federalDistrict`, `fiasId`, `kladrId`, `frontRegion`, `borderRegion`.
+Включает: `iso`, `name`, `nameWithType`, `shortName`, `federalDistrict`, `fiasId`, `kladrId`, `frontRegion`, `borderRegion`.
 
 **Удалены вендоры:** `hflabs-region`, `rnekrasov-geojson` — из `geo-sources.json`.
 
@@ -147,4 +147,4 @@ matchPlace("Авиастроительный район", region_id=RU-TA)
 
 - `KnownLocalityCatalog` (`places.json`) оставлен как fallback для НТ-городов до верификации OSM Cities/ покрытия.
 - `city_place_id` FK для sub-scoping района внутри города — v2.
-- Поля `event_locations.(region_id, lat, lon, precision)` — запланированы к удалению в следующей миграции после стабилизации read-model.
+- Поля `mat_parse_location.(region_id, lat, lon, precision)` — запланированы к удалению в следующей миграции после стабилизации read-model.

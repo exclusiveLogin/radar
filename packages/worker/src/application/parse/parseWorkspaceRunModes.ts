@@ -10,8 +10,8 @@ export type ParseWorkspaceRunKind = "rebuild" | "phase_enrich" | "heal";
  * Не путать с FinalizeContext.mode (initial | refinalize | heal) — политика
  * reconcile в terminal finalizer (orphan sweep, candidateEventMap).
  *
- * ## 1. REBUILD (`pipeline reset` → `parse run`, eager catalog ingest)
- * - parsed_events + message_parse_workspace очищены (или первый ingest)
+ * ## 1. REBUILD (`parse run`, eager catalog ingest)
+ * - mat_parse_event + work_parse_message очищены (или первый ingest)
  * - raw → groom → catalog enricher → (optional) enrichers → finalize(mode=initial)
  *
  * ## 2. PHASE_ENRICH (scheduled/manual phase, workspace уже в БД)
@@ -34,7 +34,7 @@ export function phaseEnrichersToRun(enrichers: EnricherId[]): EnricherId[] {
  */
 export function resolvePhaseRunKind(phase: PhaseDefinitionRecord): ParseWorkspaceRunKind {
   const lazy = phaseEnrichersToRun(phase.enrichers);
-  if (lazy.length > 0 && phase.trigger !== "eager") {
+  if (lazy.length > 0 && phase.triggerMode !== "event") {
     return "phase_enrich";
   }
   return "rebuild";

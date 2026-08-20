@@ -1,104 +1,90 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from "@nestjs/common";
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Get,
+  Patch,
+  Post,
+  Query,
+} from "@nestjs/common";
 import { ApiOperation, ApiTags } from "@nestjs/swagger";
-import { TrackingAdminService } from "./tracking-admin.service";
+import {
+  ControlTrackingRunUseCase,
+  PatchTrackingConfigUseCase,
+  SetTrackingEnabledUseCase,
+  StartTrackingRebuildUseCase,
+  TrackingAdminCommandError,
+} from "../application/tracking-admin/tracking-admin-commands";
+import { TrackingAdminQueryService } from "./tracking-admin.service";
 
 @ApiTags("admin-tracking")
 @Controller("admin/tracking")
 export class TrackingAdminController {
-  constructor(private readonly tracking: TrackingAdminService) {}
+  constructor(
+    private readonly queries: TrackingAdminQueryService,
+    private readonly patchConfigCommand: PatchTrackingConfigUseCase,
+    private readonly setEnabledCommand: SetTrackingEnabledUseCase,
+    private readonly rebuildCommand: StartTrackingRebuildUseCase,
+    private readonly controlRunCommand: ControlTrackingRunUseCase,
+  ) {}
 
   @Get("status")
   @ApiOperation({ summary: "Статус пайплайна треков" })
   getStatus() {
-    return this.tracking.getStatus();
+    return this.queries.getStatus();
   }
 
   @Get("runs")
   @ApiOperation({ summary: "История rebuild runs" })
   listRuns(@Query("limit") limit?: string) {
     const parsed = limit ? Number(limit) : 20;
-    return this.tracking.listRuns(Number.isFinite(parsed) ? parsed : 20);
+    return this.queries.listRuns(Number.isFinite(parsed) ? parsed : 20);
   }
 
   @Get("config")
   getConfig() {
-    return this.tracking.getConfig();
+    return this.queries.readConfig();
   }
 
   @Patch("config")
   patchConfig(@Body() body: Record<string, unknown>) {
-    return this.tracking.patchConfig(body);
+    return this.execute(() => this.patchConfigCommand.execute(body));
   }
 
   @Patch("enabled")
   patchEnabled(@Body() body: { enabled: boolean }) {
-    return this.tracking.patchEnabled(body.enabled === true);
+    return this.execute(() => this.setEnabledCommand.execute(body.enabled === true));
   }
 
   @Post("rebuild")
   rebuild() {
-    return this.tracking.rebuild();
-  }
-
-  @Post("soft-rebuild")
-  @ApiOperation({ summary: "Пересборка треков с текущим config (без сброса весов)" })
-  softRebuild() {
-    return this.tracking.softRebuild();
-  }
-
-  @Post("reset")
-  reset() {
-    return this.tracking.reset();
+    return this.execute(() => this.rebuildCommand.execute());
   }
 
   @Post("pause")
   pause() {
-    return this.tracking.pause();
+    return this.execute(() => this.controlRunCommand.execute("pause"));
   }
 
   @Post("resume")
   resume() {
-    return this.tracking.resume();
+    return this.execute(() => this.controlRunCommand.execute("resume"));
   }
 
   @Post("cancel")
   cancel() {
-    return this.tracking.cancel();
+    return this.execute(() => this.controlRunCommand.execute("cancel"));
   }
 
-  @Get("tune")
-  listTune(@Query("limit") limit?: string) {
-    const parsed = limit ? Number(limit) : 20;
-    return this.tracking.listTuneRuns(Number.isFinite(parsed) ? parsed : 20);
-  }
-
-  @Get("tune/:id")
-  getTuneById(@Param("id") id: string) {
-    return this.tracking.getTuneRun(id);
-  }
-
-  @Patch("tune")
-  startTune(@Body() body: Record<string, unknown>) {
-    return this.tracking.startTune(body);
-  }
-
-  @Post("tune/:id/cancel")
-  cancelTune(@Param("id") id: string) {
-    return this.tracking.cancelTune(id);
-  }
-
-  @Post("tune/:id/restart")
-  restartTune(@Param("id") id: string) {
-    return this.tracking.restartTune(id);
-  }
-
-  @Post("tune/:id/apply")
-  applyTune(@Param("id") id: string) {
-    return this.tracking.applyTune(id);
-  }
-
-  @Delete("tune/:id")
-  deleteTune(@Param("id") id: string) {
-    return this.tracking.deleteTune(id);
+  /** Преобразует ожидаемые ошибки use-case в прежний HTTP-контракт. */
+  private async execute<T>(command: () => Promise<T>): Promise<T> {
+    try {
+      return await command();
+    } catch (error) {
+      if (error instanceof TrackingAdminCommandError) {
+        throw new BadRequestException(error.message);
+      }
+      throw error;
+    }
   }
 }

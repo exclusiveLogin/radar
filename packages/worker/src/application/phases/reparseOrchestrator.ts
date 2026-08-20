@@ -1,70 +1,81 @@
 import { resolveRawMessagePostedAtOrder } from "@radar/shared";
-import type { DataSource } from "typeorm";
-import type { WorkerDbRepositories } from "../../infrastructure/persistence/workerDbRepos.types.js";
 import type { PhaseIngestFlowDeps } from "./phaseIngestFlow.js";
 import { runPostIngestPhaseFlow } from "./phaseIngestFlow.js";
 import { MapStateFullReset } from "../map-state/mapStateFullReset.js";
-import { clearParseLayerArtifacts, clearParsedArtifacts } from "./pipelineOperationalReset.js";
+import { clearParseLayerArtifacts } from "./pipelineOperationalReset.js";
+import type { PhaseOperationalDeps } from "./phaseOperationalDeps.js";
+import { stopAllActivePhaseRuns } from "./stopAllActivePhaseRuns.js";
 
 export { clearParsedArtifacts } from "./pipelineOperationalReset.js";
 
 export type FullReparseInput = {
-  dataSource: DataSource;
-  repos: WorkerDbRepositories;
+  deps: PhaseOperationalDeps;
   ingestFlow: PhaseIngestFlowDeps;
   onMessage?: (index: number, total: number, rawMessageId: string) => void;
   /** По умолчанию true — при lock timeout закрываем блокирующие dev/API сессии. */
   forceLocks?: boolean;
 };
 
-/**
- * Полный reparse (контур rebuild): wipe parsed+workspace уже сделан снаружи,
- * затем ingest-flow по каждому raw с нуля.
- * @see ../parse/parseWorkspaceRunModes.ts
- */
-export async function runFullReparseLikeIngest(input: FullReparseInput): Promise<{
+export type FullReparseResult = {
   messages: number;
   phasesInvalidated: number;
-}> {
-  const [, scheduled] = await Promise.all([
-    input.repos.phaseDefinitions.listEnabled("eager", "ingestParse"),
-    input.repos.phaseDefinitions.listEnabled("scheduled", "ingestParse"),
-  ]);
-  const scheduledIds = scheduled.map((p) => p.id);
+  mapPlacesCleared: number;
+  mapRegionsGrey: number;
+  workspacesDeleted: number;
+  parsedEventsDeleted: number;
+};
+
+/**
+ * Полный reparse: сброс карты + wipe parsed/workspace,
+ * затем planPending(ids) по каждому raw (без inline handle).
+ */
+export async function runFullReparseLikeIngest(input: FullReparseInput): Promise<FullReparseResult> {
+  const ingestPhases = await input.deps.phaseDefinitions.listEnabled(undefined, "ingestParse");
+  const phaseIds = ingestPhases.map((p) => p.id);
+
+  // Сначала закрываем active runs и очищаем очередь: иначе worker удерживает
+  // lock на parse-таблицах в момент последующего TRUNCATE.
+  await stopAllActivePhaseRuns({
+    deps: input.deps,
+    reason: "reparse:reset",
+    ingestPhaseIds: phaseIds,
+  });
 
   const mapReset = new MapStateFullReset({
-    dataSource: input.dataSource,
+    operationalSql: input.deps.operationalSql,
   });
-  await mapReset.run(new Date(), "reparse:invalidate");
+  const mapResetResult = await mapReset.run(new Date(), "reparse:invalidate");
 
-  await clearParseLayerArtifacts(input.dataSource, {
+  const parseLayer = await clearParseLayerArtifacts(input.deps.operationalSql, {
     forceLocks: input.forceLocks,
   });
 
-  // Не открываем scheduled-очередь до конца bulk reparse — иначе daemon гоняется с CLI.
-  if (scheduledIds.length > 0) {
-    await input.repos.phaseCoverage.clearQueuedWork(scheduledIds);
-  }
-
   const postedOrder = resolveRawMessagePostedAtOrder();
-  const rows = (await input.dataSource.query(
-    `SELECT id FROM raw_messages ORDER BY posted_at ${postedOrder}`,
-  )) as Array<{ id: string }>;
+  const rows = await input.deps.operationalSql.query<{ id: string }>(
+    `SELECT id FROM mat_ingest_raw ORDER BY posted_at ${postedOrder}`,
+  );
 
   let index = 0;
   for (const row of rows) {
     input.onMessage?.(index, rows.length, row.id);
-    await runPostIngestPhaseFlow(input.ingestFlow, row.id, { skipCoverageEnqueue: true });
+    await runPostIngestPhaseFlow(input.ingestFlow, row.id);
     index += 1;
   }
 
   let phasesInvalidated = 0;
-  if (scheduledIds.length > 0) {
-    phasesInvalidated = await input.repos.phaseCoverage.invalidateForPhases(scheduledIds);
-    for (const phaseId of scheduledIds) {
-      await input.repos.phaseCoverage.enqueueCatchUp(phaseId);
+  if (phaseIds.length > 0) {
+    phasesInvalidated = await input.deps.phaseCoverage.invalidateForPhases(phaseIds);
+    for (const phaseId of phaseIds) {
+      await input.deps.phaseCoverage.enqueueCatchUp(phaseId);
     }
   }
 
-  return { messages: rows.length, phasesInvalidated };
+  return {
+    messages: rows.length,
+    phasesInvalidated,
+    mapPlacesCleared: mapResetResult.placesCleared,
+    mapRegionsGrey: mapResetResult.regionsGrey,
+    workspacesDeleted: parseLayer.workspacesDeleted,
+    parsedEventsDeleted: parseLayer.parsedEventsDeleted,
+  };
 }

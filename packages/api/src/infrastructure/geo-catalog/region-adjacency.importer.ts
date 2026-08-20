@@ -1,6 +1,6 @@
 import * as fs from "node:fs";
 import type { DataSource } from "typeorm";
-import { TypeOrmRegionRepository } from "../persistence/typeorm-region.repository";
+import { TypeOrmRegionRepository } from "@radar/persistence";
 import { resolveGeoCatalogPath } from "./catalog-paths";
 
 export type AdjacencyImportStats = {

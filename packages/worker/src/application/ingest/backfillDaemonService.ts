@@ -102,8 +102,9 @@ function buildStreamParams(
  * Демон backfill: round-robin по активным job, один батч Telegram за тик на канал.
  */
 export class BackfillDaemonService {
-  private timer: ReturnType<typeof setInterval> | null = null;
+  private timer: ReturnType<typeof setTimeout> | null = null;
   private pulseTimer: ReturnType<typeof setInterval> | null = null;
+  private started = false;
   private ticking = false;
   private roundRobinIndex = 0;
   /** MTProto-клиент на провайдера: один connect на весь жизненный цикл демона. */
@@ -118,14 +119,24 @@ export class BackfillDaemonService {
     private readonly ingestHandler: IngestRawMessageHandler,
     private readonly sessionResolver: SessionResolver,
     private readonly telegramMtprotoApp: TelegramMtprotoAppCredentials,
-    private readonly pollMs = Number(process.env.RADAR_BACKFILL_POLL_MS ?? "15000"),
-    private readonly heartbeatMs = Number(process.env.RADAR_BACKFILL_HEARTBEAT_MS ?? "15000"),
+    private readonly pollMs: number,
+    private readonly heartbeatMs: number,
+    /** Cascade: busy/stabilized + ChannelBackfillCompleted (опционально). */
+    private readonly cascade?: {
+      markChannelBusy: (channelId: string) => Promise<void>;
+      onHistoryExhausted: (input: {
+        channelId: string;
+        channelKey: string;
+        providerKey: string;
+        jobId: string;
+      }) => Promise<void>;
+    },
   ) {}
 
   start(): void {
-    if (this.timer) return;
-    void this.tick();
-    this.timer = setInterval(() => void this.tick(), this.pollMs);
+    if (this.started) return;
+    this.started = true;
+    void this.runBatchLoop();
     if (this.heartbeatMs > 0) {
       this.pulseTimer = setInterval(() => {
         void this.pulseRunnableJobs().catch((err) => {
@@ -134,13 +145,14 @@ export class BackfillDaemonService {
       }, this.heartbeatMs);
     }
     console.log(
-      `BackfillDaemon: poll ${this.pollMs}ms, heartbeat ${this.heartbeatMs}ms (round-robin batch)`,
+      `BackfillDaemon: batch pause ${this.pollMs}ms, heartbeat ${this.heartbeatMs}ms (round-robin)`,
     );
   }
 
   async stop(): Promise<void> {
+    this.started = false;
     if (this.timer) {
-      clearInterval(this.timer);
+      clearTimeout(this.timer);
       this.timer = null;
     }
     if (this.pulseTimer) {
@@ -151,6 +163,13 @@ export class BackfillDaemonService {
       await adapter.stop();
     }
     this.adaptersByProvider.clear();
+  }
+
+  /** Гарантирует полную паузу после batch перед следующим round-robin тиком. */
+  private async runBatchLoop(): Promise<void> {
+    await this.tick();
+    if (!this.started) return;
+    this.timer = setTimeout(() => void this.runBatchLoop(), this.pollMs);
   }
 
   /** Подключает telegram-адаптер один раз на providerId; повторные тики переиспользуют сессию. */
@@ -190,10 +209,10 @@ export class BackfillDaemonService {
     }
   }
 
-  /** Перечитывает статус job: true, если оператор запросил отмену. */
+  /** Перечитывает статус job: true, если оператор отменил или удалил job. */
   private async isCanceled(jobId: string): Promise<boolean> {
     const fresh = await this.jobs.findById(jobId);
-    return fresh?.status === "canceled";
+    return !fresh || fresh.status === "canceled";
   }
 
   /** Пульс updated_at для всех runnable job — админка видит живую очередь. */
@@ -274,6 +293,12 @@ export class BackfillDaemonService {
         await this.jobs.updateStatus(job.id, "failed", currentJob.stats);
         throw new Error(`Channel not found for binding ${binding.id}`);
       }
+
+      await this.cascade?.markChannelBusy(channel.id);
+      await this.cursors.updateBackfillState(channel.key, provider.key, {
+        inProgress: true,
+        jobId: currentJob.id,
+      });
 
       const adapter = await this.ensureAdapter(provider);
       if ("setChannelKeyMap" in adapter && typeof adapter.setChannelKeyMap === "function") {
@@ -370,6 +395,12 @@ export class BackfillDaemonService {
           await this.jobs.updateStatus(currentJob.id, "completed", currentJob.stats);
           await this.clearRoundRobinSlice(currentJob.id, currentJob.params);
           console.log(`BackfillDaemon: job ${currentJob.id} completed`, currentJob.stats);
+          await this.cascade?.onHistoryExhausted({
+            channelId: channel.id,
+            channelKey: channel.key,
+            providerKey: provider.key,
+            jobId: currentJob.id,
+          });
         }
       } catch (err) {
         if (err instanceof BackfillCanceledError) {
@@ -403,9 +434,3 @@ export class BackfillDaemonService {
   }
 }
 
-/** Включён ли демон (по умолчанию в db mode — да). */
-export function isBackfillDaemonEnabled(): boolean {
-  const flag = process.env.RADAR_BACKFILL_DAEMON_ENABLED?.trim();
-  if (flag === "0" || flag === "false") return false;
-  return true;
-}

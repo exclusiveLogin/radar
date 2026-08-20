@@ -1,6 +1,6 @@
 import * as fs from "node:fs";
 import type { AliasDraft, GeoProviderSnapshot, IGeoSourceProvider, PlaceDraft } from "@radar/shared";
-import { placeDraftKey } from "../../application/geo-sync/diff-engine";
+import { placeDraftKey } from "../../application/geo-sync/place-draft-key";
 import { resolveGeoCatalogPath } from "./catalog-paths";
 
 export const FRONTLINE_CATALOG_SOURCE_ID = "frontline_catalog";

@@ -55,6 +55,12 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost/misc/ping"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
   adminer:
     image: adminer:4
@@ -70,28 +76,202 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  rabbitmq:
+    image: rabbitmq:4-management-alpine
+    container_name: radar-rabbitmq
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RMQ_USER:-radar}
+      RABBITMQ_DEFAULT_PASS: ${RMQ_PASSWORD:-radar}
+      RABBITMQ_DEFAULT_VHOST: ${RMQ_VHOST:-radar}
+    command: >
+      sh -c "rabbitmq-plugins enable --offline rabbitmq_prometheus &&
+             docker-entrypoint.sh rabbitmq-server"
+    ports:
+      - "${RMQ_AMQP_PORT:-5672}:5672"
+      - "${RMQ_MGMT_PORT:-15672}:15672"
+    volumes:
+      - radar_rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - radar_net
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 30s
+      timeout: 30s
+      retries: 3
+      start_period: 30s
+
+  prometheus:
+    image: prom/prometheus:v3.2.1
+    container_name: radar-prometheus
+    restart: unless-stopped
+    profiles: ["obs"]
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    volumes:
+      - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - radar_prometheus_data:/prometheus
+    networks:
+      - radar_net
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      cadvisor:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  cadvisor:
+    image: ghcr.io/google/cadvisor:v0.60.5
+    container_name: radar-cadvisor
+    restart: unless-stopped
+    profiles: ["obs"]
+    privileged: true
+    command:
+      - --docker_only=true
+      - --housekeeping_interval=10s
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker:/var/lib/docker:ro
+      - /var/lib/containerd:/var/lib/containerd:ro
+    networks:
+      - radar_net
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:8080/healthz || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  docker-health-exporter:
+    image: ghcr.io/gladioluss/docker_healthcheck_exporter:1.0.1
+    container_name: radar-docker-health-exporter
+    restart: unless-stopped
+    profiles: ["obs"]
+    environment:
+      LISTEN: 0.0.0.0:9102
+      REFRESH_INTERVAL_SECONDS: 5
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - radar_net
+
+  postgres-exporter:
+    image: quay.io/prometheuscommunity/postgres-exporter:v0.20.1
+    container_name: radar-postgres-exporter
+    restart: unless-stopped
+    profiles: ["obs"]
+    environment:
+      DATA_SOURCE_NAME: postgresql://${POSTGRES_USER:-radar}:${POSTGRES_PASSWORD:-radar}@db:5432/${POSTGRES_DB:-radar}?sslmode=disable
+    networks:
+      - radar_net
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:9187/metrics"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  node-exporter:
+    image: quay.io/prometheus/node-exporter:v1.12.1
+    container_name: radar-node-exporter
+    restart: unless-stopped
+    profiles: ["obs"]
+    command:
+      - --path.rootfs=/host
+    volumes:
+      - /:/host:ro
+    networks:
+      - radar_net
+    healthcheck:
+      # Не --spider на /metrics: wget рвёт соединение до конца ответа → spam broken pipe в логах.
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:9100/"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  # NVML backend: nvidia_smi_* (util/VRAM/temp/power). GPU devices — в override (как у ollama).
+  nvidia-gpu-exporter:
+    image: utkuozdemir/nvidia_gpu_exporter:latest-nvml
+    container_name: radar-nvidia-gpu-exporter
+    restart: unless-stopped
+    profiles: ["obs"]
+    environment:
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: utility,compute
+    networks:
+      - radar_net
+
+  grafana:
+    image: grafana/grafana:11.5.2
+    container_name: radar-grafana
+    restart: unless-stopped
+    profiles: ["obs"]
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-radar_grafana}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    ports:
+      - "${GRAFANA_PORT:-3002}:3000"
+    volumes:
+      - ./docker/grafana/provisioning:/etc/grafana/provisioning:ro
+      - radar_grafana_data:/var/lib/grafana
+    networks:
+      - radar_net
+    depends_on:
+      prometheus:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
 
   ollama:
     image: ollama/ollama:0.30.0-rc12
     restart: unless-stopped
-    profiles: ["llm", "llm-ui"]
-    gpus: all
+    # app — вместе с docker:dev; llm/llm-ui — cold-up и ручной profile
+    profiles: ["app", "llm", "llm-ui", "prod"]
+    env_file:
+      - .env
+    environment:
+      OLLAMA_HOST: 0.0.0.0:11434
+      GEO__llm__model: ${GEO__llm__model:-qwen2.5:14b}
     ports:
       - "${OLLAMA_PORT:-11434}:11434"
-    environment:
-      NVIDIA_VISIBLE_DEVICES: all
-      NVIDIA_DRIVER_CAPABILITIES: compute,utility
     volumes:
       - radar_ollama_data:/root/.ollama
+      - ./docker/ollama-entrypoint.sh:/docker/ollama-entrypoint.sh:ro
+      - ./docker/ollama-healthcheck.sh:/docker/ollama-healthcheck.sh:ro
+    entrypoint: ["/bin/sh", "/docker/ollama-entrypoint.sh"]
     networks:
       - radar_net
     healthcheck:
-      test: ["CMD", "ollama", "list"]
-      interval: 15s
-      timeout: 10s
-      retries: 5
-      start_period: 25s
+      test: ["CMD", "/bin/sh", "/docker/ollama-healthcheck.sh"]
+      interval: 30s
+      timeout: 20s
+      retries: 12
+      start_period: 1800s
     stop_grace_period: 30s
+    # GPU: docker-compose.override.yml + COMPOSE_FILE (см. .env / docker-dev-stack.md)
 
   open-webui:
     image: ghcr.io/open-webui/open-webui:main
@@ -109,6 +289,24 @@ services:
       ollama:
         condition: service_healthy
 
+  observability:
+    build:
+      context: .
+      dockerfile: packages/observability/Dockerfile
+    restart: unless-stopped
+    profiles: ["obs"]
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-radar}:${POSTGRES_PASSWORD:-radar}@db:5432/${POSTGRES_DB:-radar}
+      PORT: "3020"
+      OBS_HOST: 0.0.0.0
+    ports:
+      - "${OBS_PORT:-3020}:3020"
+    networks:
+      - radar_net
+    depends_on:
+      db:
+        condition: service_healthy
+
   worker:
     image: node:22-alpine
     restart: unless-stopped
@@ -117,7 +315,7 @@ services:
     command: ["sh", "-c", "npm run start -w @radar/worker"]
     volumes:
       - .:/app
-      - radar_sessions_data:/var/radar/sessions
+      - ./.radar/sessions:/var/radar/sessions
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql://radar:radar@db:5432/radar}
       RADAR_STORAGE_MODE: db
@@ -141,6 +339,8 @@ networks:
 volumes:
   radar_pg_data:
   radar_pgadmin_data:
+  radar_rabbitmq_data:
+  radar_prometheus_data:
+  radar_grafana_data:
   radar_ollama_data:
   radar_open_webui_data:
-  radar_sessions_data:

@@ -1,0 +1,23 @@
+# Локальный overlay: NVIDIA GPU для ollama + nvidia-gpu-exporter.
+# Цепочка: COMPOSE_FILE=docker-compose.yml;docker-compose.app.yml;docker-compose.override.yml
+# Без GPU / без NVIDIA Container Toolkit — убери этот файл из COMPOSE_FILE.
+name: radar
+
+x-nvidia-gpu: &nvidia-gpu
+  environment:
+    NVIDIA_VISIBLE_DEVICES: all
+    NVIDIA_DRIVER_CAPABILITIES: compute,utility
+  deploy:
+    resources:
+      reservations:
+        devices:
+          - driver: nvidia
+            count: all
+            capabilities: [gpu]
+
+services:
+  ollama:
+    <<: *nvidia-gpu
+
+  nvidia-gpu-exporter:
+    <<: *nvidia-gpu

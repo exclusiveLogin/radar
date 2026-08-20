@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Холодный старт: Docker (Postgres + Adminer + pgAdmin), npm install, сборка @radar/shared, миграции.
 // npm run cold:up  |  npm run cold:up -- -Geo -Dev -Llm -LlmUi  |  двойной дефис: -- --geo --dev --llm --llm-ui
+import { loadInfraManifest } from '@radar/shared/infra/infraManifest.loader.js';
 import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
@@ -116,30 +117,27 @@ async function main() {
   const llm =
     llmFlag ||
     llmUiFlag ||
-    envTruthy('RADAR_LLM_GEOCODER_ENABLED') ||
+    envTruthy('GEO__llm__enabled') ||
     envTruthy('COLD_UP_WITH_LLM');
   if (llm) {
-    const model = (process.env.RADAR_LLM_MODEL || 'qwen2.5:3b').trim();
-    console.log('\n\x1b[32m[llm] docker compose --profile llm up -d\x1b[0m');
+    console.log('\n\x1b[32m[llm] docker compose --profile llm up -d (модель — entrypoint ollama)\x1b[0m');
     run('docker', ['compose', '--profile', 'llm', 'up', '-d']);
-    console.log(`\n\x1b[32m[llm] ollama pull ${model}\x1b[0m`);
-    run('docker', [
-      'compose',
-      '--profile',
-      'llm',
-      'exec',
-      '-T',
-      'ollama',
-      'ollama',
-      'pull',
-      model,
-    ]);
   }
 
   const llmUi = llmUiFlag || envTruthy('COLD_UP_WITH_LLM_UI');
   if (llmUi) {
     console.log('\n\x1b[32m[llm-ui] docker compose --profile llm-ui up -d\x1b[0m');
     run('docker', ['compose', '--profile', 'llm-ui', 'up', '-d']);
+  }
+
+  const deployment = loadInfraManifest({ repoRoot });
+  const obs = deployment.infra.obs;
+  if (obs.dockerize) {
+    console.log('[obs] docker compose --profile obs up -d');
+    run('docker', ['compose', '--profile', 'obs', 'up', '-d']);
+    process.env.RADAR_OBS_SERVICE_URL = obs.serviceUrl;
+    process.env.OBS_PORT = String(obs.port);
+    process.env.OBS_HOST = obs.host;
   }
 
   if (geo) {
@@ -158,9 +156,9 @@ async function main() {
   const tilesFlag = tiles || envTruthy('COLD_UP_WITH_TILES');
   if (tilesFlag) {
     step += 1;
-    console.log(`\n\x1b[33m[${step}/${totalSteps}] tiles:init (долго)\x1b[0m`);
+    console.log(`\n\x1b[33m[${step}/${totalSteps}] tiles:sync (долго)\x1b[0m`);
     const tilesArgs = verbose ? ['--verbose'] : [];
-    run('node', ['scripts/tiles-init.mjs', ...tilesArgs]);
+    run('node', ['scripts/tiles-sync.mjs', ...tilesArgs]);
     progress.tick();
   }
 

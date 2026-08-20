@@ -1,17 +1,18 @@
 import type { IPhaseDefinitionRepository, PhaseDefinitionRecord } from "@radar/shared";
-import { loadPhaseManifest } from "../../infrastructure/manifest/phaseManifestLoader.js";
+import { DEFAULT_PHASE_POLICY } from "@radar/shared";
+import { loadPipelineManifest } from "@radar/shared/pipeline/pipelineManifest.loader.js";
 import { sortPhasesByOrder } from "../phases/phaseOrder.js";
 
-/** Fallback, если манифест недоступен (только eager catalog). */
+/** Fallback, если DB пуста и pipeline manifest недоступен (только catalog). */
 function defaultCatalogPhase(): PhaseDefinitionRecord[] {
   const updatedAt = new Date().toISOString();
   return [
     {
       id: "catalog",
-      trigger: "eager",
+      triggerMode: "event",
       scope: "ingestParse",
       enrichers: ["catalog"],
-      policy: { batchSize: 100, intervalMs: 60_000, concurrency: 1, minIntervalMs: 0, eagerMode: "inline" },
+      policy: { ...DEFAULT_PHASE_POLICY, batchSize: 100, eagerMode: "queue" },
       enabled: true,
       order: 0,
       updatedAt,
@@ -19,7 +20,7 @@ function defaultCatalogPhase(): PhaseDefinitionRecord[] {
   ];
 }
 
-function manifestEntriesToRecords(
+function toRecords(
   entries: Array<Omit<PhaseDefinitionRecord, "updatedAt"> & { updatedAt?: string }>,
 ): PhaseDefinitionRecord[] {
   const updatedAt = new Date().toISOString();
@@ -36,21 +37,20 @@ async function loadFromDb(
   return sortPhasesByOrder(includeDisabled ? rows : rows.filter((phase) => phase.enabled));
 }
 
-function loadFromManifestFile(
-  repoRoot: string,
-  includeDisabled: boolean,
-): PhaseDefinitionRecord[] {
-  const manifest = loadPhaseManifest(repoRoot);
-  if (!manifest) {
+/** Fallback без DB: pipeline.manifest.json.phases. */
+function loadFromPipeline(repoRoot: string, includeDisabled: boolean): PhaseDefinitionRecord[] {
+  try {
+    const manifest = loadPipelineManifest({ repoRoot });
+    const ingest = manifest.phases.filter((phase) => phase.scope === "ingestParse");
+    const filtered = includeDisabled ? ingest : ingest.filter((phase) => phase.enabled);
+    return sortPhasesByOrder(toRecords(filtered));
+  } catch {
     return defaultCatalogPhase();
   }
-  const ingest = manifest.phases.filter((phase) => phase.scope === "ingestParse");
-  const filtered = includeDisabled ? ingest : ingest.filter((phase) => phase.enabled);
-  return sortPhasesByOrder(manifestEntriesToRecords(filtered));
 }
 
 /**
- * Все ingestParse-фазы из манифеста (включая enabled:false) — для CLI `--phases` override.
+ * Все ingestParse-фазы (включая enabled:false) — для CLI `--phases` override.
  */
 export async function loadAllIngestParsePhases(input: {
   repoRoot: string;
@@ -60,12 +60,12 @@ export async function loadAllIngestParsePhases(input: {
     const fromDb = await loadFromDb(input.phaseDefinitions, true);
     if (fromDb.length > 0) return fromDb;
   }
-  return loadFromManifestFile(input.repoRoot, true);
+  return loadFromPipeline(input.repoRoot, true);
 }
 
 /**
- * SSOT: enabled ingestParse-фазы (prod / snap — без override).
- * DB → `.radar/phase.manifest.json`.
+ * SSOT: enabled ingestParse-фазы.
+ * DB → pipeline.manifest.phases.
  */
 export async function loadIngestParsePhases(input: {
   repoRoot: string;
@@ -75,7 +75,7 @@ export async function loadIngestParsePhases(input: {
     const fromDb = await loadFromDb(input.phaseDefinitions, false);
     if (fromDb.length > 0) return fromDb;
   }
-  return loadFromManifestFile(input.repoRoot, false);
+  return loadFromPipeline(input.repoRoot, false);
 }
 
 /** Политика выбора фаз для offline run. */
@@ -90,8 +90,8 @@ export type IngestParsePhaseSelection =
 /**
  * Выбор фаз поверх loadAllIngestParsePhases / loadIngestParsePhases.
  *
- * - default: `{ kind: "manifest" }` — enabled из манифеста
- * - CLI `--phases=llm,dadata`: `{ kind: "phase-ids", ... }` — override (включая enabled:false)
+ * - default: `{ kind: "manifest" }` — enabled из DB/pipeline
+ * - CLI `--phases=llm,dadata`: `{ kind: "phase-ids", ... }` — override
  */
 export function selectIngestParsePhases(
   pool: PhaseDefinitionRecord[],

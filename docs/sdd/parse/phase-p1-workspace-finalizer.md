@@ -14,7 +14,7 @@ ADR: [012](../../adr-012-geo-scan-without-aliases.md), [003](../../adr-003-phase
 
 ### In scope
 
-- Таблица `message_parse_workspace`
+- Таблица `work_parse_message`
 - `ParseWorkspace` Zod schema (shared)
 - `ParseFinalizerService` — reconcile с первого дня (upsert + orphan sweep)
 - Минимальный pipeline: grooming stub → GeoProcessor (ADR-012) → EventTypeProcessor → finalize
@@ -35,7 +35,7 @@ ADR: [012](../../adr-012-geo-scan-without-aliases.md), [003](../../adr-003-phase
 
 | ID | Решение |
 |----|---------|
-| P1-O1 | Таблица: `message_parse_workspace` |
+| P1-O1 | Таблица: `work_parse_message` |
 | P1-O2 | **Один active** workspace на `raw_message_id` (`status=finalized`); старые → `superseded` |
 | P1-O3 | `orphanPolicy`: **`deactivate`** default; `hard_delete` только heal `--purge` |
 | P1-O4 | Stable match key: **`candidate.id`** primary; fallback `(rawMessageId, span.start, anchor.kind, eventType)` |
@@ -46,27 +46,27 @@ ADR: [012](../../adr-012-geo-scan-without-aliases.md), [003](../../adr-003-phase
 ## 3. Архитектура
 
 ```text
-raw_messages
+mat_ingest_raw
   → groomMessage(text)           // v1: strip promo patterns (reuse geo grooming)
   → ParseWorkspace (in-memory)
   → GeoProcessor (spawn candidates, ADR-012)
   → EventTypeProcessor (ODP parser-rules pack)
   → ParseFinalizerService.finalize()
-  → parsed_events + event_locations
-  → persist message_parse_workspace (JSONB + maps)
+  → mat_parse_event + mat_parse_location
+  → persist work_parse_message (JSONB + maps)
 ```
 
 ```mermaid
 flowchart TD
-  RAW[raw_messages] --> G[groomMessage]
+  RAW[mat_ingest_raw] --> G[groomMessage]
   G --> WS[ParseWorkspace]
   WS --> GEO[GeoProcessor]
   GEO --> WS
   WS --> ET[EventTypeProcessor]
   ET --> WS
   WS --> FIN[ParseFinalizerService]
-  FIN --> PE[parsed_events]
-  FIN --> PWS[(message_parse_workspace)]
+  FIN --> PE[mat_parse_event]
+  FIN --> PWS[(work_parse_message)]
 ```
 
 ---
@@ -153,9 +153,9 @@ export type FinalizeResult = {
 ## 5. Миграция БД
 
 ```sql
-CREATE TABLE message_parse_workspace (
+CREATE TABLE work_parse_message (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  raw_message_id uuid NOT NULL REFERENCES raw_messages(id) ON DELETE CASCADE,
+  raw_message_id uuid NOT NULL REFERENCES mat_ingest_raw(id) ON DELETE CASCADE,
   parser_revision text NOT NULL DEFAULT '1',
   status text NOT NULL DEFAULT 'draft'
     CHECK (status IN ('draft', 'finalized', 'superseded', 'invalid')),
@@ -167,8 +167,8 @@ CREATE TABLE message_parse_workspace (
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE UNIQUE INDEX message_parse_workspace_active_raw_idx
-  ON message_parse_workspace (raw_message_id)
+CREATE UNIQUE INDEX work_parse_message_active_raw_idx
+  ON work_parse_message (raw_message_id)
   WHERE status = 'finalized';
 ```
 

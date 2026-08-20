@@ -1,7 +1,7 @@
 import { MONOREPO_ROOT } from "@repo/root";
 import { createWorkerCompositionRoot } from "../application/createWorkerCompositionRoot.js";
-import { WorkerStorageMode } from "../infrastructure/persistence/storageMode.js";
 import { loadRootEnv } from "../infrastructure/config/loadRootEnv.js";
+import { cliWorkerRuntime } from "./cliWorkerRuntime.js";
 import { hasAnyFlag, parseLongFlagsMap, readStringFlag } from "./workerCliArgs.js";
 
 /** Finalize одного raw по uuid. */
@@ -15,10 +15,7 @@ async function main(): Promise<void> {
     process.exit(rawId ? 0 : 1);
   }
 
-  const runtime = await createWorkerCompositionRoot({
-    storageMode: WorkerStorageMode.Db,
-    startIngestParseDaemon: false,
-  });
+  const runtime = await createWorkerCompositionRoot(cliWorkerRuntime("parse", ["parse"]));
   if (!runtime.dataSource || !runtime.workspaceService || !runtime.workerRepos) {
     console.error("workspace:finalize: нужен RADAR_STORAGE_MODE=db");
     process.exit(1);

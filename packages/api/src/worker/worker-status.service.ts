@@ -39,7 +39,18 @@ export class WorkerStatusService {
         .split(",")
         .map((t) => t.trim())
         .filter(Boolean)
-        .map((t) => (t.includes("://") ? `${t.replace(/\/$/, "")}/status` : `http://${t}/status`));
+        .map((t) => {
+          const trimmed = t.trim();
+          if (!trimmed) return "";
+          if (trimmed.includes("://")) {
+            const base = trimmed.replace(/\/$/, "");
+            return base.endsWith("/status") || base.endsWith("/health")
+              ? base
+              : `${base}/status`;
+          }
+          return `http://${trimmed}/status`;
+        })
+        .filter(Boolean);
     }
 
     const host = process.env.WORKER_PROBE_HOST?.trim() || "127.0.0.1";
@@ -87,14 +98,14 @@ export class WorkerStatusService {
       `SELECT
          COUNT(*) FILTER (WHERE ingest_mode = 'live') AS live_count,
          COUNT(*) FILTER (WHERE ingest_mode = 'backfill') AS backfill_count
-       FROM raw_messages`,
+       FROM mat_ingest_raw`,
     );
 
     const [lastRawRow] = await this.dataSource.query<
       Array<{ posted_at: Date | null; channel_key: string | null }>
     >(
       `SELECT rm.posted_at, ch.key AS channel_key
-       FROM raw_messages rm
+       FROM mat_ingest_raw rm
        LEFT JOIN channels ch ON ch.id = rm.channel_id
        ORDER BY rm.posted_at DESC NULLS LAST
        LIMIT 1`,

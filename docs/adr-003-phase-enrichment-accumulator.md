@@ -1,3 +1,5 @@
+﻿> **Имена таблиц:** актуальные — [database-table-naming.md](./database-table-naming.md). Ниже — исторический контекст.
+
 # ADR-003: Phase-обогащение, накопитель и триггеры eager/lazy
 
 Дата: 2026-05-31  
@@ -13,9 +15,9 @@
   merge в `geoValidationService.ts` — два разных места без явного per-field provenance.
 - Энричеры жёстко гео-типизированы (`ILocationEnricher` → `LocationCandidate`),
   атрибуты события (`event_type`, `severity`, `repeat`, `count`, `direction`,
-  `macro_zone`) рождаются rule-based на parse и пишутся в `parsed_events` мимо энричеров.
+  `macro_zone`) рождаются rule-based на parse и пишутся в `mat_parse_event` мимо энричеров.
 - LLM привязан прямым `fetch`; OpenRouter/облачные модели не подключить.
-- `enrichment_queue` монолитна: одна задача на сообщение, без измерения по провайдеру.
+- `queue_parse_enrichment` монолитна: одна задача на сообщение, без измерения по провайдеру.
 
 ## Решение
 
@@ -48,7 +50,7 @@
 перезаписать поле при более сильном источнике (выше precision-ранк, при равенстве —
 выше trust), дописать если поле пустое. Работает по любым полям parsed event.
 
-**Инвариант:** merge идемпотентен и независим от порядка — результат не зависит
+**Рнвариант:** merge идемпотентен и независим от порядка — результат не зависит
 от того, в каком порядке отработали проходы `llm/dadata/nominatim`, а повторный
 проход — no-op. Этот инвариант обязан быть покрыт тестом order-independence,
 иначе lazy-триггер «в любом порядке» ломается.
@@ -60,10 +62,10 @@
   (`[llm]`, `[dadata]`, `[nominatim]` либо комбинации), запускается job-планировщиком.
 
 Базовая policy доверия источников (наследует ADR-002):
-`catalog 1.00`, `dadata 0.95`, `nominatim 0.80`, `llm 0.55`, `operator 1.00`,
+`catalog 1.00`, `dadata 0.95`, `nominatim 0.80`, `llm 0.55`, `operator 1.00`,
 `system/rule 0.70`.
 
-### 5. Конфиг фаз: манифест в коде → БД → тумблер в админке
+### 5. Конфиг фаз: манифест в коде в†’ БД в†’ тумблер в админке
 
 Фазы объявляются в коде как манифест (паттерн ingest-манифеста):
 - JSON-шаблон фаз в репо (SSOT структуры) + Zod-схема `phaseManifestSchema`.
@@ -93,17 +95,17 @@
 
 - Плюсы: дешёвый eager-парс (catalog-only), тяжёлые провайдеры — фоном и порционно;
   один SSOT слияния; конфиг фаз без передеплоя; готовность к LLM-структурированию атрибутов.
-- Минусы: миграции БД (`enrichment_queue` per-stage, `phase_definitions`); рефактор
+- Минусы: миграции БД (`queue_parse_enrichment` per-stage, `phase_definitions`); рефактор
   пайплайна на инкрементальный merge; обязательный тест коммутативности merge.
 
 ## План развития
 
-Итерация A (этот ADR): контракт накопителя + абстракция Phase + манифест фаз.  
-Итерация B: `MergeStep` + единый `mergeContribution` + тест order-independence.  
-Итерация C: LLM adapter-порт (Ollama + OpenRouter).  
-Итерация D: per-provider проходы (очередь по `stage` + ранеры).  
-Итерация E: LLM-структуризатор атрибутов + `eventCategory → status_dictionary`.  
-Итерация G: job-планировщик в админке (DB-dispatched, паттерн backfill).
+Ртерация A (этот ADR): контракт накопителя + абстракция Phase + манифест фаз.  
+Ртерация B: `MergeStep` + единый `mergeContribution` + тест order-independence.  
+Ртерация C: LLM adapter-порт (Ollama + OpenRouter).  
+Ртерация D: per-provider проходы (очередь по `stage` + ранеры).  
+Ртерация E: LLM-структуризатор атрибутов + `eventCategory в†’ status_dictionary`.  
+Ртерация G: job-планировщик в админке (DB-dispatched, паттерн backfill).
 
 ---
 
@@ -114,8 +116,8 @@
 | Было (v1) | Стало (v2) |
 |-----------|------------|
 | `kind`: eager / lazy | `trigger`: `eager` \| `scheduled` \| `manual` |
-| `enrichment_queue.stage` | `phase_coverage.phase_id` (`catalog`, `llm`, …) |
-| `job_runs` / JobDaemon | удалены → `phase_runs` + `PhaseDaemonService` |
+| `queue_parse_enrichment.stage` | `queue_parse_coverage.phase_id` (`catalog`, `llm`, …) |
+| `job_runs` / JobDaemon | удалены → `log_parse_phase_run` + `PhaseDaemonService` |
 | `parse-catalog` / `enrich-llm` id | Короткие id без префикса |
 
 **Selector** в `policy`: `all-new`, `all-pending`, `head`, `tail`, `range`, `since-cursor` — выбор raw для scheduled/manual enqueue.
@@ -123,3 +125,4 @@
 **SSOT исполнения:** `PhaseRunner` (eager inline, daemon tick, CLI `worker:phase:run`, `worker:reparse:raw` → фаза `catalog`).
 
 Документация операций: [phase-pipeline.md](./phase-pipeline.md), REST: [api/phases-admin.md](./api/phases-admin.md).
+

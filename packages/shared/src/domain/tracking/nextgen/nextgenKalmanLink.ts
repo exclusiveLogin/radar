@@ -16,7 +16,7 @@ import { segmentVelocityMps } from "../rearFrontGate";
 import type { FlowAlignmentWeights } from "../flowAlignment";
 import type { ProfileKinematics } from "../profileKinematics";
 import type { KalmanStateJson, TrajectoryNode } from "../types";
-import type { NextGenNode } from "./phase1-stdbscan/NextGenPhase1";
+import type { NextGenNode } from "./step1-stdbscan/NextGenStep1";
 import {
   evaluateLinkWithReason,
   type LinkEvaluation,
@@ -103,8 +103,8 @@ export function evaluateNextGenLinkWithReason(
       observationCovarianceMeters(node.precision, node.trust),
       kin.observationSigmaScale,
     );
-    const locusCapSec = Math.max(kin.stdbscanEpsilonTemporalMs / 1000, 3600);
-    const dtSeconds = Math.min(gapMs / 1000, locusCapSec);
+  const locusCapSec = Math.max(kin.maxGapMs / 1000, kin.stdbscanEpsilonTemporalMs / 1000);
+  const dtSeconds = Math.min(gapMs / 1000, locusCapSec);
     const prev = tail.nodes.length >= 2 ? tail.nodes[tail.nodes.length - 2]! : null;
     const segDt = prev
       ? (tail.lastAt.getTime() - prev.occurredAt.getTime()) / 1000

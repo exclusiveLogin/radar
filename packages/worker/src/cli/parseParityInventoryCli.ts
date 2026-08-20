@@ -1,5 +1,5 @@
 /**
- * SQL inventory: raw → workspace → parsed → event_locations после backfill/rebuild.
+ * SQL inventory: raw → workspace → parsed → mat_parse_location после backfill/rebuild.
  *
  * Usage:
  *   npm run parse-engine:parity:inventory -w @radar/worker
@@ -49,61 +49,61 @@ async function main(): Promise<void> {
     placeRaiseWithoutPlaceId,
     placeRaiseTotal,
   ] = await Promise.all([
-    countQuery(dataSource, `SELECT COUNT(*)::text AS count FROM raw_messages`),
+    countQuery(dataSource, `SELECT COUNT(*)::text AS count FROM mat_ingest_raw`),
     countQuery(
       dataSource,
       `SELECT COUNT(*)::text AS count
-       FROM raw_messages rm
-       WHERE NOT EXISTS (SELECT 1 FROM parsed_events pe WHERE pe.raw_message_id = rm.id)`,
+       FROM mat_ingest_raw rm
+       WHERE NOT EXISTS (SELECT 1 FROM mat_parse_event pe WHERE pe.raw_message_id = rm.id)`,
     ),
     countQuery(
       dataSource,
       `SELECT COUNT(*)::text AS count
-       FROM raw_messages rm
+       FROM mat_ingest_raw rm
        WHERE NOT EXISTS (
-         SELECT 1 FROM message_parse_workspace mpw
+         SELECT 1 FROM work_parse_message mpw
          WHERE mpw.raw_message_id = rm.id
        )`,
     ),
     countQuery(
       dataSource,
       `SELECT COUNT(*)::text AS count
-       FROM parsed_events pe
+       FROM mat_parse_event pe
        WHERE pe.is_active = true
          AND pe.event_type NOT IN ('cleared', 'unknown')
-         AND NOT EXISTS (SELECT 1 FROM event_locations el WHERE el.parsed_event_id = pe.id)`,
+         AND NOT EXISTS (SELECT 1 FROM mat_parse_location el WHERE el.parsed_event_id = pe.id)`,
     ),
     countQuery(
       dataSource,
       `SELECT COUNT(*)::text AS count
-       FROM event_locations el
+       FROM mat_parse_location el
        WHERE el.parsed_event_id IS NULL`,
     ),
     countQuery(
       dataSource,
       `SELECT COUNT(*)::text AS count
-       FROM message_parse_workspace mpw
+       FROM work_parse_message mpw
        CROSS JOIN LATERAL unnest(mpw.spawned_event_ids) AS sid(id)
-       WHERE NOT EXISTS (SELECT 1 FROM parsed_events pe WHERE pe.id = sid.id)`,
+       WHERE NOT EXISTS (SELECT 1 FROM mat_parse_event pe WHERE pe.id = sid.id)`,
     ),
     countQuery(
       dataSource,
       `SELECT COUNT(*)::text AS count
-       FROM event_locations el
-       JOIN parsed_events pe ON pe.id = el.parsed_event_id
-       JOIN raw_messages rm ON rm.id = pe.raw_message_id
+       FROM mat_parse_location el
+       JOIN mat_parse_event pe ON pe.id = el.parsed_event_id
+       JOIN mat_ingest_raw rm ON rm.id = pe.raw_message_id
        WHERE el.occurred_at IS DISTINCT FROM rm.posted_at`,
     ),
     countQuery(
       dataSource,
       `SELECT COUNT(*)::text AS count
-       FROM event_locations el
-       JOIN parsed_events pe ON pe.id = el.parsed_event_id`,
+       FROM mat_parse_location el
+       JOIN mat_parse_event pe ON pe.id = el.parsed_event_id`,
     ),
     countQuery(
       dataSource,
       `SELECT COUNT(*)::text AS count
-       FROM event_locations el
+       FROM mat_parse_location el
        WHERE el.action = 'raise'
          AND el.entity_kind = 'place'
          AND el.place_id IS NULL`,
@@ -111,7 +111,7 @@ async function main(): Promise<void> {
     countQuery(
       dataSource,
       `SELECT COUNT(*)::text AS count
-       FROM event_locations el
+       FROM mat_parse_location el
        WHERE el.action = 'raise'
          AND el.entity_kind = 'place'`,
     ),
@@ -119,7 +119,7 @@ async function main(): Promise<void> {
 
   const randomSample = (await dataSource.query(
     `SELECT rm.id, rm.posted_at, left(rm.raw_text, 120) AS preview
-     FROM raw_messages rm
+     FROM mat_ingest_raw rm
      ORDER BY random()
      LIMIT $1`,
     [sampleSize],
@@ -131,12 +131,12 @@ async function main(): Promise<void> {
         `SELECT mpw.raw_message_id,
                 mpw.status,
                 COALESCE(array_length(mpw.spawned_event_ids, 1), 0) AS spawned_count,
-                (SELECT COUNT(*)::int FROM parsed_events pe WHERE pe.raw_message_id = mpw.raw_message_id) AS pe_count,
+                (SELECT COUNT(*)::int FROM mat_parse_event pe WHERE pe.raw_message_id = mpw.raw_message_id) AS pe_count,
                 (SELECT COUNT(*)::int
-                 FROM event_locations el
-                 JOIN parsed_events pe ON pe.id = el.parsed_event_id
+                 FROM mat_parse_location el
+                 JOIN mat_parse_event pe ON pe.id = el.parsed_event_id
                  WHERE pe.raw_message_id = mpw.raw_message_id) AS el_count
-         FROM message_parse_workspace mpw
+         FROM work_parse_message mpw
          WHERE mpw.raw_message_id = ANY($1::uuid[])`,
         [sampleIds],
       )) as Array<{
@@ -156,9 +156,9 @@ async function main(): Promise<void> {
     countQuery(
       dataSource,
       `SELECT COUNT(*)::text AS count
-       FROM event_locations el
-       JOIN parsed_events pe ON pe.id = el.parsed_event_id AND pe.is_active = true
-       JOIN raw_messages rm ON rm.id = pe.raw_message_id
+       FROM mat_parse_location el
+       JOIN mat_parse_event pe ON pe.id = el.parsed_event_id AND pe.is_active = true
+       JOIN mat_ingest_raw rm ON rm.id = pe.raw_message_id
        LEFT JOIN places p ON p.id = el.place_id AND p.is_active = true
        LEFT JOIN LATERAL (
          SELECT l.geo_feature_id FROM place_geo_link l

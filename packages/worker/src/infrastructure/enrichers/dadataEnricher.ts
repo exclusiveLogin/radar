@@ -50,7 +50,7 @@ export class DadataEnricher implements ILocationEnricher {
 
     await waitExternalGeocoderSlot(0);
 
-    let scoped = await this.fetchSuggestions(input.rawText, input.regionCode);
+    const scoped = await this.fetchSuggestions(input.rawText, input.regionCode);
     if (!scoped.ok) {
       return null;
     }

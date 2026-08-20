@@ -39,7 +39,7 @@ flowchart TB
     TypeOrm["TypeORM repositories\n(api package)"]
     SessionFS["FileSessionRuntimeStore"]
     Bus["InProcessEventBus"]
-    Outbox["domain_events + OutboxRelay"]
+    Outbox["event_outbox + OutboxRelay"]
   end
 
   Clients --> AppBoundary
@@ -103,7 +103,7 @@ sequenceDiagram
   participant BUS as InProcessEventBus
   participant SUB as rawMessageIngestedSubscriber
   participant PRS as ParseRawMessageHandler
-  participant PE as parsed_events
+  participant PE as mat_parse_event
 
   TG->>AD: update/new message
   OR->>AD: startDuty(bindings, sink)
@@ -126,14 +126,14 @@ sequenceDiagram
 
 ```mermaid
 flowchart LR
-  Job["ingest_backfill_jobs (DB)"] --> Daemon["BackfillDaemonService"]
+  Job["job_ingest_backfill (DB)"] --> Daemon["BackfillDaemonService"]
   Daemon --> Adapter["TelegramRawIngestAdapter.streamHistory"]
   Adapter --> Ingest["IngestRawMessageHandler"]
-  Ingest --> Raw["raw_messages"]
+  Ingest --> Raw["mat_ingest_raw"]
   Ingest --> Bus["InProcessEventBus"]
   Bus --> Parse["ParseRawMessageHandler"]
-  Parse --> Parsed["parsed_events"]
-  Ingest --> Cursors["ingest_cursors / backfill state"]
+  Parse --> Parsed["mat_parse_event"]
+  Ingest --> Cursors["state_ingest_cursor / backfill state"]
 ```
 
 Backfill не делает отдельный путь парсинга: использует тот же pipeline, что и live.
@@ -144,7 +144,7 @@ Backfill не делает отдельный путь парсинга: исп�
 flowchart TB
   Controller["Nest Controller"] --> Service["IngestAdminService"]
   Service --> Repo["TypeOrm*Repository"]
-  Service --> Outbox["TypeOrmDomainEventOutbox (domain_events)"]
+  Service --> Outbox["TypeOrmDomainEventOutbox (event_outbox)"]
   Outbox --> Relay["OutboxRelay (worker)"]
   Relay --> Bus["InProcessEventBus"]
 ```

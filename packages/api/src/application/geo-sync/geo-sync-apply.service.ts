@@ -13,7 +13,8 @@ import type {
   RegionRecord,
 } from "@radar/shared";
 import { randomUUID } from "node:crypto";
-import { normalizeName, placeDraftKey } from "./diff-engine";
+import { normalizeName } from "./diff-engine";
+import { placeDraftKey } from "./place-draft-key";
 import {
   alignRegionRowsWithExisting,
   buildRegionIndexForSnapshot,

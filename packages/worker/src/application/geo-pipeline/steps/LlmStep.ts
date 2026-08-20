@@ -1,13 +1,13 @@
-import type { GeoNode } from "@radar/shared";
+import type { GeoNode, IRegionAdjacencyRepository } from "@radar/shared";
 import { normalizeRegionCodeAlias } from "@radar/shared";
 import {
   isBlockedRegionCatalogLookup,
   lookupLocalityRegionForPlace,
   resolvePlaceRegionCodeInContext,
 } from "../../../domain/geo/geographicTextContext.js";
-import { loadRegionAdjacency } from "../../../infrastructure/geo-catalog/adjacencyLoader.js";
 import type { GeoCatalog } from "../../../infrastructure/geo-catalog/index.js";
 import type { LlmEnricher } from "../../../infrastructure/enrichers/llmEnricher.js";
+import { isLlmOpHardFailure } from "../../../domain/parse/geo/llmOpResult.js";
 import type { GeoPipelineContext, GeoPipelineStep } from "../GeoPipelineContext.js";
 
 function resolvePriorRegions(ctx: GeoPipelineContext) {
@@ -32,9 +32,11 @@ function resolvePriorPlaces(ctx: GeoPipelineContext) {
   }));
 }
 
-/** Prior region codes + соседи из adjacency.json для промпта LLM. */
-function buildKnownRegionCodes(priorRegionCodes: string[]): string[] {
-  const adjacency = loadRegionAdjacency();
+/** Prior region codes + смежные субъекты — подсказка LLM о допустимых регионах. */
+function expandWithNeighbors(
+  priorRegionCodes: string[],
+  adjacency: Record<string, string[]>,
+): string[] {
   const codes = new Set(priorRegionCodes);
   for (const code of priorRegionCodes) {
     for (const neighbor of adjacency[code] ?? []) {
@@ -44,12 +46,22 @@ function buildKnownRegionCodes(priorRegionCodes: string[]): string[] {
   return [...codes];
 }
 
+function emptyLlmArtifact(reason: string) {
+  return {
+    schemaVersion: 1 as const,
+    nodes: [] as GeoNode[],
+    confidence: 0,
+    reason,
+  };
+}
+
 export class LlmStep implements GeoPipelineStep {
   readonly id = "llm";
 
   constructor(
     private readonly enricher: LlmEnricher,
     private readonly geoCatalog: GeoCatalog,
+    private readonly regionAdjacency?: IRegionAdjacencyRepository,
   ) {}
 
   async run(ctx: GeoPipelineContext): Promise<void> {
@@ -59,6 +71,10 @@ export class LlmStep implements GeoPipelineStep {
     const localityCatalog = this.geoCatalog.listLocalityCatalog();
     const regionCode = priorRegions[0]?.code;
     const priorRegionCodes = priorRegions.map((region) => region.code);
+    const knownRegionCodes =
+      priorRegionCodes.length > 0
+        ? expandWithNeighbors(priorRegionCodes, (await this.regionAdjacency?.load()) ?? {})
+        : undefined;
 
     const result = await this.enricher.enrich({
       rawText: ctx.rawText,
@@ -71,20 +87,19 @@ export class LlmStep implements GeoPipelineStep {
         ctx.priorValidatedLocations && ctx.priorValidatedLocations.length > 0
           ? ctx.priorValidatedLocations
           : undefined,
-      knownRegionCodes:
-        priorRegionCodes.length > 0 ? buildKnownRegionCodes(priorRegionCodes) : undefined,
+      knownRegionCodes,
     });
 
-    if (!result) {
-      ctx.artifact.llm = {
-        schemaVersion: 1,
-        nodes: [],
-        confidence: 0,
-        reason: "no result",
-      };
+    if (!result.ok) {
+      ctx.artifact.llm = emptyLlmArtifact(result.reason);
+      // disabled / no-signal — фаза продолжается; hard fail → markFailed снаружи.
+      if (isLlmOpHardFailure(result.reason)) {
+        throw new Error(`llm:${result.reason}`);
+      }
       return;
     }
 
+    const payload = result.data;
     const nodes: GeoNode[] = [];
 
     const normName = (s: string) => s.toLowerCase().replace(/ё/g, "е").trim();
@@ -110,7 +125,7 @@ export class LlmStep implements GeoPipelineStep {
     };
 
     const multiPlaceContext =
-      result.places.filter((place) => place.kind !== "region").length > 1
+      payload.places.filter((place) => place.kind !== "region").length > 1
       || anchors.length > 1;
 
     const regionsCollected = priorRegions.map((region) => ({
@@ -118,10 +133,10 @@ export class LlmStep implements GeoPipelineStep {
       name: region.name,
     }));
 
-    for (const place of result.places) {
+    for (const place of payload.places) {
       const isRegion = place.kind === "region";
 
-      const rawRegionCode = place.regionCode ?? result.regionCode ?? undefined;
+      const rawRegionCode = place.regionCode ?? payload.regionCode ?? undefined;
       const llmValidatedRegionCode = rawRegionCode
         ? normalizeRegionCodeAlias(rawRegionCode)
         : undefined;
@@ -160,7 +175,7 @@ export class LlmStep implements GeoPipelineStep {
         kind: isRegion ? "region" : place.kind,
         regionCode: normalizeRegionCodeAlias(placeRegionCode),
         fiasId: place.placeFias ?? undefined,
-        confidence: place.confidence ?? result.confidence,
+        confidence: place.confidence ?? payload.confidence,
         reason: place.reason ?? undefined,
       });
     }
@@ -168,10 +183,10 @@ export class LlmStep implements GeoPipelineStep {
     ctx.artifact.llm = {
       schemaVersion: 1,
       nodes,
-      confidence: result.confidence,
-      reason: result.reason,
-      eventCategory: result.eventCategory ?? undefined,
-      eventSubject: result.eventSubject ?? undefined,
+      confidence: payload.confidence,
+      reason: payload.reason,
+      eventCategory: payload.eventCategory ?? undefined,
+      eventSubject: payload.eventSubject ?? undefined,
     };
   }
 }

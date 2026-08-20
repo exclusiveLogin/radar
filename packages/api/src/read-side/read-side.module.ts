@@ -1,15 +1,15 @@
 import { Module } from "@nestjs/common";
 import { TypeOrmModule } from "@nestjs/typeorm";
-import { EventLocationEntity } from "../events/entities";
-import { ParseAttemptEntity } from "../events/entities";
-import { ParsedEventEntity } from "../events/entities";
-import { StatusDictionaryEntity } from "../events/entities";
-import { GeoSyncLogEntity } from "../geo/entities";
-import { PlaceAliasEntity } from "../geo/entities";
-import { PlaceEntity } from "../geo/entities";
-import { RegionEntity } from "../geo/entities";
-import { ChannelEntity } from "../ingest/entities";
-import { RawMessageEntity } from "../ingest/entities";
+import { EventLocationEntity } from "@radar/persistence";
+import { ParseAttemptEntity } from "@radar/persistence";
+import { ParsedEventEntity } from "@radar/persistence";
+import { StatusDictionaryEntity } from "@radar/persistence";
+import { GeoSyncLogEntity } from "@radar/persistence";
+import { PlaceAliasEntity } from "@radar/persistence";
+import { PlaceEntity } from "@radar/persistence";
+import { RegionEntity } from "@radar/persistence";
+import { ChannelEntity } from "@radar/persistence";
+import { RawMessageEntity } from "@radar/persistence";
 import { ReadSideController } from "./read-side.controller";
 import { ReadSideQueryService } from "./read-side-query.service";
 
@@ -30,5 +30,6 @@ import { ReadSideQueryService } from "./read-side-query.service";
   ],
   providers: [ReadSideQueryService],
   controllers: [ReadSideController],
+  exports: [ReadSideQueryService],
 })
 export class ReadSideModule {}

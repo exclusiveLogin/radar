@@ -4,32 +4,37 @@ import {
   Logger,
   OnModuleDestroy,
 } from "@nestjs/common";
-import { InjectDataSource } from "@nestjs/typeorm";
 import {
-  parsePipelineStartResponseSchema,
   parsePipelineStatusResponseSchema,
   type ParsePipelineJobKind,
+  type ParsePipelinePhase,
   type ParsePipelineStartResponse,
   type ParsePipelineStatusResponse,
 } from "@radar/shared";
 import { spawn, type ChildProcess } from "child_process";
-import type { DataSource } from "typeorm";
 import { MONOREPO_ROOT } from "../monorepo-root";
 import { PhasesAdminService } from "../phases-admin/phases-admin.service";
+import { SetTrackingEnabledUseCase } from "../application/tracking-admin/tracking-admin-commands";
+import { ParseMaintenanceGate } from "./parse-maintenance.gate";
 
 type JobState = {
   kind: ParsePipelineJobKind;
   status: "running" | "completed" | "failed";
+  phase: ParsePipelinePhase;
+  detail: string;
+  logTail: string;
   startedAt: Date;
   finishedAt?: Date;
   error?: string;
-  totalMessages: number;
   child?: ChildProcess;
 };
 
 const IDLE: ParsePipelineStatusResponse = {
   status: "idle",
   kind: null,
+  phase: null,
+  detail: null,
+  logTail: null,
   startedAt: null,
   finishedAt: null,
   error: null,
@@ -41,8 +46,7 @@ const IDLE: ParsePipelineStatusResponse = {
 };
 
 /**
- * Запуск parse pipeline reset / reparse через worker CLI в фоне.
- * Прогресс reparse — по parse_attempts с момента старта job.
+ * Единый parse rebuild: maintenance → stop runs → CLI wipe → enqueue → прогресс очереди.
  */
 @Injectable()
 export class ParsePipelineAdminService implements OnModuleDestroy {
@@ -50,26 +54,60 @@ export class ParsePipelineAdminService implements OnModuleDestroy {
   private job: JobState | null = null;
 
   constructor(
-    @InjectDataSource() private readonly ds: DataSource,
     private readonly phasesAdmin: PhasesAdminService,
+    private readonly parseMaintenance: ParseMaintenanceGate,
+    private readonly setTrackingEnabled: SetTrackingEnabledUseCase,
   ) {}
 
   onModuleDestroy(): void {
     this.job?.child?.kill();
+    if (this.parseMaintenance.isPaused()) {
+      this.parseMaintenance.resume();
+    }
   }
 
   async getStatus(): Promise<ParsePipelineStatusResponse> {
-    if (!this.job) return IDLE;
-    return parsePipelineStatusResponseSchema.parse(await this.buildStatus(this.job));
+    if (this.job) {
+      return parsePipelineStatusResponseSchema.parse(this.buildProcessStatus(this.job));
+    }
+    const catchUp = await this.phasesAdmin.getIngestCatchUpState();
+    if (!catchUp) return IDLE;
+    return parsePipelineStatusResponseSchema.parse(this.buildQueueStatus(catchUp));
   }
 
-  async startReset(): Promise<ParsePipelineStartResponse> {
-    return this.startJob("reset", "parse-engine:pipeline:reset", ["--no-force-locks"]);
+  /**
+   * Штатный rebuild при живом API:
+   * pause map-read → drain → stop runs → CLI wipe + catch-up enqueue → resume.
+   */
+  async startRebuild(): Promise<ParsePipelineStartResponse> {
+    await this.assertNoRunningJob();
+    this.parseMaintenance.pause();
+    // Tracking-раннер иначе почти непрерывно держит AccessShareLock на mat_parse_event/
+    // mat_parse_location (countTrackingPipelineRemaining на каждый tick) — TRUNCATE ниже
+    // с --no-force-locks делает только одну попытку и почти всегда ловит 55P03.
+    await this.setTrackingEnabled.execute(false);
+    try {
+      await this.parseMaintenance.waitForDrain();
+      const stopped = await this.phasesAdmin.stopAllActiveRuns();
+      this.logger.log(
+        `rebuild preflight: runsClosed=${stopped.phaseRunsClosed}, queueCleared=${stopped.queueCleared}`,
+      );
+      // --no-force-locks: не рвём DB-сессии живого API (иначе Nest падает → ECONNREFUSED).
+      // maintenance pause + stop runs + пауза tracking уже сняли конкуренцию; TRUNCATE soft-retry.
+      return await this.startJob("rebuild", "parse-engine:pipeline:reset", [
+        "--no-catch-up",
+        "--no-force-locks",
+      ]);
+    } catch (error) {
+      this.parseMaintenance.resume();
+      await this.setTrackingEnabled.execute(true);
+      throw error;
+    }
   }
 
-  /** Полный reparse + drain scheduled (как `npm run radar -- parse run`). */
-  async startReparse(): Promise<ParsePipelineStartResponse> {
-    return this.startJob("reparse", "parse-engine:rebuild:drain", ["--no-force-locks"]);
+  /** Мягкая починка очереди без wipe: осиротевшие claim'ы возвращаются в pending. */
+  releaseStuckProcessing(): Promise<{ ok: true; released: number; phaseIds: string[] }> {
+    return this.phasesAdmin.releaseStuckIngestProcessing();
   }
 
   private async startJob(
@@ -77,28 +115,23 @@ export class ParsePipelineAdminService implements OnModuleDestroy {
     npmScript: string,
     extraArgs: string[],
   ): Promise<ParsePipelineStartResponse> {
-    if (this.job?.status === "running") {
-      throw new BadRequestException(
-        `Уже выполняется ${this.job.kind} (с ${this.job.startedAt.toISOString()})`,
-      );
-    }
-
-    const totalMessages = await this.countRawMessages();
+    await this.assertNoRunningJob();
     const startedAt = new Date();
     const child = this.spawnWorkerScript(npmScript, extraArgs);
 
     this.job = {
       kind,
       status: "running",
+      phase: "wiping",
+      detail:
+        "Очистка parse-слоя (TRUNCATE). Может занять 1–3 мин: снимаем worker-lock и чистим таблицы.",
+      logTail: "",
       startedAt,
-      totalMessages: kind === "reparse" ? totalMessages : 0,
       child,
     };
 
-    let stderrTail = "";
-    child.stderr?.on("data", (chunk: Buffer) => {
-      stderrTail = (stderrTail + chunk.toString()).slice(-4000);
-    });
+    child.stdout?.on("data", (chunk: Buffer) => this.appendJobLog(kind, chunk));
+    child.stderr?.on("data", (chunk: Buffer) => this.appendJobLog(kind, chunk));
 
     child.on("error", (err) => {
       this.logger.error(`${kind} spawn error: ${err.message}`);
@@ -106,44 +139,104 @@ export class ParsePipelineAdminService implements OnModuleDestroy {
         this.job.status = "failed";
         this.job.finishedAt = new Date();
         this.job.error = err.message;
+        this.job.detail = "CLI не запустился";
       }
+      this.releaseMaintenance(kind);
     });
 
     child.on("close", (code) => {
-      void this.onChildClosed(kind, code, stderrTail);
+      void this.onChildClosed(kind, code);
     });
 
     this.logger.log(`${kind} started (pid=${child.pid ?? "?"})`);
     return { ok: true, kind };
   }
 
+  private appendJobLog(kind: ParsePipelineJobKind, chunk: Buffer): void {
+    if (!this.job || this.job.kind !== kind || this.job.status !== "running") return;
+    const text = chunk.toString();
+    this.job.logTail = (this.job.logTail + text).slice(-4_000);
+    const lastLine = text
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .at(-1);
+    if (lastLine && this.job.phase === "wiping") {
+      this.job.detail = `Очистка: ${lastLine.slice(0, 180)}`;
+    }
+  }
+
   private async onChildClosed(
     kind: ParsePipelineJobKind,
     code: number | null,
-    stderrTail: string,
   ): Promise<void> {
     if (!this.job || this.job.kind !== kind) return;
+    const logTail = this.job.logTail;
 
-    if (code === 0) {
-      this.job.status = "completed";
-      this.job.finishedAt = new Date();
-      this.logger.log(`${kind} completed`);
-      try {
-        await this.phasesAdmin.pushMapSnapshot();
-      } catch (err) {
-        this.logger.warn(
-          `pushMapSnapshot after ${kind}: ${err instanceof Error ? err.message : String(err)}`,
-        );
+    try {
+      if (code === 0) {
+        this.job.phase = "enqueueing";
+        this.job.detail =
+          "Wipe готов. Ставим необработанные raw в очередь (это может занять десятки секунд на больших архивах)…";
+        this.job.child = undefined;
+        this.releaseMaintenance(kind);
+
+        try {
+          const catchUp = await this.phasesAdmin.catchUpEnabledIngestPhases();
+          this.logger.log(
+            `${kind} queue: enqueued=${catchUp.enqueued}, queued=${catchUp.queued}`,
+          );
+          // Дальше статус читается из manual runs / queue counts.
+          this.job = null;
+        } catch (err) {
+          this.logger.error(
+            `${kind} catch-up failed: ${err instanceof Error ? err.message : String(err)}`,
+          );
+          this.job = {
+            kind,
+            status: "failed",
+            phase: "enqueueing",
+            detail: "Не удалось поставить raw в очередь после wipe",
+            logTail,
+            startedAt: new Date(),
+            finishedAt: new Date(),
+            error:
+              err instanceof Error ? err.message : `catch-up после wipe: ${String(err)}`,
+          };
+          return;
+        }
+
+        try {
+          await this.phasesAdmin.pushMapSnapshot();
+        } catch (err) {
+          this.logger.warn(
+            `pushMapSnapshot after ${kind}: ${err instanceof Error ? err.message : String(err)}`,
+          );
+        }
+        return;
       }
-      return;
-    }
 
-    this.job.status = "failed";
-    this.job.finishedAt = new Date();
-    this.job.error =
-      stderrTail.trim().slice(-500) ||
-      `CLI завершился с кодом ${code ?? "unknown"}`;
-    this.logger.error(`${kind} failed: ${this.job.error}`);
+      this.job.status = "failed";
+      this.job.finishedAt = new Date();
+      this.job.detail = "Очистка parse-слоя завершилась с ошибкой";
+      this.job.error =
+        logTail.trim().slice(-1_500) ||
+        `CLI завершился с кодом ${code ?? "unknown"}`;
+      this.logger.error(`${kind} failed: ${this.job.error}`);
+    } finally {
+      this.releaseMaintenance(kind);
+    }
+  }
+
+  private releaseMaintenance(kind: ParsePipelineJobKind): void {
+    if (kind !== "rebuild") return;
+    if (!this.parseMaintenance.isPaused()) return;
+    this.parseMaintenance.resume();
+    void this.setTrackingEnabled.execute(true).catch((err) =>
+      this.logger.warn(
+        `resume tracking after rebuild: ${err instanceof Error ? err.message : String(err)}`,
+      ),
+    );
   }
 
   private spawnWorkerScript(
@@ -157,67 +250,108 @@ export class ParsePipelineAdminService implements OnModuleDestroy {
     return spawn(npmCmd, args, {
       cwd: MONOREPO_ROOT,
       env: process.env,
-      stdio: ["ignore", "ignore", "pipe"],
+      stdio: ["ignore", "pipe", "pipe"],
       shell: process.platform === "win32",
     });
   }
 
-  private async buildStatus(job: JobState): Promise<ParsePipelineStatusResponse> {
-    const base: ParsePipelineStatusResponse = {
+  private buildProcessStatus(job: JobState): ParsePipelineStatusResponse {
+    return {
       status: job.status,
       kind: job.kind,
+      phase: job.phase,
+      detail: job.detail,
+      logTail: job.logTail.trim() ? job.logTail.trim().slice(-1_200) : null,
       startedAt: job.startedAt.toISOString(),
       finishedAt: job.finishedAt?.toISOString() ?? null,
       error: job.error ?? null,
-      totalMessages: job.totalMessages,
+      totalMessages: 0,
       processedMessages: 0,
       ok: 0,
       failed: 0,
-      percentApprox: 0,
+      percentApprox: job.status === "completed" ? 100 : 0,
     };
+  }
 
-    if (job.kind !== "reparse") {
-      if (job.status === "running") base.percentApprox = 0;
-      else base.percentApprox = job.status === "completed" ? 100 : 0;
-      return base;
-    }
-
-    const [progress] = await this.ds.query<
-      Array<{ processed: string; ok: string; failed: string }>
-    >(
-      `SELECT
-         COUNT(*)::text AS processed,
-         COUNT(*) FILTER (WHERE status = 'ok')::text AS ok,
-         COUNT(*) FILTER (WHERE status = 'failed')::text AS failed
-       FROM parse_attempts
-       WHERE created_at >= $1`,
-      [job.startedAt],
-    );
-
-    const processedMessages = Number(progress?.processed ?? 0);
-    const ok = Number(progress?.ok ?? 0);
-    const failed = Number(progress?.failed ?? 0);
-    const total = job.totalMessages;
+  /** Прогресс очереди после wipe — тот же kind=rebuild. */
+  private buildQueueStatus(
+    state: NonNullable<
+      Awaited<ReturnType<PhasesAdminService["getIngestCatchUpState"]>>
+    >,
+  ): ParsePipelineStatusResponse {
+    const remaining = state.counts.pending + state.counts.processing;
+    const activeRuns = state.runs.filter((run) => {
+      if (run.status === "running" || run.status === "paused") return true;
+      // orphan pending без старта не держит UI «running», если очередь уже пуста
+      if (run.status === "pending") return remaining > 0;
+      return false;
+    });
+    const displayedRuns = activeRuns.length > 0 ? activeRuns : state.runs;
+    const totalMessages =
+      remaining + state.counts.done + state.counts.failed;
+    const processedMessages = state.counts.done + state.counts.failed;
+    const failed = state.counts.failed;
+    const completed = activeRuns.length === 0 && remaining === 0;
+    const status =
+      activeRuns.length > 0 ? "running" : completed ? "completed" : "failed";
+    const startedAt =
+      displayedRuns.map((run) => run.startedAt ?? run.createdAt).sort()[0] ?? null;
+    const finishedAt =
+      status === "running"
+        ? null
+        : displayedRuns
+            .map((run) => run.finishedAt)
+            .filter((value): value is string => value !== null)
+            .sort()
+            .at(-1) ?? null;
     const percentApprox =
-      total > 0
-        ? Math.min(100, Math.round((processedMessages / total) * 100))
-        : job.status === "completed"
-          ? 100
-          : 0;
+      status === "completed"
+        ? 100
+        : totalMessages > 0
+        ? Math.min(100, Math.round((processedMessages / totalMessages) * 1_000) / 10)
+        : 0;
+
+    const detail =
+      status === "running"
+        ? `Разбор очереди: ${processedMessages.toLocaleString()} / ${totalMessages.toLocaleString()} (осталось ${remaining.toLocaleString()})`
+        : status === "completed"
+          ? `Rebuild завершён: обработано ${processedMessages.toLocaleString()}`
+          : `Очередь остановилась с ошибкой (fail ${failed.toLocaleString()})`;
 
     return {
-      ...base,
+      status,
+      kind: "rebuild",
+      phase: status === "running" ? "processing" : null,
+      detail,
+      logTail: null,
+      startedAt,
+      finishedAt,
+      error:
+        status === "failed"
+          ? displayedRuns.find((run) => run.error)?.error ?? "rebuild queue failed"
+          : null,
+      totalMessages,
       processedMessages,
-      ok,
+      ok: Math.max(0, processedMessages - failed),
       failed,
       percentApprox,
     };
   }
 
-  private async countRawMessages(): Promise<number> {
-    const [row] = await this.ds.query<Array<{ count: string }>>(
-      `SELECT COUNT(*)::text AS count FROM raw_messages`,
+  private async assertNoRunningJob(): Promise<void> {
+    if (this.job?.status === "running") {
+      throw new BadRequestException(
+        `Уже выполняется ${this.job.kind} (с ${this.job.startedAt.toISOString()})`,
+      );
+    }
+    const catchUp = await this.phasesAdmin.getIngestCatchUpState();
+    const activeRun = catchUp?.runs.find((run) =>
+      ["pending", "running", "paused"].includes(run.status),
     );
-    return Number(row?.count ?? 0);
+    if (activeRun) {
+      throw new BadRequestException(
+        `Уже выполняется rebuild (с ${activeRun.startedAt ?? activeRun.createdAt})`,
+      );
+    }
   }
 }

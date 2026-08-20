@@ -6,7 +6,7 @@
 
 Тип события **не зашит в платформу** — домен задаётся парсером и словарём (`event_type`, `stateLevel`). Сейчас в проде хорошо отработаны каналы воздушных угроз (Telegram), но та же архитектура принимает любые источники с текстом и координатами/топонимами: RSS, admin-ingest, backfill, будущие адаптеры.
 
-**Запуск локально:** [docs/getting-started.md](docs/getting-started.md) · **Шпаргалка:** [docs/cheatsheet.md](docs/cheatsheet.md) · **Доки:** [docs/README.md](docs/README.md) · **План:** [docs/plan.md](docs/plan.md) · **Домен:** [docs/domain/README.md](docs/domain/README.md) · **Trust мест:** [docs/place-trust-explained.md](docs/place-trust-explained.md)
+**Запуск и настройка:** [docs/setup-and-configuration.md](docs/setup-and-configuration.md) · **Quickstart:** [docs/getting-started.md](docs/getting-started.md) · **Шпаргалка:** [docs/cheatsheet.md](docs/cheatsheet.md) · **Доки:** [docs/README.md](docs/README.md) · **План:** [docs/plan.md](docs/plan.md) · **Домен:** [docs/domain/README.md](docs/domain/README.md) · **Trust мест:** [docs/place-trust-explained.md](docs/place-trust-explained.md)
 
 ![Radar — OSINT-дашборд: теплокарта, слои карты, таймлайн, KPI и схема](docs/assets/dashboard-heatmap-timeline.png)
 
@@ -219,7 +219,7 @@ npm run radar -- <domain> <action>   # корень репо, PowerShell
 | Задача | Команда |
 |--------|---------|
 | Первый запуск | `npm run radar -- stack cold-up` |
-| Dev + worker | `npm run radar -- stack dev --full` |
+| Dev + worker | `npm run radar -- stack dev` |
 | Миграции | `npm run radar -- stack migrate` |
 | Geo-каталог | `npm run radar -- geo catalog:import` |
 | Backfill | `npm run radar -- ingest backfill -- --all-bindings --batch-size=100` |
@@ -281,7 +281,8 @@ node scripts/query-ingest-status.mjs
 
 ### Runtime geo enrichment (актуальный контур)
 
-- `raw` сначала проходит классификацию (`noise/meta/event`).
+- `raw` сначала проходит классификацию (
+oise/meta/event`).
 - Если это event: берется базовый регион из локальных артефактов/словаря.
 - Далее запускается цепочка enrichers (`cache -> dadata -> nominatim -> llm`).
 - Ответ провайдера матчится с каталогом (`fias -> alias -> name+region`).
@@ -298,7 +299,8 @@ node scripts/query-ingest-status.mjs
   - `matched_existing` -> пишется evidence `confirm`, place обновляет trust-поля.
   - `created_new` -> пишется evidence `candidate`, trust остается на уровне policy-оценки источника.
 - Базовые trust-score источников: `catalog=1.00`, `dadata=0.95`, `nominatim=0.80`, `llm=0.55`, `operator=1.00`, `system=0.70`.
-- Для UI/read-side неподтвержденные места должны помечаться предупреждением (`needsAttention` в итерации 2).
+- Для UI/read-side неподтвержденные места должны помечаться предупреждением (
+eedsAttention` в итерации 2).
 
 ## ⚙️ Статус репозитория
 
@@ -321,7 +323,7 @@ node scripts/query-ingest-status.mjs
 
 ## Запуск (Windows / PowerShell)
 
-Полный сценарий (ingest, backfill, troubleshooting): **[docs/getting-started.md](docs/getting-started.md)**.
+Полный сценарий (ingest, backfill, troubleshooting): **[docs/setup-and-configuration.md](docs/setup-and-configuration.md)**.
 
 ### Режимы одной строкой
 
@@ -329,9 +331,10 @@ node scripts/query-ingest-status.mjs
 |-------|--------|----------|--------|
 | **`stack cold-up`** | `cold:up` | install + build shared + **миграции** | первый раз |
 | **`stack up`** | `up` | shared + API + web | UI без Telegram |
-| **`stack dev --full`** | `dev` | + worker | полный стек |
-| **`stack dev`** | `dev:app` | без worker | отладка карты/API |
-| **`stack docker-dev`** | `docker:dev` | api/web/worker в Docker | изолированный dev-стек |
+| **`stack dev`** | `dev` | shared+api+web + **5 workers** (ingest/backfill/parse/geo/tracking) | полный host-стек |
+| **`stack dev --app-only`** | `dev:app` | shared+api+web, без workers | отладка карты/API |
+| **`stack docker-dev`** | `docker:dev` | api/web + 5 worker-ролей в Docker | dev hot-reload |
+| **`stack docker-prod`** | `docker:prod` | baked dist + nginx + 5 roles | [docker-prod-stack.md](docs/docker-prod-stack.md) |
 
 Подробнее: [docs/docker-dev-stack.md](docs/docker-dev-stack.md).
 
@@ -344,7 +347,7 @@ cd C:\path\to\radar
 Copy-Item .env.example .env
 npm run radar -- stack cold-up
 npm run radar -- stack dev
-# или с worker: npm run radar -- stack dev --full
+# только UI+API: npm run radar -- stack dev --app-only
 ```
 
 Опции `stack cold-up` (legacy `cold:up`, можно комбинировать):
@@ -352,10 +355,10 @@ npm run radar -- stack dev
 | Флаг | Эффект |
 |------|--------|
 | **`-Geo`** | `geo:vendor` → `geo:sync` → `geo:seed` → `geo:db:apply` (долго, нужен интернет) |
-| **`-Tiles`** | self-host OSM basemap (`tiles:init`, 30–90 мин, ≥30 GB) — [map-tiles-selfhost.md](docs/map-tiles-selfhost.md) |
+| **`-Tiles`** | self-host OSM basemap (`tiles:sync`, 30–90 мин, ≥30 GB) — [map-tiles-selfhost.md](docs/map-tiles-selfhost.md) |
 | **`-Verbose`** | подробный вывод CLI (`RADAR_CLI_VERBOSE`) |
 | **`-Dev`** | сразу запустить dev-стек после cold |
-| **`-Llm`** | Docker profile `llm` + `ollama pull` |
+| **`-Llm`** | Docker profile `llm` (ollama + GPU via `docker-compose.override.yml`, auto-pull `GEO__llm__model`) |
 | **`-LlmUi`** | + Open WebUI |
 
 Пример: `npm run radar -- stack cold-up -- -Geo -Dev`
@@ -423,7 +426,7 @@ docker compose --profile llm-ui up -d
 1. **`.env.example` → `.env`** в корне (`DATABASE_URL` обязателен).
 2. `docker compose up -d`
 3. `npm install` → `npm run radar -- stack migrate`
-4. `npm run radar -- stack dev --full` или `stack dev` (см. таблицу режимов выше).
+4. `npm run radar -- stack dev` или `stack dev` (см. таблицу режимов выше).
 
 Подробности transpile/watch: Nest + `shared/dist` для API; Vite тянет схемы из `packages/shared/src`.
 
@@ -450,15 +453,15 @@ docker compose --profile llm-ui up -d
 - Базовый сценарий: если регион найден локально, используем словарь; если в тексте есть уточнение — добираем через enrichers.
 - Для карт/time-machine статусы place вычисляются read-side из fold (`event_locations`); `cleared` — action=clear или отсутствие raise в TTL-окне.
 
-### LLM runtime config (env)
+### LLM runtime config (ADR-021)
 
-- `RADAR_STORAGE_MODE`: режим хранилища worker (`memory|db|fs`), по умолчанию `memory`.
-- `RADAR_LLM_GEOCODER_ENABLED`: включает/выключает LLM fallback.
-- `RADAR_LLM_PROVIDER`: `ollama` или `openai-compatible`.
-- `RADAR_LLM_BASE_URL`: endpoint OpenAI-compatible API, по умолчанию `http://127.0.0.1:11434/v1`.
-- `RADAR_LLM_MODEL`: имя модели в runtime (`qwen2.5:3b` и т.п.).
-- `RADAR_LLM_TIMEOUT_MS`, `RADAR_LLM_RETRY_COUNT`: сетевые guardrails.
-- `RADAR_LLM_MAX_TOKENS`, `RADAR_LLM_TEMPERATURE`, `RADAR_LLM_JSON_MODE`: режим генерации.
+Цепочка: `DEFAULT` → `geo.enrichers.manifest.json` → `GEO__*` env → CLI (`parse:snap:ollama --model`).
+
+- `GEO__llm__enabled` — включить enricher (фаза `llm` в админке — отдельно).
+- `GEO__llm__provider` — `ollama` | `openai-compatible`.
+- `GEO__llm__baseUrl` — OpenAI-compatible endpoint (хост: `http://127.0.0.1:11434/v1`).
+- `GEO__llm__model`, `GEO__llm__timeoutMs`, `GEO__llm__maxTokens`, `GEO__llm__temperature`, `GEO__llm__jsonMode`, `GEO__llm__retryCount`.
+- Секрет облака: `RADAR_LLM_API_KEY` (или `OPENAI_API_KEY`).
 
 Подробный гайд по параметрам семплинга, гибридному CPU+GPU режиму и сравнению локальных/облачных моделей:
 - [docs/ollama-sampling-and-model-tuning.md](docs/ollama-sampling-and-model-tuning.md)
@@ -528,7 +531,7 @@ npm run radar -- stack migrate
 
 | radar | Legacy | Назначение |
 |-------|--------|------------|
-| `stack cold-up` / `up` / `dev` / `dev --full` | `cold:up`, `up`, `dev:app`, `dev` | см. [§ Шпаргалка](#шпаргалка-операции) |
+| `stack cold-up` / `up` / `dev` / `dev --app-only` | `cold:up`, `up`, `dev`, `dev:app` | см. [§ Шпаргалка](#шпаргалка-операции) |
 | `parse run` | `parse-engine:rebuild:drain` | reparse + drain → карта |
 | `geo catalog:import` | `geo:catalog:import -w @radar/api` | geo-каталог в БД |
 | `map fold` | `map:fold:status` | диагностика fold |

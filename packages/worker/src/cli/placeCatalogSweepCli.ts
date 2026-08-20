@@ -5,10 +5,10 @@ import {
   auditNoiseBuckets,
   runPlaceCatalogSweep,
   type PlaceSweepFilters,
-} from "../application/parsing/placeCatalogSweep.js";
+} from "../application/parse/placeCatalogSweep.js";
 import { isGarbageIngestPlaceName } from "../domain/parsing/channelCityListPromo.js";
 import { loadRootEnv } from "../infrastructure/config/loadRootEnv.js";
-import { WorkerStorageMode } from "../infrastructure/persistence/storageMode.js";
+import { cliWorkerRuntime } from "./cliWorkerRuntime.js";
 import { hasAnyFlag, parseLongFlagsMap, readStringFlag } from "./workerCliArgs.js";
 
 function resolveLimit(flags: ReturnType<typeof parseLongFlagsMap>): number | undefined {
@@ -50,7 +50,7 @@ async function printSampleAudit(
   const ids = active.map((p) => p.id);
   const jobRows = ids.length
     ? ((await dataSource.query(
-        `SELECT place_id, provider, status, last_error FROM place_enrichment_jobs WHERE place_id = ANY($1::uuid[])`,
+        `SELECT place_id, provider, status, last_error FROM job_geo_place_enrich WHERE place_id = ANY($1::uuid[])`,
         [ids],
       )) as Array<{ place_id: string; provider: string; status: string; last_error: string | null }>)
     : [];
@@ -97,7 +97,7 @@ async function main(): Promise<void> {
   --audit              только noise_buckets + filter_gaps (без prune)
   --dry-run            без изменений (default)
   --apply / --prune    deprecate или delete matched
-  --delete             hard DELETE (если нет event_locations), иначе deprecate
+  --delete             hard DELETE (если нет mat_parse_location), иначе deprecate
   --only-miss          job failed / :miss / нет evidence
   --empty-dadata
   --empty-nominatim
@@ -110,10 +110,7 @@ async function main(): Promise<void> {
     process.exit(0);
   }
 
-  const runtime = await createWorkerCompositionRoot({
-    storageMode: WorkerStorageMode.Db,
-    startIngestParseDaemon: false,
-  });
+  const runtime = await createWorkerCompositionRoot(cliWorkerRuntime("geo", ["geo"]));
   if (!runtime.dataSource || !runtime.workerRepos) {
     console.error("catalog:sweep: нужен RADAR_STORAGE_MODE=db");
     process.exit(1);

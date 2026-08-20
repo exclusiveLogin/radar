@@ -3,14 +3,14 @@ import { createWipeLogger, type WipeLogger } from "../application/archive/wipeLo
 
 const PHASE_ACTIONS: Record<string, string[]> = {
   "ingest-parse": [
-    "phase_runs + очереди",
+    "log_parse_phase_run + очереди",
     "map-state (no-op)",
-    "parsed_events, parse_attempts, jobs, phase_runs",
-    "ingest cursors/backfill, domain_events",
-    "raw_messages",
+    "mat_parse_event, log_parse_attempt, jobs, log_parse_phase_run",
+    "ingest cursors/backfill, event_outbox",
+    "mat_ingest_raw",
   ],
   "geo-places": [
-    "phase_runs (geo)",
+    "log_parse_phase_run (geo)",
     "unlink FK",
     "places + зависимости",
   ],

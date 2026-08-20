@@ -147,9 +147,8 @@ vite.config.ts.timestamp-*
 .telegram/
 *.telegram-session
 
-# Runtime session slots + local ingest manifests (не коммитить)
-.radar/sessions/
-.radar/*.manifest.json
+# Локальный runtime worker/dev-stack (не коммитить)
+.radar/
 
 # Сторонние geo-репозитории (git clone из scripts/fetch-geo-vendor.mjs)
 data/geo/vendor/
@@ -164,6 +163,9 @@ data/tiles/tilemaker-config*.json
 
 # Локальные отчёты и диагностика (не коммитить)
 reports/
+
+# Локальные overlay манифестов (не коммитить; enable LLM/enrichers — через админку / главный манифест)
+*.local.manifest.json
 
 # Времянки: ад-хок диагностика/однократные проверки (не коммитить)
 tmp/

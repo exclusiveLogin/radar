@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Smoke: composition root db mode — DataSource, OutboxRelay, orchestrator start/stop.
+ * Smoke: composition root db mode — DataSource, orchestrator start/stop.
  * Требует Postgres + .env (DATABASE_URL, RADAR_STORAGE_MODE=db).
  */
 import "reflect-metadata";

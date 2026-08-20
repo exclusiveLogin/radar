@@ -6,14 +6,16 @@ import { resetIngestPhase, wipeIngestPhase } from "../application/phases/lifecyc
 import { wipeIngestParsePhase } from "../application/phases/lifecycle/ingestParsePhase.js";
 import { resetParsePhase, wipeParsePhase } from "../application/phases/lifecycle/parsePhase.js";
 import { clearPhaseQueues, type PhaseQueueScope } from "../application/phases/lifecycle/phaseQueues.js";
-import type { DataSource } from "typeorm";
+import {
+  createPhaseOperationalDeps,
+  type PhaseOperationalDeps,
+} from "../application/phases/phaseOperationalDeps.js";
 import type { PhaseMutationResult } from "../application/phases/lifecycle/phaseLifecycle.types.js";
-import type { WorkerDbRepositories } from "../infrastructure/persistence/workerDbRepos.types.js";
 import { buildTestPlaceScanService } from "../domain/parse/geo/testPlaceScanFixture.js";
 import { createWorkerCompositionRoot } from "../application/createWorkerCompositionRoot.js";
 import { loadRootEnv } from "../infrastructure/config/loadRootEnv.js";
 import { notifyMapPushSnapshot } from "../infrastructure/notifyMapPushSnapshot.js";
-import { WorkerStorageMode } from "../infrastructure/persistence/storageMode.js";
+import { cliWorkerRuntime } from "./cliWorkerRuntime.js";
 import { hasAnyFlag, parseLongFlagsMap, parsePositionalArgs } from "./workerCliArgs.js";
 
 /** Ключи полного wipe БД (ingest + places + geo-catalog). */
@@ -79,7 +81,24 @@ function warnDeprecatedFullWipeKey(phaseKey: string): void {
   );
 }
 
-type PhaseDbCtx = { dataSource: DataSource; repos: WorkerDbRepositories };
+type PhaseDbCtx = { deps: PhaseOperationalDeps };
+
+function lifecycleRuntime(phaseKey: string) {
+  const extra = { placeScan: buildTestPlaceScanService([]) };
+  switch (phaseKey) {
+    case "ingest":
+      return cliWorkerRuntime("ingest", ["ingest"], extra);
+    case "parse":
+      return cliWorkerRuntime("parse", ["parse"], extra);
+    case "geo":
+    case "geo-catalog":
+      return cliWorkerRuntime("geo", ["geo"], extra);
+    case "ingest-parse":
+      return cliWorkerRuntime("parse", ["ingest", "parse"], extra);
+    default:
+      return cliWorkerRuntime("parse", ["ingest", "parse", "geo"], extra);
+  }
+}
 
 /** План или выполнение мутации фазы (dry-run не требует БД). */
 async function runPhaseMutation(
@@ -88,14 +107,12 @@ async function runPhaseMutation(
   ctx: PhaseDbCtx | null,
   dryRun: boolean,
 ): Promise<PhaseMutationResult[]> {
-  const ds = ctx?.dataSource;
-  const repos = ctx?.repos;
+  const deps = ctx?.deps;
 
   if (phaseKey === "clear" && (action === "ingest" || action === "geo" || action === "all")) {
     return [
       await clearPhaseQueues({
-        dataSource: ds!,
-        repos: repos!,
+        deps: deps!,
         scope: action as PhaseQueueScope,
         dryRun,
       }),
@@ -104,20 +121,20 @@ async function runPhaseMutation(
 
   switch (`${phaseKey}:${action}`) {
     case "ingest:wipe":
-      return [await wipeIngestPhase({ dataSource: ds!, repos: repos!, dryRun })];
+      return [await wipeIngestPhase({ deps: deps!, dryRun })];
     case "parse:wipe":
-      return [await wipeParsePhase({ dataSource: ds!, repos: repos!, dryRun })];
+      return [await wipeParsePhase({ deps: deps!, dryRun })];
     case "geo:wipe":
-      return [await wipeGeoPlacesPhase({ dataSource: ds!, repos: repos!, dryRun })];
+      return [await wipeGeoPlacesPhase({ deps: deps!, dryRun })];
     case "geo:reset":
-      return [await resetGeoEnrichmentPhase({ dataSource: ds!, repos: repos!, dryRun })];
+      return [await resetGeoEnrichmentPhase({ deps: deps!, dryRun })];
     case "geo-catalog:wipe":
-      return [await wipeGeoCatalogPhase({ dataSource: ds!, dryRun })];
+      return [await wipeGeoCatalogPhase({ operationalSql: deps!.operationalSql, dryRun })];
     case "ingest-parse:wipe":
-      return [await wipeIngestParsePhase({ dataSource: ds!, repos: repos!, dryRun })];
+      return [await wipeIngestParsePhase({ deps: deps!, dryRun })];
     case "system:wipe":
     case "vendor-ingest-parse-geo:wipe":
-      return (await wipeFullDataStack({ dataSource: ds!, repos: repos!, dryRun })).steps;
+      return (await wipeFullDataStack({ deps: deps!, dryRun })).steps;
     default:
       return [];
   }
@@ -169,20 +186,15 @@ async function main(): Promise<void> {
     process.exit(0);
   }
 
-  const runtime = await createWorkerCompositionRoot({
-    storageMode: WorkerStorageMode.Db,
-    startIngestParseDaemon: false,
-    placeScan: buildTestPlaceScanService([]),
-  });
+  const runtime = await createWorkerCompositionRoot(lifecycleRuntime(phaseKey));
 
-  if (!runtime.dataSource || !runtime.workerRepos) {
+  if (!runtime.operationalSql || !runtime.workerRepos) {
     console.error("Нужен RADAR_STORAGE_MODE=db и DATABASE_URL");
     process.exit(1);
   }
 
   const ctx: PhaseDbCtx = {
-    dataSource: runtime.dataSource,
-    repos: runtime.workerRepos,
+    deps: createPhaseOperationalDeps(runtime.operationalSql, runtime.workerRepos),
   };
 
   const results = await runPhaseMutation(phaseKey, action, ctx, false);

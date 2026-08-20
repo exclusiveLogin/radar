@@ -9,7 +9,8 @@ npm run radar -- help [stack|pipeline|ingest|parse|geo|phase|map|tracking|data|d
 
 **SSOT таблиц «radar ↔ legacy»** — только этот файл. Остальные доки ссылаются сюда, не дублируют.
 
-Старые `npm run parse-engine:*` / `worker:*` / `dev` остаются алиасами; новый код и runbook — через `radar`.
+Старые 
+`npm run parse-engine:*` / `worker:*` / `dev` остаются алиасами; новый код и runbook — через `radar`.
 
 ---
 
@@ -17,18 +18,28 @@ npm run radar -- help [stack|pipeline|ingest|parse|geo|phase|map|tracking|data|d
 
 | Задача | Команда |
 |--------|---------|
-| Первый запуск | `npm run radar -- stack cold-up` |
-| Dev UI+API+worker | `npm run radar -- stack dev --full` |
-| Миграции после pull | `npm run radar -- stack migrate` |
-| **Треки: миграция + dev** | `stack migrate` → `stack dev --full` → Admin **Треки** → ВКЛ |
-| **Треки: статус** | `npm run radar -- tracking status` |
-| **Треки: rebuild** | `npm run radar -- tracking rebuild -- --since=2024-01-01T00:00:00Z` |
-| Импорт geo-каталога | `npm run radar -- geo catalog:import` |
-| Backfill архива | `npm run radar -- ingest backfill -- --all-bindings --batch-size=100` |
-| **Reparse / карта после ingest** | `npm run radar -- parse run` |
-| **После deploy P6 (ADR-012)** | `stack migrate` → restart worker → `pipeline reset` → `parse run` → `pipeline parity` |
-| Перепарсить без смены каталога | `npm run radar -- pipeline reset` → `parse run` |
-| Статус очередей | `npm run radar -- pipeline status` |
+| Первый запуск | 
+`npm run radar -- stack cold-up` |
+| Dev UI+API+worker | 
+`npm run radar -- stack dev` |
+| Миграции после pull | 
+`npm run radar -- stack migrate` |
+| **Треки: миграция + dev** | `stack migrate` → `stack dev` → Admin **Треки** → ВКЛ |
+| **Треки: статус** | 
+`npm run radar -- tracking status` |
+| **Треки: rebuild** | 
+`npm run radar -- tracking rebuild -- --since=2024-01-01T00:00:00Z` |
+| Импорт geo-каталога | 
+`npm run radar -- geo catalog:import` |
+| Backfill архива | 
+`npm run radar -- ingest backfill -- --all-bindings --batch-size=100` |
+| **Reparse / карта после ingest** | 
+`npm run radar -- parse run` (сброс parsed внутри, reset не нужен) |
+| **После deploy P6 (ADR-012)** | `stack migrate` → restart worker → `parse run` → `pipeline parity` |
+| Сброс parsed без reparse | 
+`npm run radar -- pipeline reset` → `stack dev` / catch-up |
+| Статус очередей | 
+`npm run radar -- pipeline status` |
 | Чистая система | **[cold-start.md](./cold-start.md)** — шаги 0→6 |
 
 Полный справочник — § [Справочник по доменам](#справочник-по-доменам). Сценарии wipe — [phase-commands.md](./phase-commands.md). Runbook — [runbook/geo-clean-rebuild.md](./runbook/geo-clean-rebuild.md).
@@ -59,7 +70,7 @@ npm run radar -- help [stack|pipeline|ingest|parse|geo|phase|map|tracking|data|d
 |----------|--------|
 | **wipe** | Контент фазы удалён («пустое состояние») |
 | **reset** | Снято обогащение (coords, trust, jobs); базовые строки остаются |
-| **clear** | Только очереди (`phase_coverage`, `place_enrichment_jobs`) + cancel runs |
+| **clear** | Только очереди (`queue_parse_coverage`, `job_geo_place_enrich`) + cancel runs |
 
 Мутирующие команды: **`-- --dry-run`**. Подробнее по фазам, импакту и сценариям — [phase-commands.md](./phase-commands.md).
 
@@ -69,7 +80,9 @@ npm run radar -- help [stack|pipeline|ingest|parse|geo|phase|map|tracking|data|d
 
 ## Справочник по доменам
 
-В колонке **radar** — действие после `npm run radar --`. В **legacy** — старый `npm run …`.
+В колонке **radar** — действие после 
+`npm run radar --`. В **legacy** — старый 
+`npm run …`.
 
 ### stack — запуск и инфра
 
@@ -77,19 +90,18 @@ npm run radar -- help [stack|pipeline|ingest|parse|geo|phase|map|tracking|data|d
 |-------|--------|------------|
 | `stack cold-up` | `cold:up` | Docker + install + migrate + dev:app |
 | `stack up` | `up` | Docker + dev:app |
-| `stack dev --full` | `dev` | UI + API + worker |
-| `stack dev` | `dev:app` | UI + API без worker |
+| `stack dev` | `dev` | UI + API + 5 worker-ролей |
+| `stack dev --app-only` | `dev:app` | UI + API без worker |
 | `stack db:up` / `db:down` | `db:up` / `db:down` | Postgres compose |
 | `stack migrate` | `migration:run` | Миграции БД |
 | `stack docker-dev` | `docker:dev` | Полный стек в Docker (profile `app`) |
 | `stack tiles:prepare` | `tiles:prepare` | Артефакты без TileServer (prepare → потом `tiles:up`) |
-| `stack tiles:init` | `tiles:init` | prepare + поднять TileServer |
-| `stack tiles:update` | `tiles:update` | Пересборка + restart TileServer |
+| `stack tiles:sync` | `tiles:sync` | build pipeline + restart TileServer |
 | `stack tiles:up` | `tiles:up` | Только TileServer :8081 (рядом с `stack dev`) |
 | `stack tiles:down` | `tiles:down` | Остановить TileServer |
 | `stack tiles:verify` | `tiles:verify` | Проверка артефактов |
 | `stack tiles:download` … `tiles:build` | `tiles:*` | Пошаговый пайплайн |
-| `stack cold-up -- -Tiles` | `cold:up -- -Tiles` | cold-up + tiles:init |
+| `stack cold-up -- -Tiles` | `cold:up -- -Tiles` | cold-up + tiles:sync |
 | `stack cold-up -- -Verbose` | — | подробный вывод CLI-скриптов |
 | `build` (корень) | — | Собрать все пакеты |
 
@@ -118,9 +130,9 @@ npm run radar -- help [stack|pipeline|ingest|parse|geo|phase|map|tracking|data|d
 | `pipeline clear` | `parse-engine:clear`, `parse-engine:archive:clear` | raw + parsed + cursors; закрывает dev/API/worker (`--no-force-locks` опционально) |
 | `pipeline clear:raw` | `parse-engine:clear:raw` | Только raw |
 | `pipeline clear:ingest` | `parse-engine:clear:ingest` | Ingest cursors / backfill |
-| `pipeline queue:ingest` | `parse-engine:queue:ingest` | Очередь phase_coverage |
-| `pipeline queue:geo` | `parse-engine:queue:geo` | Очередь place_enrichment_jobs |
-| `pipeline runs` | `parse-engine:runs:status` | Активные phase_runs |
+| `pipeline queue:ingest` | `parse-engine:queue:ingest` | Очередь queue_parse_coverage |
+| `pipeline queue:geo` | `parse-engine:queue:geo` | Очередь job_geo_place_enrich |
+| `pipeline runs` | `parse-engine:runs:status` | Активные log_parse_phase_run |
 | `pipeline ingest:drain` | `parse-engine:ingest:drain` | Drain ingest [`--phase=id`] |
 | `pipeline phase:run -- --phase=llm` | `parse-engine:phase:run` | Ручной прогон фазы |
 | `pipeline phase:stop` | `parse-engine:phase:stop` | Стоп runs + coverage |
@@ -178,8 +190,8 @@ Legacy по шагам (не SSOT): `geo:regions:seed`, `geo:features:import`, `
 | **`system wipe -- --confirm`** | **`system:wipe`**, `parse-engine:system:wipe` | **Полный wipe контента БД** |
 | `phase wipe system -- --confirm` | = `system wipe` | то же (через redirect) |
 | `phase wipe vendor-ingest-parse-geo -- --confirm` | `vendor-ingest-parse-geo:wipe` | **устарело** → `system wipe` |
-| `phase clear ingest` | `phase:ingest:clear` | phase_coverage + cancel runs |
-| `phase clear geo` | `phase:geo:clear` | place_enrichment_jobs + cancel runs |
+| `phase clear ingest` | `phase:ingest:clear` | queue_parse_coverage + cancel runs |
+| `phase clear geo` | `phase:geo:clear` | job_geo_place_enrich + cancel runs |
 | `phase clear all` | `phase:all:clear` | Обе очереди |
 | `phase manifest:import` / `export` | `phase:manifest:*`, `parse-engine:manifest:*` | Манифест фаз |
 
@@ -213,7 +225,7 @@ Legacy по шагам (не SSOT): `geo:regions:seed`, `geo:features:import`, `
 
 **API read-side:** `GET /api/map/tracks`, `GET /api/map/tracks/flow`.
 
-**Env:** `TRACKING_DAEMON_INTERVAL_MS` (default 10000), `TRACKING_DAEMON_ENABLED` (default true), `RADAR_WORKER_ROLE=tracking` — только tracking daemon.
+**Конфиг:** `worker.runtime.manifest.json` → `tracking.*` ([ADR-021](./rfc/adr-021-manifest-env-ssot.md)); `RADAR_WORKER_ROLE=tracking` — только tracking daemon.
 
 Runbook: [runbook/tracking-pipeline.md](./runbook/tracking-pipeline.md).
 
@@ -229,7 +241,8 @@ Runbook: [runbook/tracking-pipeline.md](./runbook/tracking-pipeline.md).
 
 | radar | legacy | Назначение |
 |-------|--------|------------|
-| `dev ws-smoke` | `node scripts/ws-smoke.mjs` | Проверка WS карты |
+| `dev ws-smoke` | 
+ode scripts/ws-smoke.mjs` | Проверка WS карты |
 | `dev heap:diff` | `heap:snapshot:diff` | Diff heap snapshots |
 
 ---
@@ -253,7 +266,7 @@ Runbook: [runbook/tracking-pipeline.md](./runbook/tracking-pipeline.md).
 ```powershell
 # Первый запуск
 npm run radar -- stack cold-up
-npm run radar -- stack dev --full
+npm run radar -- stack dev
 
 # Geo rebuild
 npm run radar -- geo catalog:import
@@ -265,13 +278,11 @@ npm run radar -- pipeline parity
 npm run build
 npm run radar -- stack migrate
 # restart worker
-npm run radar -- pipeline reset
 npm run radar -- parse run
 npm run radar -- pipeline parity
 # опционально: npm run radar -- geo catalog:import
 
 # Перепарсить raw без смены каталога
-npm run radar -- pipeline reset
 npm run radar -- parse run
 
 # Чистая система
@@ -293,18 +304,17 @@ npm run radar -- pipeline drain
 | Команда | Progress stage | Флаги / env |
 |---------|----------------|-------------|
 | `stack cold-up` | `cold-up` | `-Verbose`, `-Tiles`, `-Geo` |
-| `stack tiles:init` | `tiles:init` | `--verbose`, `--build-only` (без TileServer) |
-| `stack tiles:update` | `tiles:update` | `--verbose`, `--no-up` |
+| `stack tiles:sync` | `tiles:sync` | `--verbose`, `--no-restart` (без TileServer; алиасы `--build-only`, `--no-up`) |
 | `stack tiles:download` | per-source | `--verbose` |
 
 ### Параллельно с host dev
 
 ```powershell
 # Терминал 1 — приложение
-npm run radar -- stack dev --full
+npm run radar -- stack dev
 
-# Терминал 2 — свои тайлы (один раз init, потом только up)
-npm run radar -- stack tiles:init -- --verbose
+# Терминал 2 — свои тайлы (sync один раз, потом только up)
+npm run radar -- stack tiles:sync -- --verbose
 # или если артефакты уже есть:
 npm run radar -- stack tiles:up
 ```

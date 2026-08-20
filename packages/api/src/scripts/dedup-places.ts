@@ -65,8 +65,7 @@ async function main(): Promise<void> {
       await client.query(`UPDATE places SET parent_place_id = $1 WHERE parent_place_id = $2`, [survivor, loser]);
     }
     // Производные ссылки проигравших удаляются — перестроит reparse.
-    await client.query(`DELETE FROM event_locations WHERE place_id = ANY($1::uuid[])`, [losers]);
-    await client.query(`DELETE FROM place_evidence WHERE place_id = ANY($1::uuid[])`, [losers]);
+    await client.query(`DELETE FROM mat_parse_location WHERE place_id = ANY($1::uuid[])`, [losers]);
     await client.query(`DELETE FROM place_aliases WHERE place_id = ANY($1::uuid[])`, [losers]);
     await client.query(`DELETE FROM places WHERE id = ANY($1::uuid[])`, [losers]);
     await client.query("COMMIT");

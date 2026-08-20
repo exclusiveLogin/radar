@@ -2,7 +2,7 @@
 
 **SSOT radar ↔ legacy:** [`radar-cli.md`](./radar-cli.md).
 
-**Полный wipe БД:** `npm run radar -- system wipe -- --confirm` (алиас: `npm run system:wipe -- --confirm`).
+**Полный wipe БД:** `npm run radar -- system wipe -- --confirm` (алиас: `npm run system:wipe -- --confirm`).
 
 > Старое имя `vendor-ingest-parse-geo` — legacy-артефакт пайплайна; **диск vendor не трогает**. Используйте **`system wipe`**.
 
@@ -14,7 +14,7 @@
 |----------|--------|
 | **wipe** | Контент фазы удалён («пустое состояние») |
 | **reset** | Снято только **обогащение** (coords, trust, jobs); базовые строки остаются |
-| **clear** | Только **очереди** (`phase_coverage`, `place_enrichment_jobs`, cancel `phase_runs`) |
+| **clear** | Только **очереди** (`queue_parse_coverage`, `job_geo_place_enrich`, cancel `log_parse_phase_run`) |
 | **drain** | Догнать очереди **без удаления** данных |
 | **run** | Раскатка / прогон (rebuild, import, backfill) |
 
@@ -44,7 +44,7 @@ Legacy-алиасы: `parse-engine:system:wipe` → `system:wipe`; `vendor-inges
 
 | Шаг | Таблицы / эффект |
 |-----|------------------|
-| ingest | `raw_messages`, `parsed_events`, `event_locations`, `parse_attempts`, `phase_runs`, read-model карты, cursors/backfill, jobs |
+| ingest | `mat_ingest_raw`, `mat_parse_event`, `mat_parse_location`, `log_parse_attempt`, `log_parse_phase_run`, read-model карты, cursors/backfill, jobs |
 | geo (places) | `places`, `place_aliases` |
 | geo-catalog | `regions`, `geo_feature`, `place_geo_link`, `geo_dataset_file`, `region_state_*` |
 
@@ -54,13 +54,13 @@ Legacy-алиасы: `parse-engine:system:wipe` → `system:wipe`; `vendor-inges
 
 | Задача | Команда |
 |--------|---------|
-| Первый раз на машине | `npm run radar -- stack cold-up` |
-| Docker + UI/API | `npm run radar -- stack up` |
-| Полный dev (+ worker) | `npm run radar -- stack dev --full` |
-| После `git pull` | `npm run radar -- stack migrate` |
-| Rebuild пакетов | `npm run build` |
-| Telegram session | `npm run radar -- ingest session:deploy` |
-| Проверка session | `npm run radar -- ingest session:probe` |
+| Первый раз на машине | `npm run radar -- stack cold-up` |
+| Docker + UI/API | `npm run radar -- stack up` |
+| Полный dev (+ worker) | `npm run radar -- stack dev` |
+| После `git pull` | `npm run radar -- stack migrate` |
+| Rebuild пакетов | `npm run build` |
+| Telegram session | `npm run radar -- ingest session:deploy` |
+| Проверка session | `npm run radar -- ingest session:probe` |
 
 ---
 
@@ -92,8 +92,8 @@ Legacy-алиасы: `parse-engine:system:wipe` → `system:wipe`; `vendor-inges
 |---------|------------|
 | **`parse run`** | rebuild raw + scheduled ingest drain + geo drain |
 | `pipeline drain` | ingest + geo очереди без полного rebuild |
-| `pipeline ingest:drain` | только `phase_coverage` |
-| `geo drain` | только `place_enrichment_jobs` |
+| `pipeline ingest:drain` | только `queue_parse_coverage` |
+| `geo drain` | только `job_geo_place_enrich` |
 | `ingest drain` | scheduled ingestParse (как тик демона) |
 | `pipeline rebuild` | reparse **без** drain |
 | `pipeline status` | сводка очередей |
@@ -110,11 +110,11 @@ Legacy-алиасы: `parse-engine:system:wipe` → `system:wipe`; `vendor-inges
 ### parse
 
 - `phase wipe parse` — parsed + evloc; **raw остаётся**.
-- Операционный reparse: `pipeline reset` → `parse run`.
+- Операционный reparse: `parse run` (сброс parsed + карта внутри команды). `pipeline reset` — только wipe без reparse.
 
 ### geo (places)
 
-> ⚠️ `phase wipe geo` обнуляет `event_locations.place_id` перед удалением (FK RESTRICT). Строки evloc остаются.
+> ⚠️ `phase wipe geo` обнуляет `mat_parse_location.place_id` перед удалением (FK RESTRICT). Строки evloc остаются.
 
 ### geo-catalog
 
@@ -144,7 +144,7 @@ npm run radar -- ingest session:deploy
 npm run radar -- ingest manifest:import
 npm run radar -- phase manifest:import
 npm run radar -- geo catalog:import
-npm run radar -- stack dev --full
+npm run radar -- stack dev
 ```
 
 Runbook с FK и сценариями B/C: [runbook/geo-clean-rebuild.md](./runbook/geo-clean-rebuild.md).

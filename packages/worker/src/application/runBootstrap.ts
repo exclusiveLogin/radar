@@ -3,10 +3,8 @@ import { createWorkerCompositionRoot } from "./createWorkerCompositionRoot.js";
 import { loadRootEnv } from "../infrastructure/config/loadRootEnv.js";
 import {
   resolveWorkerRoleFromEnv,
-  roleRunsBackfill,
-  roleRunsLiveIngest,
-  roleRunsPhaseDaemons,
-  roleRunsTrackingDaemon,
+  capsFor,
+  hasCap,
 } from "../infrastructure/config/workerRole.js";
 import { isDadataConfigured } from "../infrastructure/enrichers/dadataConfig.js";
 import { loadLlmRuntimeConfig } from "../infrastructure/enrichers/llmRuntimeConfig.js";
@@ -21,6 +19,7 @@ import { startWorkerProbeServer } from "../infrastructure/probe/workerProbeServe
 export async function runWorkerBootstrap(): Promise<void> {
   loadRootEnv(MONOREPO_ROOT);
   const workerRole = resolveWorkerRoleFromEnv();
+  const caps = capsFor(workerRole);
 
   if (!isDadataConfigured()) {
     console.warn(
@@ -34,45 +33,56 @@ export async function runWorkerBootstrap(): Promise<void> {
   const probe = startWorkerProbeServer();
 
   console.log(`Режим хранилища worker: ${runtime.storageMode}.`);
-  console.log(`Роль worker: ${workerRole}.`);
+  console.log(`Роль worker: ${workerRole}. caps=[${[...caps].join(",")}].`);
   console.log("Write-side handlers и event bus инициализированы.");
 
   if (runtime.storageMode === WorkerStorageMode.Db) {
-    if (roleRunsLiveIngest(workerRole)) {
+    if (hasCap(caps, "ingest")) {
       if (!runtime.ingestOrchestrator) {
-        throw new Error("Ingest orchestrator не инициализирован для роли ingest/all.");
+        throw new Error("Ingest orchestrator не инициализирован для роли ingest.");
       }
       console.log("Запуск IngestOrchestrator (active providers из БД)...");
       await runtime.ingestOrchestrator.start();
     }
 
-    if (roleRunsBackfill(workerRole) && runtime.backfillDaemon) {
+    if (hasCap(caps, "backfill") && runtime.backfillDaemon) {
       runtime.backfillDaemon.start();
-      console.log("BackfillDaemon запущен (ingest_backfill_jobs).");
+      console.log("BackfillDaemon запущен (job_ingest_backfill).");
     }
 
-    if (roleRunsPhaseDaemons(workerRole) && runtime.ingestParseDaemon) {
-      console.log("IngestParseDaemon запущен (scheduled ingestParse → phase_coverage).");
+    if ((hasCap(caps, "parse") || hasCap(caps, "geo")) && runtime.ingestParseDaemon) {
+      console.log("IngestParseDaemon запущен (scheduled ingestParse → queue_parse_coverage).");
     }
-    if (roleRunsPhaseDaemons(workerRole) && runtime.placeEnrichmentDaemon) {
+    if ((hasCap(caps, "parse") || hasCap(caps, "geo")) && runtime.placeEnrichmentDaemon) {
       console.log(
-        "GeoParseDaemon запущен (scheduled geoParse → place_enrichment_jobs; в консоль: [geo:nominatim] ok|miss|fail, подробно: RADAR_VERBOSE_GEO_LOG=1).",
+        "GeoParseDaemon запущен (scheduled geoParse → job_geo_place_enrich; в консоль: [geo:nominatim] ok|miss|fail, подробно: RADAR_VERBOSE_GEO_LOG=1).",
       );
     }
 
-    if (roleRunsTrackingDaemon(workerRole) && runtime.trackingRebuildDaemon) {
-      runtime.trackingRebuildDaemon.start();
-      console.log("TrackingRebuildDaemon запущен (trajectory_tracks).");
-    }
-    if (roleRunsTrackingDaemon(workerRole) && runtime.trackingTuneDaemon) {
-      runtime.trackingTuneDaemon.start();
-      console.log("TrackingTuneDaemon запущен (tracking_tune_runs).");
+    if (hasCap(caps, "tracking") && runtime.trackingLauncher) {
+      runtime.trackingLauncher.start();
+      console.log("TrackingLauncher запущен (mat_track).");
     }
 
     workerRuntimeStatus.setRunning();
 
+    let obsHeartbeatTimer: ReturnType<typeof setInterval> | undefined;
+    if (runtime.observabilityRecorder && runtime.obsHostSnapshot) {
+      obsHeartbeatTimer = setInterval(() => {
+        void runtime.observabilityRecorder!
+          .upsertHost({
+            ...runtime.obsHostSnapshot!,
+            lastSeenAt: new Date().toISOString(),
+          })
+          .catch((err: unknown) => {
+            console.warn("[obs] host heartbeat failed:", err);
+          });
+      }, 10_000);
+    }
+
     const shutdown = async () => {
       console.log("Остановка worker...");
+      if (obsHeartbeatTimer) clearInterval(obsHeartbeatTimer);
       workerRuntimeStatus.setStopped();
       probe.server?.close();
       await runtime.shutdown?.();

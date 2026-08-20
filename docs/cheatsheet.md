@@ -31,7 +31,7 @@ RADAR_SESSIONS_DIR=.radar/sessions
 
 ```powershell
 npm run radar -- help
-npm run radar -- stack dev --full
+npm run radar -- stack dev
 npm run radar -- parse run                    # reparse после ingest
 npm run radar -- pipeline status
 npm run radar -- geo catalog:import
@@ -55,7 +55,7 @@ npm run radar -- ingest backfill -- --all-bindings --batch-size=100
 ```powershell
 npm run radar -- stack tiles:prepare -- --verbose   # артефакты, без сервера
 npm run radar -- stack tiles:up                  # только TileServer
-npm run radar -- stack tiles:update              # пересборка
+npm run radar -- stack tiles:sync              # build + restart
 npm run radar -- stack tiles:down
 ```
 
@@ -156,7 +156,7 @@ npm run radar -- ingest backfill -- `
 
 1. Worker в `db` mode, `BackfillDaemon` включён.
 2. UI или `POST /api/admin/ingest/backfill-jobs` с `bindingId` + `strategy: "all"`.
-3. Статус: `ingest_backfill_jobs.status` → `pending` → preflight → `running` → `completed`.
+3. Статус: `job_ingest_backfill.status` → `pending` → preflight → `running` → `completed`.
 4. Parse PE 2.0 — [phase-pipeline.md](./phase-pipeline.md): **Сводка** (coverage) + **Parse-engine** (фазы).
 
 Подробно: [backfill-v2-pipeline.md](./backfill-v2-pipeline.md).
@@ -178,7 +178,7 @@ WHERE b.enabled = true;
 **Сырые сообщения backfill:**
 
 ```sql
-SELECT ch.key, count(*) FROM raw_messages rm
+SELECT ch.key, count(*) FROM mat_ingest_raw rm
 JOIN channels ch ON ch.id = rm.channel_id
 WHERE rm.ingest_mode = 'backfill'
 GROUP BY ch.key;
@@ -188,7 +188,7 @@ GROUP BY ch.key;
 
 ```sql
 SELECT rm.posted_at, rm.ingest_mode, left(rm.raw_text, 120)
-FROM raw_messages rm
+FROM mat_ingest_raw rm
 JOIN channels ch ON ch.id = rm.channel_id
 WHERE ch.key = 'radar-rrpfo'
 ORDER BY rm.posted_at DESC LIMIT 10;
@@ -203,11 +203,12 @@ ORDER BY rm.posted_at DESC LIMIT 10;
 Типовые сценарии reparse:
 
 ```powershell
-npm run radar -- parse run                              # после ingest
-npm run radar -- pipeline reset && npm run radar -- parse run   # перепарсить raw
+npm run radar -- parse run                              # полный reparse (сброс + wipe parsed внутри)
 npm run radar -- pipeline status
 npm run radar -- pipeline parity
 ```
+
+`pipeline reset` отдельно — только сброс без reparse (дальше `stack dev` / catch-up).
 
 ### Parse debug (agent)
 
@@ -242,7 +243,7 @@ Wipe/reset/clear — [phase-commands.md](./phase-commands.md).
 
 ## Async-обогащение (фазы, ADR-003)
 
-**Phase-pipeline v2:** фазы `catalog|llm|dadata|nominatim`, очередь `phase_coverage`, оркестратор `PhaseRunner` + `IngestParseDaemon`. Подробно: [phase-pipeline.md](./phase-pipeline.md).
+**Phase-pipeline v2:** фазы `catalog|llm|dadata|nominatim`, очередь `queue_parse_coverage`, оркестратор `PhaseRunner` + `IngestParseDaemon`. Подробно: [phase-pipeline.md](./phase-pipeline.md).
 
 ```powershell
 npm run radar -- stack migrate
@@ -268,7 +269,7 @@ npm run radar -- pipeline rebuild
 
 **Прогресс:** `GET /api/admin/phases/runs/overview`, WS `phases-update`, виджеты **Сводка** + **Parse-engine**.
 
-**Env:** `RADAR_STORAGE_MODE=db`, `RADAR_PHASE_DAEMON_ENABLED` (scheduled), `RADAR_LLM_*`.
+**Env:** `RADAR_STORAGE_MODE=db`, `RADAR_PHASE_DAEMON_ENABLED` (scheduled), `GEO__llm__*`.
 
 Статус: [phase-pipeline-status.md](./phase-pipeline-status.md) · админка: [api/phases-admin.md](./api/phases-admin.md).
 
@@ -309,7 +310,7 @@ npm run radar -- pipeline rebuild
 | Нет каналов | `npm run ingest:manifest:import`, provider `active` |
 | Backfill pending | worker db + `BackfillDaemon запущен` |
 | Карта пустая после ingest | `npm run radar -- parse run` |
-| Heatmap пустая | есть `event_locations` с координатами; проверить `period` / `eventTypes` |
+| Heatmap пустая | есть `mat_parse_location` с координатами; проверить `period` / `eventTypes` |
 | API_ID_INVALID | свои `TELEGRAM_API_ID/HASH` с my.telegram.org |
 | `[api] EBUSY` при dev | stop node → удалить `packages/api/dist` → `npm run radar -- stack dev` |
 | CLI прогресс «листает» строки | `RADAR_VERBOSE_PARSE_LOG=1` → stderr |

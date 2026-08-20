@@ -1,16 +1,13 @@
 import { MONOREPO_ROOT } from "@repo/root";
 import { createWorkerCompositionRoot } from "../application/createWorkerCompositionRoot.js";
 import { loadRootEnv } from "../infrastructure/config/loadRootEnv.js";
-import { WorkerStorageMode } from "../infrastructure/persistence/storageMode.js";
+import { cliWorkerRuntime } from "./cliWorkerRuntime.js";
 
 type Row = Record<string, unknown>;
 
 async function main(): Promise<void> {
   loadRootEnv(MONOREPO_ROOT);
-  const runtime = await createWorkerCompositionRoot({
-    storageMode: WorkerStorageMode.Db,
-    startIngestParseDaemon: false,
-  });
+  const runtime = await createWorkerCompositionRoot(cliWorkerRuntime("geo", ["geo"]));
   if (!runtime.dataSource) {
     console.error("place-catalog-sample: нужен db");
     process.exit(1);
@@ -35,10 +32,10 @@ async function main(): Promise<void> {
         SELECT
           (SELECT COUNT(*)::int FROM places WHERE is_active AND name ~* '\\s24\\s*/\\s*7') AS active_247,
           (SELECT COUNT(*)::int FROM places WHERE NOT is_active AND name ~* '\\s24\\s*/\\s*7') AS inactive_247,
-          (SELECT COUNT(*)::int FROM place_enrichment_jobs j
+          (SELECT COUNT(*)::int FROM job_geo_place_enrich j
            JOIN places p ON p.id = j.place_id
            WHERE p.name ~* '\\s24\\s*/\\s*7' AND j.status IN ('pending','processing')) AS jobs_pending_247,
-          (SELECT COUNT(*)::int FROM place_enrichment_jobs j
+          (SELECT COUNT(*)::int FROM job_geo_place_enrich j
            JOIN places p ON p.id = j.place_id
            WHERE p.name ~* '\\s24\\s*/\\s*7') AS jobs_total_247`,
     },
@@ -46,7 +43,7 @@ async function main(): Promise<void> {
       title: "Pending jobs на 24/7 (sample)",
       sql: `
         SELECT p.name, r.name AS region, p.is_active, j.status, j.provider
-        FROM place_enrichment_jobs j
+        FROM job_geo_place_enrich j
         JOIN places p ON p.id = j.place_id
         JOIN regions r ON r.id = p.region_id
         WHERE p.name ~* '\\s24\\s*/\\s*7' AND j.status IN ('pending','processing')
@@ -132,7 +129,7 @@ async function main(): Promise<void> {
       title: "Jobs на active без dadata evidence",
       sql: `
         SELECT COUNT(*)::int AS places_no_dadata,
-               (SELECT COUNT(*)::int FROM place_enrichment_jobs j
+               (SELECT COUNT(*)::int FROM job_geo_place_enrich j
                 WHERE j.provider = 'dadata' AND j.status IN ('pending','processing')) AS dadata_pending
         FROM places p
         WHERE p.is_active AND p.kind <> 'region'

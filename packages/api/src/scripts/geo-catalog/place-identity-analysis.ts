@@ -2,18 +2,17 @@
  * Диагностика identity place: Казань и политика уникальности (read-only).
  * Запуск: npx tsx src/scripts/geo-catalog/place-identity-analysis.ts
  */
-import * as fs from "node:fs";
 import * as path from "node:path";
 import * as dotenv from "dotenv";
 import dataSource from "../../data-source";
 import { normalizeName } from "../../application/geo-sync/diff-engine";
+import { placeDraftKey } from "../../application/geo-sync/place-draft-key";
 import { resolveGeoCatalogPath } from "../../infrastructure/geo-catalog/catalog-paths";
 import { resolveFiasCatalogRegionCode } from "../../infrastructure/geo-providers/all-cities-fias/fiasRegionAliases";
 import {
   mapFiasRowsToPlaceDrafts,
   parseAllCitiesFiasXlsx,
 } from "../../infrastructure/geo-providers/all-cities-fias/parseAllCitiesFiasXlsx";
-import { resolvePlaceDraftKey } from "../../infrastructure/geo-providers/geo-provider-utils";
 
 dotenv.config({ path: path.resolve(__dirname, "../../../../.env") });
 
@@ -66,7 +65,7 @@ async function run(): Promise<void> {
       kind: draft.kind,
       oktmo: draft.oktmo,
       nameWithType: draft.nameWithType,
-      snapshotKey: resolvePlaceDraftKey(draft),
+      snapshotKey: placeDraftKey(draft),
       naturalKey: `${draft.regionCode}:${draft.kind}:${normalizeName(draft.name)}`,
     });
   }
@@ -77,7 +76,7 @@ async function run(): Promise<void> {
       city: row.city,
       cityType: row.cityType,
       aoLevel: row.aoLevel,
-      draftKey: resolvePlaceDraftKey({
+      draftKey: placeDraftKey({
         regionCode: resolveFiasCatalogRegionCode(row.region),
         kind: row.cityType === "г" ? "city" : "locality",
         name: row.city,

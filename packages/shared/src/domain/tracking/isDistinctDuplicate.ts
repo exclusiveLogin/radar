@@ -10,7 +10,7 @@
  */
 import { haversineDistanceM } from "./haversine";
 import { observationCovarianceMeters } from "./observationCovariance";
-import type { NodeMode, TrajectoryNode, TrackingCandidate } from "./types";
+import type { TrajectoryNode, TrackingCandidate } from "./types";
 
 /** Минимальный радиус дедупликации (м), если sigma слишком мала. */
 const DISTINCT_RADIUS_MIN_M = 500;

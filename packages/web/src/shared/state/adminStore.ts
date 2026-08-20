@@ -9,6 +9,8 @@ import type {
   ParsePipelineStatusResponse,
   PhaseRun,
   PhaseRunsOverview,
+  PipelineTopologyResponse,
+  RunnerDiscoveryResponse,
   StatsOverview,
   TrackingStatusResponse,
 } from "@radar/shared";
@@ -31,7 +33,7 @@ export const statsOverview$ = new BehaviorSubject<StatsOverview | null>(null);
 export const telemetry$ = new BehaviorSubject<AdminTelemetry | null>(null);
 /** Backfill-задачи (мониторинг). */
 export const backfillJobs$ = new BehaviorSubject<BackfillJobListItem[]>([]);
-/** Лента parse_attempts (realtime + начальная подгрузка). */
+/** Лента log_parse_attempt (realtime + начальная подгрузка). */
 export const parseLog$ = new BehaviorSubject<ParseAttemptItem[]>([]);
 /** Статистика выбранного канала (контекст из channelSelectionStore). */
 export const selectedChannelStats$ = new BehaviorSubject<ChannelStats | null>(null);
@@ -41,14 +43,20 @@ export const phasesOverview$ = new BehaviorSubject<PhaseRunsOverview | null>(nul
 export const phaseRuns$ = new BehaviorSubject<PhaseRun[]>([]);
 /** Статус пайплайна треков (WS tracking-status). */
 export const trackingStatus$ = new BehaviorSubject<TrackingStatusResponse | null>(null);
-/** Статус parse reset/reparse (WS parse-pipeline-status). */
+/** Статус parse reset/catch-up. */
 export const parsePipelineStatus$ = new BehaviorSubject<ParsePipelineStatusResponse | null>(null);
+/** Runner Platform discovery (WS runtime-discovery + REST fallback). */
+export const runnerDiscovery$ = new BehaviorSubject<RunnerDiscoveryResponse | null>(null);
+/** Declarative pipeline topology (WS pipeline-topology). */
+export const pipelineTopology$ = new BehaviorSubject<PipelineTopologyResponse | null>(null);
 
 const CHANNELS_POLL_MS = 30_000;
 const STATS_POLL_MS = 30_000;
 const TELEMETRY_POLL_MS = 10_000;
 const BACKFILL_POLL_MS = 5_000;
 const TRACKING_POLL_MS = 3_000;
+const PARSE_PIPELINE_POLL_MS = 3_000;
+const RUNNER_DISCOVERY_POLL_MS = 5_000;
 
 /** Макс. строк лога парсинга в памяти (кольцевой буфер / REST limit DESC). */
 export const PARSE_LOG_LIMIT = 100;
@@ -67,8 +75,11 @@ export function startAdminStore(): void {
   startIntervalPoll(TELEMETRY_POLL_MS, refreshTelemetry);
   startIntervalPoll(BACKFILL_POLL_MS, refreshBackfill);
   startIntervalPoll(TRACKING_POLL_MS, refreshTrackingStatus);
+  startIntervalPoll(PARSE_PIPELINE_POLL_MS, refreshParsePipelineStatus);
+  startIntervalPoll(RUNNER_DISCOVERY_POLL_MS, refreshRunnerDiscovery);
   void refreshTrackingStatus();
-  void refreshParsePipelineStatus();
+  void refreshRunnerDiscovery();
+  void refreshPipelineTopology();
 
   selectedChannelKey$.subscribe((key) => void refreshChannelStats(key));
 
@@ -85,6 +96,10 @@ export function startAdminStore(): void {
       trackingStatus$.next(message.payload);
     } else if (message.type === "parse-pipeline-status") {
       parsePipelineStatus$.next(message.payload);
+    } else if (message.type === "runtime-discovery") {
+      runnerDiscovery$.next(message.payload);
+    } else if (message.type === "pipeline-topology") {
+      pipelineTopology$.next(message.payload);
     }
   });
 }
@@ -240,5 +255,21 @@ export async function refreshParsePipelineStatus(): Promise<void> {
     parsePipelineStatus$.next(await adminApi.parsePipelineGetStatus());
   } catch (error) {
     reportAppError("Parse pipeline", error);
+  }
+}
+
+export async function refreshRunnerDiscovery(): Promise<void> {
+  try {
+    runnerDiscovery$.next(await adminApi.runnerDiscovery());
+  } catch (error) {
+    reportAppError("Runner discovery", error);
+  }
+}
+
+export async function refreshPipelineTopology(): Promise<void> {
+  try {
+    pipelineTopology$.next(await adminApi.pipelineTopology());
+  } catch (error) {
+    reportAppError("Pipeline topology", error);
   }
 }

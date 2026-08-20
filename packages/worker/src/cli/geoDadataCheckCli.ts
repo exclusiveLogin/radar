@@ -3,15 +3,12 @@ import { resolveGeoEnrichmentProvider } from "@radar/shared";
 import { createWorkerCompositionRoot } from "../application/createWorkerCompositionRoot.js";
 import { loadDadataToken, isDadataConfigured } from "../infrastructure/enrichers/dadataConfig.js";
 import { loadRootEnv } from "../infrastructure/config/loadRootEnv.js";
-import { WorkerStorageMode } from "../infrastructure/persistence/storageMode.js";
+import { cliWorkerRuntime } from "./cliWorkerRuntime.js";
 
 /** Диагностика geo-dadata: фаза в БД, очередь, токен, sample enrich. */
 async function main(): Promise<void> {
   loadRootEnv(MONOREPO_ROOT);
-  const runtime = await createWorkerCompositionRoot({
-    storageMode: WorkerStorageMode.Db,
-    startIngestParseDaemon: false,
-  });
+  const runtime = await createWorkerCompositionRoot(cliWorkerRuntime("geo", ["geo"]));
   if (!runtime.dataSource || !runtime.workerRepos) {
     throw new Error("geo-dadata check: нужен db mode");
   }
@@ -34,14 +31,14 @@ async function main(): Promise<void> {
 
   const counts = await runtime.dataSource.query(
     `SELECT status, COUNT(*)::int AS n
-     FROM place_enrichment_jobs WHERE provider = 'dadata'
+     FROM job_geo_place_enrich WHERE provider = 'dadata'
      GROUP BY status ORDER BY status`,
   );
   console.log("jobs[dadata] by status:", counts);
 
   const fails = await runtime.dataSource.query(
     `SELECT last_error, COUNT(*)::int AS n
-     FROM place_enrichment_jobs
+     FROM job_geo_place_enrich
      WHERE provider = 'dadata' AND status = 'failed'
      GROUP BY last_error ORDER BY n DESC LIMIT 10`,
   );
@@ -56,7 +53,7 @@ async function main(): Promise<void> {
 
   const doneNoEvidence = await runtime.dataSource.query(
     `SELECT COUNT(*)::int AS n
-     FROM place_enrichment_jobs j
+     FROM job_geo_place_enrich j
      JOIN places p ON p.id = j.place_id
      WHERE j.provider = 'dadata' AND j.status = 'done'
        AND NOT COALESCE(p.evidence_providers, '[]'::jsonb) @> to_jsonb(ARRAY['dadata']::text[])`,

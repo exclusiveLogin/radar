@@ -21,7 +21,7 @@ import { isPlaceCentricGeoEnabled } from "../../infrastructure/config/placeCentr
 export type { ParsePhaseContext } from "../parse/parsePhaseContext.js";
 
 /**
- * Use case: raw → Parse Workspace → finalize → parsed_events.
+ * Use case: raw → Parse Workspace → finalize → mat_parse_event.
  * @see ../../../../../docs/rfc/parse-processor-workspace.md
  */
 export class ParseRawMessageHandler {
@@ -82,9 +82,11 @@ export class ParseRawMessageHandler {
             payload: {
               reason: result.reason,
               channelKey: raw.channelKey,
+              rawText: raw.rawText,
               rawMessageId,
               parserVersion: PARSER_VERSION,
               outcome: "skipped",
+              ingestMode: raw.ingestMode ?? "live",
             },
           }),
         ]);
@@ -157,7 +159,9 @@ export class ParseRawMessageHandler {
               severity: record.severity,
               direction: record.direction,
               postedAt: record.postedAt,
+              ingestMode: raw.ingestMode ?? "live",
               locations: (activation.isActive ? locations : []).map((location) => ({
+                id: location.id,
                 regionId: location.regionId,
                 regionCode: location.regionCode,
                 placeId: location.placeId,
@@ -169,6 +173,9 @@ export class ParseRawMessageHandler {
                 statusCode: location.statusCode ?? record.eventType,
                 occurredAt: record.postedAt,
               })),
+              eventLocationIds: (activation.isActive ? locations : [])
+                .map((location) => location.id)
+                .filter((id): id is string => typeof id === "string" && id.length > 0),
             },
           }),
         ]);
@@ -183,10 +190,12 @@ export class ParseRawMessageHandler {
           payload: {
             reason: `error:${message}`,
             channelKey: raw.channelKey,
+            rawText: raw.rawText,
             rawMessageId,
             parserVersion: PARSER_VERSION,
             outcome: "failed",
             errors: { message },
+            ingestMode: raw.ingestMode ?? "live",
           },
         }),
       ]);

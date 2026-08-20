@@ -6,12 +6,17 @@ import { AdminModule } from "./admin/admin.module";
 import { HealthModule } from "./health/health.module";
 import { IngestAdminModule } from "./ingest-admin/ingest-admin.module";
 import { PhasesAdminModule } from "./phases-admin/phases-admin.module";
+import { ParseMaintenanceModule } from "./parse-admin/parse-maintenance.module";
 import { ParsePipelineAdminModule } from "./parse-admin/parse-pipeline-admin.module";
 import { TrackingAdminModule } from "./tracking-admin/tracking-admin.module";
 import { TrackingInfraModule } from "./tracking/tracking-infra.module";
 import { MapModule } from "./map/map.module";
 import { ReadSideModule } from "./read-side/read-side.module";
 import { WorkerModule } from "./worker/worker.module";
+import { WorkbookAdminModule } from "./workbook-admin/workbook-admin.module";
+import { ObservabilityAdminModule } from "./observability-admin/observability-admin.module";
+import { MetricsModule } from "./metrics/metrics.module";
+import { PipelineAdminModule } from "./pipeline-admin/pipeline-admin.module";
 
 @Module({
   imports: [
@@ -35,13 +40,18 @@ import { WorkerModule } from "./worker/worker.module";
     AdminModule,
     HealthModule,
     TrackingInfraModule,
+    ParseMaintenanceModule,
     IngestAdminModule,
     MapModule,
     PhasesAdminModule,
+    PipelineAdminModule,
     ParsePipelineAdminModule,
     TrackingAdminModule,
     ReadSideModule,
     WorkerModule,
+    WorkbookAdminModule,
+    ObservabilityAdminModule,
+    MetricsModule,
   ],
 })
 export class AppModule {}

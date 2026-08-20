@@ -10,7 +10,7 @@ import type { TrackingPipelineConfig } from "../../../schemas/admin/tracking";
 import { DEFAULT_MAGNET_COST_WEIGHTS, type MagnetCostWeights, type MagnetismIndex } from "../applyMagnetWeights";
 import { buildPlaceGravityIndexFromCandidates } from "../flow/buildPlaceGravityIndex";
 import type { PlaceGravityIndex } from "../flow/placeGravityIndex";
-import { resolveProfileKinematics, type ProfileKinematics } from "../profileKinematics";
+import { resolveProfileKinematics } from "../profileKinematics";
 import { DEFAULT_SEED_WEIGHTS } from "../pointWeightModel";
 import type { SeedWeights } from "../pointWeightModel";
 import type { ThreatProfile, TrackingCandidate } from "../types";

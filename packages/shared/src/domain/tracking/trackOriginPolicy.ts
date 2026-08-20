@@ -10,14 +10,14 @@
  */
 import { haversineDistanceM } from "./haversine";
 import type { ProfileKinematics } from "./profileKinematics";
-import type { TrackingCandidate } from "./types";
+import type { ThreatProfile, TrackingCandidate } from "./types";
 
 /** Открытый трек для проверки overlap при старте нового трека. */
 export type OpenTrackSummary = {
   lastLat: number;
   lastLon: number;
   lastAt: Date;
-  profile: import("./types").ThreatProfile;
+  profile: ThreatProfile;
 };
 
 /**

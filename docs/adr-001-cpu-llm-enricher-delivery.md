@@ -64,7 +64,7 @@
 
 1. Зафиксировать JSON-схему для `LlmEnricher` ответа:
    - `classification` (`event|meta|noise`)
-   - `location_hint` (строка или `null`)
+   - `location_hint` (строка или `null`)
    - `confidence` (0..1)
    - `reason` (кратко, для логов)
 2. Добавить hard-правила:

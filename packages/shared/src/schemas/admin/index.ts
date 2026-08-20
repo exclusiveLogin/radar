@@ -17,21 +17,45 @@ export {
 export {
   parsePipelineJobKindSchema,
   parsePipelineJobStatusSchema,
+  parsePipelinePhaseSchema,
   parsePipelineStatusResponseSchema,
   parsePipelineStartResponseSchema,
 } from "./parse-pipeline";
 export {
+  trackingStepIdSchema,
   trackingRebuildStageSchema,
   trackingWatermarkSchema,
+  trackingClusterStepStatsSchema,
+  trackingFieldTrainStepStatsSchema,
+  trackingJoinStepStatsSchema,
+  trackingStepStatsSchema,
   trackingRebuildStatsSchema,
   trackingRebuildRunSchema,
   trackingPipelineConfigSchema,
   trackingPipelineMetricsSchema,
+  trackingStepManifestEntrySchema,
   trackingStatusResponseSchema,
-  trackingTuneRunSchema,
-  trackingTuneRunStatusSchema,
-  trackingTuneStartRequestSchema,
 } from "./tracking";
+export {
+  pipelineKeySchema,
+  workbookPhaseDescriptorSchema,
+  workbookRegistryEntrySchema,
+  workloadStatusSchema,
+  activeWorkloadSchema,
+  runOutcomeSchema,
+  runHistoryEntrySchema,
+  workbookObservabilityResponseSchema,
+} from "./workbook";
+export { runnerDiscoveryResponseSchema } from "./runner-discovery";
+export {
+  pipelineStepRunRequestSchema,
+  pipelineStepRunResponseSchema,
+  pipelineStepResetRequestSchema,
+  pipelineStepResetResponseSchema,
+  pipelineTopologyNodeSchema,
+  pipelineTopologyEdgeSchema,
+  pipelineTopologyResponseSchema,
+} from "./pipeline-topology";
 
 // --- type-only exports ---
 export type {
@@ -52,17 +76,41 @@ export type {
 export type {
   ParsePipelineJobKind,
   ParsePipelineJobStatus,
+  ParsePipelinePhase,
   ParsePipelineStatusResponse,
   ParsePipelineStartResponse,
 } from "./parse-pipeline";
 export type {
   TrackingRebuildStage,
   TrackingWatermark,
+  TrackingClusterStepStats,
+  TrackingFieldTrainStepStats,
+  TrackingJoinStepStats,
+  TrackingStepStats,
   TrackingRebuildStats,
   TrackingRebuildRun,
   TrackingPipelineConfig,
   TrackingPipelineMetrics,
+  TrackingPipelineStatus,
   TrackingStatusResponse,
-  TrackingTuneRun,
-  TrackingTuneStartRequest,
 } from "./tracking";
+export type {
+  PipelineKey,
+  WorkbookPhaseDescriptorDto,
+  WorkbookRegistryEntry,
+  WorkloadStatus,
+  ActiveWorkload,
+  RunOutcome as WorkbookRunOutcome,
+  RunHistoryEntry,
+  WorkbookObservabilityResponse,
+} from "./workbook";
+export type { RunnerDiscoveryResponse } from "./runner-discovery";
+export type {
+  PipelineStepRunRequest,
+  PipelineStepRunResponse,
+  PipelineStepResetRequest,
+  PipelineStepResetResponse,
+  PipelineTopologyNode,
+  PipelineTopologyEdge,
+  PipelineTopologyResponse,
+} from "./pipeline-topology";

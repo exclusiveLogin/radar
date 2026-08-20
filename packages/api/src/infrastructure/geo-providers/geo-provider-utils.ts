@@ -1,4 +1,3 @@
-import { resolvePlaceIdentityKey } from "@radar/shared";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { repoDataPath } from "../../monorepo-root";
@@ -63,23 +62,6 @@ export function normalizeName(value: string): string {
     .replace(/[^\p{L}\p{N}]+/gu, " ")
     .trim()
     .replace(/\s+/g, " ");
-}
-
-/** Стабильный ключ place draft — делегат в @radar/shared placeIdentity. */
-export function resolvePlaceDraftKey(row: {
-  fiasId?: string;
-  oktmo?: string;
-  regionCode: string;
-  kind: string;
-  name: string;
-}): string {
-  return resolvePlaceIdentityKey({
-    fiasId: row.fiasId,
-    oktmo: row.oktmo,
-    regionKey: row.regionCode,
-    kind: row.kind,
-    name: row.name,
-  });
 }
 
 type GeoJsonGeometry = { type?: string; coordinates?: unknown };

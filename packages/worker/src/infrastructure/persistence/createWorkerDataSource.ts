@@ -1,10 +1,10 @@
 import "reflect-metadata";
-import * as path from "node:path";
 import * as dotenv from "dotenv";
+import * as path from "node:path";
+import { typeOrmEntities } from "@radar/persistence";
 import { DataSource } from "typeorm";
 import { fileURLToPath } from "node:url";
 import * as fs from "node:fs";
-import { getApiDistRoot } from "./resolveApiDistModule.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
@@ -17,7 +17,7 @@ function loadEnv(): void {
 }
 
 /**
- * TypeORM DataSource для worker: только скомпилированные entity из `api/dist`.
+ * TypeORM DataSource worker использует общий persistence package.
  */
 export async function createWorkerDataSource(): Promise<DataSource> {
   loadEnv();
@@ -29,13 +29,10 @@ export async function createWorkerDataSource(): Promise<DataSource> {
     );
   }
 
-  const apiDist = getApiDistRoot();
-  const entityGlob = path.join(apiDist, "**", "*.entity.js");
-
   const dataSource = new DataSource({
     type: "postgres",
     url: databaseUrl,
-    entities: [entityGlob],
+    entities: typeOrmEntities,
     synchronize: false,
   });
 

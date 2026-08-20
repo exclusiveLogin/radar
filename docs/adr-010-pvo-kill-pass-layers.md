@@ -1,3 +1,5 @@
+﻿> **Имена таблиц:** актуальные — [database-table-naming.md](./database-table-naming.md). Ниже — исторический контекст.
+
 # ADR-010: Kill / Pass — эффективность перехвата (read-side слои)
 
 Дата: 2026-06-12  
@@ -31,13 +33,13 @@ Operational карта показывает факты и ленту macro-от�
 
 Вход:
 
-- `trajectory_tracks` + `trajectory_nodes` ([ADR-007](./adr-007-trajectory-graph-kalman-worker.md))
+- `mat_track` + `mat_track_node` ([ADR-007](./adr-007-trajectory-graph-kalman-worker.md))
 - Зоны перехвата: buffer вокруг report-точек + опционально полигоны покрытия (v2)
 
 Правила v1:
 
 1. **Kill:** последний kinematic node трека (`correct`) попадает в зону и трек `closed` без выхода из зоны в течение `KILL_CONFIRM_WINDOW` (default 30 min).
-2. **Pass:** существует сегмент `[node_i → node_{i+1}]`, где `node_i` внутри зоны, `node_{i+1}` снаружи, и трек продолжается ≥ 2 nodes после выхода.
+2. **Pass:** существует сегмент `[node_i → node_{i+1}]`, где `node_i` внутри зоны, `node_{i+1}` снаружи, и трек продолжается ≥ 2 nodes после выхода.
 3. **Body:** остальные сегменты трека.
 
 ```typescript
@@ -114,5 +116,6 @@ Query: `since`, `until`, `asOf`, `bbox`, `limit`.
 ## Критерии принятия
 
 - API отдаёт три слоя, валидируемые Zod
-- Golden fixture: трек через зону → segment `pass`
-- Golden fixture: трек обрывается в зоне → node `kill`
+- Golden fixture: трек через зону в†’ segment `pass`
+- Golden fixture: трек обрывается в зоне в†’ node `kill`
+

@@ -1,5 +1,6 @@
 import type { WorkerProbeStatus } from "@radar/shared";
 import { workerProbeStatusSchema } from "@radar/shared";
+import { ingestConnectionStatus } from "./ingest/ingestConnectionStatus.js";
 
 type RuntimeState = {
   status: WorkerProbeStatus["status"];
@@ -20,7 +21,7 @@ type RuntimeState = {
 const state: RuntimeState = {
   status: "starting",
   storageMode: "unknown",
-  workerRole: "all",
+  workerRole: "uninitialized",
   startedAt: new Date().toISOString(),
   heartbeatAt: new Date().toISOString(),
   orchestratorRunning: false,
@@ -35,7 +36,7 @@ const state: RuntimeState = {
 
 /** SSOT runtime-снимка worker для probe /status. */
 export const workerRuntimeStatus = {
-  init(storageMode: string, workerRole = "all"): void {
+  init(storageMode: string, workerRole: string): void {
     state.storageMode = storageMode;
     state.workerRole = workerRole;
     state.startedAt = new Date().toISOString();
@@ -125,6 +126,7 @@ export const workerRuntimeStatus = {
         lastLiveAt: state.lastLiveAt,
         lastLiveChannelKey: state.lastLiveChannelKey,
         lastError: state.lastError,
+        providers: ingestConnectionStatus.list(),
       },
     });
   },

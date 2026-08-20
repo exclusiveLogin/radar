@@ -19,25 +19,5 @@ export function computeSelfLevel(
     : current;
 }
 
-export type EffectiveLevel = { level: StateLevel; reason: string };
-
-/**
- * Эффективный уровень с учётом соседей.
- *
- * Превентивный yellow от красного соседа применяется ТОЛЬКО к региону без
- * собственного статуса (grey = «нет данных»). Любой собственный сигнал —
- * включая green (явный отбой) — приоритетнее соседской подсветки и не
- * перекрашивается.
- */
-export function computeEffectiveLevel(
-  selfLevel: StateLevel,
-  neighborSelfLevels: StateLevel[],
-): EffectiveLevel {
-  if (selfLevel !== "grey") {
-    return { level: selfLevel, reason: `self:${selfLevel}` };
-  }
-  const hasRedNeighbor = neighborSelfLevels.includes("red");
-  return hasRedNeighbor
-    ? { level: "yellow", reason: "neighbor-red" }
-    : { level: "grey", reason: "self:grey" };
-}
+// Подсветка соседей красного региона — read-side карты:
+// resolveNeighborRedHighlights в @radar/shared.

@@ -1,16 +1,19 @@
 import { Module } from "@nestjs/common";
 import { TypeOrmModule } from "@nestjs/typeorm";
-import { StatusDictionaryEntity } from "../events/entities";
-import { GeoFeatureEntity, PlaceEntity, PlaceGeoLinkEntity, RegionEntity } from "../geo/entities";
+import { StatusDictionaryEntity } from "@radar/persistence";
+import { GeoFeatureEntity, PlaceEntity, PlaceGeoLinkEntity, RegionEntity } from "@radar/persistence";
 import { MapController } from "./map.controller";
 import { MapGateway } from "./map.gateway";
+import { MapMessageFeedQueryService } from "./map-message-feed-query.service";
 import { MapQueryService } from "./map-query.service";
 import { MapFoldRealtimePoller } from "./map-fold-realtime.poller";
 import { TracksRealtimePoller } from "./tracks-realtime.poller";
 import { MapFactsRepository } from "./map-facts.repository";
+import { MapGeoJsonQueryService } from "./map-geojson-query.service";
 import { MapSnapshotQueryService } from "./map-snapshot-query.service";
 import { MapRealtimeBroadcastService } from "./map-realtime-broadcast.service";
 import { MapTracksService } from "./map-tracks.service";
+import { RegionAdjacencyRepository } from "./region-adjacency.repository";
 
 @Module({
   imports: [
@@ -24,7 +27,10 @@ import { MapTracksService } from "./map-tracks.service";
   ],
   providers: [
     MapFactsRepository,
+    RegionAdjacencyRepository,
     MapSnapshotQueryService,
+    MapGeoJsonQueryService,
+    MapMessageFeedQueryService,
     MapFoldRealtimePoller,
     TracksRealtimePoller,
     MapQueryService,

@@ -1,5 +1,6 @@
 import { createServer, type Server } from "node:http";
 import { workerRuntimeStatus } from "../../application/workerRuntimeStatus.js";
+import { getWorkerPrometheusMetrics } from "../metrics/workerPrometheusMetrics.js";
 
 const DEFAULT_PORT = 3010;
 
@@ -28,11 +29,31 @@ export type WorkerProbeHandle = {
 export function startWorkerProbeServer(): WorkerProbeHandle {
   const port = readProbePort();
   const host = readProbeHost();
+  const metrics = getWorkerPrometheusMetrics();
 
-  const server = createServer((req, res) => {
+  const server = createServer(async (req, res) => {
+    if (req.method === "GET" && req.url === "/metrics") {
+      try {
+        const body = await metrics.snapshot();
+        res.writeHead(200, {
+          "Content-Type": metrics.contentType,
+          "Cache-Control": "no-store",
+        });
+        res.end(body);
+      } catch (error) {
+        console.error("Worker metrics:", error);
+        res.writeHead(500, { "Content-Type": "text/plain; charset=utf-8" });
+        res.end("metrics unavailable");
+      }
+      return;
+    }
+
     if (req.method === "GET" && (req.url === "/status" || req.url === "/health")) {
-      const body = JSON.stringify(workerRuntimeStatus.snapshot());
-      res.writeHead(200, {
+      const snapshot = workerRuntimeStatus.snapshot();
+      const statusCode =
+        req.url === "/health" && snapshot.status !== "running" ? 503 : 200;
+      const body = JSON.stringify(snapshot);
+      res.writeHead(statusCode, {
         "Content-Type": "application/json; charset=utf-8",
         "Cache-Control": "no-store",
       });

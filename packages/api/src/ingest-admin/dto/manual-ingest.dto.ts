@@ -24,6 +24,6 @@ export class ManualIngestResponseDto {
   @ApiProperty({ description: "true если сообщение новое, не дубликат по hash/identity" })
   inserted!: boolean;
 
-  @ApiProperty({ description: "true если в outbox поставлено событие для parse pipeline" })
+  @ApiProperty({ description: "true если RawMessageIngested опубликован в RMQ для parse pipeline" })
   parseScheduled!: boolean;
 }

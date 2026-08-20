@@ -1,5 +1,9 @@
 import { Injectable } from "@nestjs/common";
 import type { PlaceStateEvent, WsServerMessage } from "@radar/shared";
+import {
+  isParseMaintenanceError,
+  ParseMaintenanceGate,
+} from "../parse-admin/parse-maintenance.gate";
 import { MapQueryService } from "./map-query.service";
 
 type Emit = (message: WsServerMessage) => void;
@@ -12,7 +16,10 @@ type Emit = (message: WsServerMessage) => void;
 export class MapRealtimeBroadcastService {
   private emit: Emit | null = null;
 
-  constructor(private readonly mapQuery: MapQueryService) {}
+  constructor(
+    private readonly mapQuery: MapQueryService,
+    private readonly parseMaintenance: ParseMaintenanceGate,
+  ) {}
 
   /** Привязка broadcast из MapGateway (onModuleInit). */
   bindEmit(emit: Emit): void {
@@ -21,35 +28,48 @@ export class MapRealtimeBroadcastService {
 
   /** Снять все активные places с открытых клиентов перед operational reset. */
   async flushActivePlacesOnMap(): Promise<number> {
-    if (!this.emit) return 0;
-    const snapshot = await this.mapQuery.getSnapshot();
-    let sent = 0;
-    for (const place of snapshot.places) {
-      const payload: PlaceStateEvent = {
-        placeId: place.placeId,
-        placeName: place.placeName,
-        regionId: place.regionId,
-        regionCode: place.regionCode,
-        statusCode: place.statusCode,
-        stateLevel: place.stateLevel,
-        action: "deactivate",
-        kind: place.kind,
-        geoFeatureId: place.geoFeatureId,
-        lat: place.lat,
-        lon: place.lon,
-        changedAt: new Date().toISOString(),
-      };
-      this.emit({ type: "place-state", payload });
-      sent += 1;
+    if (!this.emit || this.parseMaintenance.isPaused()) return 0;
+    try {
+      const snapshot = await this.mapQuery.getSnapshot();
+      let sent = 0;
+      for (const place of snapshot.places) {
+        const payload: PlaceStateEvent = {
+          placeId: place.placeId,
+          placeName: place.placeName,
+          regionId: place.regionId,
+          regionCode: place.regionCode,
+          statusCode: place.statusCode,
+          stateLevel: place.stateLevel,
+          action: "deactivate",
+          kind: place.kind,
+          geoFeatureId: place.geoFeatureId,
+          lat: place.lat,
+          lon: place.lon,
+          changedAt: new Date().toISOString(),
+        };
+        this.emit({ type: "place-state", payload });
+        sent += 1;
+      }
+      return sent;
+    } catch (error) {
+      if (isParseMaintenanceError(error)) return 0;
+      throw error;
     }
-    return sent;
   }
 
-  /** Полный snapshot из fold всем WS-клиентам (после clear:pipeline / clear:archive). */
+  /**
+   * Полный snapshot fold → WS.
+   * Во время parse rebuild (maintenance) — no-op, без 503-шума в логах.
+   */
   async pushSnapshotToClients(): Promise<boolean> {
-    if (!this.emit) return false;
-    const snapshot = await this.mapQuery.getSnapshot();
-    this.emit({ type: "snapshot", payload: snapshot });
-    return true;
+    if (!this.emit || this.parseMaintenance.isPaused()) return false;
+    try {
+      const snapshot = await this.mapQuery.getSnapshot();
+      this.emit({ type: "snapshot", payload: snapshot });
+      return true;
+    } catch (error) {
+      if (isParseMaintenanceError(error)) return false;
+      throw error;
+    }
   }
 }

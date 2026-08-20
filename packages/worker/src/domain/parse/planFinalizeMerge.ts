@@ -9,9 +9,10 @@ import { getProcessorTieBreak } from "./parseEnricherRegistry.js";
 import { listActiveCandidates } from "./parseProcessorContract.js";
 import { applyCandidateCollapsers } from "./candidateCollapsers.js";
 import { candidateToParsedEvent } from "./candidateToParsedEvent.js";
-import { isCandidateGeoValid } from "./geoPolicy.js";
+import { isCandidateGeoScoreAcceptable, isCandidateGeoValid } from "./geoPolicy.js";
 import { withResolvedEventType } from "./resolveEventTypeForCandidate.js";
 import type { FinalizePlan, MaterializedEvent } from "./ParseFinalizerService.js";
+import { loadGeoScoreMatrix } from "./geo/geoScoreMatrixRegistry.js";
 
 /** Выбор winner в CRDT-группе: trust → processor tie-break. */
 export function pickMergeWinner(group: EventCandidate[]): EventCandidate {
@@ -35,7 +36,7 @@ export function groupCandidatesByMergeKey(
 }
 
 /**
- * Terminal finalizer: trust/CRDT merge → collapsers → geoPolicy → materialize.
+ * Terminal finalizer: trust/CRDT merge → collapsers → geoPolicy → geoScore gate → materialize.
  * Порядок enricher-ов не влияет на winner.
  */
 export function planFinalizeMerge(input: {
@@ -47,6 +48,7 @@ export function planFinalizeMerge(input: {
   const materialized: MaterializedEvent[] = [];
   const usedIds = new Set<string>();
   const invalidIds: string[] = [];
+  const scoreMatrix = loadGeoScoreMatrix();
 
   const groups = groupCandidatesByMergeKey(listActiveCandidates(workspace));
   const winners: EventCandidate[] = [];
@@ -64,11 +66,19 @@ export function planFinalizeMerge(input: {
 
   for (const candidate of collapsed) {
     const resolved = withResolvedEventType(candidate, workspace);
-    if (resolved.eventType === "unknown" || !isCandidateGeoValid({
-      eventType: resolved.eventType,
-      anchorKind: resolved.anchor.kind,
-      massClearChannel: resolved.extras.massClearChannel === true,
-    })) {
+    if (
+      resolved.eventType === "unknown"
+      || !isCandidateGeoValid({
+        eventType: resolved.eventType,
+        anchorKind: resolved.anchor.kind,
+        massClearChannel: resolved.extras.massClearChannel === true,
+      })
+      || !isCandidateGeoScoreAcceptable({
+        extras: resolved.extras,
+        gateEnabled: scoreMatrix.materializeGate.enabled,
+        threshold: scoreMatrix.materializeGate.threshold,
+      })
+    ) {
       const priorId = context.candidateEventMap[candidate.id];
       if (priorId) invalidIds.push(priorId);
       continue;

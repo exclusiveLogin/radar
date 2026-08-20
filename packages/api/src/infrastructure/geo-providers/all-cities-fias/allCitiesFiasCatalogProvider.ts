@@ -1,6 +1,6 @@
 import type { AliasDraft, GeoProviderSnapshot, IGeoSourceProvider, PlaceDraft } from "@radar/shared";
 import { repoDataPath } from "../../../monorepo-root";
-import { placeDraftKey } from "../../../application/geo-sync/diff-engine";
+import { placeDraftKey } from "../../../application/geo-sync/place-draft-key";
 import {
   ALL_CITIES_FIAS_SOURCE_ID,
   ALL_CITIES_FIAS_SOURCE_REVISION,

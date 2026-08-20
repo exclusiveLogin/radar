@@ -6,6 +6,7 @@ import { createTraitAttachment } from "./attachRule.js";
 import { createEmptyParseWorkspace } from "./parseWorkspaceFactory.js";
 import {
   EVENT_TYPE_TRAIT_KEY,
+  pickPrimaryCandidate,
   resolveEventTypeForCandidate,
 } from "./resolveEventTypeForCandidate.js";
 
@@ -70,4 +71,34 @@ test("resolveEventTypeForCandidate: global trait + span-local override", () => {
   const lipetsk = ws.candidates[1]!;
   assert.equal(resolveEventTypeForCandidate(elets, ws), "fixation");
   assert.equal(resolveEventTypeForCandidate(lipetsk, ws), "danger");
+});
+
+test("pickPrimaryCandidate: пропускает rejected [0], берёт active с eventType", () => {
+  const rawMessageId = "55555555-5555-5555-5555-555555555555";
+  const rejected = {
+    ...geoCandidate(rawMessageId, "Калужская", 0),
+    status: "rejected" as const,
+    anchor: {
+      kind: "region" as const,
+      name: "Калужская",
+      span: { start: 0, end: 9, matchedText: "Калужская" },
+    },
+  };
+  const active = geoCandidate(rawMessageId, "Куйбышевский район", 10);
+  const ws: ParseWorkspace = {
+    ...createEmptyParseWorkspace(rawMessageId, "Калужская Куйбышевский район Фиксации"),
+    candidates: [rejected, active],
+    traitAttachments: [
+      createTraitAttachment({
+        processorId: "event-type-processor",
+        traitKey: EVENT_TYPE_TRAIT_KEY,
+        value: "fixation",
+        attachRule: { scope: "all_candidates" },
+      }),
+    ],
+  };
+
+  const primary = pickPrimaryCandidate(ws);
+  assert.equal(primary?.id, active.id);
+  assert.equal(resolveEventTypeForCandidate(primary!, ws), "fixation");
 });

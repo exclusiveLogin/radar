@@ -6,14 +6,15 @@ import {
   type WorkerCompositionOptions,
 } from "../application/createWorkerCompositionRoot.js";
 import { WorkerStorageMode } from "../infrastructure/persistence/storageMode.js";
-import { GeoValidationService } from "../application/parsing/geoValidationService.js";
+import { GeoValidationService } from "../application/parse/geoValidationService.js";
 import {
   InMemoryPlaceAliasRepository,
   InMemoryPlaceRepository,
   InMemoryRegionRepository,
-} from "../application/handlers/inMemoryRepositories.js";
+} from "../infrastructure/testing/inMemoryRepositories.js";
 import { loadRootEnv } from "../infrastructure/config/loadRootEnv.js";
 import { resolveInputPath } from "./cliPaths.js";
+import { cliWorkerRuntime } from "./cliWorkerRuntime.js";
 import { splitMessageBlocks } from "../domain/parsing/index.js";
 import {
   parseLongFlagsMap,
@@ -80,11 +81,10 @@ function buildSummary(kinds: Array<"event" | "noise" | "meta">): Omit<ParseSumma
 }
 
 function buildRuntimeOptions(cli: ParsedCli): WorkerCompositionOptions {
-  return {
+  return cliWorkerRuntime("parse", ["parse"], {
     storageMode: cli.storageMode,
-    startIngestParseDaemon: false,
     ingestParsePhaseSelection: cli.ingestParsePhaseSelection,
-  };
+  });
 }
 
 /** Опции переопределения контракта для прокси-обёрток (например, `:ollama`). */
@@ -122,11 +122,15 @@ export async function runParseSnap(
   }
 
   const runtime = await createWorkerCompositionRoot(buildRuntimeOptions(cli));
+  if (!runtime.parsePipelineService) {
+    throw new Error("parse stack не инициализирован (нужен cap parse).");
+  }
+  const parsePipeline = runtime.parsePipelineService;
   const source = fs.readFileSync(filePath, "utf8");
   const blocks = splitMessageBlocks(source);
   const results = [];
   for (const [index, block] of blocks.entries()) {
-    const executed = await runtime.parsePipelineService.execute({
+    const executed = await parsePipeline.execute({
       rawText: block,
       index,
       file: path.basename(filePath),
@@ -234,7 +238,10 @@ async function main(): Promise<void> {
   await runParseSnap(process.argv);
 }
 
-main().catch((error) => {
-  console.error(error);
-  process.exit(1);
-});
+const isMain = process.argv[1]?.replace(/\\/g, "/").endsWith("parseSnap.ts");
+if (isMain) {
+  main().catch((error) => {
+    console.error(error);
+    process.exit(1);
+  });
+}

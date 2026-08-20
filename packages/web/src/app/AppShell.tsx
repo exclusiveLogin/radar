@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { LiveBadge, LiveClock, ThemeToggle } from "../shared/ds";
 import { startMapStore } from "../shared/state/mapStore";
 import "../shared/state/timelineStore";
-import { startMapStateEffects } from "../shared/state/mapStateEffects";
+import { startMapLiveReplayEffects } from "../shared/state/mapLiveReplayEffects";
 import { startTrackStoreEffects } from "../shared/state/trackStoreEffects";
 import { startMessagesStore } from "../shared/state/messagesStore";
 import { startStateChangesFeedStore } from "../shared/state/stateChangesFeedStore";
@@ -15,6 +15,7 @@ import { MapTimelineBar } from "../widgets/map-timeline/MapTimelineBar";
 import { MapLayersPanel } from "../widgets/map-layers/MapLayersPanel";
 import { GeoMapOverlays } from "../widgets/map-overlays/GeoMapOverlays";
 import { CriticalThreatsBar } from "../widgets/critical-threats/CriticalThreatsBar";
+import { AppLogOverlay } from "../widgets/map-log/AppLogOverlay";
 import { useObservable } from "../shared/hooks/useObservable";
 import { geoMapLayers$ } from "../shared/state/mapLayerStore";
 import { readWidgetVisibility, writeWidgetVisibility } from "../shared/state/uiPreferencesStore";
@@ -31,7 +32,7 @@ function widgetsByZone(zone: WidgetZone, visible: Record<string, boolean>) {
 }
 
 /**
- * OSINT-оболочка: карта фоном, glass-рейлы по бокам, ломаный хедер.
+ * OSINT-оболочка: карта фоном, glass-рейлы по бокам, плоский хедер.
  */
 export function AppShell() {
   const [visible, setVisible] = useState<Record<string, boolean>>(initialVisibility);
@@ -41,7 +42,7 @@ export function AppShell() {
 
   useEffect(() => {
     startMapStore();
-    startMapStateEffects();
+    startMapLiveReplayEffects();
     startTrackStoreEffects();
     startProvidersStore();
     startMessagesStore();
@@ -163,6 +164,8 @@ export function AppShell() {
             <MapTimelineBar />
           </div>
         )}
+
+        <AppLogOverlay />
       </main>
     </div>
   );

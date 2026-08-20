@@ -3,21 +3,21 @@
  * Smoke: ParseWorkerPool поднимает worker_threads и выполняет parse.
  * Запуск из packages/worker: npx tsx scripts/verify-parse-threads.mjs
  */
-import { ParseWorkerPool } from "../src/application/parsing/parseWorkerPool.ts";
-import {
-  DEFAULT_PIPELINE_ORDER,
-  resolveEnricherFlagsFromEnv,
-} from "../src/infrastructure/enrichers/enricherChainFactory.ts";
-import { loadLlmRuntimeConfig } from "../src/infrastructure/enrichers/llmRuntimeConfig.ts";
+import { MONOREPO_ROOT } from "@repo/root";
+import { ParseWorkerPool } from "../src/application/parse/parseWorkerPool.ts";
+import { loadIngestParsePhases } from "../src/application/parse/loadIngestParsePhases.ts";
+import { GF_P6_SCAN_ENTRIES } from "../src/domain/parse/geo/testPlaceScanFixture.ts";
 
 const sampleText =
   "🚨 Тревога! БПЛА в сторону Белгорода. Отбой через 15 минут.";
 
+const ingestParsePhases = await loadIngestParsePhases({ repoRoot: MONOREPO_ROOT });
+
 const pool = new ParseWorkerPool(
   {
-    enricherFlags: resolveEnricherFlagsFromEnv(),
-    pipelineOrder: DEFAULT_PIPELINE_ORDER,
-    llmRuntimeConfig: loadLlmRuntimeConfig(),
+    ingestParsePhases,
+    placeScanEntries: GF_P6_SCAN_ENTRIES,
+    placeScanRevision: "verify-parse-threads",
   },
   2,
 );

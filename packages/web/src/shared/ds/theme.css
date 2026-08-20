@@ -1,28 +1,40 @@
-/* ── Токены: тёмная тема (по умолчанию) ── */
+/* ── Токены: Palantir Blueprint + Soft Bento (весь web) ── */
 :root,
 [data-theme="dark"] {
-  --bg: #0d0f10;
-  --bg-panel: rgba(21, 24, 24, 0.90);
-  --bg-elev: rgba(26, 30, 30, 0.95);
-  --bg-glass: rgba(18, 21, 21, 0.80);
-  --border: rgba(133, 124, 105, 0.24);
-  --border-strong: rgba(174, 146, 108, 0.46);
-  --text: #ddd8cf;
-  --text-muted: #8f8679;
-  --accent: #d17834;
-  --accent-dim: rgba(209, 120, 52, 0.14);
-  --accent-glow: rgba(209, 120, 52, 0.30);
-  --header-bg: linear-gradient(130deg, rgba(14, 16, 16, 0.98) 0%, rgba(24, 27, 27, 0.95) 55%, rgba(34, 30, 24, 0.92) 100%);
-  --shadow-panel: 0 6px 26px rgba(0, 0, 0, 0.52), 0 0 1px rgba(209, 120, 52, 0.2);
-  --live-dot: #00e676;
-  --status-ok: #00e676;
-  --status-warn: #ffab00;
-  --status-error: #ff5252;
-  --radius: 0px;
-  --radius-sm: 0px;
-  --gap: 10px;
-  --rail-width: 320px;
+  --bg: #0b0e12;
+  --bg-panel: #1c2127;
+  --bg-elev: #252a31;
+  --bg-glass: rgba(28, 33, 39, 0.88);
+  --border: rgba(255, 255, 255, 0.1);
+  --border-strong: rgba(255, 255, 255, 0.18);
+  --text: #f5f8fa;
+  --text-muted: #8f99a8;
+  --accent: #d9822b;
+  --accent-dim: rgba(217, 130, 43, 0.14);
+  --accent-glow: rgba(217, 130, 43, 0.18);
+  --header-bg: #111418;
+  --shadow-panel:
+    0 0 0 1px rgba(255, 255, 255, 0.04),
+    0 4px 16px rgba(0, 0, 0, 0.36);
+  --shadow-panel-hover:
+    0 0 0 1px rgba(255, 255, 255, 0.08),
+    0 8px 24px rgba(0, 0, 0, 0.42);
+  --live-dot: #3dcc91;
+  --status-ok: #3dcc91;
+  --status-warn: #f0b726;
+  --status-error: #e76a6e;
+  --radius: 6px;
+  --radius-sm: 4px;
+  --gap: 12px;
+  /* Рейл растёт вместе с viewport (2K/4K не должны оставлять карточки узкими) */
+  --rail-width: clamp(320px, 20vw, 480px);
+  /* Правый рейл (ленты событий) — шире левого: там основной объём читаемого текста */
+  --rail-width-right: clamp(360px, 26vw, 600px);
+  /* Отступ рейла от края stage + зазор до таймлайна/доков между панелями */
+  --rail-inset: 12px;
+  --rail-dock-gap: 16px;
   --header-height: 52px;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --scrollbar-size: 6px;
   --scrollbar-track: transparent;
   --scrollbar-thumb: color-mix(in srgb, var(--accent) 42%, transparent);
@@ -31,23 +43,28 @@
 
 /* ── Светлая тема ── */
 [data-theme="light"] {
-  --bg: #f3efe8;
-  --bg-panel: rgba(255, 252, 247, 0.93);
-  --bg-elev: rgba(247, 241, 233, 0.97);
-  --bg-glass: rgba(255, 251, 246, 0.85);
-  --border: rgba(132, 112, 88, 0.24);
-  --border-strong: rgba(165, 118, 70, 0.42);
-  --text: #29231e;
-  --text-muted: #796b5b;
-  --accent: #b8642a;
-  --accent-dim: rgba(184, 100, 42, 0.12);
-  --accent-glow: rgba(184, 100, 42, 0.24);
-  --header-bg: linear-gradient(130deg, rgba(251, 246, 238, 0.98) 0%, rgba(244, 236, 227, 0.96) 56%, rgba(238, 226, 210, 0.95) 100%);
-  --shadow-panel: 0 4px 20px rgba(0, 0, 0, 0.09), 0 0 1px rgba(184, 100, 42, 0.2);
-  --live-dot: #2e7d32;
-  --status-ok: #2e7d32;
-  --status-warn: #f57c00;
-  --status-error: #d32f2f;
+  --bg: #f6f7f9;
+  --bg-panel: #ffffff;
+  --bg-elev: #f0f2f5;
+  --bg-glass: rgba(255, 255, 255, 0.9);
+  --border: rgba(17, 20, 24, 0.12);
+  --border-strong: rgba(17, 20, 24, 0.2);
+  --text: #1c2127;
+  --text-muted: #5f6b7c;
+  --accent: #c87620;
+  --accent-dim: rgba(200, 118, 32, 0.12);
+  --accent-glow: rgba(200, 118, 32, 0.16);
+  --header-bg: #ffffff;
+  --shadow-panel:
+    0 0 0 1px rgba(17, 20, 24, 0.06),
+    0 4px 14px rgba(17, 20, 24, 0.08);
+  --shadow-panel-hover:
+    0 0 0 1px rgba(17, 20, 24, 0.1),
+    0 8px 22px rgba(17, 20, 24, 0.12);
+  --live-dot: #1c6e42;
+  --status-ok: #1c6e42;
+  --status-warn: #9e6c0d;
+  --status-error: #cd4246;
   --scrollbar-size: 6px;
   --scrollbar-track: transparent;
   --scrollbar-thumb: color-mix(in srgb, var(--accent) 36%, transparent);
@@ -69,8 +86,8 @@ body {
   background: var(--bg);
   color: var(--text);
   font-family: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
-  font-size: 13px;
-  line-height: 1.4;
+  font-size: 14px;
+  line-height: 1.45;
   scrollbar-width: thin;
   scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
 }
@@ -121,6 +138,7 @@ body {
 
 /* ── Панели ── */
 .ds-panel {
+  --panel-glass-blur: 18px;
   background: var(--bg-panel);
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -128,13 +146,41 @@ body {
   flex-direction: column;
   overflow: hidden;
   box-shadow: var(--shadow-panel);
+  /* Без lift: панель не «кнопка». Только край border. */
+  transition: border-color 0.18s var(--ease-out);
 }
 
+@media (hover: hover) and (pointer: fine) {
+  .ds-panel:not(.ds-panel--bare):hover {
+    border-color: var(--border-strong);
+  }
+
+  .ds-panel--glass:hover {
+    border-color: color-mix(in srgb, #fff 22%, var(--border));
+  }
+
+  [data-theme="light"] .ds-panel--glass:hover {
+    border-color: rgba(17, 20, 24, 0.18);
+  }
+}
+
+/* Glass: полупрозрачный слой + blur + тонкий inner highlight */
 .ds-panel--glass {
-  background: var(--bg-glass);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border-color: var(--border-strong);
+  background: color-mix(in srgb, var(--bg-panel) 68%, transparent);
+  backdrop-filter: blur(var(--panel-glass-blur)) saturate(1.25);
+  -webkit-backdrop-filter: blur(var(--panel-glass-blur)) saturate(1.25);
+  border-color: color-mix(in srgb, #fff 14%, var(--border));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    var(--shadow-panel);
+}
+
+[data-theme="light"] .ds-panel--glass {
+  background: color-mix(in srgb, var(--bg-panel) 78%, transparent);
+  border-color: rgba(17, 20, 24, 0.1);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.75),
+    var(--shadow-panel);
 }
 
 .ds-panel--bare {
@@ -153,45 +199,114 @@ body {
 }
 
 .ds-panel__head {
-  padding: 8px 12px;
+  padding: 10px 12px 10px 14px;
   border-bottom: 1px solid var(--border);
   font-weight: 600;
-  font-size: 11px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--accent);
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  text-transform: none;
+  color: var(--text);
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
   flex-shrink: 0;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.ds-panel--glass .ds-panel__head {
+  background: color-mix(in srgb, #fff 3%, transparent);
+  border-bottom-color: color-mix(in srgb, #fff 10%, transparent);
+}
+
+[data-theme="light"] .ds-panel--glass .ds-panel__head {
+  background: color-mix(in srgb, #000 2%, transparent);
+  border-bottom-color: rgba(17, 20, 24, 0.08);
+}
+
+/* Сворачиваемые: интеракция только через controls в шапке, не через «лифт» корпуса */
+.ds-panel.is-collapsed .ds-panel__head {
+  border-bottom-color: transparent;
+}
+
+.ds-panel__title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .ds-panel__head-actions {
   display: flex;
   align-items: center;
   gap: 6px;
+  flex-shrink: 0;
 }
 
+/* Орган управления сворачиванием — единственная кликабельная зона корпуса */
 .ds-panel__collapse-btn {
-  background: transparent;
-  border: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  background: color-mix(in srgb, var(--text) 5%, transparent);
+  border: 1px solid var(--border);
   color: var(--text-muted);
   cursor: pointer;
-  padding: 2px 4px;
-  font-size: 12px;
-  line-height: 1;
+  border-radius: var(--radius-sm);
+  transition:
+    color 0.15s ease,
+    background 0.15s ease,
+    border-color 0.15s ease;
 }
 
 .ds-panel__collapse-btn:hover {
-  color: var(--accent);
+  color: var(--text);
+  background: color-mix(in srgb, var(--text) 10%, transparent);
+  border-color: var(--border-strong);
+}
+
+.ds-panel__collapse-btn:active {
+  background: color-mix(in srgb, var(--text) 14%, transparent);
+}
+
+.ds-panel__chevron {
+  display: block;
+  transition: transform 0.2s var(--ease-out);
+}
+
+.ds-panel.is-collapsed .ds-panel__chevron {
+  transform: rotate(-90deg);
+}
+
+/* Плавное сворачивание тела: grid 1fr → 0fr */
+.ds-panel__collapse {
+  display: grid;
+  grid-template-rows: 1fr;
+  min-height: 0;
+  flex: 1;
+  transition: grid-template-rows 0.22s var(--ease-out);
+}
+
+.ds-panel.is-collapsed .ds-panel__collapse {
+  grid-template-rows: 0fr;
+  flex: 0;
 }
 
 .ds-panel__body {
-  padding: 10px 12px;
+  padding: 12px 14px;
   overflow: auto;
-  flex: 1;
   min-height: 0;
+}
+
+.ds-panel.is-collapsed .ds-panel__body {
+  overflow: hidden;
+  padding-top: 0;
+  padding-bottom: 0;
 }
 
 /* ── Бейдж ── */
@@ -200,11 +315,44 @@ body {
   align-items: center;
   gap: 4px;
   padding: 2px 8px;
-  border-radius: 2px;
+  border-radius: 999px;
   font-size: 11px;
-  color: #080d14;
   font-weight: 600;
   white-space: nowrap;
+  flex-shrink: 0;
+  /* Solid level-бейджи задают background inline — тёмный текст читаем на цветной заливке */
+  color: #080d14;
+}
+
+/* Intent-варианты: tint + цветной текст (контраст на dark panel) */
+.ds-badge--default {
+  color: var(--text-muted);
+  background: color-mix(in srgb, var(--text-muted) 16%, transparent);
+  border: 1px solid color-mix(in srgb, var(--text-muted) 28%, transparent);
+}
+
+.ds-badge--ok {
+  color: var(--status-ok);
+  background: color-mix(in srgb, var(--status-ok) 16%, transparent);
+  border: 1px solid color-mix(in srgb, var(--status-ok) 32%, transparent);
+}
+
+.ds-badge--warn {
+  color: var(--status-warn);
+  background: color-mix(in srgb, var(--status-warn) 16%, transparent);
+  border: 1px solid color-mix(in srgb, var(--status-warn) 32%, transparent);
+}
+
+.ds-badge--danger {
+  color: var(--status-error);
+  background: color-mix(in srgb, var(--status-error) 16%, transparent);
+  border: 1px solid color-mix(in srgb, var(--status-error) 32%, transparent);
+}
+
+/* В шапке панели бейдж не должен сливаться с фоном */
+.ds-panel__head-actions .ds-badge {
+  font-size: 10px;
+  letter-spacing: 0.02em;
 }
 
 /* ISO-чипы регионов (лента, исходное сообщение) */
@@ -278,19 +426,55 @@ body {
   border-bottom: none;
 }
 
+.ds-accordion__item.is-open {
+  background: color-mix(in srgb, var(--bg-elev) 45%, transparent);
+}
+
 .ds-accordion__head {
   width: 100%;
   text-align: left;
   background: transparent;
   border: 0;
   color: var(--text);
-  padding: 8px 2px;
+  padding: 8px 6px;
   cursor: pointer;
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
   gap: 8px;
   font-size: 13px;
+  border-radius: var(--radius-sm);
+  transition: background 0.15s ease;
+}
+
+.ds-accordion__head:hover {
+  background: color-mix(in srgb, var(--bg-elev) 70%, transparent);
+}
+
+.ds-accordion__head:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.ds-accordion__chevron {
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+  color: var(--text-muted);
+  background: currentColor;
+  opacity: 0.7;
+  clip-path: polygon(35% 20%, 75% 50%, 35% 80%);
+  transition: transform 0.15s ease, opacity 0.15s ease;
+}
+
+.ds-accordion__item.is-open .ds-accordion__chevron {
+  transform: rotate(90deg);
+  opacity: 1;
+  color: var(--accent);
+}
+
+.ds-accordion__head-content {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .ds-accordion__head-title {
@@ -306,12 +490,8 @@ body {
   flex-shrink: 0;
 }
 
-.ds-accordion__head:hover {
-  color: var(--accent);
-}
-
 .ds-accordion__body {
-  padding: 0 4px 10px;
+  padding: 0 8px 12px 28px;
   color: var(--text-muted);
   font-size: 12px;
 }
@@ -320,29 +500,247 @@ body {
   color: var(--text-muted);
 }
 
+/* ── Карточка события в рейле: title → reason → meta ── */
+.ds-event-card {
+  display: grid;
+  grid-template-columns: 3px minmax(0, 1fr);
+  gap: 0 10px;
+  align-items: stretch;
+  width: 100%;
+  min-width: 0;
+}
+
+.ds-event-card__accent {
+  border-radius: 2px;
+  background: var(--border-strong);
+  min-height: 100%;
+}
+
+.ds-event-card__main {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.ds-event-card__top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.ds-event-card__title {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ds-event-card__time-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.ds-event-card__time {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+  letter-spacing: 0.02em;
+}
+
+.ds-event-card__reason {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  font-size: 12px;
+  line-height: 1.3;
+}
+
+.ds-event-card__reason-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.ds-event-card__meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  min-width: 0;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+/* В meta чипы не растягиваются — иначе снова «дыра» до источника справа */
+.ds-event-card__meta > .ds-region-chips {
+  flex: 0 1 auto;
+}
+
+.ds-event-card__meta-code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--bg) 70%, transparent);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+}
+
+.ds-event-card__meta-source {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ds-event-card__meta-activity {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.ds-event-card__body {
+  margin-top: 4px;
+  min-width: 0;
+}
+
+/* Раскрытое тело: факты + цитата исходника */
+.ds-event-card__facts {
+  display: grid;
+  gap: 4px;
+  margin: 0 0 8px;
+  padding: 0;
+}
+
+.ds-event-card__fact {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: 8px;
+  align-items: baseline;
+}
+
+.ds-event-card__fact dt {
+  margin: 0;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.ds-event-card__fact dd {
+  margin: 0;
+  color: var(--text);
+  word-break: break-word;
+}
+
+.ds-event-card__quote {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--bg) 55%, transparent);
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text);
+}
+
+.ds-event-card__source {
+  margin-top: 4px;
+}
+
+.ds-event-card__source .ds-region-chips {
+  margin-bottom: 6px;
+}
+
+.ds-event-card__action {
+  display: inline-flex;
+  align-items: center;
+  margin-top: 8px;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--bg-elev) 70%, transparent);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.ds-event-card__action:hover {
+  border-color: var(--border-strong);
+  background: var(--bg-elev);
+}
+
+/* Чип причины — запасной компактный маркер вне event-card */
+.ds-status-chip {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  max-width: 100%;
+  flex-shrink: 1;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--bg-elev) 60%, transparent);
+}
+
 /* ── KPI-плитка ── */
 .ds-stat-tile {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  padding: 8px 10px;
-  background: var(--accent-dim);
+  gap: 4px;
+  padding: 10px 12px;
+  background: var(--bg-elev);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   min-width: 0;
+  transition: border-color 0.15s ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .ds-stat-tile:hover {
+    border-color: var(--border-strong);
+  }
 }
 
 .ds-stat-tile__value {
-  font-size: 20px;
+  font-size: 22px;
   font-weight: 700;
   line-height: 1;
+  letter-spacing: -0.02em;
   color: var(--text);
 }
 
 .ds-stat-tile__label {
-  font-size: 10px;
+  font-size: 11px;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.04em;
   color: var(--text-muted);
 }
 
@@ -389,7 +787,85 @@ body {
 .ds-sparkline,
 .ds-bar-mini {
   display: block;
+  max-width: 100%;
+}
+
+.ds-chart-fluid {
   width: 100%;
+  min-width: 0;
+}
+
+/* ── Топ активности: одна строка ── */
+.ds-top-activity__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+}
+
+.ds-top-activity__accent {
+  width: 4px;
+  height: 18px;
+  border-radius: 2px;
+  flex-shrink: 0;
+  background: var(--border-strong);
+  box-shadow: 0 0 0 1px color-mix(in srgb, currentColor 25%, transparent);
+}
+
+.ds-top-activity__rank {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+  min-width: 1.6em;
+}
+
+.ds-top-activity__name {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ds-top-activity__count {
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+
+.ds-top-activity__bar-track {
+  flex-shrink: 0;
+  width: 56px;
+  height: 4px;
+  display: flex;
+  align-items: center;
+}
+
+.ds-top-activity__bar {
+  display: block;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--accent);
+  opacity: 0.55;
+}
+
+.ds-top-activity__code {
+  flex-shrink: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--bg) 70%, transparent);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
 }
 
 /* ── Статус-точка ── */
@@ -435,11 +911,12 @@ body {
   align-items: center;
   gap: 6px;
   padding: 3px 10px;
-  border: 1px solid var(--live-dot);
-  border-radius: 2px;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
+  border: 1px solid color-mix(in srgb, var(--live-dot) 55%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--live-dot) 12%, transparent);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--live-dot);
 }
@@ -474,17 +951,19 @@ body {
   border-radius: var(--radius-sm);
   color: var(--text-muted);
   cursor: pointer;
-  padding: 4px 8px;
+  padding: 5px 8px;
   font-size: 16px;
   line-height: 1;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
 }
 
 .ds-theme-toggle:hover {
-  border-color: var(--accent);
-  color: var(--accent);
+  border-color: var(--border-strong);
+  color: var(--text);
+  background: var(--bg-elev);
 }
 
 /* ── Список метрик ── */
@@ -594,7 +1073,7 @@ body {
   border-radius: 2px;
 }
 
-/* ── Лента сообщений ── */
+/* ── Лента сообщений / единый список карточек в рейле ── */
 .ds-message-feed {
   list-style: none;
   margin: 0;
@@ -604,7 +1083,7 @@ body {
 }
 
 .ds-message-feed__item {
-  padding: 8px 0;
+  padding: 10px 2px;
   border-bottom: 1px solid var(--border);
 }
 
@@ -612,10 +1091,21 @@ body {
   border-bottom: none;
 }
 
+.ds-message-feed__item--clickable {
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition: background 0.15s ease;
+}
+
+.ds-message-feed__item--clickable:hover {
+  background: color-mix(in srgb, var(--bg-elev) 55%, transparent);
+}
+
 .ds-message-feed__meta {
   display: flex;
   align-items: center;
-  gap: 8px;
+  flex-wrap: wrap;
+  gap: 6px;
   margin-bottom: 4px;
   font-size: 10px;
 }
@@ -623,10 +1113,11 @@ body {
 .ds-message-feed__source {
   color: var(--accent);
   font-weight: 600;
-  max-width: 45%;
+  max-width: 32%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  flex-shrink: 1;
 }
 
 .ds-message-feed__time {
@@ -764,52 +1255,97 @@ body {
   border-bottom: 1px dotted color-mix(in srgb, var(--text-muted) 55%, transparent);
 }
 
-/* ── Контролы action-панелей (Button / Select / Field) ── */
+/* ── Кнопки: flat, без bootstrap-look ── */
 .ds-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
-  padding: 5px 12px;
+  height: 30px;
+  padding: 0 12px;
   border-radius: var(--radius-sm);
-  border: 1px solid var(--border);
+  border: 1px solid transparent;
   background: transparent;
   color: var(--text);
-  font-size: 12px;
-  font-weight: 600;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1;
   cursor: pointer;
   white-space: nowrap;
-}
-
-.ds-btn:hover:not(:disabled) {
-  border-color: var(--accent);
-  color: var(--accent);
+  transition:
+    border-color 0.15s ease,
+    color 0.15s ease,
+    background 0.15s ease,
+    box-shadow 0.15s ease;
 }
 
 .ds-btn:disabled {
-  opacity: 0.45;
+  opacity: 0.4;
   cursor: not-allowed;
 }
 
+/* Ghost — текст/иконка, без рамки */
+.ds-btn--ghost {
+  color: var(--text-muted);
+  background: transparent;
+  border-color: transparent;
+}
+
+.ds-btn--ghost:hover:not(:disabled) {
+  color: var(--text);
+  background: color-mix(in srgb, var(--text) 7%, transparent);
+}
+
+.ds-btn--ghost:active:not(:disabled) {
+  background: color-mix(in srgb, var(--text) 11%, transparent);
+}
+
+/* Secondary — elevated chip */
+.ds-btn--secondary {
+  color: var(--text);
+  background: color-mix(in srgb, var(--text) 5%, transparent);
+  border-color: var(--border);
+}
+
+.ds-btn--secondary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--text) 9%, transparent);
+  border-color: var(--border-strong);
+}
+
+/* Primary — accent fill, без градиента */
 .ds-btn--primary {
-  background: linear-gradient(
-    135deg,
-    color-mix(in srgb, var(--accent) 22%, transparent) 0%,
-    color-mix(in srgb, var(--accent) 8%, transparent) 100%
-  );
-  border-color: color-mix(in srgb, var(--accent) 50%, var(--border-strong));
-  color: color-mix(in srgb, var(--accent) 88%, var(--text));
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 22%, transparent) inset;
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+  color: color-mix(in srgb, var(--accent) 70%, #fff);
+}
+
+.ds-btn--primary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 32%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  color: #fff;
+}
+
+.ds-btn--primary:active:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 40%, transparent);
 }
 
 .ds-btn--danger {
-  border-color: color-mix(in srgb, var(--status-error) 55%, transparent);
   color: var(--status-error);
+  background: color-mix(in srgb, var(--status-error) 10%, transparent);
+  border-color: color-mix(in srgb, var(--status-error) 28%, transparent);
 }
 
 .ds-btn--danger:hover:not(:disabled) {
-  border-color: var(--status-error);
   color: var(--status-error);
+  background: color-mix(in srgb, var(--status-error) 18%, transparent);
+  border-color: color-mix(in srgb, var(--status-error) 45%, transparent);
+}
+
+/* Дефолт без variant-класса — как secondary (тонкая рамка) */
+.ds-btn:not([class*="ds-btn--"]):hover:not(:disabled) {
+  background: color-mix(in srgb, var(--text) 7%, transparent);
+  border-color: var(--border);
 }
 
 @keyframes admin-accent-breathe {
@@ -824,18 +1360,21 @@ body {
 .ds-select,
 .ds-input {
   width: 100%;
-  padding: 5px 8px;
+  padding: 7px 10px;
   border-radius: var(--radius-sm);
   border: 1px solid var(--border);
-  background: var(--bg-elev);
+  background: var(--bg);
   color: var(--text);
-  font-size: 12px;
+  font-size: 13px;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.18);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .ds-select:focus,
 .ds-input:focus {
   outline: none;
-  border-color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 50%, var(--border));
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.18), 0 0 0 2px var(--accent-dim);
 }
 
 .ds-field {
@@ -1070,29 +1609,239 @@ body {
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: var(--bg);
   font-size: 14px;
-  --bg: #080c12;
-  --bg-panel: rgba(12, 18, 28, 0.90);
-  --bg-elev: rgba(16, 24, 36, 0.94);
+  line-height: 1.45;
+  /* Cool slate ambient: глубина без «кнопочного» lift */
+  background:
+    radial-gradient(ellipse 70% 45% at 12% -8%, rgba(90, 140, 200, 0.14), transparent 55%),
+    radial-gradient(ellipse 55% 40% at 92% 8%, rgba(217, 130, 43, 0.08), transparent 50%),
+    radial-gradient(ellipse 50% 35% at 70% 100%, rgba(61, 204, 145, 0.06), transparent 55%),
+    linear-gradient(165deg, #0b0e12 0%, #11161d 48%, #0d1218 100%);
 }
 
 [data-theme="light"] .admin-shell {
-  --bg: #eef3f8;
-  --bg-panel: rgba(255, 255, 255, 0.92);
-  --bg-elev: rgba(240, 247, 253, 0.96);
+  background:
+    radial-gradient(ellipse 70% 45% at 10% -6%, rgba(90, 140, 200, 0.12), transparent 55%),
+    radial-gradient(ellipse 50% 40% at 95% 0%, rgba(200, 118, 32, 0.07), transparent 50%),
+    linear-gradient(165deg, #f6f7f9 0%, #eef1f5 50%, #f3f5f8 100%);
+}
+
+/* Админ-панели: лёгкий glass над градиентом, hover только border */
+.admin-shell .ds-panel {
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--bg-panel) 82%, transparent);
+  backdrop-filter: blur(14px) saturate(1.15);
+  -webkit-backdrop-filter: blur(14px) saturate(1.15);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    var(--shadow-panel);
+  transition: border-color 0.18s var(--ease-out);
+}
+
+[data-theme="light"] .admin-shell .ds-panel {
+  background: color-mix(in srgb, var(--bg-panel) 88%, transparent);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.7),
+    var(--shadow-panel);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .admin-shell .ds-panel:hover {
+    border-color: var(--border-strong);
+  }
+
+  .admin-shell .ds-stat-tile:hover,
+  .admin-shell .admin-phase-enrich-card:hover {
+    border-color: var(--border-strong);
+  }
+}
+
+.admin-shell .ds-panel__head {
+  padding: 10px 12px 10px 14px;
+}
+
+.admin-shell .ds-badge {
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.admin-shell .ds-stat-tile {
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--bg-elev) 88%, transparent);
+  border: 1px solid var(--border);
+  transition: border-color 0.15s ease;
+}
+
+.admin-shell .ds-stat-tile__value {
+  font-size: 22px;
+  letter-spacing: -0.02em;
+  color: var(--text);
+}
+
+.admin-shell .ds-stat-tile__label {
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.admin-shell .ds-stat-grid {
+  gap: 8px;
+  /* auto-fit: пустые треки схлопываются — плитки реально занимают ширину панели */
+  grid-template-columns: repeat(auto-fit, minmax(84px, 1fr));
 }
 
 .admin-shell .ds-metric-row {
   font-size: 13px;
+  padding: 7px 0;
+  border-bottom-color: var(--border);
+}
+
+.admin-shell .ds-metric-row__label {
+  color: var(--text-muted);
 }
 
 .admin-shell .ds-log-list {
-  font-size: 12px;
+  font-size: 13px;
+}
+
+.admin-shell .ds-log-list__item {
+  padding: 6px 0;
+  border-bottom-color: var(--border);
 }
 
 .admin-shell .ds-log-list__status {
-  font-size: 10px;
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, currentColor 14%, transparent);
+}
+
+.admin-shell .ds-select,
+.admin-shell .ds-input {
+  padding: 7px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--bg);
+  font-size: 13px;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.18);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.admin-shell .ds-select:focus,
+.admin-shell .ds-input:focus {
+  border-color: color-mix(in srgb, var(--accent) 50%, var(--border));
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.18), 0 0 0 2px var(--accent-dim);
+}
+
+.admin-shell .ds-field__label {
+  font-size: 11px;
+  letter-spacing: 0.04em;
+}
+
+.admin-shell .ds-field__hint {
+  font-size: 12px;
+}
+
+.admin-shell .ds-form-row {
+  gap: 10px;
+}
+
+.admin-shell .ds-subpanel {
+  margin-top: 10px;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--bg-elev) 85%, transparent);
+  box-shadow: none;
+  transition: border-color 0.15s ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .admin-shell .ds-subpanel:hover {
+    border-color: var(--border-strong);
+  }
+}
+
+.admin-shell .ds-subpanel__title {
+  font-size: 13px;
+}
+
+.admin-shell .ds-subpanel__hint {
+  font-size: 12px;
+}
+
+.admin-shell .ds-slider-field__label,
+.admin-shell .ds-slider-field__value {
+  font-size: 12px;
+}
+
+.admin-shell .ds-slider-field__value {
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  border-color: var(--border);
+}
+
+.admin-shell .ds-donut__legend {
+  font-size: 12px;
+  gap: 6px;
+}
+
+.admin-shell .ds-status-dot {
+  font-size: 12px;
+}
+
+.admin-shell .ds-live-clock {
+  font-size: 13px;
+}
+
+.admin-shell .ds-live-clock__date {
+  font-size: 11px;
+}
+
+.admin-shell .ds-trend-list__item {
+  font-size: 13px;
+  padding: 6px 4px;
+  border-radius: var(--radius-sm);
+  border-bottom-color: var(--border);
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.admin-shell .ds-trend-list__item:hover {
+  background: var(--bg-elev);
+  color: var(--text);
+}
+
+.admin-shell .ds-pick-list__item {
+  border-radius: var(--radius-sm);
+  border-color: var(--border);
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.admin-shell .ds-pick-list__item:hover {
+  background: var(--bg-elev);
+  border-color: var(--border-strong);
+}
+
+.admin-shell .ds-accordion__head {
+  font-size: 13px;
+  padding: 8px 4px;
+  border-radius: var(--radius-sm);
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.admin-shell .ds-accordion__head:hover {
+  background: var(--bg-elev);
+  color: var(--text);
+}
+
+.admin-shell .ds-accordion__body {
+  font-size: 13px;
 }
 
 .admin-shell__header {
@@ -1101,25 +1850,34 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 16px;
   padding: 0 16px;
-  background: var(--header-bg);
-  border-bottom: 1px solid var(--border-strong);
-  box-shadow: 0 2px 18px color-mix(in srgb, var(--accent) 18%, transparent);
+  background: color-mix(in srgb, var(--header-bg) 78%, transparent);
+  backdrop-filter: blur(12px) saturate(1.1);
+  -webkit-backdrop-filter: blur(12px) saturate(1.1);
+  border-bottom: 1px solid var(--border);
+  box-shadow: none;
+  z-index: 2;
 }
 
 .admin-shell__nav {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 16px;
 }
 
 .admin-shell__brand {
-  color: var(--accent);
-  letter-spacing: 0.1em;
+  color: var(--text);
+  letter-spacing: 0.06em;
   font-size: 13px;
-  text-shadow: 0 0 12px var(--accent-glow);
-  animation: admin-accent-breathe 4s ease-in-out infinite;
+  font-weight: 700;
+  text-shadow: none;
+  animation: none;
+}
+
+.admin-shell__brand .shell__logo {
+  color: var(--accent);
+  margin-right: 6px;
 }
 
 .admin-shell__meta {
@@ -1132,17 +1890,85 @@ body {
   color: var(--text-muted);
   text-decoration: none;
   font-size: 13px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  padding: 4px 0;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0.01em;
+  padding: 4px 2px;
   border-bottom: 2px solid transparent;
+  transition: color 0.15s ease, border-color 0.15s ease;
 }
 
 .admin-shell__nav a:hover,
 .admin-shell__nav a.is-active {
-  color: var(--accent);
+  color: var(--text);
   border-bottom-color: var(--accent);
+}
+
+/* Ряд табов разделов между хедером и stage */
+.admin-shell__tabs {
+  flex-shrink: 0;
+  padding: 0 16px;
+  background: color-mix(in srgb, var(--header-bg) 70%, transparent);
+  backdrop-filter: blur(10px) saturate(1.1);
+  -webkit-backdrop-filter: blur(10px) saturate(1.1);
+  border-bottom: 1px solid var(--border);
+}
+
+.admin-shell .ds-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 4px;
+  align-items: stretch;
+}
+
+.admin-shell .ds-tabs__tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 11px 12px 9px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  text-transform: none;
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    color 0.15s ease,
+    border-color 0.15s ease,
+    background 0.15s ease;
+}
+
+.admin-shell .ds-tabs__tab:hover {
+  color: var(--text);
+  background: var(--bg-elev);
+}
+
+.admin-shell .ds-tabs__tab.is-active {
+  color: var(--text);
+  border-bottom-color: var(--accent);
+  background: color-mix(in srgb, var(--bg-elev) 55%, transparent);
+}
+
+.admin-shell .ds-tabs__badge {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: none;
+  letter-spacing: 0;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text-muted) 16%, transparent);
+}
+
+.admin-shell .ds-tabs__tab.is-active .ds-tabs__badge {
+  color: var(--accent);
+  background: var(--accent-dim);
 }
 
 .admin-shell__stage {
@@ -1151,31 +1977,33 @@ body {
   overflow-y: auto;
   /* Без scroll anchoring: WS/poll обновления сверху не сдвигают viewport вниз. */
   overflow-anchor: none;
-  padding: 14px 16px 20px;
+  padding: 14px 16px 22px;
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 16px;
+}
+
+/* Системный лог — отдельная панель внизу stage (не floating overlay) */
+.admin-shell__log {
+  flex: 0 0 auto;
+  min-width: 0;
+}
+
+.admin-app-log {
+  max-height: min(28vh, 260px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  margin: -2px 0;
 }
 
 .admin-section {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-}
-
-.admin-section__title {
-  margin: 0;
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.14em;
-  color: var(--accent);
-  opacity: 0.9;
-  padding-left: 2px;
+  gap: 10px;
 }
 
 .admin-section--overview .ds-stat-grid {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .admin-pipeline {
@@ -1183,144 +2011,245 @@ body {
   flex-wrap: wrap;
   align-items: stretch;
   gap: 4px 0;
-  margin-bottom: 14px;
-  padding: 10px 12px;
+  margin-bottom: 0;
+  padding: 12px 14px;
   border-radius: var(--radius-sm);
   border: 1px solid var(--border);
-  background: var(--bg-elev);
+  background: color-mix(in srgb, var(--bg-elev) 82%, transparent);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow: none;
+  transition: border-color 0.15s ease;
+}
+
+.admin-pipeline:hover {
+  border-color: var(--border-strong);
 }
 
 .admin-pipeline__step {
   display: flex;
   align-items: center;
-  flex: 1 1 100px;
+  flex: 1 1 110px;
   min-width: 0;
 }
 
 .admin-pipeline__arrow {
   color: var(--text-muted);
   font-size: 12px;
-  padding: 0 6px;
+  padding: 0 8px;
   flex-shrink: 0;
 }
 
 .admin-pipeline__body {
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  gap: 2px;
   min-width: 0;
 }
 
 .admin-pipeline__label {
-  font-size: 9px;
+  font-size: 11px;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.05em;
   color: var(--text-muted);
 }
 
 .admin-pipeline__value {
-  font-size: 15px;
+  font-size: 17px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
 }
 
 .admin-pipeline__sub {
-  font-size: 10px;
+  font-size: 12px;
   color: var(--text-muted);
 }
 
-.admin-dashboard-kpi-row {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
-  margin-bottom: 14px;
+.admin-pipeline--map {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: stretch;
 }
 
-.admin-dashboard-kpi__title {
-  margin: 0 0 6px;
+.admin-pipeline__columns {
+  display: grid;
+  gap: 10px 14px;
+  align-items: start;
+  width: 100%;
+  /* Число колонок задаёт виджет через --pipeline-cols; на узком — одна колонка */
+  grid-template-columns: repeat(var(--pipeline-cols, 1), minmax(0, 1fr));
+}
+
+.admin-pipeline__column {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.admin-pipeline__column-rank {
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.admin-pipeline__body--card {
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--bg) 55%, transparent);
+}
+
+.admin-pipeline__card-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.admin-pipeline__badge {
   font-size: 10px;
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.04em;
+  flex-shrink: 0;
+}
+
+.admin-pipeline__phases {
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.35;
+  word-break: break-word;
+}
+
+.admin-pipeline__actions {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+}
+
+.admin-pipeline__edges {
+  list-style: none;
+  margin: 0;
+  padding: 8px 0 0;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.admin-pipeline__edges-empty {
+  margin: 0;
+  font-size: 12px;
+  padding-top: 4px;
+  border-top: 1px solid var(--border);
+}
+
+.admin-pipeline__edge {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
   color: var(--text-muted);
 }
 
-.admin-dashboard-block {
-  margin-top: 12px;
+.admin-pipeline__edge code {
+  font-size: 11px;
+  color: var(--text);
 }
 
-.admin-dashboard-block__title {
-  margin: 0 0 4px;
+.admin-pipeline__edge-key {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 11px;
-  font-weight: 700;
   color: var(--accent);
+}
+
+.admin-pipeline__edge-flag {
+  font-size: 10px;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.04em;
+  color: var(--status-warn);
+}
+
+.admin-pipeline__edge--suppressed {
+  opacity: 0.45;
+}
+
+.admin-pipeline__edge--suppressed .admin-pipeline__edge-key {
+  text-decoration: line-through;
+  color: var(--status-warn);
+}
+
+.admin-pipeline__arrow--suppressed {
+  opacity: 0.35;
+  text-decoration: line-through;
+  color: var(--status-warn);
 }
 
 .admin-dashboard-block__lead {
-  margin: 0 0 8px;
-  font-size: 10px;
-  line-height: 1.4;
+  margin: 0 0 10px;
+  font-size: 12px;
+  line-height: 1.45;
   color: var(--text-muted);
-}
-
-.admin-dashboard-footer {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-top: 12px;
-  padding-top: 8px;
-  border-top: 1px solid var(--border-subtle);
-  font-size: 11px;
 }
 
 .admin-metric-bar {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
 }
 
 .admin-metric-bar__head {
   display: flex;
   justify-content: space-between;
   gap: 8px;
-  font-size: 9px;
+  font-size: 11px;
   color: var(--text-muted);
 }
 
 .admin-phase-enrich-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  gap: 8px;
+  /* auto-fit: при 1–2 карточках они растягиваются на всю ширину, а не оставляют дыру */
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 160px), 1fr));
+  gap: 10px;
 }
 
 .admin-phase-enrich-grid--wide {
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
 }
 
 .admin-phase-enrich-card {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 10px 12px;
+  gap: 8px;
+  padding: 12px 14px;
   border-radius: var(--radius-sm);
   border: 1px solid var(--border);
-  background: var(--bg-elev);
+  background: color-mix(in srgb, var(--bg-elev) 85%, transparent);
+  box-shadow: none;
+  transition: border-color 0.15s ease;
 }
 
 .admin-phase-enrich-card__head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 6px;
+  gap: 8px;
 }
 
 .admin-phase-enrich-card__badge {
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
+  text-transform: none;
+  letter-spacing: 0.02em;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: color-mix(in srgb, currentColor 14%, transparent);
 }
 
 .admin-phase-enrich-card__badge--warn {
@@ -1330,8 +2259,8 @@ body {
 .admin-phase-enrich-card__stats {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px 10px;
-  font-size: 10px;
+  gap: 6px 12px;
+  font-size: 12px;
   font-variant-numeric: tabular-nums;
   color: var(--text);
 }
@@ -1339,45 +2268,59 @@ body {
 .admin-phase-enrich-card__hint {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  font-size: 9px;
-  line-height: 1.35;
+  gap: 3px;
+  font-size: 12px;
+  line-height: 1.4;
   color: var(--text-muted);
 }
 
 .admin-phase-enrich-card__id {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   color: var(--accent);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
+  text-transform: none;
+  letter-spacing: 0.02em;
 }
 
 .admin-phase-enrich-card__main {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
 }
 
 @media (max-width: 900px) {
   .admin-section--overview .ds-stat-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: 1fr;
   }
 
-  .admin-dashboard-kpi-row {
+  .admin-shell .ds-slider-grid {
     grid-template-columns: 1fr;
   }
 }
 
 .admin-section--enrichment .admin-grid__cell--8 .ds-panel,
 .admin-section--enrichment .admin-grid__cell--4 .ds-panel {
-  min-height: 280px;
+  min-height: 300px;
 }
 
 .admin-grid {
   display: grid;
-  grid-template-columns: repeat(12, 1fr);
+  grid-template-columns: repeat(12, minmax(0, 1fr));
   gap: var(--gap);
   align-items: stretch;
+  width: 100%;
+  min-width: 0;
+}
+
+/* Discovery: 3 панели пайплайнов + executors ниже */
+.admin-discovery {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+  min-width: 0;
+}
+
+.admin-discovery__executors {
+  min-width: 0;
 }
 
 .admin-grid__cell > .ds-panel {
@@ -1409,14 +2352,29 @@ body {
   height: auto;
 }
 
+/* Узкий/планшет: панели на всю ширину — без полупустых рядов от span-6 */
 @media (max-width: 1100px) {
-  .admin-grid__cell--3,
-  .admin-grid__cell--4 { grid-column: span 6; }
-  .admin-grid__cell--8 { grid-column: span 12; }
+  .admin-grid__cell { grid-column: span 12; }
+
+  .admin-pipeline__columns {
+    grid-template-columns: 1fr;
+  }
 }
 
-@media (max-width: 720px) {
-  .admin-grid__cell { grid-column: span 12; }
+@media (max-width: 900px) {
+  .admin-shell__stage {
+    padding: 10px 10px 18px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ds-panel,
+  .ds-panel__collapse,
+  .ds-panel__chevron,
+  .ds-stat-tile,
+  .admin-shell .admin-phase-enrich-card {
+    transition: none !important;
+  }
 }
 
 /* ── Tracking pipeline widget: не даём длинным строкам ломать сетку ── */
@@ -1440,14 +2398,14 @@ body {
   left: 50%;
   top: 50%;
   transform: translate(-50%, -50%);
-  width: min(400px, calc(100% - 2 * var(--rail-width) - 64px));
+  width: min(400px, calc(100% - var(--rail-width) - var(--rail-width-right) - 64px));
   max-height: min(75vh, calc(100% - 80px));
   overflow-y: auto;
   background: var(--bg-panel);
-  border: 1px solid var(--border-strong);
-  border-radius: 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
   box-shadow: var(--shadow-panel);
-  backdrop-filter: blur(12px);
+  backdrop-filter: blur(14px);
   z-index: 18;
   display: flex;
   flex-direction: column;
@@ -1459,7 +2417,7 @@ body {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  padding: 10px 12px 8px;
+  padding: 12px 14px 10px;
   border-bottom: 1px solid var(--border);
   gap: 8px;
 }
@@ -1472,13 +2430,13 @@ body {
 }
 
 .region-detail-panel__code {
-  font-size: 10px;
+  font-size: 11px;
   color: var(--text-muted);
   font-family: monospace;
 }
 
 .region-detail-panel__name {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   color: var(--text);
   word-break: break-word;

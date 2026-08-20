@@ -81,4 +81,4 @@ Deck.gl overlay (@deck.gl/mapbox)
 
 - Треки отображаются поверх MapLibre без z-fighting
 - Temporal color работает при scrub таймлайна
-- `npm run build` web проходит; typecheck зелёный
+- `npm run build` web проходит; typecheck зелёный

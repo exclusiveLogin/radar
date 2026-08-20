@@ -12,7 +12,7 @@
 2. **Channel** — resolve `channelKey` → `channels.id`.
 3. **Identity** — `(channelId, providerKey, externalMessageId, revisionKey)` → duplicate.
 4. **Telegram** — при extension: UNIQUE `(chat_id, message_id, edit_date)` через `findDuplicate`.
-5. **Insert** — TX: `raw_messages` + `raw_message_telegram`.
+5. **Insert** — TX: `mat_ingest_raw` + `mat_ingest_raw_tg`.
 
 Hash вычисляется в handler: `ingestMessageHash()` из shared.
 
@@ -42,7 +42,7 @@ Admin manual ingest: `outbox.append` → позже relay → bus.
 
 ## Backfill V2 (демон)
 
-- `BackfillDaemonService` — poll `ingest_backfill_jobs`, `adapter.streamHistory`, чекпоинт после каждого сообщения.
+- `BackfillDaemonService` — poll `job_ingest_backfill`, `adapter.streamHistory`, чекпоинт после каждого сообщения.
 - Схемы и runbook: **[docs/backfill-v2-pipeline.md](../../backfill-v2-pipeline.md)**.
 
 ## Где в коде

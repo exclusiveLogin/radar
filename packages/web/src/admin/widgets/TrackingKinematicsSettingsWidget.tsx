@@ -6,14 +6,12 @@ import {
   DEFAULT_SEED_MAX_FRONT_DISTANCE_KM,
   DEFAULT_SEED_WEIGHTS,
   DEFAULT_FLOW_ALIGNMENT,
-  DEFAULT_GREEDY_FLOW,
   DEFAULT_MAGNETIZE_WEIGHTS,
   DEFAULT_MAGNET_COST_WEIGHTS,
   DEFAULT_TURN_PENALTY,
+  DEFAULT_TRACKING_STROBE_MAX_WINDOW_MS,
   type ThreatProfile,
   type TrackingPipelineConfig,
-  type AssociationAlgorithm,
-  type GreedyFlowWeights,
 } from "@radar/shared";
 
 /** Дефолты NextGen для UI (SSOT значений — zod-схема на сервере). */
@@ -184,16 +182,15 @@ function configSignature(
     seedRegionInteriorRf: cfg?.seedRegionInteriorRf,
     seedFrontProximityD0Km: cfg?.seedFrontProximityD0Km,
     reuseAcrossTracks: cfg?.reuseAcrossTracks,
-    associationAlgorithm: cfg?.associationAlgorithm,
     flowWeight: cfg?.flowWeight,
     counterFlowPenalty: cfg?.counterFlowPenalty,
     flowEmpiricalMultiplier: cfg?.flowEmpiricalMultiplier,
     globalDirectionWeight: cfg?.globalDirectionWeight,
     globalDirectionBearingDeg: cfg?.globalDirectionBearingDeg ?? null,
     counterFlowRejectCos: cfg?.counterFlowRejectCos ?? null,
-    greedyFlow: cfg?.greedyFlow ?? null,
     nextgen: cfg?.nextgen ?? null,
     clusteringMode: cfg?.clusteringMode ?? "collapse",
+    strobe: cfg?.strobe ?? null,
     magnet: cfg?.magnet ?? null,
     override: cfg?.profiles?.[profile] ?? null,
   });
@@ -211,7 +208,6 @@ export function TrackingKinematicsSettingsWidget() {
   );
   const [seedFrontD0Km, setSeedFrontD0Km] = useState(DEFAULT_SEED_WEIGHTS.frontProximityD0Km);
   const [reuseAcrossTracks, setReuseAcrossTracks] = useState(false);
-  const [associationAlgorithm, setAssociationAlgorithm] = useState<AssociationAlgorithm>("gnn");
   const [flowWeight, setFlowWeight] = useState(DEFAULT_FLOW_ALIGNMENT.flowWeight);
   const [counterFlowPenalty, setCounterFlowPenalty] = useState(
     DEFAULT_FLOW_ALIGNMENT.counterFlowPenalty,
@@ -232,10 +228,13 @@ export function TrackingKinematicsSettingsWidget() {
   // Жёсткий запрет противотока: enabled-флаг + порог cos (хранится как null при выкл).
   const [counterFlowRejectEnabled, setCounterFlowRejectEnabled] = useState(false);
   const [counterFlowRejectCos, setCounterFlowRejectCos] = useState(-0.2);
-  // Веса жадной ассоциации (greedy-flow).
-  const [greedyFlow, setGreedyFlow] = useState<GreedyFlowWeights>(DEFAULT_GREEDY_FLOW);
   const [nextgen, setNextgen] = useState<NextGenCfg>(NEXTGEN_DEFAULTS);
+  // rflPenaltyThreshold — override гейта field_train; без override = counterFlowRejectCos.
+  const [rflThresholdOverrideEnabled, setRflThresholdOverrideEnabled] = useState(false);
   const [clusteringMode, setClusteringMode] = useState<"collapse" | "magnet">("collapse");
+  const [strobeWindowMinutes, setStrobeWindowMinutes] = useState(
+    DEFAULT_TRACKING_STROBE_MAX_WINDOW_MS / 60_000,
+  );
   const [magnetWMag, setMagnetWMag] = useState(DEFAULT_MAGNET_COST_WEIGHTS.wMag);
   const [magnetWFlow, setMagnetWFlow] = useState(DEFAULT_MAGNET_COST_WEIGHTS.wFlow);
   const [lambdaCloud, setLambdaCloud] = useState(DEFAULT_MAGNETIZE_WEIGHTS.lambdaCloud);
@@ -265,7 +264,6 @@ export function TrackingKinematicsSettingsWidget() {
     setSeedRegionInteriorRf(cfg.seedRegionInteriorRf ?? DEFAULT_SEED_WEIGHTS.regionInteriorRf);
     setSeedFrontD0Km(cfg.seedFrontProximityD0Km ?? DEFAULT_SEED_WEIGHTS.frontProximityD0Km);
     setReuseAcrossTracks(cfg.reuseAcrossTracks ?? false);
-    setAssociationAlgorithm(cfg.associationAlgorithm ?? "gnn");
     setFlowWeight(cfg.flowWeight ?? DEFAULT_FLOW_ALIGNMENT.flowWeight);
     setCounterFlowPenalty(cfg.counterFlowPenalty ?? DEFAULT_FLOW_ALIGNMENT.counterFlowPenalty);
     setFlowEmpiricalMultiplier(
@@ -279,9 +277,12 @@ export function TrackingKinematicsSettingsWidget() {
     const rejCos = cfg.counterFlowRejectCos ?? null;
     setCounterFlowRejectEnabled(rejCos != null);
     setCounterFlowRejectCos(rejCos ?? -0.2);
-    setGreedyFlow({ ...DEFAULT_GREEDY_FLOW, ...(cfg.greedyFlow ?? {}) });
     setNextgen({ ...NEXTGEN_DEFAULTS, ...(cfg.nextgen ?? {}) });
+    setRflThresholdOverrideEnabled(cfg.nextgen?.rflPenaltyThreshold != null);
     setClusteringMode(cfg.clusteringMode ?? "collapse");
+    setStrobeWindowMinutes(
+      (cfg.strobe?.maxWindowMs ?? DEFAULT_TRACKING_STROBE_MAX_WINDOW_MS) / 60_000,
+    );
     const m = cfg.magnet;
     setMagnetWMag(m?.wMag ?? DEFAULT_MAGNET_COST_WEIGHTS.wMag);
     setMagnetWFlow(m?.wFlow ?? DEFAULT_MAGNET_COST_WEIGHTS.wFlow);
@@ -306,7 +307,6 @@ export function TrackingKinematicsSettingsWidget() {
     setSeedRegionInteriorRf(DEFAULT_SEED_WEIGHTS.regionInteriorRf);
     setSeedFrontD0Km(DEFAULT_SEED_WEIGHTS.frontProximityD0Km);
     setReuseAcrossTracks(false);
-    setAssociationAlgorithm("gnn");
     setFlowWeight(DEFAULT_FLOW_ALIGNMENT.flowWeight);
     setCounterFlowPenalty(DEFAULT_FLOW_ALIGNMENT.counterFlowPenalty);
     setFlowEmpiricalMultiplier(DEFAULT_FLOW_ALIGNMENT.flowEmpiricalMultiplier);
@@ -318,9 +318,10 @@ export function TrackingKinematicsSettingsWidget() {
     );
     setCounterFlowRejectEnabled(false);
     setCounterFlowRejectCos(-0.2);
-    setGreedyFlow(DEFAULT_GREEDY_FLOW);
     setNextgen(NEXTGEN_DEFAULTS);
+    setRflThresholdOverrideEnabled(false);
     setClusteringMode("collapse");
+    setStrobeWindowMinutes(DEFAULT_TRACKING_STROBE_MAX_WINDOW_MS / 60_000);
     setMagnetWMag(DEFAULT_MAGNET_COST_WEIGHTS.wMag);
     setMagnetWFlow(DEFAULT_MAGNET_COST_WEIGHTS.wFlow);
     setLambdaCloud(DEFAULT_MAGNETIZE_WEIGHTS.lambdaCloud);
@@ -340,16 +341,18 @@ export function TrackingKinematicsSettingsWidget() {
         seedRegionInteriorRf,
         seedFrontProximityD0Km: seedFrontD0Km,
         reuseAcrossTracks,
-        associationAlgorithm,
         flowWeight,
         counterFlowPenalty,
         flowEmpiricalMultiplier,
         globalDirectionWeight: globalDirectionEnabled ? globalDirectionWeight : 0,
         globalDirectionBearingDeg: globalDirectionEnabled ? globalDirectionBearingDeg : null,
         counterFlowRejectCos: counterFlowRejectEnabled ? counterFlowRejectCos : null,
-        greedyFlow,
-        nextgen,
+        nextgen: {
+          ...nextgen,
+          rflPenaltyThreshold: rflThresholdOverrideEnabled ? nextgen.rflPenaltyThreshold ?? -0.2 : undefined,
+        },
         clusteringMode,
+        strobe: { maxWindowMs: Math.round(strobeWindowMinutes * 60_000) },
         magnet: {
           wMag: magnetWMag,
           wFlow: magnetWFlow,
@@ -371,7 +374,7 @@ export function TrackingKinematicsSettingsWidget() {
   };
 
   return (
-    <Panel title="Кинематика и Kalman">
+    <Panel title="Кинематика и Kalman — по фазам NextGen">
       <p style={{ fontSize: 11, color: "var(--text-muted)", margin: "0 0 10px", lineHeight: 1.45 }}>
         Профиль угрозы — автоматически при rebuild. Дефолты под OSINT/телегу: широкий R, χ²≈20–30,
         rear-front 20–50 км (не 500 м).
@@ -385,211 +388,130 @@ export function TrackingKinematicsSettingsWidget() {
         ))}
       </div>
 
-      <div className="ds-subpanel">
-        <p className="ds-subpanel__title">Зарождение трека</p>
-        <p className="ds-subpanel__hint">
-          Seed только у фронта. Вес = Π множителей: буст у фронта &gt; 1, штраф в тылу &lt; 1.
-        </p>
-        <div className="ds-slider-grid">
-          <CoeffSlider
-            label={`Порог seed (деф. ${DEFAULT_SEED_MIN})`}
-            title="Минимальный вес для зарождения нового трека."
-            hint={H.seedMin}
-            value={seedMin}
-            min={SEED_MIN_SLIDER_MIN}
-            max={SEED_MIN_MAX}
-            step={0.01}
-            onChange={setSeedMin}
-          />
-          <CoeffSlider
-            label={`Макс. дистанция до фронта, км (деф. ${DEFAULT_SEED_MAX_FRONT_DISTANCE_KM})`}
-            title="Дальше от фронта — seed не создаётся."
-            hint={H.seedMaxFrontKm}
-            value={seedMaxFrontKm}
-            min={SEED_FRONT_KM_MIN}
-            max={SEED_FRONT_KM_MAX}
-            step={10}
-            onChange={setSeedMaxFrontKm}
-          />
-          <CoeffSlider
-            label={`Буст у фронта × (деф. ${DEFAULT_SEED_WEIGHTS.regionFront})`}
-            title="Множитель веса в фронтовом регионе. 1 — нейтрально."
-            hint={H.seedRegionFront}
-            value={seedRegionFront}
-            min={1}
-            max={MULTIPLIER_MAX}
-            step={0.05}
-            onChange={setSeedRegionFront}
-          />
-          <CoeffSlider
-            label={`Штраф в тылу × (деф. ${DEFAULT_SEED_WEIGHTS.regionInteriorRf})`}
-            title="Множитель в глубине РФ. 1 — без штрафа, меньше — сильнее гасит seed."
-            hint={H.seedRegionInteriorRf}
-            value={seedRegionInteriorRf}
-            min={INTERIOR_PENALTY_MIN}
-            max={1}
-            step={0.05}
-            onChange={setSeedRegionInteriorRf}
-          />
-          <CoeffSlider
-            className="ds-slider-grid__full"
-            label={`Затухание близости D0, км (деф. ${DEFAULT_SEED_WEIGHTS.frontProximityD0Km})`}
-            title="На какой дистанции от фронта спадает буст близости."
-            hint={H.seedFrontD0Km}
-            value={seedFrontD0Km}
-            min={SEED_D0_KM_MIN}
-            max={SEED_D0_KM_MAX}
-            step={5}
-            onChange={setSeedFrontD0Km}
-          />
-        </div>
-      </div>
-
-      <p style={{ fontSize: 11, fontWeight: 600, margin: "12px 0 6px" }}>Ассоциация</p>
-      <Field label="Алгоритм ассоциации" hint={H.associationAlgorithm}>
+      {/* --- 1. Cluster: ST-DBSCAN дедуп кандидатов → узлы --- */}
+      <p style={{ fontSize: 12, fontWeight: 700, margin: "12px 0 6px" }}>1. Cluster</p>
+      <Field label="Режим кластеризации" hint={H.clusteringMode}>
         <select
           className="ds-input"
-          value={associationAlgorithm}
-          onChange={e => setAssociationAlgorithm(e.target.value as AssociationAlgorithm)}
+          value={clusteringMode}
+          onChange={e => setClusteringMode(e.target.value as "collapse" | "magnet")}
         >
-          <option value="gnn">GNN (жадный argmin ρ)</option>
-          <option value="greedy-flow">Greedy-flow (пары по току, монотонная глубина)</option>
-          <option value="nextgen-gravity">NextGen Gravity (4-Phase H3 + RFL)</option>
-          <option value="pdaf">PDAF (backlog)</option>
-          <option value="jpdaf">JPDAF (backlog)</option>
+          <option value="collapse">Collapse (legacy dedup — один winner)</option>
+          <option value="magnet">Magnet (веса без схлопывания)</option>
         </select>
       </Field>
-      {associationAlgorithm === "greedy-flow" && (
-        <div className="ds-subpanel">
-          <p className="ds-subpanel__title">Greedy-flow: веса и допуски</p>
-          <p className="ds-subpanel__hint">
-            Соединяет пары по току. cost = dist·w₁ + dt·w₂ − align·w₃; глубина монотонна (поздняя точка глубже на −ε).
-          </p>
-          <div className="ds-form-row" style={{ marginTop: 4 }}>
-            <Field label={`Вес дистанции (деф. ${DEFAULT_GREEDY_FLOW.distWeightM})`} hint={H.greedyDist}>
-              <input
-                className="ds-input"
-                type="number"
-                value={greedyFlow.distWeightM}
-                onChange={e => setGreedyFlow(g => ({ ...g, distWeightM: Number(e.target.value) }))}
-              />
-            </Field>
-            <Field label={`Штраф разрыва, м/ч (деф. ${DEFAULT_GREEDY_FLOW.dtPenaltyPerHourM})`} hint={H.greedyDt}>
-              <input
-                className="ds-input"
-                type="number"
-                value={greedyFlow.dtPenaltyPerHourM}
-                onChange={e => setGreedyFlow(g => ({ ...g, dtPenaltyPerHourM: Number(e.target.value) }))}
-              />
-            </Field>
-          </div>
-          <div className="ds-form-row" style={{ marginTop: 4 }}>
-            <Field label={`Награда за ток, м (деф. ${DEFAULT_GREEDY_FLOW.flowAlignRewardM})`} hint={H.greedyFlowReward}>
-              <input
-                className="ds-input"
-                type="number"
-                value={greedyFlow.flowAlignRewardM}
-                onChange={e => setGreedyFlow(g => ({ ...g, flowAlignRewardM: Number(e.target.value) }))}
-              />
-            </Field>
-            <Field label={`Допуск глубины ε, м (деф. ${DEFAULT_GREEDY_FLOW.depthToleranceM})`} hint={H.greedyDepthTol}>
-              <input
-                className="ds-input"
-                type="number"
-                value={greedyFlow.depthToleranceM}
-                onChange={e => setGreedyFlow(g => ({ ...g, depthToleranceM: Number(e.target.value) }))}
-              />
-            </Field>
-          </div>
-          <Field
-            label={`Жёсткий gate против тока, cos (−1..1; пусто=выкл, деф. ${DEFAULT_GREEDY_FLOW.counterFlowRejectCos})`}
-            hint={H.greedyCounterCos}
-          >
-            <input
-              className="ds-input"
-              type="number"
-              step={0.05}
-              value={greedyFlow.counterFlowRejectCos ?? ""}
-              onChange={e =>
-                setGreedyFlow(g => ({
-                  ...g,
-                  counterFlowRejectCos: e.target.value === "" ? null : Number(e.target.value),
-                }))
-              }
-            />
-          </Field>
-        </div>
-      )}
-      {associationAlgorithm === "nextgen-gravity" && (
-        <div className="ds-subpanel">
-          <p className="ds-subpanel__title">NextGen: гравитация и гладкость трасс</p>
-          <p className="ds-subpanel__hint">
-            Магистрали тянутся по тяжёлым H3-коридорам; штраф за поворот не даёт лучам разбегаться из хабов.
-          </p>
-          <div className="ds-form-row" style={{ marginTop: 4 }}>
-            <Field
-              label={`Штраф за поворот (деф. ${DEFAULT_TURN_PENALTY.penaltyWeight}; 0 = выкл)`}
-              hint={H.nextgenTurnPenalty}
-            >
-              <input
-                className="ds-input"
-                type="number"
-                step={0.5}
-                min={0}
-                max={10}
-                value={nextgen.turnPenaltyWeight}
-                onChange={e => setNextgen(n => ({ ...n, turnPenaltyWeight: Number(e.target.value) }))}
-              />
-            </Field>
-            <Field
-              label={`Макс. поворот, ° (деф. ${DEFAULT_TURN_PENALTY.maxTurnDeg})`}
-              hint={H.nextgenMaxTurnDeg}
-            >
-              <input
-                className="ds-input"
-                type="number"
-                step={5}
-                min={0}
-                max={180}
-                value={nextgen.maxTurnDeg}
-                onChange={e => setNextgen(n => ({ ...n, maxTurnDeg: Number(e.target.value) }))}
-              />
-            </Field>
-          </div>
-          <Field
-            label={`Мин. нод для магистрали (деф. ${NEXTGEN_DEFAULTS.minBackboneNodes}; иначе пунктир)`}
-            hint={H.nextgenMinBackbone}
-          >
-            <input
-              className="ds-input"
-              type="number"
-              step={1}
-              min={2}
-              max={10}
-              value={nextgen.minBackboneNodes}
-              onChange={e => setNextgen(n => ({ ...n, minBackboneNodes: Number(e.target.value) }))}
-            />
-          </Field>
-        </div>
-      )}
-      <label
-        style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: 12, marginBottom: 8 }}
-        title={H.reuseAcrossTracks}
-      >
-        <input
-          type="checkbox"
-          checked={reuseAcrossTracks}
-          onChange={e => setReuseAcrossTracks(e.target.checked)}
-          style={{ marginTop: 2 }}
-        />
-        <span>
-          Переиспользовать точки в нескольких треках (fan-out in-locus)
-          <span className="ds-field__hint" style={{ display: "block", marginTop: 2 }}>
-            {H.reuseAcrossTracks}
-          </span>
-        </span>
-      </label>
+      <CoeffSlider
+        label="Максимальное окно strobe, мин"
+        hint={H.strobeMaxWindow}
+        value={strobeWindowMinutes}
+        min={1}
+        max={120}
+        step={1}
+        onChange={setStrobeWindowMinutes}
+      />
 
+      {clusteringMode === "magnet" && (
+        <div className="ds-subpanel">
+          <p className="ds-subpanel__title">Магнитная фаза</p>
+          <p className="ds-subpanel__hint">
+            Магнетизм в cost всех алгоритмов. При fan-out (reuse) спутники остаются лучами; без reuse — свёртка в clusterMass winner.
+          </p>
+          <div className="ds-slider-grid">
+            <CoeffSlider
+              label={`wMag — сила магнетизма (деф. ${DEFAULT_MAGNET_COST_WEIGHTS.wMag})`}
+              hint={H.magnetWMag}
+              value={magnetWMag}
+              min={0}
+              max={MULTIPLIER_MAX}
+              step={0.1}
+              onChange={setMagnetWMag}
+            />
+            <CoeffSlider
+              label={`wFlow — доп. бонус прямотока (деф. ${DEFAULT_MAGNET_COST_WEIGHTS.wFlow})`}
+              hint={H.magnetWFlow}
+              value={magnetWFlow}
+              min={0}
+              max={MULTIPLIER_MAX}
+              step={0.1}
+              onChange={setMagnetWFlow}
+            />
+            <CoeffSlider
+              label={`λ_cloud — плотность облака (деф. ${DEFAULT_MAGNETIZE_WEIGHTS.lambdaCloud})`}
+              hint={H.lambdaCloud}
+              value={lambdaCloud}
+              min={0}
+              max={MULTIPLIER_MAX}
+              step={0.05}
+              onChange={setLambdaCloud}
+            />
+            <CoeffSlider
+              label={`λ_hist — история места (деф. ${DEFAULT_MAGNETIZE_WEIGHTS.lambdaHist})`}
+              hint={H.lambdaHist}
+              value={lambdaHist}
+              min={0}
+              max={MULTIPLIER_MAX}
+              step={0.05}
+              onChange={setLambdaHist}
+            />
+            <Field label={`Geohash precision (деф. ${DEFAULT_MAGNETIZE_WEIGHTS.geohashPrecision})`} hint={H.geohashPrecision}>
+              <input
+                className="ds-input"
+                type="number"
+                min={3}
+                max={10}
+                value={geohashPrecision}
+                onChange={e => setGeohashPrecision(Number(e.target.value))}
+              />
+            </Field>
+          </div>
+          <label
+            style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: 12, marginTop: 8 }}
+            title={H.useHistoricalGravity}
+          >
+            <input
+              type="checkbox"
+              checked={useHistoricalGravity}
+              onChange={e => setUseHistoricalGravity(e.target.checked)}
+              style={{ marginTop: 2 }}
+            />
+            <span>
+              Историческая гравитация мест (pre-pass + heatmap)
+              <span className="ds-field__hint" style={{ display: "block", marginTop: 2 }}>
+                {H.useHistoricalGravity}
+              </span>
+            </span>
+          </label>
+        </div>
+      )}
+
+      <div className="ds-form-row" style={{ marginTop: 8 }}>
+        <Field label={`Радиус дедупликации ST-DBSCAN, м (деф. ${defaults.stdbscanEpsilonSpatialM})`} hint={H.stdbscanSpatial}>
+          <input
+            className="ds-input"
+            type="number"
+            value={form.stdbscanEpsilonSpatialM}
+            onChange={e => setField("stdbscanEpsilonSpatialM", e.target.value)}
+          />
+        </Field>
+        <Field label={`Окно дедупликации по времени, мс (деф. ${defaults.stdbscanEpsilonTemporalMs})`} hint={H.stdbscanTemporal}>
+          <input
+            className="ds-input"
+            type="number"
+            value={form.stdbscanEpsilonTemporalMs}
+            onChange={e => setField("stdbscanEpsilonTemporalMs", e.target.value)}
+          />
+        </Field>
+      </div>
+
+      {/* --- 2. Filter: заготовка, не реализована --- */}
+      <p style={{ fontSize: 12, fontWeight: 700, margin: "16px 0 6px" }}>2. Filter</p>
+      <p style={{ fontSize: 11, color: "var(--text-muted)" }}>
+        Фаза-заготовка (pair-reliability фильтр сверх Ф2) — выключена в манифесте, identity passthrough.
+        Настроек пока нет.
+      </p>
+
+      {/* --- 3. Field train: обучение H3-поля на парах узлов --- */}
+      <p style={{ fontSize: 12, fontWeight: 700, margin: "16px 0 6px" }}>3. Field train</p>
       <div className="ds-subpanel">
         <p className="ds-subpanel__title">Направленность</p>
         <p className="ds-subpanel__hint">
@@ -702,93 +624,175 @@ export function TrackingKinematicsSettingsWidget() {
           </div>
         )}
       </div>
-
-      <p style={{ fontSize: 11, fontWeight: 600, margin: "12px 0 6px" }}>Линковка / ST-DBSCAN</p>
-
-      <Field label="Режим кластеризации" hint={H.clusteringMode}>
-        <select
-          className="ds-input"
-          value={clusteringMode}
-          onChange={e => setClusteringMode(e.target.value as "collapse" | "magnet")}
+      <div className="ds-subpanel">
+        <p className="ds-subpanel__title">H3-поле</p>
+        <Field label="Разрешение H3 сетки (деф. 8)" hint="Крупнее число — мельче ячейка векторного поля.">
+          <input
+            className="ds-input"
+            type="number"
+            min={4}
+            max={12}
+            value={nextgen.h3Resolution}
+            onChange={e => setNextgen(n => ({ ...n, h3Resolution: Number(e.target.value) }))}
+          />
+        </Field>
+        <label
+          style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: 12, margin: "10px 0 4px" }}
         >
-          <option value="collapse">Collapse (legacy dedup — один winner)</option>
-          <option value="magnet">Magnet (веса без схлопывания)</option>
-        </select>
-      </Field>
+          <input
+            type="checkbox"
+            checked={rflThresholdOverrideEnabled}
+            onChange={e => setRflThresholdOverrideEnabled(e.target.checked)}
+            style={{ marginTop: 2 }}
+          />
+          <span>
+            Override мягкого cos-порога Ф2 (иначе = порог противотока выше)
+            <span className="ds-field__hint" style={{ display: "block", marginTop: 2 }}>
+              Ниже порога — отрезок не строится и не идёт в обучение поля.
+            </span>
+          </span>
+        </label>
+        {rflThresholdOverrideEnabled && (
+          <CoeffSlider
+            label="rflPenaltyThreshold"
+            value={nextgen.rflPenaltyThreshold ?? -0.2}
+            min={-1}
+            max={1}
+            step={0.05}
+            onChange={v => setNextgen(n => ({ ...n, rflPenaltyThreshold: v }))}
+          />
+        )}
+      </div>
 
-      {clusteringMode === "magnet" && (
-        <div className="ds-subpanel">
-          <p className="ds-subpanel__title">Магнитная фаза</p>
-          <p className="ds-subpanel__hint">
-            Магнетизм в cost всех алгоритмов. При fan-out (reuse) спутники остаются лучами; без reuse — свёртка в clusterMass winner.
-          </p>
-          <div className="ds-slider-grid">
-            <CoeffSlider
-              label={`wMag — сила магнетизма (деф. ${DEFAULT_MAGNET_COST_WEIGHTS.wMag})`}
-              hint={H.magnetWMag}
-              value={magnetWMag}
-              min={0}
-              max={MULTIPLIER_MAX}
-              step={0.1}
-              onChange={setMagnetWMag}
-            />
-            <CoeffSlider
-              label={`wFlow — доп. бонус прямотока (деф. ${DEFAULT_MAGNET_COST_WEIGHTS.wFlow})`}
-              hint={H.magnetWFlow}
-              value={magnetWFlow}
-              min={0}
-              max={MULTIPLIER_MAX}
-              step={0.1}
-              onChange={setMagnetWFlow}
-            />
-            <CoeffSlider
-              label={`λ_cloud — плотность облака (деф. ${DEFAULT_MAGNETIZE_WEIGHTS.lambdaCloud})`}
-              hint={H.lambdaCloud}
-              value={lambdaCloud}
-              min={0}
-              max={MULTIPLIER_MAX}
-              step={0.05}
-              onChange={setLambdaCloud}
-            />
-            <CoeffSlider
-              label={`λ_hist — история места (деф. ${DEFAULT_MAGNETIZE_WEIGHTS.lambdaHist})`}
-              hint={H.lambdaHist}
-              value={lambdaHist}
-              min={0}
-              max={MULTIPLIER_MAX}
-              step={0.05}
-              onChange={setLambdaHist}
-            />
-            <Field label={`Geohash precision (деф. ${DEFAULT_MAGNETIZE_WEIGHTS.geohashPrecision})`} hint={H.geohashPrecision}>
-              <input
-                className="ds-input"
-                type="number"
-                min={3}
-                max={10}
-                value={geohashPrecision}
-                onChange={e => setGeohashPrecision(Number(e.target.value))}
-              />
-            </Field>
-          </div>
-          <label
-            style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: 12, marginTop: 8 }}
-            title={H.useHistoricalGravity}
+      {/* --- 4. Join: Kalman-локус + H3-гравитация → треки --- */}
+      <p style={{ fontSize: 12, fontWeight: 700, margin: "16px 0 6px" }}>4. Join</p>
+      <div className="ds-subpanel">
+        <p className="ds-subpanel__title">Зарождение трека</p>
+        <p className="ds-subpanel__hint">
+          Seed только у фронта. Вес = Π множителей: буст у фронта &gt; 1, штраф в тылу &lt; 1.
+        </p>
+        <div className="ds-slider-grid">
+          <CoeffSlider
+            label={`Порог seed (деф. ${DEFAULT_SEED_MIN})`}
+            title="Минимальный вес для зарождения нового трека."
+            hint={H.seedMin}
+            value={seedMin}
+            min={SEED_MIN_SLIDER_MIN}
+            max={SEED_MIN_MAX}
+            step={0.01}
+            onChange={setSeedMin}
+          />
+          <CoeffSlider
+            label={`Макс. дистанция до фронта, км (деф. ${DEFAULT_SEED_MAX_FRONT_DISTANCE_KM})`}
+            title="Дальше от фронта — seed не создаётся."
+            hint={H.seedMaxFrontKm}
+            value={seedMaxFrontKm}
+            min={SEED_FRONT_KM_MIN}
+            max={SEED_FRONT_KM_MAX}
+            step={10}
+            onChange={setSeedMaxFrontKm}
+          />
+          <CoeffSlider
+            label={`Буст у фронта × (деф. ${DEFAULT_SEED_WEIGHTS.regionFront})`}
+            title="Множитель веса в фронтовом регионе. 1 — нейтрально."
+            hint={H.seedRegionFront}
+            value={seedRegionFront}
+            min={1}
+            max={MULTIPLIER_MAX}
+            step={0.05}
+            onChange={setSeedRegionFront}
+          />
+          <CoeffSlider
+            label={`Штраф в тылу × (деф. ${DEFAULT_SEED_WEIGHTS.regionInteriorRf})`}
+            title="Множитель в глубине РФ. 1 — без штрафа, меньше — сильнее гасит seed."
+            hint={H.seedRegionInteriorRf}
+            value={seedRegionInteriorRf}
+            min={INTERIOR_PENALTY_MIN}
+            max={1}
+            step={0.05}
+            onChange={setSeedRegionInteriorRf}
+          />
+          <CoeffSlider
+            className="ds-slider-grid__full"
+            label={`Затухание близости D0, км (деф. ${DEFAULT_SEED_WEIGHTS.frontProximityD0Km})`}
+            title="На какой дистанции от фронта спадает буст близости."
+            hint={H.seedFrontD0Km}
+            value={seedFrontD0Km}
+            min={SEED_D0_KM_MIN}
+            max={SEED_D0_KM_MAX}
+            step={5}
+            onChange={setSeedFrontD0Km}
+          />
+        </div>
+      </div>
+      <label
+        style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: 12, marginBottom: 8 }}
+        title={H.reuseAcrossTracks}
+      >
+        <input
+          type="checkbox"
+          checked={reuseAcrossTracks}
+          onChange={e => setReuseAcrossTracks(e.target.checked)}
+          style={{ marginTop: 2 }}
+        />
+        <span>
+          Переиспользовать точки в нескольких треках (fan-out in-locus)
+          <span className="ds-field__hint" style={{ display: "block", marginTop: 2 }}>
+            {H.reuseAcrossTracks}
+          </span>
+        </span>
+      </label>
+
+      <div className="ds-subpanel">
+        <p className="ds-subpanel__title">Гравитация и гладкость трасс</p>
+        <p className="ds-subpanel__hint">
+          Магистрали тянутся по тяжёлым H3-коридорам; штраф за поворот не даёт лучам разбегаться из хабов.
+        </p>
+        <div className="ds-form-row" style={{ marginTop: 4 }}>
+          <Field
+            label={`Штраф за поворот (деф. ${DEFAULT_TURN_PENALTY.penaltyWeight}; 0 = выкл)`}
+            hint={H.nextgenTurnPenalty}
           >
             <input
-              type="checkbox"
-              checked={useHistoricalGravity}
-              onChange={e => setUseHistoricalGravity(e.target.checked)}
-              style={{ marginTop: 2 }}
+              className="ds-input"
+              type="number"
+              step={0.5}
+              min={0}
+              max={10}
+              value={nextgen.turnPenaltyWeight}
+              onChange={e => setNextgen(n => ({ ...n, turnPenaltyWeight: Number(e.target.value) }))}
             />
-            <span>
-              Историческая гравитация мест (pre-pass + heatmap)
-              <span className="ds-field__hint" style={{ display: "block", marginTop: 2 }}>
-                {H.useHistoricalGravity}
-              </span>
-            </span>
-          </label>
+          </Field>
+          <Field
+            label={`Макс. поворот, ° (деф. ${DEFAULT_TURN_PENALTY.maxTurnDeg})`}
+            hint={H.nextgenMaxTurnDeg}
+          >
+            <input
+              className="ds-input"
+              type="number"
+              step={5}
+              min={0}
+              max={180}
+              value={nextgen.maxTurnDeg}
+              onChange={e => setNextgen(n => ({ ...n, maxTurnDeg: Number(e.target.value) }))}
+            />
+          </Field>
         </div>
-      )}
+        <Field
+          label={`Мин. нод для магистрали (деф. ${NEXTGEN_DEFAULTS.minBackboneNodes}; иначе пунктир)`}
+          hint={H.nextgenMinBackbone}
+        >
+          <input
+            className="ds-input"
+            type="number"
+            step={1}
+            min={2}
+            max={10}
+            value={nextgen.minBackboneNodes}
+            onChange={e => setNextgen(n => ({ ...n, minBackboneNodes: Number(e.target.value) }))}
+          />
+        </Field>
+      </div>
 
       <div className="ds-form-row" style={{ marginTop: 4 }}>
         <Field label={`Макс. скорость цели, м/с (деф. ${defaults.maxVelocityMs})`} hint={H.maxVelocityMs}>
@@ -809,38 +813,17 @@ export function TrackingKinematicsSettingsWidget() {
         </Field>
       </div>
 
-      <div className="ds-form-row" style={{ marginTop: 8 }}>
-        <Field label={`Макс. пауза в треке, мс (деф. ${defaults.maxGapMs})`} hint={H.maxGapMs}>
-          <input
-            className="ds-input"
-            type="number"
-            value={form.maxGapMs}
-            onChange={e => setField("maxGapMs", e.target.value)}
-          />
-        </Field>
-        <Field label={`Радиус дедупликации ST-DBSCAN, м (деф. ${defaults.stdbscanEpsilonSpatialM})`} hint={H.stdbscanSpatial}>
-          <input
-            className="ds-input"
-            type="number"
-            value={form.stdbscanEpsilonSpatialM}
-            onChange={e => setField("stdbscanEpsilonSpatialM", e.target.value)}
-          />
-        </Field>
-      </div>
-
-      <Field label={`Окно дедупликации ST-DBSCAN по времени, мс (деф. ${defaults.stdbscanEpsilonTemporalMs})`} hint={H.stdbscanTemporal}>
+      <Field label={`Макс. пауза в треке, мс (деф. ${defaults.maxGapMs})`} hint={H.maxGapMs}>
         <input
           className="ds-input"
           type="number"
-          value={form.stdbscanEpsilonTemporalMs}
-          onChange={e => setField("stdbscanEpsilonTemporalMs", e.target.value)}
+          value={form.maxGapMs}
+          onChange={e => setField("maxGapMs", e.target.value)}
         />
       </Field>
 
-      <p style={{ fontSize: 11, fontWeight: 600, margin: "12px 0 6px" }}>Kalman / innovation gate</p>
-
-      <div className="ds-subpanel" style={{ marginBottom: 10 }}>
-        <p className="ds-subpanel__title">Масштабы Q / R</p>
+      <div className="ds-subpanel" style={{ marginTop: 10, marginBottom: 10 }}>
+        <p className="ds-subpanel__title">Kalman / innovation gate — масштабы Q / R</p>
         <p className="ds-subpanel__hint">
           Множители ковариации относительно базы профиля. Дефолт — значение профиля ({defaults.processNoiseScale} / {defaults.observationSigmaScale}).
         </p>
@@ -888,7 +871,14 @@ export function TrackingKinematicsSettingsWidget() {
         </Field>
       </div>
 
-      <p style={{ fontSize: 10, color: "var(--text-muted)", marginTop: 8 }}>
+      {/* --- 5. Optimize: заготовка, не реализована --- */}
+      <p style={{ fontSize: 12, fontWeight: 700, margin: "16px 0 6px" }}>5. Optimize</p>
+      <p style={{ fontSize: 11, color: "var(--text-muted)" }}>
+        Фаза-заготовка (post-join cleanup/refine) — выключена в манифесте, identity passthrough.
+        Настроек пока нет.
+      </p>
+
+      <p style={{ fontSize: 10, color: "var(--text-muted)", marginTop: 12 }}>
         После сохранения — <strong>Rebuild</strong>. R база всё ещё от precision/trust события;
         множитель только расширяет эллипс под телегу.
       </p>

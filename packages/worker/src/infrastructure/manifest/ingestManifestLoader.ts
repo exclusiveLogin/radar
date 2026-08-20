@@ -8,7 +8,7 @@ import type {
   IIngestProviderRepository,
   IngestManifest,
 } from "@radar/shared";
-import { ingestManifestSchema } from "@radar/shared";
+import { loadIngestManifestFromDomain } from "@radar/shared/manifest/domains/ingest.loader.js";
 
 const DEFAULT_REL = path.join(".radar", "ingest.manifest.json");
 /** Bundled шаблон с каналами Radar (PF, Russia, RVK, RRPFO) — bootstrap при первом import. */
@@ -51,8 +51,7 @@ export function loadIngestManifest(repoRoot: string): IngestManifest | null {
   if (!abs) {
     return null;
   }
-  const raw: unknown = JSON.parse(fs.readFileSync(abs, "utf8"));
-  return ingestManifestSchema.parse(raw);
+  return loadIngestManifestFromDomain({ repoRoot });
 }
 
 /**

@@ -1,44 +1,48 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { PhaseDefinitionRecord } from "@radar/shared";
+import { DEFAULT_PHASE_POLICY } from "@radar/shared";
 import {
   phaseEnrichersToRun,
   resolvePhaseRunKind,
 } from "./parseWorkspaceRunModes.js";
 
-function phase(partial: Partial<PhaseDefinitionRecord> & Pick<PhaseDefinitionRecord, "enrichers" | "trigger">): PhaseDefinitionRecord {
+function phase(
+  partial: Partial<PhaseDefinitionRecord> &
+    Pick<PhaseDefinitionRecord, "enrichers" | "triggerMode">,
+): PhaseDefinitionRecord {
   return {
     id: "test",
-    name: "test",
     enabled: true,
     order: 1,
-    trigger: partial.trigger,
-    enrichers: partial.enrichers,
+    scope: "ingestParse",
+    policy: DEFAULT_PHASE_POLICY,
     ...partial,
-  } as PhaseDefinitionRecord;
+    updatedAt: new Date().toISOString(),
+  };
 }
 
 test("phaseEnrichersToRun: без catalog", () => {
   assert.deepEqual(phaseEnrichersToRun(["catalog", "llm"]), ["llm"]);
 });
 
-test("resolvePhaseRunKind: eager catalog → rebuild", () => {
+test("resolvePhaseRunKind: event catalog → rebuild", () => {
   assert.equal(
-    resolvePhaseRunKind(phase({ trigger: "eager", enrichers: ["catalog"] })),
+    resolvePhaseRunKind(phase({ triggerMode: "event", enrichers: ["catalog"] })),
     "rebuild",
   );
 });
 
-test("resolvePhaseRunKind: scheduled llm → phase_enrich", () => {
+test("resolvePhaseRunKind: both llm → phase_enrich", () => {
   assert.equal(
-    resolvePhaseRunKind(phase({ trigger: "scheduled", enrichers: ["llm"] })),
+    resolvePhaseRunKind(phase({ triggerMode: "both", enrichers: ["llm"] })),
     "phase_enrich",
   );
 });
 
-test("resolvePhaseRunKind: eager catalog+llm → rebuild", () => {
+test("resolvePhaseRunKind: event catalog+llm → rebuild", () => {
   assert.equal(
-    resolvePhaseRunKind(phase({ trigger: "eager", enrichers: ["catalog", "llm"] })),
+    resolvePhaseRunKind(phase({ triggerMode: "event", enrichers: ["catalog", "llm"] })),
     "rebuild",
   );
 });

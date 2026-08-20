@@ -5,6 +5,7 @@ import { useObservable } from "../../shared/hooks/useObservable";
 import { warningsTimeBuckets } from "../../shared/state/derivations";
 import { stateChanges$ } from "../../shared/state/mapStore";
 import type { StateLevel } from "@radar/shared";
+import type { WidgetProps } from "../widgetProps";
 
 const TREND_LEVELS: StateLevel[] = ["red", "orange", "yellow", "green", "grey"];
 
@@ -14,8 +15,6 @@ function levelBarLabel(level: StateLevel): string {
   if (ru.length <= 4) return ru;
   return ru.slice(0, 3);
 }
-
-import type { WidgetProps } from "../widgetProps";
 
 /** Sparkline событий по времени из warnings (окно до 200 записей). */
 export function LevelTrendWidget({
@@ -49,13 +48,13 @@ export function LevelTrendWidget({
       defaultCollapsed={defaultCollapsed}
       persistenceKey={panelPersistenceKey}
     >
-      <p className="ds-muted" style={{ margin: "0 0 6px", fontSize: 11 }}>
+      <p className="ds-muted" style={{ margin: "0 0 6px", fontSize: 12 }}>
         Окно: {changes.length} записей (макс. 200)
       </p>
-      <Sparkline values={buckets} width={280} height={56} />
+      <Sparkline values={buckets} height={56} />
       {levelBars.length > 0 && (
         <div style={{ marginTop: 10 }}>
-          <BarMini bars={levelBars} width={280} height={56} />
+          <BarMini bars={levelBars} height={56} />
         </div>
       )}
     </Panel>

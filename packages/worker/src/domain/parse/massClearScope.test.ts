@@ -22,6 +22,12 @@ test("isChannelWideMassClearText: RVK массовый отбой", () => {
     ),
     true,
   );
+  assert.equal(
+    isChannelWideMassClearText(
+      "Отбой опасности по БПЛА в ранее объявленых регионах",
+    ),
+    true,
+  );
 });
 
 test("isChannelWideMassClearText: точечный отбой — false", () => {
@@ -29,6 +35,36 @@ test("isChannelWideMassClearText: точечный отбой — false", () => 
     isChannelWideMassClearText("Саратовская область - отбой опасности по БПЛА"),
     false,
   );
+});
+
+test("mass-clear pipeline: ранее объявлен… без «по всем» → system cleared", () => {
+  const placeScan = buildTestPlaceScanService();
+  const result = runParseWorkspaceOrchestrator({
+    rawMessageId: "cccccccc-cccc-cccc-cccc-cccccccccccc",
+    rawText: "Отбой опасности по БПЛА в ранее объявленых регионах",
+    placeScan,
+  });
+  assert.equal(result.kind, "event");
+  if (result.kind !== "event") return;
+
+  const systemCandidate = result.workspace.candidates.find(
+    (c) => c.extras.massClearChannel === true,
+  );
+  assert.ok(systemCandidate);
+  assert.equal(systemCandidate!.anchor.kind, "system");
+  assert.equal(systemCandidate!.eventType, "cleared");
+
+  const plan = planFinalize({
+    workspace: result.workspace,
+    context: {
+      mode: "initial",
+      existingSpawnedIds: [],
+      candidateEventMap: {},
+      orphanPolicy: "deactivate",
+    },
+    postedAt: "2026-06-19T14:00:00.000Z",
+  });
+  assert.equal(plan.materialized.length, 1);
 });
 
 test("extractMassClearExcludeSegment: хвост после «кроме»", () => {

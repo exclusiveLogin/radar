@@ -1,6 +1,8 @@
 import { MONOREPO_ROOT } from "@repo/root";
 import { wipeFullDataStack } from "../application/phases/lifecycle/fullStackWipe.js";
+import { createPhaseOperationalDeps } from "../application/phases/phaseOperationalDeps.js";
 import { createWorkerDataSource } from "../infrastructure/persistence/createWorkerDataSource.js";
+import { TypeOrmOperationalSql } from "../infrastructure/persistence/typeOrmOperationalSql.js";
 import { createWorkerDbRepositories } from "../infrastructure/persistence/workerDbRepos.js";
 import { loadRootEnv } from "../infrastructure/config/loadRootEnv.js";
 import { notifyMapPushSnapshot } from "../infrastructure/notifyMapPushSnapshot.js";
@@ -21,7 +23,7 @@ function printHelp(): void {
        или: npm run system:wipe -- --confirm
 
   Полный wipe контента БД (без конфига ingest/фаз):
-    • raw_messages, parsed_events, parse_attempts, phase_runs, domain_events
+    • mat_ingest_raw, mat_parse_event, log_parse_attempt, log_parse_phase_run, event_outbox
     • ingest cursors/backfill
     • places, place_aliases, geo_feature, place_geo_link, geo_dataset_file, regions
 
@@ -74,14 +76,14 @@ async function main(): Promise<void> {
 
   reporter.log.line("подключение к БД…");
   const dataSource = await createWorkerDataSource();
+  const operationalSql = new TypeOrmOperationalSql(dataSource);
   const repos = await createWorkerDbRepositories(dataSource);
   reporter.log.line("БД — ok");
 
   try {
     if (dryRun) {
       const { steps } = await wipeFullDataStack({
-        dataSource,
-        repos,
+        deps: createPhaseOperationalDeps(operationalSql, repos),
         dryRun: true,
         reporter,
       });
@@ -96,8 +98,7 @@ async function main(): Promise<void> {
     }
 
     const { steps } = await wipeFullDataStack({
-      dataSource,
-      repos,
+      deps: createPhaseOperationalDeps(operationalSql, repos),
       dryRun: false,
       reporter,
       forceLocks,

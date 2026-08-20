@@ -46,10 +46,10 @@ export function TrajectoryTrackRow({ track, selected, onClick }: Props) {
       }}
     >
       <span style={{ width: 8, height: 8, borderRadius: "50%", background: color, flexShrink: 0 }} />
-      <span style={{ fontSize: 11, color: "#e5e7eb", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+      <span style={{ fontSize: 12, color: "#e5e7eb", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
         {label} · {track.nodeCount} нод · {formatTimeShort(track.firstAt)}
       </span>
-      <span style={{ fontSize: 10, color: "#9ca3af", flexShrink: 0 }}>
+      <span style={{ fontSize: 12, color: "#9ca3af", flexShrink: 0 }}>
         {Math.round(track.totalDistanceM / 1000)} км
       </span>
     </button>

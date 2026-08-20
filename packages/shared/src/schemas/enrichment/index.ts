@@ -8,8 +8,12 @@ export {
   PRECISION_RANK,
 } from "./provenance";
 export {
+  DEFAULT_PHASE_TERMINAL_POLICY,
+} from "./phaseTerminalPolicy";
+export {
   enricherIdSchema,
   phaseTriggerSchema,
+  phaseTriggerModeSchema,
   phaseScopeSchema,
   phaseKindSchema,
   enrichStageSchema,
@@ -20,6 +24,9 @@ export {
   phaseDefinitionSchema,
   manualRunScopeSchema,
   LEGACY_PHASE_ID_MAP,
+  legacyTriggerToMode,
+  phaseWakesOnSchedule,
+  phaseWakesOnEvent,
   normalizePhaseManifestEntry,
 } from "./phase";
 export {
@@ -42,6 +49,7 @@ export type {
 export type {
   EnricherId,
   PhaseTrigger,
+  PhaseTriggerMode,
   PhaseScope,
   PhaseKind,
   EnrichStage,

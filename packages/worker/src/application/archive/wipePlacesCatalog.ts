@@ -1,9 +1,8 @@
-import type { DataSource } from "typeorm";
 import { clearOperationalMapState } from "../archive/clearOperationalMapState.js";
 import { clearParsedArtifacts } from "../phases/pipelineOperationalReset.js";
 import { stopAllActivePhaseRuns } from "../phases/stopAllActivePhaseRuns.js";
-import type { WorkerDbRepositories } from "../../infrastructure/persistence/workerDbRepos.types.js";
 import { wipeGeoPlacesPhase } from "../phases/lifecycle/geoPhase.js";
+import type { PhaseOperationalDeps } from "../phases/phaseOperationalDeps.js";
 
 export type WipePlacesCatalogResult = {
   regionsCanonicalCleared: number;
@@ -19,22 +18,19 @@ export type WipePlacesCatalogResult = {
  * Для полного сброса с raw и regions: npm run system:reset -- --confirm
  */
 export async function wipePlacesCatalog(input: {
-  dataSource: DataSource;
-  repos: WorkerDbRepositories;
+  deps: PhaseOperationalDeps;
 }): Promise<WipePlacesCatalogResult> {
-  const { dataSource, repos } = input;
+  const { operationalSql } = input.deps;
 
   await stopAllActivePhaseRuns({
-    dataSource,
-    repos,
+    deps: input.deps,
     reason: "catalog:wipe-places",
   });
-  await clearOperationalMapState(dataSource, "catalog:wipe-places");
-  await clearParsedArtifacts(dataSource);
+  await clearOperationalMapState(operationalSql, "catalog:wipe-places");
+  await clearParsedArtifacts(operationalSql);
 
   const geo = await wipeGeoPlacesPhase({
-    dataSource,
-    repos,
+    deps: input.deps,
     dryRun: false,
   });
 

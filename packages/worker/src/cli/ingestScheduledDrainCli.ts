@@ -1,47 +1,34 @@
 import { MONOREPO_ROOT } from "@repo/root";
+import { createStepRunRequestedEvent, topicForKnownEventType } from "@radar/shared";
 import { createWorkerCompositionRoot } from "../application/createWorkerCompositionRoot.js";
 import { loadRootEnv } from "../infrastructure/config/loadRootEnv.js";
-import { WorkerStorageMode } from "../infrastructure/persistence/storageMode.js";
+import { cliWorkerRuntime } from "./cliWorkerRuntime.js";
 import { parseLongFlagsMap, readStringFlag } from "./workerCliArgs.js";
 
-/** One-shot drain scheduled ingestParse (как тик IngestParseDaemon). */
+/** Публикует StepRunRequested для parse (опционально --phase только для лога). */
 async function main(): Promise<void> {
   loadRootEnv(MONOREPO_ROOT);
   const phaseFilter = readStringFlag(parseLongFlagsMap(process.argv), ["phase"])?.trim();
 
-  const runtime = await createWorkerCompositionRoot({
-    storageMode: WorkerStorageMode.Db,
-    startIngestParseDaemon: false,
+  const runtime = await createWorkerCompositionRoot(cliWorkerRuntime("parse", ["parse"]));
+  if (!runtime.eventTransport) {
+    throw new Error("parse-engine:ingest:drain: требуется db mode + transport");
+  }
+
+  const event = createStepRunRequestedEvent({
+    stepId: "parse",
+    lane: "manual",
   });
-  if (!runtime.workerRepos || !runtime.phaseRunner) {
-    throw new Error("parse-engine:ingest:drain: требуется db mode");
-  }
+  const topic = topicForKnownEventType(event.type);
+  if (!topic) throw new Error("StepRunRequested topic missing");
 
-  let phases = await runtime.workerRepos.phaseDefinitions.listEnabled(
-    "scheduled",
-    "ingestParse",
+  await runtime.eventTransport.start();
+  await runtime.eventTransport.publish(topic, [event]);
+  console.log(
+    `ingest drain: StepRunRequested step=parse event=${event.id}${
+      phaseFilter ? ` (phase filter note=${phaseFilter})` : ""
+    }`,
   );
-  if (phaseFilter) {
-    phases = phases.filter((phase) => phase.id === phaseFilter);
-    if (phases.length === 0) {
-      throw new Error(`scheduled ingestParse фаза '${phaseFilter}' не найдена`);
-    }
-  }
-
-  for (const phase of phases) {
-    const run = await runtime.workerRepos.phaseRuns.create({
-      phaseId: phase.id,
-      trigger: "manual",
-    });
-    await runtime.phaseRunner.runDrain({
-      phase,
-      runId: run.id,
-      trigger: "manual",
-      batchSize: phase.policy.batchSize,
-    });
-    console.log(`ingest drained phase=${phase.id}`);
-  }
-
   await runtime.shutdown?.();
 }
 

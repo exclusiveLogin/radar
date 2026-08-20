@@ -13,7 +13,7 @@ function readString(payload: Record<string, unknown>, key: string): string | nul
 }
 
 /**
- * Пишет технический след парсинга в parse_attempts по событиям шины:
+ * Пишет технический след парсинга в log_parse_attempt по событиям шины:
  * - `MessageParsed` → ok
  * - `MessageParseFailed` с `outcome=failed` → failed (реальная ошибка парсера)
  * - прочие `MessageParseFailed` (не событие) → skipped

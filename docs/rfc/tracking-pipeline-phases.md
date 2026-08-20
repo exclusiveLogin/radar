@@ -20,7 +20,7 @@
 
 ## Фаза 1 — MVP пайплайн
 
-**Цель:** из хаотичных `event_locations` получить материализованные треки и фильтруемую теплокарту.
+**Цель:** из хаотичных `mat_parse_location` получить материализованные треки и фильтруемую теплокарту.
 
 **Порядок внутри фазы строгий** (см. [sdd/tracking/plan.md](../sdd/tracking/plan.md) §1.2):
 
@@ -42,7 +42,7 @@
 - Worker материализует треки в БД из исторических facts
 - API отдаёт GeoJSON/JSON треков с nodes и velocity
 - Heatmap фильтруется по `event_type` / `eventCategory`
-- `npm run typecheck` и `npm run lint` зелёные
+- `npm run typecheck` и `npm run lint` зелёные
 - **Без** UI слоя треков и Deck.gl
 
 **Коммит:** отдельный, только tracking MVP backend + heatmap filter.
@@ -70,7 +70,7 @@
 
 ## Фаза 2b — Flow-коридоры (P2P rollup)
 
-**Критерий входа:** фаза 1 в проде, `trajectory_nodes.place_id` заполнен на kinematic nodes.
+**Критерий входа:** фаза 1 в проде, `mat_track_node.place_id` заполнен на kinematic nodes.
 
 - [ADR-013](../adr-013-trajectory-flow-and-path-fan.md) — L2 read projection
 - [Feature-008](../features/tracking-flow-corridors.md) — UI width encoding
@@ -146,7 +146,7 @@
 ## Вне фаз (параллельно)
 
 - Auth на новые map endpoints (если потребуется)
-- PostGIS для spatial index на `trajectory_nodes` (оптимизация, не блокер MVP)
+- PostGIS для spatial index на `mat_track_node` (оптимизация, не блокер MVP)
 - Realtime Kalman на write-line parse — **явно out of scope** (см. ADR-007)
 
 Каждая — свой коммит, не смешивать с фазами tracking pipeline.

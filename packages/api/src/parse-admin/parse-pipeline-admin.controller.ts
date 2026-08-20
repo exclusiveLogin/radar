@@ -8,20 +8,24 @@ export class ParsePipelineAdminController {
   constructor(private readonly parsePipeline: ParsePipelineAdminService) {}
 
   @Get("status")
-  @ApiOperation({ summary: "Статус reset/reparse (прогресс фоновой CLI)" })
+  @ApiOperation({ summary: "Статус parse rebuild (wipe CLI + очередь catch-up)" })
   getStatus() {
     return this.parsePipeline.getStatus();
   }
 
-  @Post("reset")
-  @ApiOperation({ summary: "Операционный сброс parsed (pipeline reset)" })
-  reset() {
-    return this.parsePipeline.startReset();
+  @Post("rebuild")
+  @ApiOperation({
+    summary: "Parse rebuild: stop → wipe parsed → enqueue catch-up",
+  })
+  rebuild() {
+    return this.parsePipeline.startRebuild();
   }
 
-  @Post("reparse")
-  @ApiOperation({ summary: "Полный reparse + drain scheduled (parse run)" })
-  reparse() {
-    return this.parsePipeline.startReparse();
+  @Post("release-stuck")
+  @ApiOperation({
+    summary: "Вернуть зависшие processing → pending (claim'ы упавшего worker)",
+  })
+  releaseStuck() {
+    return this.parsePipeline.releaseStuckProcessing();
   }
 }

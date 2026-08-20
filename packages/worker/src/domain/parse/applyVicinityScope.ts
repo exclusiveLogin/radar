@@ -8,7 +8,6 @@ import type {
 import { canonicalRegionCode } from "@radar/shared";
 import { distanceKm } from "../geo/coordRegionReconcile.js";
 import { resolveAttachTargets } from "./attachRule.js";
-import { listActiveCandidates } from "./parseProcessorContract.js";
 import { resolveEventTypeForCandidate } from "./resolveEventTypeForCandidate.js";
 
 export const DEFAULT_VICINITY_RADIUS_M = 5000;

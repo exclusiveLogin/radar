@@ -1,3 +1,5 @@
+﻿> **Имена таблиц:** актуальные — [database-table-naming.md](./database-table-naming.md). Ниже — исторический контекст.
+
 # ADR-006: Write-line facts, read-line fold от курсора времени
 
 ## Контекст
@@ -15,11 +17,11 @@ region/place, stale-флаги и зависимость от времени rep
 
 Append-only цепочка:
 
-- `raw_messages` (`posted_at`)
-- `parsed_events`
-- `event_locations` (`occurred_at` = postedAt публикации)
+- `mat_ingest_raw` (`posted_at`)
+- `mat_parse_event`
+- `mat_parse_location` (`occurred_at` = postedAt публикации)
 
-Идемпотентность ingest/parse — по hash и identity сообщения.
+Рдемпотентность ingest/parse — по hash и identity сообщения.
 **Статусы на write-line не хранятся.**
 
 Коррекция сообщения (edit/revision) — **новый raw + parse**, тот же `posted_at`;
@@ -31,7 +33,8 @@ fold на read-side выбирает winner (clear бьёт raise при том 
 snapshot(asOf, policies) = foldMapState(facts where occurred_at <= asOf)
 ```
 
-- `asOf` по умолчанию `now`; UI — ползунок таймлайна (`MapTimelineBar`)
+- `asOf` по умолчанию 
+ow`; UI — ползунок таймлайна (`MapTimelineBar`)
 - TTL 24h: факт вне окна `(asOf - TTL, asOf]` не участвует в fold
 - Fade 3h: на фронте от `statusEventAt` (= winner `occurred_at`)
 - Place suppress: региональный clear новее place raise (см. `isPlaceSuppressedByRegionClear`)
@@ -48,11 +51,13 @@ SSOT загрузки фактов: `packages/shared/src/domain/region-state/map
 
 ## API
 
-| Endpoint | Источник |
+| Endpoint | Рсточник |
 |----------|----------|
-| `GET /map/snapshot` | fold на `now` |
+| `GET /map/snapshot` | fold на 
+ow` |
 | `GET /map/snapshot?asOf=ISO` | fold на маркер времени (таймлайн) |
-| `GET /map/snapshot?since=ISO` | fold на `now`, фильтр по `statusEventAt > since` |
+| `GET /map/snapshot?since=ISO` | fold на 
+ow`, фильтр по `statusEventAt > since` |
 
 `since` и `asOf` взаимоисключающие.
 
@@ -72,9 +77,10 @@ Fold остаётся SSOT правил; transport разделён на нез�
 
 **Poller:** regions fold каждые 1s, places fold каждые 3s; WS seed — regions-only (`places: []`).
 
-Индексы read-path: `event_locations(occurred_at)`, `(raise, occurred_at)`, `raw_messages(posted_at)`.
+Рндексы read-path: `mat_parse_location(occurred_at)`, `(raise, occurred_at)`, `mat_ingest_raw(posted_at)`.
 
 ## Вне scope ADR
 
 - Raw semantic dedup cross-channel (`posted_at` + normalized text)
-- Переименование `parsed_events.parsed_at` → `posted_at` в схеме БД
+- Переименование `mat_parse_event.parsed_at` → `posted_at` в схеме БД
+

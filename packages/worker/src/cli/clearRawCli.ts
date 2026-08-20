@@ -5,19 +5,20 @@ import {
   ClearRawArchiveBlockedError,
 } from "../application/archive/clearRawArchive.js";
 import { stopAllActivePhaseRuns } from "../application/phases/stopAllActivePhaseRuns.js";
+import { createPhaseOperationalDeps } from "../application/phases/phaseOperationalDeps.js";
 import { createWorkerCompositionRoot } from "../application/createWorkerCompositionRoot.js";
 import { loadRootEnv } from "../infrastructure/config/loadRootEnv.js";
-import { WorkerStorageMode } from "../infrastructure/persistence/storageMode.js";
+import { cliWorkerRuntime } from "./cliWorkerRuntime.js";
 import { hasAnyFlag, parseLongFlagsMap } from "./workerCliArgs.js";
 
 function printPlan(): void {
   console.log(`
-parse-engine:clear:raw — удаление архива raw_messages:
+parse-engine:clear:raw — удаление архива mat_ingest_raw:
 
-  • phase_runs активные — cancel (безопасность)
-  • DELETE raw_messages (CASCADE: raw_message_telegram, phase_coverage)
+  • log_parse_phase_run активные — cancel (безопасность)
+  • DELETE mat_ingest_raw (CASCADE: mat_ingest_raw_tg, queue_parse_coverage)
 
-Требует пустых parsed_events и parse_attempts.
+Требует пустых mat_parse_event и log_parse_attempt.
 Если есть события: npm run parse-engine:reset  или  parse-engine:clear:raw -- --with-pipeline
 `);
 }
@@ -36,18 +37,15 @@ async function main(): Promise<void> {
 
   printPlan();
 
-  const runtime = await createWorkerCompositionRoot({
-    storageMode: WorkerStorageMode.Db,
-    startIngestParseDaemon: false,
-  });
-  if (!runtime.dataSource || !runtime.workerRepos) {
+  const runtime = await createWorkerCompositionRoot(cliWorkerRuntime("parse", ["ingest", "parse"]));
+  if (!runtime.operationalSql || !runtime.workerRepos) {
     console.error("clear:raw: нужен RADAR_STORAGE_MODE=db и DATABASE_URL");
     process.exit(1);
   }
 
-  const before = await countRawArchiveBlockers(runtime.dataSource);
+  const before = await countRawArchiveBlockers(runtime.operationalSql);
   console.log(
-    `До: raw=${before.rawMessages} parsed_events=${before.parsedEvents} parse_attempts=${before.parseAttempts}`,
+    `До: raw=${before.rawMessages} mat_parse_event=${before.parsedEvents} log_parse_attempt=${before.parseAttempts}`,
   );
 
   if (dryRun) {
@@ -62,25 +60,22 @@ async function main(): Promise<void> {
     );
     console.log("parse-engine:clear:raw: сначала parse-engine:reset…");
     await stopAllActivePhaseRuns({
-      dataSource: runtime.dataSource,
-      repos: runtime.workerRepos,
+      deps: createPhaseOperationalDeps(runtime.operationalSql, runtime.workerRepos),
       reason: "clear:raw",
     });
     await runPipelineOperationalReset({
-      dataSource: runtime.dataSource,
-      repos: runtime.workerRepos,
+      deps: createPhaseOperationalDeps(runtime.operationalSql, runtime.workerRepos),
       enqueueCatchUp: false,
     });
   }
 
   try {
     await stopAllActivePhaseRuns({
-      dataSource: runtime.dataSource,
-      repos: runtime.workerRepos,
+      deps: createPhaseOperationalDeps(runtime.operationalSql, runtime.workerRepos),
       reason: "clear:raw",
     });
-    const result = await clearRawArchive(runtime.dataSource);
-    console.log(`\nУдалено raw_messages: ${result.rawMessagesDeleted}`);
+    const result = await clearRawArchive(runtime.operationalSql);
+    console.log(`\nУдалено mat_ingest_raw: ${result.rawMessagesDeleted}`);
   } catch (err) {
     if (err instanceof ClearRawArchiveBlockedError) {
       console.error(err.message);

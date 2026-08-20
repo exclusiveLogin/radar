@@ -10,6 +10,10 @@ const apiProxyTarget = process.env.VITE_DEV_PROXY_API ?? "http://127.0.0.1:3000"
 const tilesProxyTarget =
   process.env.VITE_DEV_PROXY_TILES ?? "http://127.0.0.1:8081";
 const apiWsTarget = apiProxyTarget.replace(/^http/, "ws");
+const watchInterval = Math.max(
+  100,
+  Number.parseInt(process.env.CHOKIDAR_INTERVAL ?? "1000", 10) || 1000,
+);
 
 /** Прокси /tiles → TileServer (dev + preview). */
 const tilesProxy = {
@@ -33,6 +37,10 @@ export default defineConfig({
     host: true,
     port: 5173,
     strictPort: true,
+    watch: {
+      usePolling: process.env.CHOKIDAR_USEPOLLING === "1",
+      interval: watchInterval,
+    },
     /**
      * CloudPub: каждая сессия — новый xxx.cloudpub.ru.
      * Vite 6 без этого режет Host («Blocked request»). URL в .env не нужен.

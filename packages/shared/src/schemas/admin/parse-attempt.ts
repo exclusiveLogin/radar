@@ -4,7 +4,7 @@
  * kind: schema
  * domain: admin
  * tooling: zod
- * purpose: Контракт строки parse_attempts для лога парсинга в админке/realtime.
+ * purpose: Контракт строки log_parse_attempt для лога парсинга в админке/realtime.
  * ---
  */
 import { z } from "zod";

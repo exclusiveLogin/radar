@@ -1,9 +1,12 @@
 import { z } from "zod";
 import type { ILlmChatClient } from "@radar/shared";
+import { eventSubjectSchema, geoEventCategorySchema } from "@radar/shared";
 import { LLM_GEOCODER_SYSTEM_PROMPT } from "./llmGeocoderSystemPrompt.js";
 import { createLlmChatClient } from "./llmChatClient.js";
 import type { LlmRuntimeConfig } from "./llmRuntimeConfig.js";
 import { normalizeLlmConfidence } from "./normalizeLlmConfidence.js";
+import type { LlmOpResult } from "../../domain/parse/geo/llmOpResult.js";
+import type { ILlmMetricsRecorder } from "../metrics/prometheusLlmMetricsRecorder.js";
 
 // ─── Response schema (multi-place) ────────────────────────────────────────
 
@@ -27,22 +30,16 @@ const llmResponseSchema = z.object({
   regionCode: z.string().min(1).nullable().catch(null).optional(),
   confidence: z.preprocess(normalizeLlmConfidence, z.number().min(0).max(1)),
   reason: z.string().max(400).nullable().catch("").transform((v) => v ?? ""),
-  /** Семантическая группа события (сигнал, не подменяет классификатор). */
-  eventCategory: z
-    .enum(["threat", "impact", "all_clear", "movement", "other"])
-    .nullable()
-    .catch(null)
-    .optional(),
+  /** Семантическая группа события — SSOT geoEventCategorySchema, без silent catch. */
+  eventCategory: geoEventCategorySchema.nullable().optional(),
   /** Субъект угрозы по версии LLM (опциональный сигнал). */
-  eventSubject: z
-    .enum(["drone", "rocket", "mws", "aviation", "other"])
-    .nullable()
-    .catch(null)
-    .optional(),
+  eventSubject: eventSubjectSchema.nullable().optional(),
 });
 
 export type LlmGeoResponse = z.infer<typeof llmResponseSchema>;
 export type LlmGeoPlace = z.infer<typeof llmPlaceSchema>;
+
+export type LlmEnrichOk = LlmGeoResponse & { model: string; latencyMs: number };
 
 function unwrapJsonPayload(value: string): string {
   const trimmed = value.trim();
@@ -58,10 +55,18 @@ export class LlmEnricher {
   constructor(
     private readonly config: LlmRuntimeConfig,
     client?: ILlmChatClient,
+    private readonly metrics?: ILlmMetricsRecorder,
   ) {
     this.client = client ?? createLlmChatClient(config);
   }
-async enrich(input: {
+
+  /** Фиксирует исход вызова в Prometheus (если recorder передан из composition). */
+  private finish(startedAt: number, result: LlmOpResult<LlmEnrichOk>): LlmOpResult<LlmEnrichOk> {
+    this.metrics?.record("llm", result.ok ? "ok" : result.reason, Date.now() - startedAt);
+    return result;
+  }
+
+  async enrich(input: {
     rawText: string;
     regionCode?: string;
     catalogRegions?: Array<{ code: string; name: string }>;
@@ -83,10 +88,12 @@ async enrich(input: {
       precision?: string;
     }>;
     knownRegionCodes?: string[];
-  }): Promise<(LlmGeoResponse & { model: string; latencyMs: number }) | null> {
-    if (!this.config.enabled) return null;
+  }): Promise<LlmOpResult<LlmEnrichOk>> {
+    const startedAt = Date.now();
+    if (!this.config.enabled) return this.finish(startedAt, { ok: false, reason: "disabled" });
 
     const attempts = Math.max(1, this.config.retryCount + 1);
+    let lastFail: "transport" | "json" | "schema" = "transport";
 
     const userPayload = JSON.stringify({
       rawText: input.rawText,
@@ -140,14 +147,18 @@ async enrich(input: {
           parsedJson = JSON.parse(unwrapJsonPayload(result.content));
         } catch (parseErr) {
           process.stderr.write(`[llm] JSON parse failed: ${String(parseErr)}\n`);
-          if (attempt >= attempts) return null;
+          lastFail = "json";
+          if (attempt >= attempts) return this.finish(startedAt, { ok: false, reason: "json" });
           continue;
         }
 
         const parsed = llmResponseSchema.safeParse(parsedJson);
         if (!parsed.success) {
-          process.stderr.write(`[llm] schema validation failed: ${JSON.stringify(parsed.error.issues)}\n`);
-          if (attempt >= attempts) return null;
+          process.stderr.write(
+            `[llm] schema validation failed: ${JSON.stringify(parsed.error.issues)}\n`,
+          );
+          lastFail = "schema";
+          if (attempt >= attempts) return this.finish(startedAt, { ok: false, reason: "schema" });
           continue;
         }
 
@@ -155,24 +166,28 @@ async enrich(input: {
         const hasSignal = data.places.length > 0 || Boolean(data.regionCode);
         if (!hasSignal) {
           process.stderr.write(`[llm] no signal\n`);
-          return null;
+          return this.finish(startedAt, { ok: false, reason: "no-signal" });
         }
 
         process.stderr.write(
           `[llm] ok — ${result.latencyMs}ms places=${data.places.length} confidence=${data.confidence}\n`,
         );
-        return { ...data, model: result.model, latencyMs: result.latencyMs };
+        return this.finish(startedAt, {
+          ok: true,
+          data: { ...data, model: result.model, latencyMs: result.latencyMs },
+        });
       } catch (err) {
         const isAbort = err instanceof Error && err.name === "AbortError";
         process.stderr.write(
           `[llm] ${isAbort ? "timeout" : "error"} attempt ${attempt}/${attempts}: ${err instanceof Error ? err.message : String(err)}\n`,
         );
-        if (attempt >= attempts) return null;
+        lastFail = "transport";
+        if (attempt >= attempts) return this.finish(startedAt, { ok: false, reason: "transport" });
       } finally {
         clearTimeout(timer);
       }
     }
 
-    return null;
+    return this.finish(startedAt, { ok: false, reason: lastFail });
   }
 }

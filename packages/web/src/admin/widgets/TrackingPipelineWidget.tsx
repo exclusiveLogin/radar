@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react";
+import { NEXTGEN_RECOMMENDED_BATCH_SIZE } from "@radar/shared";
 import { Button, Field, Panel } from "../../shared/ds";
 import { useObservable } from "../../shared/hooks/useObservable";
 import { adminApi } from "../../shared/api/adminApi";
 import { refreshTrackingStatus, trackingStatus$ } from "../../shared/state/adminStore";
 import { reportAppError } from "../../shared/state/appLogStore";
 
-/** Master-контроль пайплайна треков: ВКЛ/ВЫКЛ, pause/resume, rebuild, reset. */
-type PendingAction = "enabled" | "config" | "pause" | "resume" | "rebuild" | "soft" | "reset";
+/** Master-контроль пайплайна треков: ВКЛ/ВЫКЛ, pause/resume и rebuild. */
+type PendingAction = "enabled" | "config" | "pause" | "resume" | "rebuild";
 
 const CLIENT_TIMEOUT_MS = 90_000;
 
@@ -29,21 +30,7 @@ export function TrackingPipelineWidget() {
     if (v != null) setBatchSize(String(v));
   }, [status?.config?.batchSize]);
 
-  const runStats = status?.activeRun?.stats ?? status?.lastRun?.stats;
   const activeRun = status?.activeRun;
-  const phase2PairsConsidered = runStats?.phase2PairsConsidered ?? 0;
-  const phase2PairsAccepted = runStats?.phase2PairsAccepted ?? 0;
-  const phase2PairsRejectedByKinematics = runStats?.phase2PairsRejectedByKinematics ?? 0;
-  const phase2ReliabilityAvg = runStats?.phase2ReliabilityAvg;
-  const phase2ReliabilityP95 = runStats?.phase2ReliabilityP95;
-  const phase3LinksConsidered = runStats?.phase3LinksConsidered ?? 0;
-  const phase3LinksAccepted = runStats?.phase3LinksAccepted ?? 0;
-  const phase3NodesSeeded = runStats?.phase3NodesSeeded ?? 0;
-  const phase3RejectKalmanInnovation = runStats?.phase3RejectKalmanInnovation ?? 0;
-  const phase3RejectCounterFlow = runStats?.phase3RejectCounterFlow ?? 0;
-  const phase3RejectTurn = runStats?.phase3RejectTurn ?? 0;
-  const phase3RejectDistance = runStats?.phase3RejectDistance ?? 0;
-  const phase3RejectVelocity = runStats?.phase3RejectVelocity ?? 0;
 
   const run = async (kind: PendingAction, action: () => Promise<unknown>) => {
     setPending(kind);
@@ -102,7 +89,7 @@ export function TrackingPipelineWidget() {
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))",
+            gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 140px), 1fr))",
             gap: 8,
             marginBottom: 10,
             fontSize: 12,
@@ -194,7 +181,7 @@ export function TrackingPipelineWidget() {
         </Field>
         <Button
           variant="ghost"
-          disabled={controlsLocked}
+          disabled={controlsLocked || !status?.rebuildRequired}
           onClick={() =>
             void run("config", async () => {
               const n = Number(batchSize);
@@ -217,39 +204,23 @@ export function TrackingPipelineWidget() {
                 : ""}
               {" · "}очередь{" "}
               {status.metrics?.unconsumedPipeline?.toLocaleString("ru-RU") ?? "—"}
-              {" · "}closure{" "}
-              {status.metrics?.dedupClosureSize?.toLocaleString("ru-RU") ?? "—"}
+              {" · "}window{" "}
+              {status.metrics?.candidateWindowSize?.toLocaleString("ru-RU") ?? "—"}
               {activeRun?.stats?.stage && activeRun.stats.stage !== "idle" && (
                 <> · стадия: {activeRun.stats.stage}</>
               )}
+              {" · "}разбивка по фазам — в блоке «Прогресс по фазам» ниже
             </span>
-            {phase2PairsConsidered > 0 && (
-              <span>
-                {" · "}Ф2 пары: {phase2PairsAccepted.toLocaleString("ru-RU")}
-                /{phase2PairsConsidered.toLocaleString("ru-RU")}
-                {" · "}кинематика reject: {phase2PairsRejectedByKinematics.toLocaleString("ru-RU")}
-                {phase2ReliabilityAvg != null && (
-                  <>{" · "}rel avg: {(phase2ReliabilityAvg * 100).toFixed(1)}%</>
-                )}
-                {phase2ReliabilityP95 != null && (
-                  <>{" · "}rel p95: {(phase2ReliabilityP95 * 100).toFixed(1)}%</>
-                )}
-              </span>
-            )}
-            {phase3LinksConsidered > 0 && (
-              <span>
-                {" · "}Ф3 links: {phase3LinksAccepted.toLocaleString("ru-RU")}
-                /{phase3LinksConsidered.toLocaleString("ru-RU")}
-                {" · "}seed: {phase3NodesSeeded.toLocaleString("ru-RU")}
-                {" · "}rej kalman: {phase3RejectKalmanInnovation.toLocaleString("ru-RU")}
-                {" · "}rej flow: {phase3RejectCounterFlow.toLocaleString("ru-RU")}
-                {" · "}rej turn: {phase3RejectTurn.toLocaleString("ru-RU")}
-                {" · "}rej dist/vel: {(phase3RejectDistance + phase3RejectVelocity).toLocaleString("ru-RU")}
-              </span>
-            )}
           </div>
         )}
       </div>
+      {Number(batchSize) > NEXTGEN_RECOMMENDED_BATCH_SIZE && (
+        <p style={{ fontSize: 11, color: "var(--warning, #c9a227)", marginTop: 6 }}>
+          ⚠️ Выше рекомендованных {NEXTGEN_RECOMMENDED_BATCH_SIZE}: фазы Cluster/Join (кластеризация +
+          Kalman-join) — O(n²) по кандидатам и Kalman × открытые треки, время/стоимость тика на большем
+          объёме не валидированы. Настройка применяется как есть — сначала проверьте на тесте.
+        </p>
+      )}
       {status?.watermark && (
         <p style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 6 }}>
           Watermark: {status.watermark.lastOccurredAt}
@@ -265,6 +236,11 @@ export function TrackingPipelineWidget() {
           Ошибка run: {status.lastRun.error}
         </p>
       )}
+      {status?.rebuildRequired && (
+        <p style={{ fontSize: 11, color: "var(--warning)", marginTop: 6 }}>
+          Настройки изменены. Нажмите «Перестроить», чтобы применить их к текущим трекам.
+        </p>
+      )}
       <div style={{ display: "flex", gap: 6, marginTop: 10, flexWrap: "wrap" }}>
         <Button variant="ghost" disabled={controlsLocked || !canPause} onClick={() => void run("pause", () => adminApi.trackingPause())}>
           Pause
@@ -276,37 +252,11 @@ export function TrackingPipelineWidget() {
           variant="ghost"
           disabled={controlsLocked}
           onClick={() => {
-            if (!window.confirm("Full rebuild: truncate + catch-up?")) return;
+            if (!window.confirm("Перестроить tracking: очистить derived state и запустить bounded drain?")) return;
             void run("rebuild", () => adminApi.trackingRebuild());
           }}
         >
-          Rebuild
-        </Button>
-        <Button
-          variant="ghost"
-          disabled={controlsLocked}
-          onClick={() => {
-            if (
-              !window.confirm(
-                "Soft rebuild: удалить треки и заново прогнать те же точки с текущим config (веса не сбрасываются)?",
-              )
-            ) {
-              return;
-            }
-            void run("soft", () => adminApi.trackingSoftRebuild());
-          }}
-        >
-          Soft rebuild
-        </Button>
-        <Button
-          variant="danger"
-          disabled={controlsLocked}
-          onClick={() => {
-            if (!window.confirm("Reset watermark и truncate треков?")) return;
-            void run("reset", () => adminApi.trackingReset());
-          }}
-        >
-          Reset
+          Перестроить
         </Button>
       </div>
     </Panel>

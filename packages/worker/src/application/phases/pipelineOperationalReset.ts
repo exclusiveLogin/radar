@@ -1,28 +1,46 @@
-import type { DataSource } from "typeorm";
-import type { WorkerDbRepositories } from "../../infrastructure/persistence/workerDbRepos.types.js";
-import { truncateTableCounted } from "../archive/wipeTableSql.js";
+import { waitForTableLocksIdle } from "../archive/waitForTableLocksIdle.js";
+import {
+  truncateTableCounted,
+  WipeTableLockError,
+  type TruncateOptions,
+} from "../archive/wipeTableSql.js";
 import { MapStateFullReset } from "../map-state/mapStateFullReset.js";
 import { sortPhasesByOrder } from "./phaseOrder.js";
+import type { PhaseOperationalDeps } from "./phaseOperationalDeps.js";
+import type { OperationalSql } from "./operationalSql.port.js";
+import { withSoftTruncateRetry } from "./softTruncateRetry.js";
 import { stopAllActivePhaseRuns } from "./stopAllActivePhaseRuns.js";
 
 export const PIPELINE_RESET_REASON = "pipeline:operational-reset";
 
-/** TRUNCATE message_parse_workspace + parsed_events (+ CASCADE). Контур rebuild/reparse. @see ../parse/parseWorkspaceRunModes.ts */
+const SOFT_TRUNCATE_LOCK_TIMEOUT_MS = 5_000;
+const SOFT_IDLE_WAIT_MS = 30_000;
+const PARSE_RESET_TABLES = [
+  "work_parse_message",
+  "mat_parse_event",
+  "mat_parse_location",
+  "log_parse_attempt",
+] as const;
+
+/** TRUNCATE work_parse_message + mat_parse_event (+ CASCADE). Контур rebuild/reparse. @see ../parse/parseWorkspaceRunModes.ts */
 export async function clearParseLayerArtifacts(
-  dataSource: DataSource,
-  options: { forceLocks?: boolean } = {},
+  sql: OperationalSql,
+  options: { forceLocks?: boolean; lockTimeoutMs?: number } = {},
 ): Promise<{
   workspacesDeleted: number;
   parsedEventsDeleted: number;
 }> {
   const forceLocks = options.forceLocks !== false;
-  const truncateOpts = { forceLocks };
+  const truncateOpts: TruncateOptions = {
+    forceLocks,
+    lockTimeoutMs: options.lockTimeoutMs,
+  };
   const workspacesDeleted = await truncateTableCounted(
-    dataSource,
-    "message_parse_workspace",
+    sql,
+    "work_parse_message",
     truncateOpts,
   );
-  const parsedEventsDeleted = await truncateTableCounted(dataSource, "parsed_events", {
+  const parsedEventsDeleted = await truncateTableCounted(sql, "mat_parse_event", {
     cascade: true,
     ...truncateOpts,
   });
@@ -30,14 +48,13 @@ export async function clearParseLayerArtifacts(
 }
 
 /** @deprecated Используйте clearParseLayerArtifacts */
-export async function clearParsedArtifacts(dataSource: DataSource): Promise<number> {
-  const result = await clearParseLayerArtifacts(dataSource);
+export async function clearParsedArtifacts(sql: OperationalSql): Promise<number> {
+  const result = await clearParseLayerArtifacts(sql);
   return result.parsedEventsDeleted;
 }
 
 export type PipelineOperationalResetInput = {
-  dataSource: DataSource;
-  repos: WorkerDbRepositories;
+  deps: PhaseOperationalDeps;
   /** После сброса — pending catch-up для enabled eager+scheduled (для worker:dev). */
   enqueueCatchUp?: boolean;
   /** По умолчанию true; false — не рвать dev/API сессии (запуск из админки). */
@@ -57,48 +74,71 @@ export type PipelineOperationalResetResult = {
 
 /**
  * Сброс операционного слоя: карта, parsed, очереди фаз, зависшие runs.
- * Не трогает: raw_messages, ingest_*, channels, places/regions (справочник), phase_definitions.
+ * Не трогает: mat_ingest_raw, ingest_*, channels, places/regions (справочник), phase_definitions.
  */
 export async function runPipelineOperationalReset(
   input: PipelineOperationalResetInput,
 ): Promise<PipelineOperationalResetResult> {
-  const { dataSource, repos } = input;
-  const truncateOpts = { forceLocks: input.forceLocks !== false };
+  const { operationalSql } = input.deps;
+  const forceLocks = input.forceLocks !== false;
+  const truncateOpts: TruncateOptions = {
+    forceLocks,
+    lockTimeoutMs: forceLocks ? undefined : SOFT_TRUNCATE_LOCK_TIMEOUT_MS,
+  };
+
+  // Сначала закрываем active runs: иначе worker держит lock на parse-таблицах при TRUNCATE.
+  const { phaseRunsClosed, processingReleased: coverageProcessingToPending } =
+    await stopAllActivePhaseRuns({
+      deps: input.deps,
+      reason: PIPELINE_RESET_REASON,
+    });
+
+  // Не зовём terminateOtherDatabaseBackends здесь: admin-rebuild идёт при живом API,
+  // ядерный terminate валит Nest-пул → контейнер рестартится (vite ECONNREFUSED).
+  // forceLocks-retry в truncateTables рвёт только блокеров таблиц / escalate точечно.
 
   const mapReset = new MapStateFullReset({
-    dataSource,
+    operationalSql,
   });
   const map = await mapReset.run(new Date(), PIPELINE_RESET_REASON);
 
-  const { parsedEventsDeleted } = await clearParseLayerArtifacts(dataSource, truncateOpts);
-  const parseAttemptsDeleted = await truncateTableCounted(
-    dataSource,
-    "parse_attempts",
-    truncateOpts,
+  if (!forceLocks) {
+    // Best-effort: не валим wipe, если краткий SELECT ещё висит — дальше soft-retry TRUNCATE.
+    try {
+      await waitForTableLocksIdle(operationalSql, [...PARSE_RESET_TABLES], {
+        timeoutMs: SOFT_IDLE_WAIT_MS,
+      });
+    } catch (error) {
+      if (!(error instanceof WipeTableLockError)) throw error;
+      console.warn(
+        `[pipeline-reset] tables still locked after ${SOFT_IDLE_WAIT_MS}ms — continue soft truncate`,
+        error.message,
+      );
+    }
+  }
+
+  const { parsedEventsDeleted } = await withSoftTruncateRetry(forceLocks, () =>
+    clearParseLayerArtifacts(operationalSql, truncateOpts),
+  );
+  const parseAttemptsDeleted = await withSoftTruncateRetry(forceLocks, () =>
+    truncateTableCounted(operationalSql, "log_parse_attempt", truncateOpts),
   );
 
-  const allPhaseIds = (await repos.phaseDefinitions.listAll()).map((p) => p.id);
+  const allPhaseIds = (await input.deps.phaseDefinitions.listAll()).map((p) => p.id);
   const coverageInvalidated =
     allPhaseIds.length > 0
-      ? await repos.phaseCoverage.invalidateForPhases(allPhaseIds)
+      ? await input.deps.phaseCoverage.invalidateForPhases(allPhaseIds)
       : 0;
-
-  const { phaseRunsClosed, processingReleased: coverageProcessingToPending } =
-    await stopAllActivePhaseRuns({
-      dataSource,
-      repos,
-      reason: PIPELINE_RESET_REASON,
-    });
 
   const catchUpByPhase: Record<string, number> = {};
   if (input.enqueueCatchUp !== false) {
     const enabledAuto = sortPhasesByOrder(
-      (await repos.phaseDefinitions.listEnabled(undefined, "ingestParse")).filter(
-        (p) => p.trigger === "eager" || p.trigger === "scheduled",
+      (await input.deps.phaseDefinitions.listEnabled(undefined, "ingestParse")).filter(
+        (p) => p.triggerMode !== "manual",
       ),
     );
     for (const phase of enabledAuto) {
-      const { enqueued } = await repos.phaseCoverage.enqueueCatchUp(phase.id);
+      const { enqueued } = await input.deps.phaseCoverage.enqueueCatchUp(phase.id);
       catchUpByPhase[phase.id] = enqueued;
     }
   }

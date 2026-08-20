@@ -1,4 +1,8 @@
 import type { EventCandidate, IPlaceScanPort, ParseWorkspace, PlaceScanHit } from "@radar/shared";
+import {
+  anchorsFromDefinitePlaceHits,
+  filterRegionScanHits,
+} from "./geo/filterRegionScanHits.js";
 import { appendCandidate, rejectOwnCandidates } from "./parseProcessorContract.js";
 import { stripConsequencePhrases } from "../parsing/consequencePhrases.js";
 
@@ -52,25 +56,28 @@ export function runGeoProcessor(input: {
   // поэтому маскировка спанов здесь не влияет на классификацию.
   const text = stripConsequencePhrases(workspace.groomedText);
 
-  const regionHits = placeScan.matchRegions(text);
-  const explicitRegionIsos = regionHits.map((h) => h.entry.regionIso);
-  const regionScopeIso =
-    explicitRegionIsos.length === 1 ? explicitRegionIsos[0] : undefined;
-
-  // Пустой ctx — без auto regionScope (pickRegionScopeIso иначе режет чужие place)
+  // Якоря — до regionScope, иначе ложный субъект («Приморский» → RU-PRI) режет НП СПб.
   const unscopedPlaceHits = placeScan.matchPlaces(text, {});
-  const scopedPlaceHits = regionScopeIso
-    ? placeScan.matchPlaces(text, { regionScopeIso, explicitRegionIsos })
+  const localityAnchors = anchorsFromDefinitePlaceHits(unscopedPlaceHits);
+  const regionHits = filterRegionScanHits(
+    text,
+    placeScan.matchRegions(text),
+    localityAnchors,
+  );
+  const explicitRegionIsos = regionHits.map((h) => h.entry.regionIso);
+  const hasExplicitRegions = explicitRegionIsos.length > 0;
+  // Уникальность place — внутри найденных субъектов (1 или N), не по всему каталогу.
+  const scopedPlaceHits = hasExplicitRegions
+    ? placeScan.matchPlaces(text, { explicitRegionIsos })
     : unscopedPlaceHits;
 
   detectGeoConflict(workspace, regionHits, unscopedPlaceHits);
   const rawPlaceHits =
     workspace.namespaces.geoConflict === true ? unscopedPlaceHits : scopedPlaceHits;
 
-  // Co-mention disambiguation: применяем только когда нет явного региона в тексте и нет конфликта,
-  // то есть именно в случаях когда оба места «свободно» матчились без контекста.
+  // Co-mention disambiguation: только когда субъектов в тексте нет и нет конфликта.
   const placeHits =
-    !regionScopeIso && workspace.namespaces.geoConflict !== true
+    !hasExplicitRegions && workspace.namespaces.geoConflict !== true
       ? inferScopeFromCompanions(rawPlaceHits, placeScan)
       : rawPlaceHits;
 
@@ -111,7 +118,11 @@ export function runGeoProcessor(input: {
           span: hit.span,
         },
         eventType: "unknown",
-        extras: hit.geoImprecise ? { geoImprecise: true } : {},
+        extras: {
+          ...(hit.geoImprecise ? { geoImprecise: true } : {}),
+          ...(hit.matchedViaAdjectiveStem ? { matchedViaAdjectiveStem: true } : {}),
+          ...(typeof hit.stemPoolSize === "number" ? { stemPoolSize: hit.stemPoolSize } : {}),
+        },
         provenance: {
           eventTypeSource: "pending",
           anchorSource: "geo-processor",

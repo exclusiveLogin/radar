@@ -16,9 +16,9 @@
 
 import type { H3VectorFlowMap } from "./H3VectorFlowMap";
 
-import type { NextGenSegment } from "../phase2-attention/NextGenPhase2";
+import type { NextGenSegment } from "../step2-attention/NextGenStep2";
 
-import type { NextGenNode } from "../phase1-stdbscan/NextGenPhase1";
+import type { NextGenNode } from "../step1-stdbscan/NextGenStep1";
 
 
 

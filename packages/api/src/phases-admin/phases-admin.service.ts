@@ -1,42 +1,75 @@
-import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
-import { MapRealtimeBroadcastService } from "../map/map-realtime-broadcast.service";
-import { InjectDataSource } from "@nestjs/typeorm";
 import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  NotFoundException,
+  OnModuleDestroy,
+  OnModuleInit,
+} from "@nestjs/common";
+import { Inject } from "@nestjs/common";
+import { MapRealtimeBroadcastService } from "../map/map-realtime-broadcast.service";
+import {
+  createStepRunRequestedEvent,
+  drainTopicForPhaseScope,
   manualRunScopeSchema,
   phaseReplayRequestSchema,
+  RADAR_TOPICS,
   resolveGeoEnrichmentProvider,
+  stepIdForPhaseScope,
+  topicForKnownEventType,
+  type IEventTransport,
   type PhaseDefinitionRecord,
   type PhaseRun,
   type PhaseRunsOverview,
 } from "@radar/shared";
 import { DataSource } from "typeorm";
-import { TypeOrmPhaseCoverageRepository } from "../infrastructure/persistence/typeorm-phase-coverage.repository";
-import { TypeOrmPhaseDefinitionRepository } from "../infrastructure/persistence/typeorm-phase-definition.repository";
-import { TypeOrmPhaseRunRepository } from "../infrastructure/persistence/typeorm-phase-run.repository";
-import { TypeOrmPlaceEnrichmentJobRepository } from "../infrastructure/persistence/typeorm-place-enrichment-job.repository";
+import { TypeOrmPhaseCoverageRepository } from "@radar/persistence";
+import { TypeOrmPhaseDefinitionRepository } from "@radar/persistence";
+import { TypeOrmPhaseRunRepository } from "@radar/persistence";
+import { TypeOrmPlaceEnrichmentJobRepository } from "@radar/persistence";
+import {
+  PHASES_ADMIN_DEPENDENCIES,
+  type PhasesAdminDependencies,
+} from "./phases-admin.providers";
 
 const STOP_ALL_ACTIVE_RUNS_REASON = "admin:stop-all-active-runs";
+const CATCH_UP_TAKEOVER_REASON = "admin:catch-up-takeover";
 
 function emptyJobCounts(): PhaseRunsOverview["geo"]["byPhase"][0]["jobs"] {
   return { pending: 0, processing: 0, done: 0, failed: 0 };
 }
 
-/** Админка parse-engine: ingestParse (coverage) и geoParse (place jobs) раздельно. */
+/** Coordinates parse-engine coverage and geo-enrichment phases. */
 @Injectable()
-export class PhasesAdminService {
+export class PhasesAdminService implements OnModuleInit, OnModuleDestroy {
+  private readonly logger = new Logger(PhasesAdminService.name);
+  private readonly dataSource: DataSource;
   private readonly phases: TypeOrmPhaseDefinitionRepository;
   private readonly coverage: TypeOrmPhaseCoverageRepository;
   private readonly runs: TypeOrmPhaseRunRepository;
   private readonly placeJobs: TypeOrmPlaceEnrichmentJobRepository;
+  private transport!: IEventTransport;
 
   constructor(
-    @InjectDataSource() private readonly dataSource: DataSource,
+    @Inject(PHASES_ADMIN_DEPENDENCIES)
+    deps: PhasesAdminDependencies,
     private readonly mapRealtime: MapRealtimeBroadcastService,
   ) {
-    this.phases = new TypeOrmPhaseDefinitionRepository(dataSource);
-    this.coverage = new TypeOrmPhaseCoverageRepository(dataSource);
-    this.runs = new TypeOrmPhaseRunRepository(dataSource);
-    this.placeJobs = new TypeOrmPlaceEnrichmentJobRepository(dataSource);
+    this.dataSource = deps.dataSource;
+    this.phases = deps.phases;
+    this.coverage = deps.coverage;
+    this.runs = deps.runs;
+    this.placeJobs = deps.placeJobs;
+    this.transport = deps.transport;
+  }
+
+  /** Starts RMQ transport for admin control signals. */
+  async onModuleInit(): Promise<void> {
+    await this.transport.start();
+  }
+
+  async onModuleDestroy(): Promise<void> {
+    await this.transport?.stop();
   }
 
   listPhases(): Promise<PhaseDefinitionRecord[]> {
@@ -58,6 +91,7 @@ export class PhasesAdminService {
     };
     if (patch.enabled !== undefined) {
       await this.phases.setEnabled(id, patch.enabled);
+      await this.publishRunnerControl(id, patch.enabled);
       const updated = await this.getPhase(id);
       if (patch.enabled) {
         await this.enqueueCatchUpForPhase(updated);
@@ -119,7 +153,7 @@ export class PhasesAdminService {
     return { ok: true, cleared, runsCanceled };
   }
 
-  /** Ручной retry: failed jobs geo-фазы → pending (одна попытка по умолчанию, без auto re-queue). */
+  /** Resets failed geo jobs to pending for the configured provider. */
   async resetFailedJobs(phaseId: string): Promise<{ ok: true; reset: number }> {
     const phase = await this.getPhase(phaseId);
     if (phase.scope !== "geoParse") {
@@ -133,16 +167,139 @@ export class PhasesAdminService {
     return { ok: true, reset };
   }
 
-  /** Catch-up очереди по scope фазы (ingest → coverage, geo → place jobs). */
-  private async enqueueCatchUpForPhase(phase: PhaseDefinitionRecord): Promise<void> {
-    if (phase.scope === "geoParse") {
+  /** Enqueues catch-up work and wakes the appropriate worker. */
+  private async enqueueCatchUpForPhase(
+    phase: PhaseDefinitionRecord,
+  ): Promise<{ enqueued: number }> {
+    let enqueued = 0;
+    if (phase.scope === "ingestParse") {
+      const result = await this.coverage.enqueueCatchUp(phase.id);
+      enqueued = result.enqueued;
+    } else if (phase.scope === "geoParse") {
       const provider = resolveGeoEnrichmentProvider(phase);
-      if (provider) {
-        await this.placeJobs.enqueueCatchUp(provider);
-      }
-      return;
+      if (!provider) return { enqueued: 0 };
     }
-    await this.coverage.enqueueCatchUp(phase.id);
+    await this.publishDrainForPhase(phase, "full", { catchUp: true });
+    return { enqueued };
+  }
+
+  /**
+   * Передаёт enabled ingestParse-фазы durable manual run.
+   * Worker будит step `parse` через StepRunRequested / drain.
+   */
+  async catchUpEnabledIngestPhases(): Promise<{
+    enqueued: number;
+    queued: number;
+    failed: number;
+    phaseIds: string[];
+  }> {
+    const phases = await this.phases.listEnabled(undefined, "ingestParse");
+    let enqueued = 0;
+    let queued = 0;
+    let failed = 0;
+
+    for (const phase of phases) {
+      await this.cancelActiveRunsForPhase(phase.id, CATCH_UP_TAKEOVER_REASON);
+      await this.coverage.resetProcessingForPhase(phase.id);
+      enqueued += (await this.coverage.enqueueCatchUp(phase.id)).enqueued;
+      const counts = await this.coverage.countByStatus(phase.id);
+      const queuedForPhase = counts.pending + counts.processing;
+      await this.runs.create({ phaseId: phase.id, trigger: "manual" });
+      queued += queuedForPhase;
+      failed += counts.failed;
+
+      // Без wake catch-up кладёт jobs в PG и молчит: catalog=event не имеет timer.
+      const stepId = stepIdForPhaseScope(phase.scope);
+      const stepEvent = createStepRunRequestedEvent({ stepId, lane: "manual" });
+      const topic = topicForKnownEventType(stepEvent.type);
+      if (topic) await this.transport.publish(topic, [stepEvent]);
+      await this.publishDrainForPhase(phase, "full", { catchUp: true });
+    }
+
+    return { enqueued, queued, failed, phaseIds: phases.map((phase) => phase.id) };
+  }
+
+  /**
+   * Осиротевшие claim'ы ingestParse: processing → pending + wake раннера.
+   * Возникают, когда worker умер между claim и завершением задачи — очередь
+   * остаётся «занятой» без владельца и фаза вечно висит в draining.
+   */
+  async releaseStuckIngestProcessing(): Promise<{
+    ok: true;
+    released: number;
+    phaseIds: string[];
+  }> {
+    const phases = await this.phases.listEnabled(undefined, "ingestParse");
+    const touched: string[] = [];
+    let released = 0;
+
+    for (const phase of phases) {
+      const count = await this.coverage.resetProcessingForPhase(phase.id);
+      if (count === 0) continue;
+      released += count;
+      touched.push(phase.id);
+      // catalog=event не имеет таймера: без drain строки останутся pending до следующего события.
+      await this.publishDrainForPhase(phase, "full");
+    }
+
+    return { ok: true, released, phaseIds: touched };
+  }
+
+  /** Текущее состояние выбранных ingestParse-очередей. */
+  async getIngestQueueCounts(phaseIds: string[]): Promise<{
+    pending: number;
+    processing: number;
+    done: number;
+    failed: number;
+  }> {
+    const total = { pending: 0, processing: 0, done: 0, failed: 0 };
+    for (const phaseId of phaseIds) {
+      const counts = await this.coverage.countByStatus(phaseId);
+      total.pending += counts.pending;
+      total.processing += counts.processing;
+      total.done += counts.done;
+      total.failed += counts.failed;
+    }
+    return total;
+  }
+
+  /** Последние durable manual runs enabled ingestParse-фаз и их текущая очередь. */
+  async getIngestCatchUpState(): Promise<{
+    runs: PhaseRun[];
+    counts: { pending: number; processing: number; done: number; failed: number };
+  } | null> {
+    const phases = await this.phases.listEnabled(undefined, "ingestParse");
+    const runs = (
+      await Promise.all(
+        phases.map((phase) =>
+          this.runs.list({ phaseId: phase.id, trigger: "manual", limit: 1 }),
+        ),
+      )
+    ).flat();
+    if (runs.length === 0) return null;
+
+    return {
+      runs,
+      counts: await this.getIngestQueueCounts(phases.map((phase) => phase.id)),
+    };
+  }
+
+  /** Publishes phase enablement changes to the runner. */
+  private publishRunnerControl(phaseKey: string, enabled: boolean): Promise<void> {
+    return this.transport.publishSignal(RADAR_TOPICS.RUNNER_CONTROL, { phaseKey, enabled });
+  }
+
+  /** Publishes a targeted or full drain signal. */
+  private publishDrainForPhase(
+    phase: PhaseDefinitionRecord,
+    mode: "full" | "targeted" = "full",
+    extra: { catchUp?: boolean; materializationIds?: string[]; placeIds?: string[] } = {},
+  ): Promise<void> {
+    return this.transport.publishSignal(drainTopicForPhaseScope(phase.scope), {
+      phaseKey: phase.id,
+      mode,
+      ...extra,
+    });
   }
 
   async runsOverview(): Promise<PhaseRunsOverview> {
@@ -157,7 +314,7 @@ export class PhasesAdminService {
         const raw = await this.coverage.countByStatus(phase.id);
         return {
           phaseId: phase.id,
-          trigger: phase.trigger,
+          trigger: phase.triggerMode,
           enabled: phase.enabled,
           activeRun: active.find((r) => r.phaseId === phase.id) ?? null,
           coverage: {
@@ -178,7 +335,7 @@ export class PhasesAdminService {
           : emptyJobCounts();
         return {
           phaseId: phase.id,
-          trigger: phase.trigger,
+          trigger: phase.triggerMode,
           enabled: phase.enabled,
           provider,
           activeRun: active.find((r) => r.phaseId === phase.id) ?? null,
@@ -233,23 +390,23 @@ export class PhasesAdminService {
       if (!provider) {
         throw new BadRequestException(`geo phase ${phaseId} has no external provider`);
       }
-      const { enqueued } = await this.placeJobs.enqueueCatchUp(provider);
-      await this.runs.appendLog(run.id, {
-        at: new Date().toISOString(),
-        level: "info",
-        message: `geo catch-up provider=${provider} enqueued=${enqueued}`,
-      });
-      return run;
     }
 
-    const rawIds = await this.runs.findRawIdsForManualRun(phaseId, scope.data);
-    for (const rawMessageId of rawIds) {
-      await this.coverage.enqueuePending({ rawMessageId, phaseId });
+    // Step-level wake (declarative) + phase drain для targeted catch-up.
+    const stepId = stepIdForPhaseScope(phase.scope);
+    const stepEvent = createStepRunRequestedEvent({
+      stepId,
+      lane: "manual",
+    });
+    const topic = topicForKnownEventType(stepEvent.type);
+    if (topic) {
+      await this.transport.publish(topic, [stepEvent]);
     }
+    await this.publishDrainForPhase(phase);
     await this.runs.appendLog(run.id, {
       at: new Date().toISOString(),
       level: "info",
-      message: `ingest manual enqueue ${rawIds.length} messages`,
+      message: `StepRunRequested step=${stepId}; drain signal scope=${phase.scope} phase=${phaseId}`,
     });
     return run;
   }
@@ -313,7 +470,7 @@ export class PhasesAdminService {
     const geoJobsCleared = await this.placeJobs.clearQueuedWork();
 
     const closedRows = (await this.dataSource.query(
-      `UPDATE phase_runs SET
+      `UPDATE log_phase_run SET
          status = 'canceled',
          control = 'cancel',
          finished_at = now(),
@@ -349,10 +506,7 @@ export class PhasesAdminService {
     return { ok: true, reset };
   }
 
-  /**
-   * Разослать актуальный snapshot карты всем WS-клиентам.
-   * Вызывается из AdminGateway при обнаружении завершённой phase run.
-   */
+  /** Publishes a fresh map snapshot after a phase run. */
   async pushMapSnapshot(): Promise<void> {
     await this.mapRealtime.pushSnapshotToClients();
   }
@@ -376,7 +530,7 @@ export class PhasesAdminService {
         if (phase.scope === "geoParse") {
           const provider = resolveGeoEnrichmentProvider(phase);
           if (provider) {
-            await this.placeJobs.enqueueCatchUp(provider);
+            await this.publishDrainForPhase(phase);
           }
         } else {
           ingestIds.push(phaseId);
@@ -385,10 +539,12 @@ export class PhasesAdminService {
       if (ingestIds.length > 0) {
         invalidated = await this.coverage.invalidateForPhases(ingestIds);
         for (const phaseId of ingestIds) {
-          await this.coverage.enqueueCatchUp(phaseId);
+          const phase = await this.phases.findById(phaseId);
+          if (phase) await this.publishDrainForPhase(phase);
         }
       }
     }
     return { invalidated, phaseIds, placesFlushed };
   }
 }
+

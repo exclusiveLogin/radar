@@ -1,6 +1,7 @@
 import { z } from "zod";
-
-const truthy = new Set(["1", "true", "yes", "on"]);
+import type { GeoEnrichersManifest } from "@radar/shared/manifest/domains/geoEnrichers.loader.js";
+import { loadGeoEnrichersManifest } from "@radar/shared/manifest/domains/geoEnrichers.loader.js";
+import { MONOREPO_ROOT } from "@repo/root";
 
 const llmRuntimeConfigSchema = z.object({
   enabled: z.boolean(),
@@ -13,7 +14,7 @@ const llmRuntimeConfigSchema = z.object({
   jsonMode: z.boolean(),
   retryCount: z.number().int().min(0).max(3),
   /** Bearer-токен для облачных провайдеров (OpenRouter и т.п.). */
-  apiKey: z.string().optional(),
+  apiKey: z.string().min(1).optional(),
   /** Доп. заголовки (напр. HTTP-Referer/X-Title для OpenRouter). */
   headers: z.record(z.string()).default({}),
 });
@@ -29,29 +30,55 @@ function resolveHeaders(env: NodeJS.ProcessEnv): Record<string, string> {
   if (title) headers["X-Title"] = title;
   return headers;
 }
-function parseBoolean(value: string | undefined, fallback: boolean): boolean {
-  if (!value) return fallback;
-  return truthy.has(value.trim().toLowerCase());
+
+function resolveManifest(
+  manifestOrEnv: GeoEnrichersManifest | NodeJS.ProcessEnv,
+): GeoEnrichersManifest {
+  if (manifestOrEnv && typeof manifestOrEnv === "object" && "version" in manifestOrEnv) {
+    return manifestOrEnv as GeoEnrichersManifest;
+  }
+  return loadGeoEnrichersManifest({
+    repoRoot: MONOREPO_ROOT,
+    env: manifestOrEnv as NodeJS.ProcessEnv,
+  });
 }
-function parseNumber(value: string | undefined, fallback: number): number {
-  if (!value) return fallback;
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed)) return fallback;
-  return parsed;
-}
-export function loadLlmRuntimeConfig(env = process.env): LlmRuntimeConfig {
-  const enabled = parseBoolean(env.RADAR_LLM_GEOCODER_ENABLED, false);
+
+function parseLlmSection(
+  section: GeoEnrichersManifest["llm"],
+  env: NodeJS.ProcessEnv,
+): LlmRuntimeConfig {
   return llmRuntimeConfigSchema.parse({
-    enabled,
-    provider: env.RADAR_LLM_PROVIDER?.trim() || "ollama",
-    baseUrl: env.RADAR_LLM_BASE_URL?.trim() || "http://127.0.0.1:11434/v1",
-    model: env.RADAR_LLM_MODEL?.trim() || "qwen2.5:3b",
-    timeoutMs: parseNumber(env.RADAR_LLM_TIMEOUT_MS, 60000),
-    maxTokens: parseNumber(env.RADAR_LLM_MAX_TOKENS, 512),
-    temperature: parseNumber(env.RADAR_LLM_TEMPERATURE, 0),
-    jsonMode: parseBoolean(env.RADAR_LLM_JSON_MODE, true),
-    retryCount: parseNumber(env.RADAR_LLM_RETRY_COUNT, 0),
-    apiKey: env.RADAR_LLM_API_KEY?.trim() || undefined,
+    enabled: section.enabled,
+    provider: section.provider,
+    baseUrl: section.baseUrl,
+    model: section.model,
+    timeoutMs: section.timeoutMs,
+    maxTokens: section.maxTokens,
+    temperature: section.temperature,
+    jsonMode: section.jsonMode,
+    retryCount: section.retryCount,
+    apiKey: env.RADAR_LLM_API_KEY?.trim() || env.OPENAI_API_KEY?.trim() || undefined,
     headers: resolveHeaders(env),
   });
+}
+
+/** LLM geocoder runtime из geo.enrichers.manifest.llm (+ секреты из env). */
+export function loadLlmRuntimeConfig(
+  manifestOrEnv: GeoEnrichersManifest | NodeJS.ProcessEnv = process.env,
+  env: NodeJS.ProcessEnv = process.env,
+): LlmRuntimeConfig {
+  const manifest = resolveManifest(manifestOrEnv);
+  return parseLlmSection(manifest.llm, env);
+}
+
+/**
+ * LLM Validator runtime из geo.enrichers.manifest.llmValidator
+ * (fallback на llm, если секция не задана).
+ */
+export function loadLlmValidatorRuntimeConfig(
+  manifestOrEnv: GeoEnrichersManifest | NodeJS.ProcessEnv = process.env,
+  env: NodeJS.ProcessEnv = process.env,
+): LlmRuntimeConfig {
+  const manifest = resolveManifest(manifestOrEnv);
+  return parseLlmSection(manifest.llmValidator ?? manifest.llm, env);
 }

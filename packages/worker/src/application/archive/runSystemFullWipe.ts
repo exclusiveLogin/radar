@@ -1,17 +1,14 @@
-import type { DataSource } from "typeorm";
-import type { WorkerDbRepositories } from "../../infrastructure/persistence/workerDbRepos.types.js";
 import { wipeFullDataStack } from "../phases/lifecycle/fullStackWipe.js";
+import type { PhaseOperationalDeps } from "../phases/phaseOperationalDeps.js";
 
 export type RunSystemFullWipeResult = Awaited<ReturnType<typeof wipeFullDataStack>>;
 
 /** @deprecated Используйте wipeFullDataStack / system:wipe */
 export async function runSystemFullWipe(input: {
-  dataSource: DataSource;
-  repos: WorkerDbRepositories;
+  deps: PhaseOperationalDeps;
 }): Promise<RunSystemFullWipeResult> {
   return wipeFullDataStack({
-    dataSource: input.dataSource,
-    repos: input.repos,
+    deps: input.deps,
     dryRun: false,
   });
 }

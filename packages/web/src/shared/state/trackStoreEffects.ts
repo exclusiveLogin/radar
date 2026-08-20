@@ -45,7 +45,7 @@ function shouldResetTracksStoreForStatus(status: TrackingStatusResponse): boolea
   prevRebuildRunId = runId;
   if (!isNewRun || !run) return false;
   if (run.status !== "running") return false;
-  return run.mode === "full_rebuild" || run.mode === "soft_rebuild";
+  return run.mode === "full_rebuild";
 }
 
 function parseIsoMs(value: string): number {

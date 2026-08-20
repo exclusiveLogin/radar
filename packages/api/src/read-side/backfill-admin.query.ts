@@ -22,7 +22,7 @@ export type BackfillAdminSqlRow = {
 const SELECT_BACKFILL_ADMIN = `
   SELECT j.id, j.binding_id, j.provider_id, j.strategy, j.params, j.status,
          j.stats, j.created_at, j.updated_at, c.key AS channel_key
-  FROM ingest_backfill_jobs j
+  FROM job_ingest_backfill j
   LEFT JOIN ingest_bindings b ON b.id = j.binding_id
   LEFT JOIN channels c ON c.id = b.channel_id
 `;
@@ -37,7 +37,7 @@ function readCheckpoint(
   return { offsetId: cp.offsetId, postedAt: cp.postedAt };
 }
 
-/** Строка ingest_backfill_jobs → DTO для REST/WS админки. */
+/** Строка job_ingest_backfill → DTO для REST/WS админки. */
 export function mapBackfillAdminRow(row: BackfillAdminSqlRow): BackfillJobListItem {
   const checkpoint = readCheckpoint(row.params);
   return backfillJobListItemSchema.parse({

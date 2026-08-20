@@ -1,7 +1,7 @@
 import * as fs from "node:fs";
 import * as XLSX from "xlsx";
 import type { PlaceDraft } from "@radar/shared";
-import { normalizeName, resolvePlaceDraftKey } from "../geo-provider-utils";
+import { placeDraftKey } from "../../../application/geo-sync/place-draft-key";
 import { resolveFiasCatalogRegionCode } from "./fiasRegionAliases";
 
 /** Строка листа cities из 03_all_cities.xlsx (FIAS, BorisGi/lenin). */
@@ -152,7 +152,7 @@ export function mapFiasRowsToPlaceDrafts(rows: AllCitiesFiasRow[]): PlaceDraft[]
       },
     };
 
-    const dedupeKey = resolvePlaceDraftKey(draft);
+    const dedupeKey = placeDraftKey(draft);
     if (seen.has(dedupeKey)) {
       continue;
     }

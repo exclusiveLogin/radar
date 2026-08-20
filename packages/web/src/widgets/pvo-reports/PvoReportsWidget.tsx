@@ -1,7 +1,8 @@
 import { useMemo } from "react";
 import { Accordion, Panel } from "../../shared/ds";
 import type { AccordionItem } from "../../shared/ds";
-import { formatDateTime } from "../../shared/format/dateTime";
+import { EventCardHead } from "../../shared/components/EventCardHead";
+import { formatDateTime, formatTimeShort } from "../../shared/format/dateTime";
 import { useObservable } from "../../shared/hooks/useObservable";
 import { pvoReports$ } from "../../shared/state/pvoReportsStore";
 import type { PvoReportItem } from "../../shared/api/mapApi";
@@ -13,8 +14,8 @@ function buildSummaryLine(item: PvoReportItem): string {
   if (!stats) return "—";
 
   const parts: string[] = [];
-  if (stats.totals.drones   !== undefined) parts.push(`${stats.totals.drones} БПЛА`);
-  if (stats.totals.rockets  !== undefined) parts.push(`${stats.totals.rockets} ракет`);
+  if (stats.totals.drones !== undefined) parts.push(`${stats.totals.drones} БПЛА`);
+  if (stats.totals.rockets !== undefined) parts.push(`${stats.totals.rockets} ракет`);
   if (stats.totals.balloons !== undefined) parts.push(`${stats.totals.balloons} МВШ`);
 
   return parts.length > 0 ? parts.join(" · ") : "—";
@@ -33,15 +34,16 @@ function ByRegionList({ item }: { item: PvoReportItem }) {
   if (!byRegion || byRegion.length === 0) return null;
 
   return (
-    <div style={{ marginTop: 6 }}>
+    <div className="ds-event-card__facts" style={{ marginTop: 6 }}>
       {byRegion.map((r) => {
         const parts: string[] = [];
-        if (r.drones   !== undefined) parts.push(`${r.drones} БПЛА`);
-        if (r.rockets  !== undefined) parts.push(`${r.rockets} ракет`);
+        if (r.drones !== undefined) parts.push(`${r.drones} БПЛА`);
+        if (r.rockets !== undefined) parts.push(`${r.rockets} ракет`);
         if (r.balloons !== undefined) parts.push(`${r.balloons} МВШ`);
         return (
-          <div key={r.code} className="ds-muted" style={{ fontSize: 11 }}>
-            {r.name}: {parts.join(" · ")}
+          <div key={r.code} className="ds-event-card__fact">
+            <dt>{r.name}</dt>
+            <dd>{parts.join(" · ") || "—"}</dd>
           </div>
         );
       })}
@@ -62,49 +64,57 @@ export function PvoReportsWidget({
   const items: AccordionItem[] = useMemo(
     () =>
       reports.map((report) => {
-        const summary    = buildSummaryLine(report);
+        const summary = buildSummaryLine(report);
         const regionsLine = buildRegionsLine(report);
-        const period     = report.stats?.period;
-        const source     = report.channelTitle?.trim() || report.channelKey;
+        const period = report.stats?.period;
+        const source = report.channelTitle?.trim() || report.channelKey;
+        const title = summary !== "—" ? `сбито ${summary}` : "Сводка ПВО";
+        const raw = report.rawText.trim();
 
         return {
           id: report.id,
-          headTip: [source, formatDateTime(report.postedAt), period, report.rawText.trim()]
+          headTip: [source, formatDateTime(report.postedAt), period, raw]
             .filter(Boolean)
             .join("\n"),
           head: (
-            <>
-              <span className="ds-muted" style={{ fontSize: 11, marginRight: 6 }}>
-                {formatDateTime(report.postedAt)}
-              </span>
-              <span style={{ fontWeight: 500 }}>
-                {summary !== "—" ? `сбито ${summary}` : "—"}
-              </span>
-              {regionsLine && (
-                <span className="ds-muted" style={{ fontSize: 11, marginLeft: 6 }}>
-                  {regionsLine}
-                </span>
-              )}
-            </>
+            <EventCardHead
+              title={title}
+              reason={regionsLine || undefined}
+              time={formatTimeShort(report.postedAt)}
+              meta={
+                <>
+                  <span className="ds-event-card__meta-source">{source}</span>
+                  {period && <span className="ds-event-card__meta-code">{period}</span>}
+                </>
+              }
+            />
           ),
           body: (
             <>
-              <div className="ds-muted" style={{ fontSize: 11 }}>
-                {source} · {formatDateTime(report.postedAt)}
-              </div>
+              <dl className="ds-event-card__facts">
+                <div className="ds-event-card__fact">
+                  <dt>Источник</dt>
+                  <dd>{source}</dd>
+                </div>
+                <div className="ds-event-card__fact">
+                  <dt>Время</dt>
+                  <dd>{formatDateTime(report.postedAt)}</dd>
+                </div>
+                {period && (
+                  <div className="ds-event-card__fact">
+                    <dt>Период</dt>
+                    <dd>{period}</dd>
+                  </div>
+                )}
+                {regionsLine && (
+                  <div className="ds-event-card__fact">
+                    <dt>Регионы</dt>
+                    <dd>{regionsLine}</dd>
+                  </div>
+                )}
+              </dl>
               <ByRegionList item={report} />
-              <pre
-                style={{
-                  margin: "8px 0 0",
-                  whiteSpace: "pre-wrap",
-                  wordBreak: "break-word",
-                  fontFamily: "inherit",
-                  fontSize: 12,
-                  color: "var(--text)",
-                }}
-              >
-                {report.rawText.trim()}
-              </pre>
+              {raw && <pre className="ds-event-card__quote">{raw}</pre>}
             </>
           ),
         };

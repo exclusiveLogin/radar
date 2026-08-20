@@ -19,10 +19,12 @@ type ParseAttemptSqlRow = {
 function resolveOutcomeLabel(row: ParseAttemptSqlRow): string | null {
   if (row.event_type) return row.event_type;
   const reason = row.errors?.reason;
-  return typeof reason === "string" ? reason : null;
+  if (typeof reason === "string" && reason.trim()) return reason;
+  const message = row.errors?.message;
+  return typeof message === "string" && message.trim() ? message : null;
 }
 
-/** Строка parse_attempts + превью raw и тип события для админ-лога. */
+/** Строка log_parse_attempt + превью raw и тип события для админ-лога. */
 export function mapParseAttemptAdminRow(row: ParseAttemptSqlRow): ParseAttemptItem {
   return parseAttemptItemSchema.parse({
     id: row.id,
@@ -38,7 +40,7 @@ export function mapParseAttemptAdminRow(row: ParseAttemptSqlRow): ParseAttemptIt
   });
 }
 
-const SELECT_PARSE_ATTEMPT_ADMIN = `
+const SELECT_PARSE_ATTEMPT_DETAILS = `
   SELECT
     pa.id,
     pa.raw_message_id,
@@ -50,11 +52,11 @@ const SELECT_PARSE_ATTEMPT_ADMIN = `
     left(rm.raw_text, ${MESSAGE_PREVIEW_LEN}) AS message_preview,
     rm.external_message_id,
     pe.event_type
-  FROM parse_attempts pa
-  LEFT JOIN raw_messages rm ON rm.id = pa.raw_message_id
+  FROM attempts pa
+  LEFT JOIN mat_ingest_raw rm ON rm.id = pa.raw_message_id
   LEFT JOIN LATERAL (
     SELECT event_type
-    FROM parsed_events
+    FROM mat_parse_event
     WHERE raw_message_id = pa.raw_message_id
     ORDER BY parsed_at DESC NULLS LAST
     LIMIT 1
@@ -83,10 +85,15 @@ export async function listParseAttemptsForAdmin(
   values.push(params.limit);
 
   const rows = await dataSource.query<ParseAttemptSqlRow[]>(
-    `${SELECT_PARSE_ATTEMPT_ADMIN}
-     ${where}
-     ORDER BY pa.created_at DESC
-     LIMIT $${idx}`,
+    `WITH attempts AS (
+       SELECT id, raw_message_id, channel_key, parser_version, status, errors, created_at
+       FROM log_parse_attempt pa
+       ${where}
+       ORDER BY pa.created_at DESC
+       LIMIT $${idx}
+     )
+     ${SELECT_PARSE_ATTEMPT_DETAILS}
+     ORDER BY pa.created_at DESC`,
     values,
   );
 
@@ -100,10 +107,15 @@ export async function listParseAttemptsSince(
   limit: number,
 ): Promise<ParseAttemptItem[]> {
   const rows = await dataSource.query<ParseAttemptSqlRow[]>(
-    `${SELECT_PARSE_ATTEMPT_ADMIN}
-     WHERE pa.created_at > $1
-     ORDER BY pa.created_at ASC
-     LIMIT $2`,
+    `WITH attempts AS (
+       SELECT id, raw_message_id, channel_key, parser_version, status, errors, created_at
+       FROM log_parse_attempt pa
+       WHERE pa.created_at > $1
+       ORDER BY pa.created_at ASC
+       LIMIT $2
+     )
+     ${SELECT_PARSE_ATTEMPT_DETAILS}
+     ORDER BY pa.created_at ASC`,
     [since, limit],
   );
 

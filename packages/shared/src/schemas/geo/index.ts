@@ -6,10 +6,12 @@ export {
   geoEnrichmentDadataSchema,
   geoEnrichmentFinalizerSchema,
   geoEnrichmentLlmSchema,
+  geoEnrichmentLlmValidatorSchema,
   geoEnrichmentNominatimSchema,
   geoEventCategorySchema,
   geoPipelineReportSchema,
   geoPipelineStepLogSchema,
+  llmValidatorVerdictSchema,
 } from "./enrichment-artifact";
 export { aliasDraftSchema, placeDraftSchema, regionDraftSchema } from "./drafts";
 export {
@@ -20,6 +22,7 @@ export { stateLevelSchema, STATE_LEVEL_RANK } from "./state-level";
 export {
   regionStateRecordSchema,
   regionStateEventSchema,
+  regionLevelReasonSchema,
   layoutTileSchema,
   mapRegionSnapshotSchema,
   mapRegionTraitsSchema,
@@ -45,6 +48,7 @@ export type { StateLevel } from "./state-level";
 export type {
   RegionStateRecord,
   RegionStateEvent,
+  RegionLevelReason,
   LayoutTile,
   MapRegionSnapshot,
   MapRegionTraits,
@@ -65,8 +69,10 @@ export type {
   GeoEnrichmentDadata,
   GeoEnrichmentFinalizer,
   GeoEnrichmentLlm,
+  GeoEnrichmentLlmValidator,
   GeoEnrichmentNominatim,
   GeoEventCategory,
   GeoNode,
   GeoPipelineReport,
+  LlmValidatorVerdict,
 } from "./enrichment-artifact";

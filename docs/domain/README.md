@@ -7,6 +7,7 @@
 | Документ | Когда читать |
 |----------|----------------|
 | [how-it-works.md](./how-it-works.md) | Нужен сквозной поток: ingest → parse → outbox |
+| [pipeline-hooks-and-events.md](./pipeline-hooks-and-events.md) | Хуки kernel/step + словарь системных/доменных событий |
 | [../backfill-v2-pipeline.md](../backfill-v2-pipeline.md) | Докачка архива (Backfill V2): демон, чекпоинты, схемы |
 | [model-style.md](./model-style.md) | Путаете ORM entity с доменом, ищете UoW / `mergeObjectContext` |
 | [aggregates.md](./aggregates.md) | Нужен каталог `aggregateType` и кто задаёт `aggregateId` |
@@ -21,7 +22,7 @@
 | **Доменный контракт** | Типы и Zod в `@radar/shared` (`RawMessage`, `PlaceRecord`, …) |
 | **Persistence** | TypeORM `*Entity` — строки таблиц, без бизнес-методов |
 | **Use case** | Handler/service в `packages/worker` / `packages/api` — оркестрация |
-| **Outbox** | Таблица `domain_events`, запись через `IDomainEventRepository.append` |
+| **Outbox** | Таблица `event_outbox`, запись через `IDomainEventRepository.append` |
 | **Composition root** | Сборка зависимостей (`createWorkerCompositionRoot`, Nest `AppModule`) — **не** Unit of Work |
 
 ## Карта документов
@@ -30,6 +31,7 @@
 docs/domain/
 ├── README.md                      ← вы здесь
 ├── how-it-works.md                ← сквозные сценарии
+├── pipeline-hooks-and-events.md   ← хуки + события pipeline steps
 ├── model-style.md                 ← стиль модели (анемичный ORM vs логика)
 ├── aggregates.md                  ← каталог aggregateType
 ├── domain-events-and-outbox.md    ← envelope, bus, relay

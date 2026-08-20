@@ -34,12 +34,12 @@ npm run radar -- stack tiles:merge -- --verbose
 **Проверка:**
 
 ```powershell
-docker compose -f docker-compose.yml -f docker-compose.tiles.yml --profile tiles ps
+docker compose -f docker-compose.yml -f docker-compose.app.yml --profile tiles ps
 curl.exe -s http://127.0.0.1:8081/health
 Test-Path data/tiles/output/config.json
 ```
 
-**Fix:** `npm run tiles:init` или `npm run tiles:up`. Временно — CDN basemap в `.env`.
+**Fix:** `npm run tiles:sync` или `npm run tiles:up`. Временно — CDN basemap в `.env`.
 
 ---
 
@@ -51,7 +51,23 @@ Test-Path data/tiles/output/config.json
 
 ---
 
-## Bind-mount slow (Windows)
+## API/Worker: Cannot find module `@radar/persistence` / `@radar/transport-rmq`
+
+**Симптом:** нет `packages/persistence/dist` / `transport-rmq/dist`, или пустой `radar_node_modules`.
+
+**Порядок:** `npm run docker:dev` = `dev:prepare` (libs) → compose `npm-ci` → `api` → web/workers.
+
+**Fix:**
+
+```powershell
+docker compose -f docker-compose.yml -f docker-compose.app.yml --profile app down
+docker volume rm radar_radar_node_modules
+npm run docker:dev
+```
+
+Сервисы с `restart: "no"` — при ошибке не крутятся в рестарте; чини шаг (`prepare` / `npm-ci` / api).
+
+---
 
 **Симптом:** Vite/worker перезапускаются с задержкой, CPU idle.
 
@@ -83,7 +99,7 @@ Test-Path data/tiles/output/config.json
 
 **Симптом:** после обновления источников карта старая.
 
-**Fix:** удалить `data/tiles/sources/`, `merged/`, `output/` и перезапустить `tiles:init`.
+**Fix:** удалить `data/tiles/sources/`, `merged/`, `output/` и перезапустить `tiles:sync`.
 
 ---
 

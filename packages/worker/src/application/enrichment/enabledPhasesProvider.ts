@@ -2,15 +2,15 @@ import type {
   IPhaseDefinitionRepository,
   PhaseDefinitionRecord,
   PhaseScope,
-  PhaseTrigger,
+  PhaseTriggerMode,
 } from "@radar/shared";
 
 const DEFAULT_TTL_MS = 30_000;
 
-/** TTL-кэш enabled-фаз по trigger (eager ingest / scheduled daemon). */
+/** TTL-кэш enabled-фаз по triggerMode / scope. */
 export function createEnabledPhasesProvider(
   phaseDefinitions: IPhaseDefinitionRepository,
-  trigger?: PhaseTrigger,
+  triggerMode?: PhaseTriggerMode,
   scope: PhaseScope = "ingestParse",
   ttlMs = DEFAULT_TTL_MS,
 ): () => Promise<PhaseDefinitionRecord[]> {
@@ -20,7 +20,7 @@ export function createEnabledPhasesProvider(
   return async () => {
     const now = Date.now();
     if (now - loadedAt < ttlMs) return cached;
-    cached = await phaseDefinitions.listEnabled(trigger, scope);
+    cached = await phaseDefinitions.listEnabled(triggerMode, scope);
     loadedAt = now;
     return cached;
   };

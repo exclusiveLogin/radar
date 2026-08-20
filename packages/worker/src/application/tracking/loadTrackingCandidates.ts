@@ -11,10 +11,10 @@ import {
   resolveNodeMode,
   trackingPipelineTypesSqlIn,
   canEnterPipeline,
-  mergeDedupClosure,
+  mergeCandidateWindow,
   TRACKING_PIPELINE_NOT_PROCESSED_SQL,
   withTrackingL1Transaction,
-  type DedupClosureLoad,
+  type CandidateWindowLoad,
   type TrackingCandidate,
 } from "@radar/shared";
 
@@ -27,15 +27,15 @@ const NOT_PROCESSED_SQL = TRACKING_PIPELINE_NOT_PROCESSED_SQL;
 /** Worker: можно ли писать L1 (rebuild мог выключить пайплайн mid-tick). */
 export async function isTrackingPipelineEnabled(ds: DataSource): Promise<boolean> {
   const [row] = await ds.query<{ enabled: boolean }[]>(
-    `SELECT enabled FROM tracking_pipeline_state WHERE id = 'default'`,
+    `SELECT enabled FROM state_track_pipeline WHERE id = 'default'`,
   );
   return row?.enabled ?? false;
 }
 
 const CANDIDATES_FROM_SQL = `
-    FROM event_locations el
-    JOIN parsed_events pe ON pe.id = el.parsed_event_id
-    LEFT JOIN raw_messages rm ON rm.id = pe.raw_message_id
+    FROM mat_parse_location el
+    JOIN mat_parse_event pe ON pe.id = el.parsed_event_id
+    LEFT JOIN mat_ingest_raw rm ON rm.id = pe.raw_message_id
     LEFT JOIN status_dictionary sd ON sd.code = pe.event_type
     LEFT JOIN regions r ON r.id = el.region_id
     LEFT JOIN LATERAL (
@@ -115,9 +115,11 @@ type BatchOptions = {
 
 type PendingOptions = {
   until: Date;
+  /** Bounded page: размер очереди не должен определять стоимость одного tick. */
+  limit?: number;
 };
 
-/** Вся необработанная pipeline-очередь (без LIMIT). */
+/** Стабильная event-time страница необработанной pipeline-очереди. */
 export async function loadPendingTrackingCandidates(
   ds: DataSource,
   opts: PendingOptions,
@@ -133,36 +135,82 @@ export async function loadPendingTrackingCandidates(
       AND pe.is_active IS DISTINCT FROM false
       AND pe.event_type IN (${PIPELINE_TYPES_IN})
       ${NOT_PROCESSED_SQL}
+      AND NOT EXISTS (
+        SELECT 1 FROM state_track_strobe_member staged
+        WHERE staged.event_location_id = el.id
+      )
     ORDER BY ${EVENT_AT_SQL} ASC, el.id ASC
+    LIMIT $2
     `,
-    [opts.until.toISOString()],
+    [opts.until.toISOString(), opts.limit ?? 20_000],
   );
 
   return rows.map(toCandidate).filter(canEnterPipeline);
 }
 
+/** Загружает полный накопленный состав одного persisted strobe. */
+export async function loadTrackingStrobeCandidates(
+  ds: DataSource,
+  strobeId: string,
+): Promise<TrackingCandidate[]> {
+  const rows = await ds.query<RawRow[]>(
+    `
+    ${CANDIDATES_SELECT}
+    ${CANDIDATES_FROM_SQL}
+    JOIN state_track_strobe_member member ON member.event_location_id = el.id
+    WHERE member.strobe_id = $1
+    ORDER BY ${EVENT_AT_SQL} ASC, el.id ASC
+    `,
+    [strobeId],
+  );
+  return rows.map(toCandidate).filter(canEnterPipeline);
+}
+
+/** Загрузка кандидатов по id (phase B: winners page). */
+export async function loadTrackingCandidatesByIds(
+  ds: DataSource,
+  eventLocationIds: readonly string[],
+): Promise<TrackingCandidate[]> {
+  if (eventLocationIds.length === 0) return [];
+  const rows = await ds.query<RawRow[]>(
+    `
+    ${CANDIDATES_SELECT}
+    ${CANDIDATES_FROM_SQL}
+    WHERE el.id = ANY($1::uuid[])
+    ORDER BY ${EVENT_AT_SQL} ASC, el.id ASC
+    `,
+    [eventLocationIds],
+  );
+  return rows.map(toCandidate).filter(canEnterPipeline);
+}
+
 const CONSUMED_ANCHOR_SQL = `
   AND EXISTS (
-    SELECT 1 FROM tracking_pipeline_consumed tpc
+    SELECT 1 FROM state_track_consumed tpc
     WHERE tpc.event_location_id = el.id
   )`;
 
-type DedupClosureOptions = {
+type CandidateWindowOptions = {
   until: Date;
+  limit: number;
   /** Окно ε_temporal (мс) — lookback от min(pending) для consumed-якорей. */
   lookbackMs: number;
 };
 
 /**
- * Глобальный dedup closure: pending + consumed-якоря в [min(pending)−lookback, until].
+ * Candidate window: bounded pending page + consumed anchors around its event-time frontier.
+ * Состав окна зависит от event-time, а не от общего размера очереди.
  */
-export async function loadDedupClosure(
+export async function loadCandidateWindow(
   ds: DataSource,
-  opts: DedupClosureOptions,
-): Promise<DedupClosureLoad> {
-  const pending = await loadPendingTrackingCandidates(ds, { until: opts.until });
+  opts: CandidateWindowOptions,
+): Promise<CandidateWindowLoad> {
+  const pending = await loadPendingTrackingCandidates(ds, {
+    until: opts.until,
+    limit: opts.limit,
+  });
   if (pending.length === 0) {
-    return { pending: [], closure: [], lookbackMs: opts.lookbackMs };
+    return { pending: [], window: [], lookbackMs: opts.lookbackMs };
   }
 
   const minAt = pending[0]!.occurredAt.getTime();
@@ -186,24 +234,36 @@ export async function loadDedupClosure(
   );
 
   const anchors = anchorRows.map(toCandidate).filter(canEnterPipeline);
-  const closure = mergeDedupClosure(pending, anchors);
+  const window = mergeCandidateWindow(pending, anchors);
 
-  return { pending, closure, lookbackMs: opts.lookbackMs };
+  return { pending, window, lookbackMs: opts.lookbackMs };
 }
 
-/** @deprecated Используй loadDedupClosure / loadPendingTrackingCandidates. */
+/** @deprecated Используй loadCandidateWindow / loadPendingTrackingCandidates. */
 export async function loadTrackingCandidatesBatch(
   ds: DataSource,
   opts: BatchOptions,
 ): Promise<TrackingCandidate[]> {
-  const pending = await loadPendingTrackingCandidates(ds, { until: opts.until });
-  return pending.slice(0, opts.limit);
+  return loadPendingTrackingCandidates(ds, opts);
 }
 
 type CountRemainingOptions = {
   until: Date;
   excludeConsumed?: boolean;
 };
+
+const REMAINING_FROM_SQL = `
+  FROM mat_parse_location el
+  JOIN mat_parse_event pe ON pe.id = el.parsed_event_id
+  LEFT JOIN mat_ingest_raw rm ON rm.id = pe.raw_message_id`;
+
+const REMAINING_WHERE_SQL = `
+  WHERE
+    ${EVENT_AT_SQL} <= $1
+    AND el.lat IS NOT NULL
+    AND el.lon IS NOT NULL
+    AND pe.is_active IS DISTINCT FROM false
+    AND pe.event_type IN (${PIPELINE_TYPES_IN})`;
 
 /** Необработанные pipeline-кандидаты — очередь rebuild. */
 export async function countTrackingPipelineRemaining(
@@ -215,18 +275,34 @@ export async function countTrackingPipelineRemaining(
   const [{ count }] = await ds.query<{ count: string }[]>(
     `
     SELECT COUNT(*)::text AS count
-    ${CANDIDATES_FROM_SQL}
-    WHERE
-      ${EVENT_AT_SQL} <= $1
-      AND el.lat IS NOT NULL
-      AND el.lon IS NOT NULL
-      AND pe.is_active IS DISTINCT FROM false
-      AND pe.event_type IN (${PIPELINE_TYPES_IN})
+    ${REMAINING_FROM_SQL}
+    ${REMAINING_WHERE_SQL}
       ${excludeConsumed ? NOT_PROCESSED_SQL : ""}
     `,
     [opts.until.toISOString()],
   );
   return Number(count);
+}
+
+/**
+ * Тот же предикат, что и в count, но с ранним выходом: полный COUNT сканирует всю
+ * mat_parse_location (~13 c на архиве), а для «остались ли ещё точки» хватает первой строки.
+ */
+export async function hasPendingTrackingCandidates(
+  ds: DataSource,
+  opts: { until: Date },
+): Promise<boolean> {
+  const rows = await ds.query<{ exists: number }[]>(
+    `
+    SELECT 1 AS exists
+    ${REMAINING_FROM_SQL}
+    ${REMAINING_WHERE_SQL}
+      ${NOT_PROCESSED_SQL}
+    LIMIT 1
+    `,
+    [opts.until.toISOString()],
+  );
+  return rows.length > 0;
 }
 
 /** Помечает точки как обработанные пайплайном (внутри L1 xact). */
@@ -240,7 +316,7 @@ export async function markPipelineCandidatesConsumedTx(
   for (let i = 0; i < eventLocationIds.length; i += chunkSize) {
     const chunk = eventLocationIds.slice(i, i + chunkSize);
     await query(
-      `INSERT INTO tracking_pipeline_consumed (event_location_id, reason)
+      `INSERT INTO state_track_consumed (event_location_id, reason)
        SELECT unnest($1::uuid[]), $2
        ON CONFLICT (event_location_id) DO NOTHING`,
       [chunk, reason],
@@ -265,9 +341,9 @@ export async function countTrackingCandidates(ds: DataSource, until: Date): Prom
   const [{ count }] = await ds.query<{ count: string }[]>(
     `
     SELECT COUNT(*)::text AS count
-    FROM event_locations el
-    JOIN parsed_events pe ON pe.id = el.parsed_event_id
-    LEFT JOIN raw_messages rm ON rm.id = pe.raw_message_id
+    FROM mat_parse_location el
+    JOIN mat_parse_event pe ON pe.id = el.parsed_event_id
+    LEFT JOIN mat_ingest_raw rm ON rm.id = pe.raw_message_id
     WHERE
       ${EVENT_AT_SQL} <= $1
       AND el.lat IS NOT NULL AND el.lon IS NOT NULL
@@ -299,9 +375,9 @@ export async function countTrackingCandidateStats(
   const [{ count: targetCount }] = await ds.query<{ count: string }[]>(
     `
     SELECT COUNT(*)::text AS count
-    FROM event_locations el
-    JOIN parsed_events pe ON pe.id = el.parsed_event_id
-    LEFT JOIN raw_messages rm ON rm.id = pe.raw_message_id
+    FROM mat_parse_location el
+    JOIN mat_parse_event pe ON pe.id = el.parsed_event_id
+    LEFT JOIN mat_ingest_raw rm ON rm.id = pe.raw_message_id
     WHERE
       ${EVENT_AT_SQL} <= $1
       AND el.lat IS NOT NULL AND el.lon IS NOT NULL
@@ -312,11 +388,11 @@ export async function countTrackingCandidateStats(
   );
 
   const [{ nodes }] = await ds.query<{ nodes: string }[]>(
-    `SELECT COUNT(*)::text AS nodes FROM trajectory_nodes`,
+    `SELECT COUNT(*)::text AS nodes FROM mat_track_node`,
   );
 
   const trackRows = await ds.query<{ status: string; count: string }[]>(
-    `SELECT status, COUNT(*)::text AS count FROM trajectory_tracks GROUP BY status`,
+    `SELECT status, COUNT(*)::text AS count FROM mat_track GROUP BY status`,
   );
 
   const byStatus = Object.fromEntries(trackRows.map(r => [r.status, Number(r.count)]));

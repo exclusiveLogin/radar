@@ -11,6 +11,7 @@ import type {
   GeoCatalogStepStats,
   IGeoCatalogImportReporter,
 } from "../../application/geo-catalog/geo-catalog.reporter.port";
+import { createGeoSyncPersistenceDeps } from "../../infrastructure/geo-sync/createGeoSyncPersistenceDeps";
 import { createGeoSyncPersistReporter } from "../geo-sync/geoSyncCliProgress";
 
 dotenv.config({ path: path.resolve(__dirname, "../../../../.env") });
@@ -108,6 +109,7 @@ async function run(): Promise<void> {
   await withDataSource(dataSource, async () => {
     const service = new GeoCatalogImportService({
       dataSource,
+      persistence: createGeoSyncPersistenceDeps(dataSource),
       reporter: createConsoleReporter(mode),
       persist: mode === "import" ? createGeoSyncPersistReporter() : undefined,
     });

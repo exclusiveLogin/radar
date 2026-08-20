@@ -36,7 +36,7 @@ export type EventSubject = z.infer<typeof eventSubjectSchema>;
 
 /**
  * Структурированные данные сводки ПВО.
- * Хранится в `parsed_events.extras->>'pvo'` как JSONB.
+ * Хранится в `mat_parse_event.extras->>'pvo'` как JSONB.
  */
 export const pvoStatsSchema = z.object({
   /** Текстовое описание периода: "С 14:00 до 20:00", "прошедшую ночь" и т.п. */

@@ -7,6 +7,8 @@ const UI_PREFERENCES_STORAGE_KEY = "radar.ui.preferences.v1";
 type PersistedUiPreferences = {
   widgetVisibility?: Record<string, boolean>;
   panelCollapsed?: Record<string, boolean>;
+  /** Активные табы по ключу области (например admin.activeTab). */
+  activeTabs?: Record<string, string>;
   mapLayers?: Record<string, boolean>;
   heatmap?: PersistedHeatmapPreferences;
 };
@@ -20,6 +22,7 @@ export type PersistedHeatmapPreferences = {
 const EMPTY_PREFERENCES: PersistedUiPreferences = {
   widgetVisibility: {},
   panelCollapsed: {},
+  activeTabs: {},
   mapLayers: {},
   heatmap: {
     period: undefined,
@@ -67,6 +70,10 @@ function patchPersistedUiPreferences(
       ...(current.panelCollapsed ?? {}),
       ...(patch.panelCollapsed ?? {}),
     },
+    activeTabs: {
+      ...(current.activeTabs ?? {}),
+      ...(patch.activeTabs ?? {}),
+    },
     mapLayers: {
       ...(current.mapLayers ?? {}),
       ...(patch.mapLayers ?? {}),
@@ -110,6 +117,17 @@ export function readPanelCollapsed(
 /** Сохраняет fold-состояние панели по стабильному ключу. */
 export function writePanelCollapsed(key: string, collapsed: boolean): void {
   patchPersistedUiPreferences({ panelCollapsed: { [key]: collapsed } });
+}
+
+/** Читает активный таб по ключу области (fallback, если нет/пустой). */
+export function readActiveTab(key: string, fallback: string): string {
+  const value = readPersistedUiPreferences().activeTabs?.[key];
+  return typeof value === "string" && value.length > 0 ? value : fallback;
+}
+
+/** Сохраняет активный таб по ключу области. */
+export function writeActiveTab(key: string, id: string): void {
+  patchPersistedUiPreferences({ activeTabs: { [key]: id } });
 }
 
 /** Возвращает map-layer toggle state с fallback на defaults. */

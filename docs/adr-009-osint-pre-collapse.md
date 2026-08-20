@@ -22,7 +22,7 @@
 ### Позиция в пайплайне
 
 ```text
-load event_locations (facts)
+load mat_parse_location (facts)
   → **pre-collapse**  ← этот ADR
   → kinematic routing (ADR-008)
   → spatio-temporal link (ADR-007)
@@ -76,7 +76,7 @@ type CollapsedNode = {
 ## Не делаем
 
 - Схлопывание на ingest/write-line — только в tracking worker.
-- Удаление исходных `event_locations` — facts остаются append-only.
+- Удаление исходных `mat_parse_location` — facts остаются append-only.
 - Semantic dedup по тексту (отдельный backlog ingest).
 
 ---

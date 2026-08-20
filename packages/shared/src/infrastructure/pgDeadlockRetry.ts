@@ -60,7 +60,7 @@ function sleep(ms: number): Promise<void> {
 }
 
 /**
- * Повтор read при deadlock/timeout (worker пишет event_locations параллельно fold).
+ * Повтор read при deadlock/timeout (worker пишет mat_parse_location параллельно fold).
  * Write-path не оборачивать.
  */
 export async function withPgDeadlockRetry<T>(

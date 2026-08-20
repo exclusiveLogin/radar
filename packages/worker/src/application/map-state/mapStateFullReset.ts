@@ -1,8 +1,8 @@
-import type { DataSource } from "typeorm";
 import { clearOperationalMapState } from "../archive/clearOperationalMapState.js";
+import type { OperationalSql } from "../phases/operationalSql.port.js";
 
 type ResetDeps = {
-  dataSource: DataSource;
+  operationalSql: OperationalSql;
 };
 
 export type MapStateFullResetResult = {
@@ -20,7 +20,7 @@ export class MapStateFullReset {
     _at: Date = new Date(),
     reason = "reparse:full-reset",
   ): Promise<MapStateFullResetResult> {
-    const map = await clearOperationalMapState(this.deps.dataSource, reason);
+    const map = await clearOperationalMapState(this.deps.operationalSql, reason);
     return {
       placesCleared: map.placesCleared,
       regionsGrey: map.regionsCleared,

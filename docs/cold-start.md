@@ -2,7 +2,7 @@
 
 PowerShell, корень репозитория. Единый сценарий **0→6** вместо склейки [getting-started.md](./getting-started.md), [runbook/geo-clean-rebuild.md](./runbook/geo-clean-rebuild.md) и [phase-commands.md](./phase-commands.md).
 
-**CLI:** `npm run radar -- <domain> <action>`. Справочник: [radar-cli.md](./radar-cli.md).
+**CLI:** `npm run radar -- <domain> <action>`. Справочник: [radar-cli.md](./radar-cli.md).
 
 ---
 
@@ -39,6 +39,7 @@ Copy-Item .env.example .env
 # отредактировать .env при необходимости
 
 npm run radar -- stack cold-up
+npm run radar -- stack bootstrap
 npm run build -w @repo/root
 npm run build -w @radar/worker
 
@@ -47,11 +48,13 @@ npm run radar -- ingest session:probe
 npm run radar -- ingest manifest:import
 ```
 
-`stack cold-up`: Docker (Postgres), `npm install`, build shared/api, **миграции**.
+`stack cold-up`: Docker (Postgres), `npm install`, build shared/api, **миграции**.
 
-Опция **`-Tiles`**: после bootstrap запускает `tiles:init` (скачивание OSM + tilemaker, **30–90 мин**, ≥30 GB диск). Без неё — CDN basemap (`openfreemap`). См. [map-tiles-selfhost.md](./map-tiles-selfhost.md).
+`stack bootstrap`: seed `phase_definitions` из `pipeline.manifest.json.phases` (insert-only; `--apply-config` — обновить policy без смены enabled).
 
-> **OSM для geo:** `geo catalog:import` (шаг 4) читает `data/geo/catalog/` и `data/geo/artifacts/`. Если каталога artifacts ещё нет — один раз: `npm run radar -- geo vendor`, затем `npm run radar -- geo sync`. Legacy-цепочка `geo:regions:seed` / `geo:features:import` **не нужна** — всё делает `geo catalog:import`.
+Опция **`-Tiles`**: после bootstrap запускает `tiles:sync` (скачивание OSM + tilemaker, **30–90 мин**, ≥30 GB диск). Без неё — CDN basemap (`openfreemap`). См. [map-tiles-selfhost.md](./map-tiles-selfhost.md).
+
+> **OSM для geo:** `geo catalog:import` (шаг 4) читает `data/geo/catalog/` и `data/geo/artifacts/`. Если каталога artifacts ещё нет — один раз: `npm run radar -- geo vendor`, затем `npm run radar -- geo sync`. Legacy-цепочка `geo:regions:seed` / `geo:features:import` **не нужна** — всё делает `geo catalog:import`.
 
 Ingest manifest **не** удаляется `system wipe` — каналы и bindings остаются в БД.
 
@@ -59,9 +62,9 @@ Ingest manifest **не** удаляется `system wipe` — каналы и bi
 
 ### 1. Остановить dev перед wipe
 
-> ⚠️ **Обязательно:** остановите `stack dev` / `stack dev --full` (**Ctrl+C**), закройте worker и API. Иначе параллельные записи в БД ломают wipe и TRUNCATE.
+> ⚠️ **Обязательно:** остановите `stack dev` / `stack dev` (**Ctrl+C**), закройте worker и API. Иначе параллельные записи в БД ломают wipe и TRUNCATE.
 
-Проверка: нет активного `npm run radar -- stack dev` и `worker:dev` в других терминалах.
+Проверка: нет активного `npm run radar -- stack dev` и `worker:dev` в других терминалах.
 
 ---
 
@@ -72,7 +75,7 @@ npm run radar -- system wipe -- --dry-run   # опционально: посмо
 npm run radar -- system wipe -- --confirm
 ```
 
-Удаляет: `raw_messages`, `parsed_events`, `event_locations`, places, regions, `geo_feature`, read-model карты, cursors/backfill, jobs.
+Удаляет: `mat_ingest_raw`, `mat_parse_event`, `mat_parse_location`, places, regions, `geo_feature`, read-model карты, cursors/backfill, jobs.
 
 **Не трогает:** `channels`, `ingest_providers`, `ingest_bindings`, `phase_definitions`, Telegram session на диске, файлы `data/geo/`.
 
@@ -123,10 +126,10 @@ npm run radar -- ingest backfill -- --all-bindings --batch-size=100
 
 ```powershell
 npm run radar -- parse run
-npm run radar -- stack dev --full
+npm run radar -- stack dev
 ```
 
-`parse run` = rebuild по `raw_messages` + drain ingest/geo очередей + обновление read-line карты.
+`parse run` = rebuild по `mat_ingest_raw` + drain ingest/geo очередей + обновление read-line карты.
 
 Проверка:
 
@@ -134,9 +137,9 @@ npm run radar -- stack dev --full
 |-----|----------|
 | http://127.0.0.1:3000/api/ready | БД ok |
 | http://127.0.0.1:5173 | UI + карта |
-| `npm run radar -- pipeline status` | очереди ≈ 0 |
+| `npm run radar -- pipeline status` | очереди ≈ 0 |
 
-Опционально после прогона: `npm run radar -- pipeline parity`, `npm run radar -- map diagnose` — [runbook § validation](./runbook/geo-clean-rebuild.md#post-rebuild-validation-parse-parity-gate).
+Опционально после прогона: `npm run radar -- pipeline parity`, `npm run radar -- map diagnose` — [runbook § validation](./runbook/geo-clean-rebuild.md#post-rebuild-validation-parse-parity-gate).
 
 ---
 
@@ -152,7 +155,7 @@ npm run build -w @radar/worker
 npm run radar -- geo catalog:import
 npm run radar -- ingest backfill -- --all-bindings --batch-size=100
 npm run radar -- parse run
-npm run radar -- stack dev --full
+npm run radar -- stack dev
 ```
 
 ---

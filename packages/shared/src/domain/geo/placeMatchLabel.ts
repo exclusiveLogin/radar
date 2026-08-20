@@ -89,6 +89,7 @@ export function normalizePlaceMatchLabel(name: string): string {
 
 /**
  * Кандидаты name_stem для lookup: основной + эвристика «Наро-фоминский» → «Наро-Фоминск».
+ * Суффикс района/МО снимается до adjective-эвристики («Северский район» → «северск»).
  */
 export function collectPlaceMatchStems(name: string): string[] {
   const label = normalizePlaceMatchLabel(name);
@@ -99,7 +100,8 @@ export function collectPlaceMatchStems(name: string): string[] {
     stems.add(primary);
   }
 
-  const adjective = label.match(/^(.+?)(?:ский|ской)$/iu);
+  const coreForAdjective = label.replace(/\s+(?:мо|го|район|р-н)\s*$/iu, "").trim();
+  const adjective = coreForAdjective.match(/^(.+?)(?:ский|ской)$/iu);
   if (adjective) {
     const cityLike = `${adjective[1]!}ск`;
     const alt = placeStemCore(cityLike);

@@ -1,7 +1,7 @@
 import { MONOREPO_ROOT } from "@repo/root";
 import { createWorkerCompositionRoot } from "../application/createWorkerCompositionRoot.js";
 import { loadRootEnv } from "../infrastructure/config/loadRootEnv.js";
-import { WorkerStorageMode } from "../infrastructure/persistence/storageMode.js";
+import { cliWorkerRuntime } from "./cliWorkerRuntime.js";
 
 type StatusScope = "all" | "ingest" | "geo" | "runs";
 
@@ -21,12 +21,12 @@ async function printIngestQueues(
   repos: NonNullable<Awaited<ReturnType<typeof createWorkerCompositionRoot>>["workerRepos"]>,
 ): Promise<void> {
   const phases = await repos.phaseDefinitions.listEnabled(undefined, "ingestParse");
-  console.log("ingest.phase_coverage (total) =", await repos.phaseCoverage.countByStatus());
+  console.log("ingest.queue_parse_coverage (total) =", await repos.phaseCoverage.countByStatus());
   for (const phase of phases) {
     const counts = await repos.phaseCoverage.countByStatus(phase.id);
     const pending = counts.pending + counts.processing;
     if (pending === 0 && counts.done === 0 && counts.failed === 0) continue;
-    console.log(`  [${phase.id}] trigger=${phase.trigger}`, counts);
+    console.log(`  [${phase.id}] triggerMode=${phase.triggerMode}`, counts);
   }
 }
 
@@ -35,18 +35,18 @@ async function printGeoQueues(
 ): Promise<void> {
   const byStatus = (await dataSource.query(
     `SELECT status, COUNT(*)::int AS count
-     FROM place_enrichment_jobs
+     FROM job_geo_place_enrich
      GROUP BY status
      ORDER BY status`,
   )) as Array<{ status: string; count: number }>;
   console.log(
-    "geo.place_enrichment_jobs =",
+    "geo.job_geo_place_enrich =",
     Object.fromEntries(byStatus.map((row) => [row.status, Number(row.count)])),
   );
 
   const byProvider = (await dataSource.query(
     `SELECT provider, status, COUNT(*)::int AS count
-     FROM place_enrichment_jobs
+     FROM job_geo_place_enrich
      GROUP BY provider, status
      ORDER BY provider, status`,
   )) as Array<{ provider: string; status: string; count: number }>;
@@ -60,7 +60,7 @@ async function printActiveRuns(
 ): Promise<void> {
   const runs = (await dataSource.query(
     `SELECT id, phase_id, status, trigger, started_at, updated_at
-     FROM phase_runs
+     FROM log_parse_phase_run
      WHERE status IN ('pending', 'running', 'paused')
      ORDER BY started_at DESC NULLS LAST
      LIMIT 50`,
@@ -73,10 +73,10 @@ async function printActiveRuns(
     updated_at: string;
   }>;
   if (runs.length === 0) {
-    console.log("phase_runs: активных нет");
+    console.log("log_parse_phase_run: активных нет");
     return;
   }
-  console.log(`phase_runs: активных ${runs.length}`);
+  console.log(`log_parse_phase_run: активных ${runs.length}`);
   for (const run of runs) {
     console.log(
       `  ${run.id} phase=${run.phase_id} status=${run.status} trigger=${run.trigger}`,
@@ -91,10 +91,7 @@ async function printActiveRuns(
 async function main(): Promise<void> {
   loadRootEnv(MONOREPO_ROOT);
   const scope = resolveScope(process.argv);
-  const runtime = await createWorkerCompositionRoot({
-    storageMode: WorkerStorageMode.Db,
-    startIngestParseDaemon: false,
-  });
+  const runtime = await createWorkerCompositionRoot(cliWorkerRuntime("parse", ["parse", "geo"]));
   if (!runtime.dataSource || !runtime.workerRepos) {
     throw new Error("parseEngineStatusCli: требуется db mode");
   }

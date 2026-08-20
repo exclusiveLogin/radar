@@ -1,53 +1,62 @@
 #!/usr/bin/env node
 /**
- * Dev-стек с упорядоченным bootstrap:
- * Сборка dist — npm predev / predev:app / preworker:dev (корень package.json).
- * Параллельно: shared:watch, api dev, web (после /api/ready), [worker после dist].
- *
- * concurrently не имеет depends — порядок через wait-on в командах.
- * npm run dev:app | npm run dev (--full)
+ * Host dev-стек: infra → prepare → concurrently (shared/api/web + workers).
+ * --app-only: без workers.
+ * --obs / --llm / --llm-ui: дополнительно observability / ollama (+ open-webui).
+ * --no-infra: не трогать Docker (если infra уже поднята).
  */
+import { loadInfraManifest } from '@radar/shared/infra/infraManifest.loader.js';
 import { spawn } from 'node:child_process';
-import { platform } from 'node:os';
 import { freeDevPorts } from './free-dev-ports.mjs';
 import { repoRoot, run } from './utils.mjs';
+import {
+  DEV_WORKER_COLORS,
+  DEV_WORKER_PROBE_ROLE,
+  DEV_WORKER_ROLES,
+  devWorkerProcessNames,
+} from './worker-roles.mjs';
 
-const full = process.argv.includes('--full');
-const sharedDist = 'file:packages/shared/dist/index.js';
-const apiDistMain = 'file:packages/api/dist/main.js';
-const workerParseDist =
-  'file:packages/worker/dist/application/parsing/parsePipeline.worker.js';
-/** Readiness: порт + БД, чтобы фронт не ловил ECONNREFUSED на /api/map/snapshot. */
-const apiReady = 'http://127.0.0.1:3000/api/ready';
+const argv = process.argv.slice(2);
+const appOnly = argv.includes('--app-only');
+const noInfra = argv.includes('--no-infra');
+const prepareArgs = argv.includes('--no-clean') ? ['--no-clean'] : [];
+const infraArgs = [
+  ...(argv.includes('--obs') ? ['--obs'] : []),
+  ...(argv.includes('--llm') ? ['--llm'] : []),
+  ...(argv.includes('--llm-ui') ? ['--llm-ui'] : []),
+];
+const libsReady =
+  'file:packages/shared/dist/index.js file:packages/persistence/dist/index.js file:packages/transport-rmq/dist/index.js';
 const waitTimeoutMs = 120_000;
+
+const manifest = loadInfraManifest({ repoRoot });
+const apiPort = Number(process.env.PORT) || manifest.infra.compose.apiPort;
+const apiReady = `http://127.0.0.1:${apiPort}/api/ready`;
 
 const commands = [
   'npm run dev -w @radar/shared',
-  `npx wait-on -t ${waitTimeoutMs} ${sharedDist} && npm run dev -w @radar/api`,
+  `npx wait-on -t ${waitTimeoutMs} ${libsReady} && npm run dev -w @radar/api`,
   `npx wait-on -t ${waitTimeoutMs} ${apiReady} && npm run dev -w @radar/web`,
 ];
-if (full) {
-  // Worker ждёт api/ready (nest watch уже собрал dist), не только файл с predev —
-  // иначе гонка: worker стартует, пока api:dev ещё пересобирает/чистит dist.
-  commands.push(
-    `npx wait-on -t ${waitTimeoutMs} ${apiReady} ${workerParseDist} && node scripts/free-worker-probe-port.mjs && npm run dev -w @radar/worker --ignore-scripts`,
-  );
+
+if (!appOnly) {
+  const workerWait = `npx wait-on -t ${waitTimeoutMs} ${apiReady} ${libsReady}`;
+  for (const role of DEV_WORKER_ROLES) {
+    const freeProbe =
+      role === DEV_WORKER_PROBE_ROLE ? 'node scripts/free-worker-probe-port.mjs && ' : '';
+    commands.push(`${freeProbe}${workerWait} && node scripts/run-worker-dev.mjs ${role}`);
+  }
 }
 
-const names = full ? 'shared,api,web,worker' : 'shared,api,web';
-const colors = full ? 'cyan,blue,magenta,green' : 'cyan,blue,magenta';
+const appNames = ['shared', 'api', 'web'];
+const appColors = ['cyan', 'blue', 'magenta'];
+const names = (appOnly ? appNames : [...appNames, ...devWorkerProcessNames()]).join(',');
+const colors = (appOnly ? appColors : [...appColors, ...DEV_WORKER_COLORS]).join(',');
 
 function spawnConcurrently() {
-  // Каждая команда — один аргумент concurrently; на Windows обязательны кавычки.
   const quoted = commands.map((cmd) => JSON.stringify(cmd)).join(' ');
   const line = `npx concurrently -n ${names} -c ${colors} ${quoted}`;
-
-  const child = spawn(line, {
-    cwd: repoRoot,
-    stdio: 'inherit',
-    shell: true,
-  });
-
+  const child = spawn(line, { cwd: repoRoot, stdio: 'inherit', shell: true });
   child.on('exit', (code) => process.exit(code ?? 0));
   child.on('error', (err) => {
     console.error(err);
@@ -57,16 +66,16 @@ function spawnConcurrently() {
 
 async function main() {
   console.log('\x1b[36m=== Radar dev: bootstrap ===\x1b[0m');
-  console.log(`Профиль: ${full ? 'full (+ worker)' : 'app (shared + api + web)'}`);
-
+  console.log(`Профиль: ${appOnly ? 'app-only (shared+api+web)' : 'full (5 workers by role)'}`);
   freeDevPorts();
-
-  console.log('\n\x1b[36m(dist уже собран predev — см. package.json)\x1b[0m');
-  console.log('\n\x1b[32mЗапуск процессов (web и worker после /api/ready)\x1b[0m');
-  console.log(
-    '\x1b[33mПервый старт 40–90с: predev (shared+api+worker), потом api → web → worker. Не закрывай терминал.\x1b[0m',
-  );
-  console.log('\x1b[90mТолько UI без worker: npm run dev:app\x1b[0m\n');
+  if (!noInfra) {
+    run('node', ['scripts/infra-up.mjs', ...infraArgs]);
+  } else {
+    console.log('[infra] skipped (--no-infra)');
+  }
+  run('node', ['scripts/dev-stack-prepare.mjs', ...prepareArgs]);
+  console.log('\n\x1b[32mЗапуск процессов (web и workers после /api/ready)\x1b[0m');
+  console.log('\x1b[90mТолько UI: npm run dev:app | без Docker: --no-infra | наблюдаемость: --obs | LLM: --llm\x1b[0m\n');
   spawnConcurrently();
 }
 

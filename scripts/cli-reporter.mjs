@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * SSOT verbose/quiet и stage progress для корневых Node-скриптов (cold-up, tiles:init).
+ * SSOT verbose/quiet и stage progress для корневых Node-скриптов (cold-up, tiles:sync).
  */
 import { spawnSync } from 'node:child_process';
 import { createStageProgressReporter } from '@radar/shared';

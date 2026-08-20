@@ -97,6 +97,154 @@ test("PlaceScanService: с regionScope голый Курумоч резолви�
   assert.ok(hits.some((h) => h.entry.name === "Курумоч" && h.entry.regionIso === "RU-SAM"));
 });
 
+/**
+ * Калужский кейс: районы каталога лежат как locality, имена «Кировский/Куйбышевский район»
+ * повторяются в других субъектах. Явная «Калужская область» должна снимать неоднозначность.
+ */
+const KALUGA_DISTRICT_ENTRIES: PlaceScanEntry[] = [
+  {
+    placeId: "klu-region-place-id",
+    regionId: "klu-region-id",
+    regionIso: "RU-KLU",
+    kind: "region",
+    name: "Калужская",
+    nameWithType: "Калужская область",
+    nameStem: "калужск",
+    regionShortName: "Калужская область",
+  },
+  {
+    placeId: "klu-kirovsky-id",
+    regionId: "klu-region-id",
+    regionIso: "RU-KLU",
+    kind: "locality",
+    name: "Кировский район",
+    nameStem: "кировск",
+  },
+  {
+    placeId: "klu-kuibyshevsky-id",
+    regionId: "klu-region-id",
+    regionIso: "RU-KLU",
+    kind: "locality",
+    name: "Куйбышевский район",
+    nameStem: "куйбышевск",
+  },
+  {
+    placeId: "klu-ludinovsky-id",
+    regionId: "klu-region-id",
+    regionIso: "RU-KLU",
+    kind: "locality",
+    name: "Людиновский район",
+    nameStem: "людиновск",
+  },
+  {
+    placeId: "spe-kirovsky-id",
+    regionId: "spe-region-id",
+    regionIso: "RU-SPE",
+    kind: "locality",
+    name: "Кировский район",
+    nameStem: "кировск",
+  },
+  {
+    placeId: "sam-kuibyshevsky-id",
+    regionId: "sam-region-id",
+    regionIso: "RU-SAM",
+    kind: "locality",
+    name: "Куйбышевский район",
+    nameStem: "куйбышевск",
+  },
+];
+
+const KALUGA_DISTRICT_TEXT =
+  "Куйбышевский район\nКировский район\nЛюдиновский район\nКалужская область\nФиксации БПЛА";
+
+test("PlaceScanIndex: regionScope сужает пул до субъекта — омонимичные районы-locality матчатся", () => {
+  const index = new PlaceScanIndex(KALUGA_DISTRICT_ENTRIES);
+  const hits = index.matchPlacesByPhrase(KALUGA_DISTRICT_TEXT, {
+    regionScopeId: "klu-region-id",
+  });
+  assert.deepEqual(
+    hits.map((h) => h.entry.name),
+    ["Куйбышевский район", "Кировский район", "Людиновский район"],
+  );
+  assert.ok(hits.every((h) => h.entry.regionIso === "RU-KLU"));
+});
+
+test("PlaceScanIndex: без regionScope районы-locality не поднимаются (ADR-012 floor)", () => {
+  const index = new PlaceScanIndex(KALUGA_DISTRICT_ENTRIES);
+  assert.equal(index.matchPlacesByPhrase(KALUGA_DISTRICT_TEXT).length, 0);
+});
+
+test("PlaceScanService: «Калужская область» + три района → три place-хита RU-KLU", () => {
+  const scan = new PlaceScanService(KALUGA_DISTRICT_ENTRIES, "test");
+  const hits = scan.matchPlaces(KALUGA_DISTRICT_TEXT, { regionScopeIso: "RU-KLU" });
+  assert.deepEqual(
+    hits.map((h) => h.entry.placeId),
+    ["klu-kuibyshevsky-id", "klu-kirovsky-id", "klu-ludinovsky-id"],
+  );
+});
+
+/** Два субъекта: уникальность place внутри объединения, не по всей стране. */
+const MULTI_REGION_DISTRICT_ENTRIES: PlaceScanEntry[] = [
+  ...KALUGA_DISTRICT_ENTRIES,
+  {
+    placeId: "tul-region-place-id",
+    regionId: "tul-region-id",
+    regionIso: "RU-TUL",
+    kind: "region",
+    name: "Тульская",
+    nameWithType: "Тульская область",
+    nameStem: "тульск",
+    regionShortName: "Тульская область",
+  },
+  {
+    placeId: "tul-shchekino-id",
+    regionId: "tul-region-id",
+    regionIso: "RU-TUL",
+    kind: "locality",
+    name: "Щёкинский район",
+    nameStem: "щекинск",
+  },
+  // Омоним «Щёкинский» вне упомянутых субъектов — без multi-scope раньше мешал бы.
+  {
+    placeId: "other-shchekino-id",
+    regionId: "other-region-id",
+    regionIso: "RU-NIZ",
+    kind: "locality",
+    name: "Щёкинский район",
+    nameStem: "щекинск",
+  },
+  {
+    placeId: "tul-kirovsky-id",
+    regionId: "tul-region-id",
+    regionIso: "RU-TUL",
+    kind: "locality",
+    name: "Кировский район",
+    nameStem: "кировск",
+  },
+];
+
+test("PlaceScanService: 2 субъекта + place уникален в одном из них → берём (омонимы вне скоупа игнор)", () => {
+  const scan = new PlaceScanService(MULTI_REGION_DISTRICT_ENTRIES, "test");
+  const text =
+    "Щёкинский район\nЛюдиновский район\nКалужская область\nТульская область\nФиксации БПЛА";
+  const hits = scan.matchPlaces(text, {
+    explicitRegionIsos: ["RU-KLU", "RU-TUL"],
+  });
+  assert.deepEqual(
+    hits.map((h) => h.entry.placeId).sort(),
+    ["klu-ludinovsky-id", "tul-shchekino-id"],
+  );
+});
+
+test("PlaceScanService: 2 субъекта + омоним района в обоих → не берём place", () => {
+  const scan = new PlaceScanService(MULTI_REGION_DISTRICT_ENTRIES, "test");
+  const text = "Кировский район\nКалужская область\nТульская область\nФиксации БПЛА";
+  const hits = scan.matchPlaces(text, {
+    explicitRegionIsos: ["RU-KLU", "RU-TUL"],
+  });
+  assert.equal(hits.find((h) => h.entry.name === "Кировский район"), undefined);
+});
+
 const ILI_LOCALITY: PlaceScanEntry[] = [
   {
     placeId: "ili-locality-id",

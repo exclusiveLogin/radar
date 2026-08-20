@@ -2,19 +2,19 @@ import { MONOREPO_ROOT } from "@repo/root";
 import { clearIngestOperationalState } from "../application/archive/clearIngestOperationalState.js";
 import { createWorkerCompositionRoot } from "../application/createWorkerCompositionRoot.js";
 import { loadRootEnv } from "../infrastructure/config/loadRootEnv.js";
-import { WorkerStorageMode } from "../infrastructure/persistence/storageMode.js";
+import { cliWorkerRuntime } from "./cliWorkerRuntime.js";
 import { hasAnyFlag, parseLongFlagsMap } from "./workerCliArgs.js";
 
 function printPlan(): void {
   console.log(`
 parse-engine:clear:ingest — операционный сброс ingest (конфиг сохраняется):
 
-  • ingest_backfill_jobs — cancel активных + DELETE всех
-  • ingest_cursors — DELETE
+  • job_ingest_backfill — cancel активных + DELETE всех
+  • state_ingest_cursor — DELETE
   • ingest_providers.last_error — очистка
-  • domain_events (ingest_provider, ingest_binding, raw_message)
+  • event_outbox (ingest_provider, ingest_binding, raw_message)
 
-Не трогает: channels, ingest_providers/bindings (конфиг), raw_messages.
+Не трогает: channels, ingest_providers/bindings (конфиг), mat_ingest_raw.
 `);
 }
 
@@ -36,10 +36,7 @@ async function main(): Promise<void> {
     process.exit(0);
   }
 
-  const runtime = await createWorkerCompositionRoot({
-    storageMode: WorkerStorageMode.Db,
-    startIngestParseDaemon: false,
-  });
+  const runtime = await createWorkerCompositionRoot(cliWorkerRuntime("ingest", ["ingest"]));
   if (!runtime.dataSource) {
     console.error("clear:ingest: нужен RADAR_STORAGE_MODE=db и DATABASE_URL");
     process.exit(1);
@@ -54,7 +51,7 @@ async function main(): Promise<void> {
   console.log(`  backfill jobs удалено: ${result.backfillJobsDeleted}`);
   console.log(`  cursors удалено: ${result.cursorsDeleted}`);
   console.log(`  provider last_error сброшено: ${result.providersErrorsCleared}`);
-  console.log(`  domain_events удалено: ${result.domainEventsDeleted}`);
+  console.log(`  event_outbox удалено: ${result.domainEventsDeleted}`);
 
   await runtime.shutdown?.();
 }

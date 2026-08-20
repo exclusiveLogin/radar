@@ -27,7 +27,7 @@
 
 `GeoSyncApplyService` — bulk load регионов/places/aliases из датасета:
 
-- audit в `geo_sync_log`;
+- audit в `log_geo_sync`;
 - события `GeoSyncCompleted` / `GeoSyncFailed`, `aggregateType: geo_sync`, `aggregateId: auditRow.id`;
 - запись в outbox через `IDomainEventRepository.append`.
 

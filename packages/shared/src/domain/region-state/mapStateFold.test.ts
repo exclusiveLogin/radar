@@ -130,6 +130,36 @@ test("foldMapState: региональный clear подавляет place rais
   assert.equal(result.places.length, 0);
 });
 
+test("foldMapState: local clear не сбрасывает regional continuation", () => {
+  const t = "2026-06-11T13:00:00.000Z";
+  const result = foldMapState({
+    asOf,
+    ttlMs: DAY_MS,
+    facts: [
+      fact({
+        factId: "novorossiysk-clear",
+        entityKind: "place",
+        placeId: "place-novorossiysk",
+        action: "clear",
+        stateLevel: "green",
+        statusCode: "cleared",
+        occurredAt: t,
+      }),
+      fact({
+        factId: "krasnodar-continuation",
+        entityKind: "region",
+        placeId: null,
+        stateLevel: "red",
+        statusCode: "danger",
+        occurredAt: t,
+      }),
+    ],
+  });
+
+  assert.deepEqual(result.regions.map((winner) => winner.statusCode), ["danger"]);
+  assert.equal(result.places.length, 0);
+});
+
 test("foldMapState: факты старше TTL не участвуют", () => {
   const result = foldMapState({
     asOf,

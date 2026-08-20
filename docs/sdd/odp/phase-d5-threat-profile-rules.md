@@ -14,7 +14,7 @@ Tracking: [phase-1](../tracking/phase-1-l1-mvp.md)
 
 - `resolveThreatProfileFromRules()` из `manifest.threatProfileRules`
 - Tracking worker loads rules from `DomainProfileContext`
-- Denormalize `threat_profile` on `trajectory_nodes` / tracks from rules
+- Denormalize `threat_profile` on `mat_track_node` / tracks from rules
 - Unit tests on rule table
 
 ### Out of scope

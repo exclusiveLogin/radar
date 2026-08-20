@@ -1,4 +1,4 @@
-import type { PlaceRecord } from "./repositories.js";
+import type { PlaceRecord } from "./geo-repositories.js";
 
 /** Запись каталога для in-memory geo scan (read-side). */
 export type PlaceScanEntry = {
@@ -37,6 +37,10 @@ export type PlaceScanHit = {
   entry: PlaceScanEntry;
   span: TextSpan;
   geoImprecise?: boolean;
+  /** Матч через эвристику «…ский → …ск», не буквальный stem (ADR-027). */
+  matchedViaAdjectiveStem?: boolean;
+  /** Размер пула омонимов после kind/region filter (ADR-027). */
+  stemPoolSize?: number;
 };
 
 export type PlaceResolveContext = {

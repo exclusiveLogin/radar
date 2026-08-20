@@ -1,5 +1,6 @@
 import type { AttachRule, EventCandidate, ParseWorkspace, TraitAttachment } from "@radar/shared";
 import { resolveAttachTargets } from "./attachRule.js";
+import { listActiveCandidates } from "./parseProcessorContract.js";
 
 export const EVENT_TYPE_TRAIT_KEY = "eventType";
 
@@ -84,4 +85,15 @@ export function withResolvedEventType(
   const eventType = resolveEventTypeForCandidate(candidate, workspace);
   if (eventType === candidate.eventType) return candidate;
   return { ...candidate, eventType };
+}
+
+/**
+ * Primary для report / offline projection: active с известным eventType,
+ * иначе первый active. Rejected `[0]` не брать — иначе ложный noise.
+ */
+export function pickPrimaryCandidate(
+  workspace: ParseWorkspace,
+): EventCandidate | undefined {
+  const active = listActiveCandidates(workspace);
+  return active.find((c) => resolveEventTypeForCandidate(c, workspace) !== "unknown") ?? active[0];
 }

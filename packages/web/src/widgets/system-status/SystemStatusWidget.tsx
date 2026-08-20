@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { Panel, StatusDot } from "../../shared/ds";
+import { EventCardHead } from "../../shared/components/EventCardHead";
 import { useBehaviorSubject } from "../../shared/hooks/useBehaviorSubject";
 import { connectionStatus$ } from "../../shared/realtime/ws";
 import {
@@ -13,8 +14,17 @@ import {
   regionsByCode$,
 } from "../../shared/state/mapStore";
 import { systemHealth$, workerStatus$ } from "../../shared/state/providersStore";
-
+import type { StateLevel } from "@radar/shared";
 import type { WidgetProps } from "../widgetProps";
+
+type RowKind = "ok" | "warn" | "error" | "neutral";
+
+function kindLevel(kind: RowKind): StateLevel {
+  if (kind === "ok") return "green";
+  if (kind === "warn") return "yellow";
+  if (kind === "error") return "red";
+  return "grey";
+}
 
 /** WS-соединение, DB ready, счётчики активных регионов/мест. */
 export function SystemStatusWidget({
@@ -34,7 +44,7 @@ export function SystemStatusWidget({
     [places, regions],
   );
 
-  const wsKind =
+  const wsKind: RowKind =
     wsStatus === "open" ? "ok" : wsStatus === "connecting" ? "warn" : "error";
   const wsLabel =
     wsStatus === "open"
@@ -56,6 +66,80 @@ export function SystemStatusWidget({
         .join("\n")
     : "Worker недоступен";
 
+  const rows: Array<{
+    id: string;
+    title: string;
+    kind: RowKind;
+    label: string;
+    tip?: string;
+    pulse?: boolean;
+    value?: string;
+  }> = [
+    {
+      id: "ws",
+      title: "WebSocket",
+      kind: wsKind,
+      label: wsLabel,
+      pulse: wsStatus === "open",
+    },
+    {
+      id: "api",
+      title: "API",
+      kind: health.apiOk ? "ok" : "error",
+      label: health.apiOk ? "OK" : "Недоступен",
+    },
+    {
+      id: "db",
+      title: "База данных",
+      kind: health.dbReady ? "ok" : "error",
+      label: health.dbReady ? "Ready" : "Not ready",
+    },
+    {
+      id: "worker",
+      title: "Worker",
+      kind: workerStatus?.reachable ? "ok" : "error",
+      label: workerStatus?.reachable
+        ? `${workerStatus.worker?.status ?? "?"} · live ${workerStatus.worker?.ingest.liveInserted ?? 0}`
+        : "Недоступен",
+      tip: workerTip,
+      pulse: workerStatus?.worker?.orchestrator.running ?? false,
+    },
+    ...(workerStatus?.worker
+      ? [
+          {
+            id: "ingest",
+            title: "Ingest live",
+            kind: "neutral" as const,
+            label: "",
+            value: workerStatus.worker.ingest.lastLiveAt
+              ? formatAge(workerStatus.worker.ingest.lastLiveAt)
+              : "—",
+          },
+        ]
+      : []),
+    {
+      id: "snapshot",
+      title: "Снапшот",
+      kind: "neutral",
+      label: "",
+      value: formatAge(lastSnapshot),
+    },
+    {
+      id: "regions",
+      title: "Активных регионов",
+      kind: "neutral",
+      label: "",
+      value: String(activeRegions),
+    },
+    {
+      id: "places",
+      title: "Активных мест",
+      kind: "neutral",
+      label: "",
+      value: String(activePlaces),
+    },
+  ];
+
   return (
     <Panel
       title="Система"
@@ -64,59 +148,27 @@ export function SystemStatusWidget({
       defaultCollapsed={defaultCollapsed}
       persistenceKey={panelPersistenceKey}
     >
-      <div className="ds-metric-row">
-        <span className="ds-metric-row__label">WebSocket</span>
-        <StatusDot kind={wsKind} label={wsLabel} pulse={wsStatus === "open"} />
-      </div>
-      <div className="ds-metric-row">
-        <span className="ds-metric-row__label">API</span>
-        <StatusDot
-          kind={health.apiOk ? "ok" : "error"}
-          label={health.apiOk ? "OK" : "Недоступен"}
-        />
-      </div>
-      <div className="ds-metric-row">
-        <span className="ds-metric-row__label">База данных</span>
-        <StatusDot
-          kind={health.dbReady ? "ok" : "error"}
-          label={health.dbReady ? "Ready" : "Not ready"}
-        />
-      </div>
-      <div className="ds-metric-row">
-        <span className="ds-metric-row__label">Worker</span>
-        <StatusDot
-          kind={workerStatus?.reachable ? "ok" : "error"}
-          label={
-            workerStatus?.reachable
-              ? `${workerStatus.worker?.status ?? "?"} · live ${workerStatus.worker?.ingest.liveInserted ?? 0}`
-              : "Недоступен"
-          }
-          tip={workerTip}
-          pulse={workerStatus?.worker?.orchestrator.running ?? false}
-        />
-      </div>
-      {workerStatus?.worker && (
-        <div className="ds-metric-row">
-          <span className="ds-metric-row__label">Ingest live</span>
-          <span className="ds-metric-row__value">
-            {workerStatus.worker.ingest.lastLiveAt
-              ? formatAge(workerStatus.worker.ingest.lastLiveAt)
-              : "—"}
-          </span>
-        </div>
-      )}
-      <div className="ds-metric-row">
-        <span className="ds-metric-row__label">Снапшот</span>
-        <span className="ds-metric-row__value">{formatAge(lastSnapshot)}</span>
-      </div>
-      <div className="ds-metric-row">
-        <span className="ds-metric-row__label">Активных регионов</span>
-        <span className="ds-metric-row__value">{activeRegions}</span>
-      </div>
-      <div className="ds-metric-row">
-        <span className="ds-metric-row__label">Активных мест</span>
-        <span className="ds-metric-row__value">{activePlaces}</span>
-      </div>
+      <ul className="ds-message-feed">
+        {rows.map((row) => (
+          <li key={row.id} className="ds-message-feed__item">
+            <EventCardHead
+              title={row.title}
+              level={kindLevel(row.kind)}
+              time={row.value}
+              timeAction={
+                row.label ? (
+                  <StatusDot
+                    kind={row.kind}
+                    label={row.label}
+                    tip={row.tip}
+                    pulse={row.pulse}
+                  />
+                ) : undefined
+              }
+            />
+          </li>
+        ))}
+      </ul>
     </Panel>
   );
 }

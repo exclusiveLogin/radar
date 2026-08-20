@@ -1,4 +1,4 @@
-import type { RegionRecord } from "../../ports/repositories";
+import type { RegionRecord } from "../../ports/geo-repositories";
 
 const SUBJECT_TYPE_TOKENS = new Set([
   "область",
@@ -87,7 +87,7 @@ export function stripFiasSettlementPrefix(label: string): string {
 
 /**
  * Запрос для catalog place + region: «место[, район], субъект, страна».
- * SSOT для geoParse (place_enrichment_jobs) и ingest enrichers.
+ * SSOT для geoParse (job_geo_place_enrich) и ingest enrichers.
  */
 export function buildCatalogPlaceGeocodeQuery(input: CatalogPlaceGeocodeInput): string {
   const placeLabel = stripFiasSettlementPrefix(

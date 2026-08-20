@@ -22,6 +22,8 @@
 
 Фаза **0** (документация) — выполнена, отдельного SDD нет.
 
+**Runner platform migration (Wave 3, инфраструктура запуска, не алгоритм):** [runner-platform-migration.md](./runner-platform-migration.md).
+
 ---
 
 ## Зафиксированные решения (D1–D8)

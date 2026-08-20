@@ -86,6 +86,21 @@ export const geoEnrichmentNominatimSchema = z.object({
   nodes: z.array(geoNodeSchema),
 });
 
+/** Вердикт LLM Validator по уже существующему candidate.id (не re-geocoding). */
+export const llmValidatorVerdictSchema = z.object({
+  candidateId: z.string().min(1),
+  verdict: z.enum(["confirm", "reject"]),
+  confidence: z.number().min(0).max(1),
+  reason: z.string().max(400).optional(),
+});
+
+export const geoEnrichmentLlmValidatorSchema = z.object({
+  schemaVersion: z.literal(1),
+  verdicts: z.array(llmValidatorVerdictSchema),
+  /** Почему вызов пропущен (trigger=off / нет borderline / LLM disabled). */
+  skippedReason: z.string().optional(),
+});
+
 /** SSOT: метка источника geo в finalizer и parse report. */
 export const geoEnrichmentSourceSchema = z.enum([
   "local",
@@ -93,6 +108,7 @@ export const geoEnrichmentSourceSchema = z.enum([
   "dadata",
   "nominatim",
   "llm",
+  "llm-validator",
   "multi",
 ]);
 
@@ -124,12 +140,13 @@ export const geoEnrichmentFinalizerSchema = z.object({
 export const geoEnrichmentArtifactSchema = z.object({
   catalog: geoEnrichmentCatalogSchema.optional(),
   llm: geoEnrichmentLlmSchema.optional(),
+  llmValidator: geoEnrichmentLlmValidatorSchema.optional(),
   dadata: geoEnrichmentDadataSchema.optional(),
   nominatim: geoEnrichmentNominatimSchema.optional(),
   finalizer: geoEnrichmentFinalizerSchema.optional(),
 });
 
-/** Snapshot geo-состояния между фазами (persist в parsed_events.extras.geoArtifact). */
+/** Snapshot geo-состояния между фазами (persist в mat_parse_event.extras.geoArtifact). */
 export const geoEnrichmentStateSchema = geoEnrichmentArtifactSchema.extend({
   validatedLocations: z.array(eventLocationSchema).optional(),
   phaseId: z.string().optional(),
@@ -158,5 +175,7 @@ export type GeoEnrichmentCatalog = z.infer<typeof geoEnrichmentCatalogSchema>;
 export type GeoEnrichmentLlm = z.infer<typeof geoEnrichmentLlmSchema>;
 export type GeoEnrichmentDadata = z.infer<typeof geoEnrichmentDadataSchema>;
 export type GeoEnrichmentNominatim = z.infer<typeof geoEnrichmentNominatimSchema>;
+export type LlmValidatorVerdict = z.infer<typeof llmValidatorVerdictSchema>;
+export type GeoEnrichmentLlmValidator = z.infer<typeof geoEnrichmentLlmValidatorSchema>;
 export type GeoEnrichmentFinalizer = z.infer<typeof geoEnrichmentFinalizerSchema>;
 export type GeoPipelineReport = z.infer<typeof geoPipelineReportSchema>;

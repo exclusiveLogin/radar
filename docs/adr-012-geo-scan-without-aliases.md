@@ -1,3 +1,5 @@
+﻿> **Имена таблиц:** актуальные — [database-table-naming.md](./database-table-naming.md). Ниже — исторический контекст.
+
 # ADR-012: Geo-scan по каталогу БД без place_aliases
 
 Дата: 2026-06-11  
@@ -18,7 +20,7 @@
 
 ### 1. SSOT каталога для scan
 
-| Источник | Роль в parse |
+| Рсточник | Роль в parse |
 |----------|----------------|
 | **DB `places`** из `03_all_cities.xlsx` (tabular import) | **Primary** — full-text geo scan, stem resolve |
 | **DB `places(kind=region)`** + `regions` | Субъекты РФ |
@@ -35,7 +37,7 @@ Parse **не обязан** иметь НП в `places.json`, чтобы рас�
 
 1. Токенизация `groomedText` с границами слов (как `toTokenHaystack` / longest-match).
 2. Поиск **вхождений имён/stem из DB `places`** в тексте — **целиком**, не по части слова.
-3. Для каждого hit: `resolvePlace(stem, regionScope, kindFloor)` → canonical `placeId`, `name`, `regionCode`.
+3. Для каждого hit: `resolvePlace(stem, regionScope, kindFloor)` → canonical `placeId`, `name`, `regionCode`.
 4. Spawn `EventCandidate` с **canonical** anchor, не сырой подписью канала.
 
 **Разрешение омонимов (много одинаковых stem в `03_all_cities`):**
@@ -60,8 +62,8 @@ Parse **не обязан** иметь НП в `places.json`, чтобы рас�
 | Этап | Поле |
 |------|------|
 | Workspace / candidate | `EventCandidate.extras.geoImprecise: true` |
-| Facts после finalize | `parsed_events.extras.geoImprecise` (копия из candidate) |
-| API / карта | читает `parsed_events.extras` → badge «точка неточная» |
+| Facts после finalize | `mat_parse_event.extras.geoImprecise` (копия из candidate) |
+| API / карта | читает `mat_parse_event.extras` → badge «точка неточная» |
 | LLM lazy queue | приоритет сообщений с `geoImprecise` в workspace |
 
 | Потребитель | Назначение |
@@ -118,14 +120,14 @@ anchor: {
 }
 ```
 
-`matchedText` ≠ `name` допустимо (канальная обёртка); в facts идёт **canonical `name`**.
+`matchedText` в‰  `name` допустимо (канальная обёртка); в facts идёт **canonical `name`**.
 
 ### 3. VicinityProcessor (enriching) — «и близлежащие»
 
 Маркеры `близлежащие`, `пригород`, `ближайшее` **не** участвуют в match place.
 
 - Читает `groomedText` + `candidates` + `span`.
-- Ищет маркер рядом с place-candidate (по `span`, соседним токенам или block-context).
+- Рщет маркер рядом с place-candidate (по `span`, соседним токенам или block-context).
 - Вешает trait `vicinity: true` / `scopeRadius` на **уже resolved** place (centroid из DB).
 - Не создаёт отдельный place «Таганрог и близлежащие».
 
@@ -133,7 +135,7 @@ anchor: {
 
 | Было | Стало |
 |------|-------|
-| `aliases.findByAlias` → place | `findByStemInRegion(stem, regionId)` + `findByFias` |
+| `aliases.findByAlias` в†’ place | `findByStemInRegion(stem, regionId)` + `findByFias` |
 | `registerPlaceAlias` на каждый parse | **убрать**; алиасы не пишутся из ingest/parse |
 | Region через alias-строку | `regions` + явное упоминание в тексте + locality-якоря (как `filterRegionsByTextContext`) |
 
@@ -200,7 +202,7 @@ place.regionCode === regionFromText.code
 | **Provenance** | `regionConfirmedByText: true` на place |
 
 **Collapse ≠ «не создавать region».**  
-Finalizer **всегда** материализует субъект для operational-события. Источник region:
+Finalizer **всегда** материализует субъект для operational-события. Рсточник region:
 
 | В тексте | Откуда region в facts |
 |----------|------------------------|
@@ -212,7 +214,7 @@ Finalizer **всегда** материализует субъект для oper
 
 **Зачем collapse:**
 
-1. Убрать дубли anchors / `event_locations`, когда текст явно дублирует субъект.
+1. Убрать дубли anchors / `mat_parse_location`, когда текст явно дублирует субъект.
 2. Стабильный SSOT: place несёт `regionCode`; следующий raw без области ведёт себя так же, как после collapse.
 3. Traits клеятся к place; region в facts — производная от place или единственный region-anchor.
 
@@ -249,7 +251,7 @@ Facts: **place** + **region из place.region** — то же поведение
 При любом **place-candidate** с resolved `placeId` finalizer **обязан** добавить region в facts из `places.region_id`, даже если region-anchor в workspace не было:
 
 ```
-deriveRegionFromPlace(placeCandidate) → region event_location / region facet
+deriveRegionFromPlace(placeCandidate) в†’ region event_location / region facet
 ```
 
 | Workspace | Facts после finalize |
@@ -259,7 +261,7 @@ deriveRegionFromPlace(placeCandidate) → region event_location / region facet
 | 0 place, 1 region-anchor | только region |
 | `geoConflict` | place + region **из текста** (явный субъект); region из place.region **не подменяет** текстовый при конфликте |
 
-Без этого «Таганрог» без области потеряет region в `event_locations`.
+Без этого «Таганрог» без области потеряет region в `mat_parse_location`.
 
 #### 8.2 `geoConflict`
 
@@ -286,3 +288,4 @@ deriveRegionFromPlace(placeCandidate) → region event_location / region facet
 - Удаление таблицы `place_aliases` в этой итерации (только deprecate в parse).
 - Fuzzy/LLM-геокод как замена stem-scan (остаётся enrich-фаза); `geoImprecise` и **0 hits** — триггеры приоритета для enrich-очереди.
 - Детальный радиус `scopeRadius` VicinityProcessor (метры/км) — в RFC processors.
+

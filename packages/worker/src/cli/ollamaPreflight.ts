@@ -1,28 +1,23 @@
+import { loadLlmRuntimeConfig } from "../infrastructure/enrichers/llmRuntimeConfig.js";
 import { type CliFlagMap, readStringFlag } from "./workerCliArgs.js";
 
-/** Итоговая конфигурация LLM-провайдера (ollama) после слияния env и CLI. */
+/** Итоговая конфигурация LLM после DEFAULT → manifest → GEO__ → CLI. */
 export type OllamaLlmConfig = { baseUrl: string; model: string };
 
-const DEFAULT_BASE_URL = "http://127.0.0.1:11434/v1";
-const DEFAULT_MODEL = "qwen2.5:3b";
-
 /**
- * Включает LLM-геокодер и переносит `--base-url`/`--model` в env.
- * Порядок: .env уже загружен вызывающим, CLI-флаги имеют приоритет.
+ * CLI overlay для `parse:snap:ollama`: GEO__ поверх манифеста, затем resolved config.
+ * Включает enricher `llm` на время CLI (фаза admin не трогается).
  */
 export function applyLlmEnv(map: CliFlagMap): OllamaLlmConfig {
+  process.env.GEO__llm__enabled = "true";
+
   const baseUrl = readStringFlag(map, ["base-url"]);
   const model = readStringFlag(map, ["model"]);
+  if (baseUrl) process.env.GEO__llm__baseUrl = baseUrl;
+  if (model) process.env.GEO__llm__model = model;
 
-  process.env.RADAR_LLM_GEOCODER_ENABLED = "1";
-  process.env.RADAR_LLM_PROVIDER = process.env.RADAR_LLM_PROVIDER || "ollama";
-  if (baseUrl) process.env.RADAR_LLM_BASE_URL = baseUrl;
-  if (model) process.env.RADAR_LLM_MODEL = model;
-
-  return {
-    baseUrl: process.env.RADAR_LLM_BASE_URL || DEFAULT_BASE_URL,
-    model: process.env.RADAR_LLM_MODEL || DEFAULT_MODEL,
-  };
+  const cfg = loadLlmRuntimeConfig();
+  return { baseUrl: cfg.baseUrl, model: cfg.model };
 }
 
 /** Проверяет доступность ollama и наличие модели через `/api/tags`. */
@@ -62,6 +57,6 @@ export async function assertOllamaReady(config: OllamaLlmConfig): Promise<void> 
   throw new Error(
     `Ollama: модель "${config.model}" не найдена на ${config.baseUrl} (status=${probe.status ?? "n/a"}). ${modelsHint}\n` +
       "Частая причина на Windows: локальный ollama.exe на 127.0.0.1:11434 (пустой), а Docker с моделями на другом порту.\n" +
-      "Fix: 1) закрой Ollama Desktop, или 2) OLLAMA_PORT=11435 в .env + RADAR_LLM_BASE_URL=http://127.0.0.1:11435/v1 + docker compose --profile llm up -d ollama, или 3) ollama pull в локальный Ollama.",
+      "Fix: 1) закрой Ollama Desktop, или 2) OLLAMA_PORT=11435 + GEO__llm__baseUrl=http://127.0.0.1:11435/v1 + docker compose --profile llm up -d ollama, или 3) ollama pull в локальный Ollama.",
   );
 }

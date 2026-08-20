@@ -1,5 +1,7 @@
 # Phase 1c — Attention Assign (JPDA-lite)
 
+> **Superseded**: `attentionMatrix`/`assignCandidates`/offline auto-tune (`trackingFitness`, `configSampler`) удалены при hard-cut на `nextgen-gravity`. Join выполняет `NextGenPhase3` (Kalman-локус + H3-гравитация), см. `packages/shared/src/domain/tracking/nextgen/`.
+
 ## Цель
 
 Заменить greedy `tryLink` на **attention assign** с единой весовой моделью:
@@ -34,10 +36,9 @@
 `trackingRebuildService` → `assignBatch()` (full + incremental).  
 `loadTrackingCandidates` → `regions.front_region`, `isInteriorRf`, `NOT EXISTS` consumed.
 
-## Auto-tune
+## Auto-tune (удалено)
 
-CLI: `npx tsx packages/worker/src/cli/trackingTuneCli.ts`  
-Admin: `TrackingTuneWidget`, API `/admin/tracking/tune/*`, таблица `tracking_tune_runs`.
+Offline auto-tune subsystem (`trackingTuneCli`, `TrackingTuneWidget`, API `/admin/tracking/tune/*`) удалён вместе с GNN hard-cut — был тесно связан с GNN attention/greedy-flow алгоритмами. Таблица `job_track_tune` осталась в БД как история миграций, но не используется.
 
 ## Supersedes
 

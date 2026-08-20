@@ -20,7 +20,7 @@
               │                    │                         │
    raw → workspace → facts    pack → classifier      facts → L1 → L2/L2b
               │                    │                         │
-              └──────── facts (parsed_events, event_locations) ─┘
+              └──────── facts (mat_parse_event, mat_parse_location) ─┘
 ```
 
 **Facts — общая граница.** Parse и ODP пишут interpretation; Tracking читает facts.
@@ -176,7 +176,7 @@ Bundled vs on-prem: [ADR-014 § deployment](../adr-014-operational-domain-profil
 | Фаза | SDD | Ключевые deliverables |
 |------|-----|------------------------|
 | P0 | [RFC](./parse-processor-workspace.md) | контракт ParseWorkspace, черновик |
-| **P1** | [phase-p1](../sdd/parse/phase-p1-workspace-finalizer.md) | `message_parse_workspace`, finalizer reconcile, heal CLI |
+| **P1** | [phase-p1](../sdd/parse/phase-p1-workspace-finalizer.md) | `work_parse_message`, finalizer reconcile, heal CLI |
 | P2 | [phase-p2](../sdd/parse/phase-p2-trait-processors.md) | Trait processors + AttachRule |
 | P3 | [phase-p3](../sdd/parse/phase-p3-processor-registry.md) | Processor registry |
 | P4 | [phase-p4](../sdd/parse/phase-p4-semantic-segmenter.md) | Semantic segmenter |

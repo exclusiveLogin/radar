@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * SSOT шагов basemap tiles: build-артефакты и TileServer GL (compose profile tiles).
+ * SSOT шагов basemap tiles: build-артефакты → data/tiles/output и TileServer GL (profile app).
  */
 import { spawnSync } from 'node:child_process';
 import { repoRoot, run } from '../utils.mjs';
@@ -13,12 +13,7 @@ export const TILES_BUILD_STEPS = [
   ['verify', 'scripts/tiles/verify-tiles.mjs'],
 ];
 
-const COMPOSE_FILES = [
-  '-f',
-  'docker-compose.yml',
-  '-f',
-  'docker-compose.tiles.yml',
-];
+const COMPOSE_PROFILE_APP = ['compose', '--profile', 'app'];
 
 /**
  * @param {string} rel
@@ -56,14 +51,25 @@ export function runTilesBuildPipeline(options = {}) {
   stage?.done();
 }
 
-/** Поднять TileServer GL (параллельно с host dev). */
-export function runTileServerUp() {
-  run('docker', ['compose', ...COMPOSE_FILES, '--profile', 'tiles', 'up', '-d']);
+/** Поднять TileServer и перезагрузить config (идемпотентно). */
+export function runTileServerEnsure() {
+  run('docker', ['compose', ...COMPOSE_PROFILE_APP, 'up', '-d', 'tiles']);
+  run('docker', ['compose', ...COMPOSE_PROFILE_APP, 'restart', 'tiles']);
 }
 
-/** Остановить только сервис tiles (Postgres не трогаем). */
+/** @deprecated используй runTileServerEnsure */
+export function runTileServerUp() {
+  runTileServerEnsure();
+}
+
+/** Перезапуск после tiles:sync — подхват config.json из data/tiles/output. */
+export function runTileServerRestart() {
+  run('docker', ['compose', ...COMPOSE_PROFILE_APP, 'restart', 'tiles']);
+}
+
+/** Остановить только сервис tiles (Postgres / app не трогаем). */
 export function runTileServerDown() {
-  run('docker', ['compose', ...COMPOSE_FILES, '--profile', 'tiles', 'stop', 'tiles']);
+  run('docker', ['compose', ...COMPOSE_PROFILE_APP, 'stop', 'tiles']);
 }
 
 /** @returns {string} */

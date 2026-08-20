@@ -118,7 +118,8 @@ export function extractPathSuffixes(
 Rules:
 
 - Find **first** occurrence of anchor in track where `occurredAt <= asOf` (v1)
-- Take up to `n` nodes **after** anchor (including anchor as [0])
+- Take up to 
+` nodes **after** anchor (including anchor as [0])
 - Skip tracks with suffix length < 2 places
 
 ### 4.3 `aggregatePathFan.ts`
@@ -142,8 +143,8 @@ export function aggregatePathFan(
 ```sql
 CREATE TABLE trajectory_place_index (
   place_id        uuid NOT NULL,
-  track_id        uuid NOT NULL REFERENCES trajectory_tracks(id) ON DELETE CASCADE,
-  node_id         uuid NOT NULL REFERENCES trajectory_nodes(id) ON DELETE CASCADE,
+  track_id        uuid NOT NULL REFERENCES mat_track(id) ON DELETE CASCADE,
+  node_id         uuid NOT NULL REFERENCES mat_track_node(id) ON DELETE CASCADE,
   seq             int NOT NULL,
   occurred_at     timestamptz NOT NULL,
   threat_profile  text NOT NULL,

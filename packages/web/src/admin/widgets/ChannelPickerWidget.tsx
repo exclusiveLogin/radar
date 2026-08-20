@@ -1,14 +1,17 @@
 import { useMemo, useState } from "react";
 import { Panel, StatusDot } from "../../shared/ds";
 import { useObservable } from "../../shared/hooks/useObservable";
-import { channels$ } from "../../shared/state/adminStore";
+import { resolveChannelIngestDisplay } from "../../shared/state/derivations";
+import { channels$, telemetry$ } from "../../shared/state/adminStore";
 import { selectChannel, selectedChannelKey$ } from "../../shared/state/channelSelectionStore";
 
 /** Action-панель: выбор канала формирует контекст для остальных панелей. */
 export function ChannelPickerWidget() {
   const channels = useObservable(channels$, []);
+  const telemetry = useObservable(telemetry$, null);
   const selected = useObservable(selectedChannelKey$, null);
   const [query, setQuery] = useState("");
+  const connections = telemetry?.worker.worker?.ingest.providers ?? [];
 
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -31,7 +34,15 @@ export function ChannelPickerWidget() {
         <p className="ds-muted">Нет каналов.</p>
       ) : (
         <ul className="ds-pick-list">
-          {visible.map((channel) => (
+          {visible.map((channel) => {
+            const connection =
+              connections.find((c) => c.providerId === channel.providerId) ?? null;
+            const display = resolveChannelIngestDisplay({
+              listening: channel.listening,
+              providerStatus: channel.providerStatus,
+              connection,
+            });
+            return (
             <li
               key={channel.id}
               className={`ds-pick-list__item${
@@ -43,12 +54,14 @@ export function ChannelPickerWidget() {
                 {channel.title?.trim() || channel.key}
               </span>
               <StatusDot
-                kind={channel.listening ? "ok" : "neutral"}
-                label={channel.listening ? "слушается" : "пауза"}
-                pulse={channel.listening}
+                kind={display.kind}
+                label={display.label}
+                pulse={display.pulse}
+                tip={display.tip}
               />
             </li>
-          ))}
+            );
+          })}
         </ul>
       )}
     </Panel>

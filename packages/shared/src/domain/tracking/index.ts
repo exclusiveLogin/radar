@@ -17,6 +17,12 @@ export type {
 
 export type { ProfileKinematics } from "./profileKinematics";
 export { PROFILE_KINEMATICS, resolveProfileKinematics, maxEpsilonTemporalMs } from "./profileKinematics";
+export {
+  orderTrackingCandidates,
+  resolveTrackingTemporalReplay,
+  trackingReplayLookbackMs,
+} from "./temporalReplay";
+export type { TrackingTemporalReplay } from "./temporalReplay";
 
 export {
   TRACKING_PIPELINE_TYPES,
@@ -84,22 +90,6 @@ export {
 } from "./flowAlignment";
 export type { FlowAlignmentWeights } from "./flowAlignment";
 
-export { resolveAssignmentsForAlgorithm } from "./associationDispatch";
-export type { AssociationAlgorithm, AssociationDispatchOpts } from "./associationDispatch";
-export { buildGreedyFlowChains, depthFromFrontM, DEFAULT_GREEDY_FLOW } from "./greedyFlowAssociation";
-export type { GreedyFlowWeights, GreedyFlowOpts } from "./greedyFlowAssociation";
-
-export { buildAttentionMatrix, DEFAULT_MAX_SOFT } from "./attentionMatrix";
-export type { TrackAttentionTarget, LinkCell, AttentionMatrixRow, BuildMatrixOpts } from "./attentionMatrix";
-
-export {
-  resolveRowAssignment,
-  resolveAssignments,
-  DEFAULT_TIE_EPSILON,
-  DEFAULT_MAX_CONSECUTIVE_SOFT,
-} from "./assignCandidates";
-export type { AssignDecision, AssignStats, ResolveOpts } from "./assignCandidates";
-
 export { resolveThreatProfile } from "./threatProfile";
 export { resolveNodeMode } from "./resolveNodeMode";
 export { observationCovarianceMeters, scaleObservationCovariance } from "./observationCovariance";
@@ -145,11 +135,11 @@ export {
 export type { ClusteringPhaseResult } from "./stdbscan/clusteringPhase";
 export {
   pickAssignableFromDedup,
-  mergeDedupClosure,
+  mergeCandidateWindow,
   resolvePendingConsumedAfterDedup,
   resolvePendingConsumedAfterClustering,
 } from "./stdbscan/dedupGraph";
-export type { DedupClosureLoad } from "./stdbscan/dedupGraph";
+export type { CandidateWindowLoad } from "./stdbscan/dedupGraph";
 export { buildTrackEdges } from "./flow/buildTrackEdges";
 export type { TrajectoryEdge } from "./flow/buildTrackEdges";
 export {
@@ -158,23 +148,11 @@ export {
   EMPTY_CORRIDOR_ROLLUP_INDEX,
 } from "./flow/corridorRollupIndex";
 export type { CorridorRollupEntry, CorridorRollupIndex } from "./flow/corridorRollupIndex";
-export {
-  buildCorridorFromCandidates,
-  corridorMaxSpatialM,
-  temporalAssignSlices,
-} from "./flow/buildCorridorFromCandidates";
-export type { BuildCorridorOpts } from "./flow/buildCorridorFromCandidates";
 
 export { rollupSegmentCounts } from "./flow/rollupSegmentCounts";
 export type { SegmentRollup } from "./flow/rollupSegmentCounts";
 export { buildSegmentKey } from "./flow/segmentKey";
 export { filterEdgesByAsOf, filterNodesByAsOf } from "./flow/applyAsOfFilter";
-
-export { computeTrackingFitness } from "./trackingFitness";
-export type { FitnessInput, FitnessResult, FitnessWeights } from "./trackingFitness";
-
-export { patternSearchStep, defaultTuneAxes, probeCenter, patternMove, tuneCenterFromProfile, tuneCenterToProfilePatch } from "./configSampler";
-export type { TuneAxis, TuneCenter, PatternSearchState } from "./configSampler";
 
 export {
   resolveTrackingPipelineStatus,
@@ -187,16 +165,33 @@ export type {
 
 export { TRACKING_PIPELINE_NOT_PROCESSED_SQL } from "./pipelineProcessedSql";
 export {
+  DEFAULT_TRACKING_STROBE_MAX_WINDOW_MS,
+  belongsToTrackingStrobe,
+  compareTrackingCandidates,
+  createTrackingStrobeBounds,
+  isTrackingStrobeReady,
+  type TrackingStrobeBounds,
+  type TrackingStrobeConfig,
+} from "./strobePolicy";
+export { resolveTrackingPipelineConfig } from "./resolveTrackingPipelineConfig";
+export {
   TRACKING_PERSIST_ADVISORY_LOCK_KEY,
   TRACKING_DAEMON_MAX_BATCH_SIZE,
   resolveDaemonBatchSize,
-  resolveNextGenDaemonBatchSize,
+  NEXTGEN_RECOMMENDED_BATCH_SIZE,
   TRACKING_RESET_TRUNCATE_SQL,
+  restartTrackingDrainTx,
   withTrackingL1Transaction,
   withTrackingL1ReadRetry,
   isPgDeadlockError,
   isPgLockNotAvailableError,
+  type TrackingDrainRestart,
   type TrackingPgQueryFn,
   type TrackingL1TransactionRunner,
 } from "./trackingDbLock";
 export * from "./nextgen/index";
+export {
+  evaluateNextGenLinkWithReason,
+  type NextGenLinkDecision,
+  type NextGenLinkRejectReason,
+} from "./nextgen/nextgenKalmanLink";

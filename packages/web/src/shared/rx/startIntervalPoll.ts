@@ -8,6 +8,18 @@ export function startIntervalPoll(
   periodMs: number,
   task: () => void | Promise<void>,
 ): Subscription {
-  void task();
-  return interval(periodMs).subscribe(() => void task());
+  let running = false;
+
+  const run = async (): Promise<void> => {
+    if (running) return;
+    running = true;
+    try {
+      await task();
+    } finally {
+      running = false;
+    }
+  };
+
+  void run();
+  return interval(periodMs).subscribe(() => void run());
 }

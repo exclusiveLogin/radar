@@ -4,6 +4,7 @@ import {
   withPgContendedReadRetry,
   withPgDeadlockRetry,
 } from "../../infrastructure/pgDeadlockRetry";
+import { NEXTGEN_RECOMMENDED_BATCH_SIZE } from "./trackingBatchConstants.js";
 
 /**
  * xact advisory lock — только внутри одной DB-транзакции (один connection из пула).
@@ -22,16 +23,19 @@ export function resolveDaemonBatchSize(configBatchSize?: number): number {
 /** @deprecated Используй resolveDaemonBatchSize — оставлено для обратной совместимости env. */
 export const TRACKING_DAEMON_MAX_BATCH_SIZE = resolveDaemonBatchSize(500);
 
-/** NextGen Ф2/Ф3 тяжёлые — ограничиваем chunk (O(n²) + Kalman × openTracks). */
-export function resolveNextGenDaemonBatchSize(configBatchSize?: number): number {
-  return Math.min(resolveDaemonBatchSize(configBatchSize), 250);
-}
+export { NEXTGEN_RECOMMENDED_BATCH_SIZE };
 
 export type TrackingPgQueryFn = (sql: string, params?: unknown[]) => Promise<unknown>;
 
 export type TrackingL1TransactionRunner = <T>(
   fn: (query: TrackingPgQueryFn) => Promise<T>,
 ) => Promise<T>;
+
+export type TrackingDrainRestart = {
+  id: string;
+  rebuildGen: string;
+  startedAt: string;
+};
 
 /**
  * Одна транзакция: pg_advisory_xact_lock → mutate L1.
@@ -67,7 +71,52 @@ export { isPgDeadlockError, isPgLockNotAvailableError };
 
 /**
  * Полная очистка L1 (OLAP materialization). FK только внутри L1 (nodes→tracks).
- * consumed без FK на event_locations — не блокируем OLTP при INSERT/TRUNCATE.
+ * consumed без FK на mat_parse_location — не блокируем OLTP при INSERT/TRUNCATE.
  */
 export const TRACKING_RESET_TRUNCATE_SQL =
-  `TRUNCATE TABLE tracking_pipeline_consumed, trajectory_nodes, trajectory_tracks RESTART IDENTITY CASCADE`;
+  `TRUNCATE TABLE state_track_strobe_member, state_track_strobe,
+   state_track_consumed, mat_track_node, mat_track RESTART IDENTITY CASCADE`;
+
+/**
+ * Единый атомарный контракт rebuild: отменяет старые run, инвалидирует derived L1
+ * и создаёт новый bounded drain в той же транзакции.
+ */
+export async function restartTrackingDrainTx(
+  query: TrackingPgQueryFn,
+  restart: TrackingDrainRestart,
+): Promise<void> {
+  await query(
+    `UPDATE job_track_rebuild
+     SET status = 'cancelled', finished_at = now(),
+         control = COALESCE(control, '{}'::jsonb) || '{"cancel":true}'::jsonb
+     WHERE status IN ('running', 'paused')`,
+  );
+  await query(TRACKING_RESET_TRUNCATE_SQL);
+  // Сначала job, потом active_run_id — иначе FK tracking_pipeline_state_active_run_id_fkey.
+  await query(
+    `UPDATE state_track_pipeline
+     SET watermark = '{}'::jsonb,
+         flow_snapshot = '{"vectors":{},"mass":{}}'::jsonb,
+         active_run_id = NULL, enabled = true,
+         applied_config_revision = config_revision, updated_at = now()
+     WHERE id = 'default'`,
+  );
+  await query(
+    `INSERT INTO job_track_rebuild
+     (id, status, mode, since, until, rebuild_gen, stats, started_at)
+     VALUES ($1, 'running', 'full_rebuild', $2, $3, $4, $5::jsonb, $3)`,
+    [
+      restart.id,
+      new Date(0).toISOString(),
+      restart.startedAt,
+      restart.rebuildGen,
+      JSON.stringify({ stage: "loading", elapsedMs: 0 }),
+    ],
+  );
+  await query(
+    `UPDATE state_track_pipeline
+     SET active_run_id = $1, updated_at = now()
+     WHERE id = 'default'`,
+    [restart.id],
+  );
+}

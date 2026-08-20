@@ -7,6 +7,13 @@ export type { ILocationEnricher, LocationCandidate, LocationEnrichInput } from "
 export type { IEventClassifier, ClassifiedPost } from "./classifiers";
 export type { EventHandler, IEventPublisher, IEventSubscriber, Unsubscribe } from "./events";
 export type {
+  IEventTransport,
+  TransportDelivery,
+  TransportEventHandler,
+  TransportSignalHandler,
+  TransportSubscribeOptions,
+} from "./eventTransport";
+export type {
   ISourceUniquenessContributor,
 } from "./source-uniqueness";
 export { SourceUniquenessRegistry } from "./source-uniqueness";
@@ -32,8 +39,6 @@ export type {
   LlmChatRole,
 } from "./llmChatClient";
 export type {
-  IDomainEventRepository,
-  IDomainEventOutbox,
   IEventLocationRepository,
   IIngestCursorRepository,
   IIngestProviderRepository,
@@ -44,17 +49,37 @@ export type {
   ParseAttemptInput,
   IRawMessageTelegramExtensionRepository,
   IChannelRepository,
+  ChannelRecord,
+  IRawMessageRepository,
   IParsedEventRepository,
   ParsedEventRecord,
   IMessageParseWorkspaceRepository,
   MessageParseWorkspaceRecord,
+  EventEvidenceRecord,
+  IEventEvidenceRepository,
+} from "./ingest-repositories";
+export type {
   IPlaceAliasRepository,
   IPlaceCacheRepository,
   IPlaceRepository,
-  IRawMessageRepository,
   IRegionRepository,
+  IRegionAdjacencyRepository,
   IStatusDictionaryRepository,
   ISyncAuditRepository,
+  PlaceAliasRecord,
+  PlaceCacheHit,
+  PlaceCacheProvider,
+  PlaceCachePutMeta,
+  PlaceContribution,
+  PlaceProvider,
+  PlaceRecord,
+  RegionRecord,
+  StatusDictionaryRecord,
+  IPlaceEnrichmentJobRepository,
+  PlaceEnrichmentJobRecord,
+  PlaceEnrichmentProvider,
+} from "./geo-repositories";
+export type {
   IEnrichmentQueueRepository,
   IPhaseCoverageRepository,
   PhaseCoverageTask,
@@ -65,14 +90,22 @@ export type {
   EnrichmentTaskStatus,
   IPhaseDefinitionRepository,
   PhaseDefinitionRecord,
-  ChannelRecord,
-  PlaceAliasRecord,
-  PlaceCacheHit,
-  PlaceCacheProvider,
-  PlaceCachePutMeta,
-  PlaceContribution,
-  PlaceProvider,
-  PlaceRecord,
-  RegionRecord,
-  StatusDictionaryRecord,
-} from "./repositories";
+} from "./phase-repositories";
+export type {
+  IStepRunRepository,
+  StepRunOpenInput,
+  StepRunRecord,
+  StepRunStatus,
+  StepRunSuppressedEmit,
+} from "./step-run-repository";
+export type { IDomainEventRepository } from "./event-repositories";
+export type {
+  IPipelineStabilityRepository,
+  PipelineStabilityStatus,
+} from "./pipeline-stability";
+export type { IObservabilityRecorder } from "./observability-recorder";
+export type {
+  ITransportMetricsRecorder,
+  TransportConsumeResult,
+} from "./transport-metrics";
+export { noopTransportMetricsRecorder } from "./transport-metrics";

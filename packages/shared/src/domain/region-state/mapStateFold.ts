@@ -7,7 +7,7 @@ import {
   type MapStatusAction,
 } from "./statusEventOrdering";
 
-/** Факт привязки события к региону/place (строка event_locations + метаданные). */
+/** Факт привязки события к региону/place (строка mat_parse_location + метаданные). */
 export type EventLocationFact = {
   factId: string;
   regionId: string;

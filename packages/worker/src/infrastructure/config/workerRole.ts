@@ -1,47 +1,45 @@
 /**
- * SSOT роли worker-процесса (монолит или docker split).
- * `all` — поведение по умолчанию (один процесс на хосте).
+ * SSOT роли worker-процесса (docker split / RADAR_WORKER_ROLE).
+ * Monolith `all` / legacy `phase` удалены — роль обязательна.
  */
-export type WorkerRole = "all" | "ingest" | "backfill" | "phase" | "tracking";
+export type WorkerRole = "ingest" | "backfill" | "parse" | "geo" | "tracking";
 
-const VALID_ROLES = new Set<WorkerRole>(["all", "ingest", "backfill", "phase", "tracking"]);
+/** Capability домена, которую поднимает boot (обычно = role). */
+export type DomainCap = WorkerRole;
 
-/** Читает RADAR_WORKER_ROLE из env; невалидное значение → `all`. */
+/** Pipeline keys, которые реально поднимает роль (не весь ODP-каталог стека). */
+export const PIPELINES_OWNED_BY_ROLE: Record<WorkerRole, readonly string[]> = {
+  ingest: [],
+  backfill: [],
+  parse: ["parse"],
+  geo: ["geo-enrich"],
+  tracking: ["tracking"],
+};
+
+const VALID_ROLES = new Set<WorkerRole>([
+  "ingest",
+  "backfill",
+  "parse",
+  "geo",
+  "tracking",
+]);
+
+/** Fail-fast: без валидной RADAR_WORKER_ROLE процесс не стартует. */
 export function resolveWorkerRoleFromEnv(env: NodeJS.ProcessEnv = process.env): WorkerRole {
   const raw = env.RADAR_WORKER_ROLE?.trim().toLowerCase();
-  if (raw && VALID_ROLES.has(raw as WorkerRole)) {
-    return raw as WorkerRole;
-  }
-  return "all";
+  if (raw && VALID_ROLES.has(raw as WorkerRole)) return raw as WorkerRole;
+  const allowed = [...VALID_ROLES].join(", ");
+  throw new Error(
+    `RADAR_WORKER_ROLE is required (one of: ${allowed}). Got: ${raw ? JSON.stringify(raw) : "<empty>"}.`,
+  );
 }
 
-export function roleRunsLiveIngest(role: WorkerRole): boolean {
-  return role === "all" || role === "ingest";
+/** Caps процесса: по умолчанию ровно одна = role. CLI может расширить через bootCaps. */
+export function capsFor(role: WorkerRole, bootCaps?: readonly DomainCap[]): ReadonlySet<DomainCap> {
+  if (bootCaps && bootCaps.length > 0) return new Set(bootCaps);
+  return new Set<DomainCap>([role]);
 }
 
-export function roleRunsBackfill(role: WorkerRole): boolean {
-  return role === "all" || role === "backfill";
-}
-
-export function roleRunsPhaseDaemons(role: WorkerRole): boolean {
-  return role === "all" || role === "phase";
-}
-
-export function roleRunsTrackingDaemon(role: WorkerRole): boolean {
-  return role === "all" || role === "tracking";
-}
-
-/** OutboxRelay нужен phase-worker (cross-process) и монолиту (события API). */
-export function roleRunsOutboxRelay(role: WorkerRole): boolean {
-  return role === "all" || role === "phase";
-}
-
-/** Ingest/backfill пишут RawMessageIngested в domain_events вместо in-process phase subscriber. */
-export function rolePublishesIngestToOutbox(role: WorkerRole): boolean {
-  return role === "ingest" || role === "backfill";
-}
-
-/** Подписчик phaseIngest на in-process bus (монолит или phase-worker через OutboxRelay). */
-export function roleSubscribesPhaseIngestOnBus(role: WorkerRole): boolean {
-  return role === "all" || role === "phase";
+export function hasCap(caps: ReadonlySet<DomainCap>, cap: DomainCap): boolean {
+  return caps.has(cap);
 }

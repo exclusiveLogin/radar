@@ -8,22 +8,19 @@
  *   npm run tracking:enable -w @radar/worker -- --on
  */
 import { MONOREPO_ROOT } from "@repo/root";
-import { trackingPipelineConfigSchema, TRACKING_RESET_TRUNCATE_SQL } from "@radar/shared";
+import { TRACKING_RESET_TRUNCATE_SQL } from "@radar/shared";
 import { createWorkerCompositionRoot } from "../application/createWorkerCompositionRoot.js";
 import {
   countTrackingCandidates,
-  runTrackingRebuild,
 } from "../application/tracking/trackingRebuildService.js";
-import { WorkerStorageMode } from "../infrastructure/persistence/storageMode.js";
+import { restartTrackingDrain } from "../infrastructure/tracking/trackingPipelineStateRepository.js";
 import { loadRootEnv } from "../infrastructure/config/loadRootEnv.js";
+import { cliWorkerRuntime } from "./cliWorkerRuntime.js";
 import { hasAnyFlag, parseLongFlagsMap } from "./workerCliArgs.js";
 
 async function openDb() {
   loadRootEnv(MONOREPO_ROOT);
-  const runtime = await createWorkerCompositionRoot({
-    storageMode: WorkerStorageMode.Db,
-    startIngestParseDaemon: false,
-  });
+  const runtime = await createWorkerCompositionRoot(cliWorkerRuntime("tracking", ["tracking"]));
   if (!runtime.dataSource) {
     console.error("Нужен RADAR_STORAGE_MODE=db и DATABASE_URL");
     process.exit(1);
@@ -43,13 +40,13 @@ async function cmdStatus(): Promise<void> {
       }[]
     >(
       `SELECT enabled, watermark, active_run_id, total_candidates
-       FROM tracking_pipeline_state WHERE id = 'default'`,
+       FROM state_track_pipeline WHERE id = 'default'`,
     );
     const [{ count: tracks }] = await ds.query<{ count: string }[]>(
-      `SELECT COUNT(*)::text AS count FROM trajectory_tracks`,
+      `SELECT COUNT(*)::text AS count FROM mat_track`,
     );
     const [{ count: nodes }] = await ds.query<{ count: string }[]>(
-      `SELECT COUNT(*)::text AS count FROM trajectory_nodes`,
+      `SELECT COUNT(*)::text AS count FROM mat_track_node`,
     );
     const totalCandidates =
       Number(state?.total_candidates) ||
@@ -70,29 +67,16 @@ async function cmdStatus(): Promise<void> {
 
 async function cmdRebuild(flags: ReturnType<typeof parseLongFlagsMap>): Promise<void> {
   const dryRun = hasAnyFlag(flags, ["dry-run", "dryRun"]);
-  const sinceRaw = flags.get("since");
-  const untilRaw = flags.get("until");
-  const until = untilRaw && typeof untilRaw === "string" ? new Date(untilRaw) : new Date();
-  const since =
-    sinceRaw && typeof sinceRaw === "string"
-      ? new Date(sinceRaw)
-      : new Date(until.getTime() - 24 * 60 * 60 * 1000);
 
   if (dryRun) {
-    console.log(`[dry-run] rebuild since=${since.toISOString()} until=${until.toISOString()}`);
+    console.log(`[dry-run] ${TRACKING_RESET_TRUNCATE_SQL} → incremental tracking drain`);
     return;
   }
 
   const { ds, shutdown } = await openDb();
   try {
-    // Конфиг пайплайна (flow gate, веса, оверрайды профилей) — из состояния БД.
-    const [state] = await ds.query<{ config: unknown }[]>(
-      `SELECT config FROM tracking_pipeline_state WHERE id = 'default'`,
-    );
-    const config = trackingPipelineConfigSchema.parse(state?.config ?? {});
-    console.log(`[tracking:rebuild] since=${since.toISOString()} until=${until.toISOString()}`);
-    const result = await runTrackingRebuild(ds, { since, until, config });
-    console.log("[tracking:rebuild] готово:", result);
+    const run = await restartTrackingDrain(ds);
+    console.log(`[tracking:rebuild] run=${run.id}; worker продолжит обычный incremental drain`);
   } finally {
     await shutdown?.();
   }
@@ -113,21 +97,22 @@ async function cmdReset(flags: ReturnType<typeof parseLongFlagsMap>): Promise<vo
   const { ds, shutdown } = await openDb();
   try {
     await ds.query(
-      `UPDATE trajectory_rebuild_runs
+      `UPDATE job_track_rebuild
        SET status = 'cancelled', finished_at = now()
        WHERE status IN ('running', 'paused')`,
     );
     await ds.query(TRACKING_RESET_TRUNCATE_SQL);
     const watermarkReset = resetKinematics
-      ? `SET watermark = '{}'::jsonb, active_run_id = NULL,
+      ? `SET watermark = '{}'::jsonb, flow_snapshot = '{"vectors":{},"mass":{}}'::jsonb, active_run_id = NULL,
          config = jsonb_set(COALESCE(config, '{}'::jsonb), '{profiles}', '{}'::jsonb),
          updated_at = now()`
-      : `SET watermark = '{}'::jsonb, active_run_id = NULL, updated_at = now()`;
+      : `SET watermark = '{}'::jsonb, flow_snapshot = '{"vectors":{},"mass":{}}'::jsonb,
+         active_run_id = NULL, updated_at = now()`;
     await ds.query(
-      `UPDATE tracking_pipeline_state ${watermarkReset} WHERE id = 'default'`,
+      `UPDATE state_track_pipeline ${watermarkReset} WHERE id = 'default'`,
     );
     console.log(
-      `[tracking:reset] trajectory_tracks/nodes очищены, watermark сброшен${resetKinematics ? ", оверрайды кинематики сброшены к дефолтам" : ""}`,
+      `[tracking:reset] mat_track/nodes очищены, watermark сброшен${resetKinematics ? ", оверрайды кинематики сброшены к дефолтам" : ""}`,
     );
   } finally {
     await shutdown?.();
@@ -145,7 +130,7 @@ async function cmdEnable(flags: ReturnType<typeof parseLongFlagsMap>): Promise<v
   const { ds, shutdown } = await openDb();
   try {
     await ds.query(
-      `UPDATE tracking_pipeline_state SET enabled = $1, updated_at = now() WHERE id = 'default'`,
+      `UPDATE state_track_pipeline SET enabled = $1, updated_at = now() WHERE id = 'default'`,
       [on],
     );
     console.log(`[tracking:enable] daemon ${on ? "ВКЛ" : "ВЫКЛ"}`);
@@ -169,7 +154,7 @@ tracking CLI — пайплайн L1 треков
   npm run radar -- tracking reset
   npm run radar -- tracking enable -- --on
 
-Env: TRACKING_DAEMON_INTERVAL_MS, TRACKING_DAEMON_ENABLED, RADAR_WORKER_ROLE=tracking
+Env: WORKER__tracking__intervalMs, worker.runtime.manifest.json, RADAR_WORKER_ROLE=tracking
 `);
 }
 

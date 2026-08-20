@@ -2,7 +2,7 @@
 
 ## Scope
 
-- DB: `trajectory_tracks`, `trajectory_nodes`, `trajectory_rebuild_runs`, `tracking_pipeline_state`
+- DB: `mat_track`, `mat_track_node`, `job_track_rebuild`, `state_track_pipeline`
 - Worker: `TrackingRebuildDaemon` — watermark + batch UPSERT (500–2000 точек)
 - Admin API: `/admin/tracking/*` — status, runs, config, enabled, rebuild/reset/pause/resume/cancel
 - WS: канал `tracking-status` (poll 3s)
@@ -14,7 +14,7 @@
 { lastOccurredAt: ISO, lastEventLocationId: uuid }
 ```
 
-Хранится в `tracking_pipeline_state.watermark`; копия в `trajectory_rebuild_runs.checkpoint`.
+Хранится в `state_track_pipeline.watermark`; копия в `job_track_rebuild.checkpoint`.
 
 ## Пайплайн батча
 
@@ -23,13 +23,13 @@
 3. per-profile ST-DBSCAN → Kalman → UPSERT
 4. advance watermark
 
-## Env
+## Env (worker.runtime.manifest)
 
-| Переменная | Default |
-|------------|---------|
-| `TRACKING_DAEMON_INTERVAL_MS` | 10000 |
-| `TRACKING_BATCH_SIZE` | 1000 (через config) |
-| `TRACKING_DAEMON_ENABLED` | true |
+| Поле / override | Default |
+|-----------------|--------|
+| `tracking.intervalMs` / `WORKER__tracking__intervalMs` | 10000 |
+| `tracking.enabled` / `WORKER__tracking__enabled` | true |
+| `TRACKING_BATCH_SIZE` (pipeline config в БД) | 1000 |
 | `RADAR_WORKER_ROLE` | `all` или `tracking` |
 
 ## Admin UI

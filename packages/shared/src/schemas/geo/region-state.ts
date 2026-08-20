@@ -19,6 +19,13 @@ export const layoutTileSchema = z.object({
   row: z.number().int().min(0),
 });
 
+/**
+ * Происхождение уровня региона на карте.
+ * `self` — собственный статус из фактов; `neighbor-red` — превентивная подсветка
+ * от красного соседа (собственных фактов у региона нет).
+ */
+export const regionLevelReasonSchema = z.enum(["self", "neighbor-red"]);
+
 /** Срез состояния региона для UI (из fold snapshot / WS). */
 export const regionStateRecordSchema = z.object({
   regionId: z.string().uuid(),
@@ -53,6 +60,8 @@ export const regionStateEventSchema = z.object({
   statusCode: z.string().min(1).optional(),
   traits: mapRegionTraitsSchema.optional(),
   eventSubject: eventSubjectSchema.optional(),
+  /** Происхождение уровня; отсутствие трактуется как `self`. */
+  levelReason: regionLevelReasonSchema.optional(),
 });
 
 /** Регион в лёгком снапшоте карты (без тяжёлой геометрии). */
@@ -71,6 +80,8 @@ export const mapRegionSnapshotSchema = z.object({
   statusCode: z.string().min(1).optional(),
   traits: mapRegionTraitsSchema.optional(),
   eventSubject: eventSubjectSchema.optional(),
+  /** Происхождение уровня; отсутствие трактуется как `self`. */
+  levelReason: regionLevelReasonSchema.optional(),
 });
 
 /** Населённый пункт на гео-карте: активный статус ≠ grey и есть координаты. */
@@ -175,6 +186,7 @@ export const sourceMessageResponseSchema = z.object({
   message: sourceMessageSchema.nullable(),
 });
 
+export type RegionLevelReason = z.infer<typeof regionLevelReasonSchema>;
 export type RegionStateRecord = z.infer<typeof regionStateRecordSchema>;
 export type RegionStateEvent = z.infer<typeof regionStateEventSchema>;
 export type MapRegionTraits = z.infer<typeof mapRegionTraitsSchema>;

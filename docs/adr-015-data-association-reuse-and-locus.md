@@ -1,7 +1,7 @@
 # ADR-015: Ассоциация данных — матрица self-attention, переиспользование точек и детерминированный локус
 
 Дата: 2026-06-27  
-Статус: **Предложено**
+Статус: **Superseded** — hard-cut на единственный алгоритм `nextgen-gravity` (phase-конструктор: ST-DBSCAN → H3-field attention → gravity join), GNN/PDAF/JPDAF selector и offline auto-tune удалены из кода. Актуальная реализация: `packages/shared/src/domain/tracking/nextgen/`.
 
 Связано: [ADR-007](./adr-007-trajectory-graph-kalman-worker.md), [ADR-009](./adr-009-osint-pre-collapse.md), [SDD phase-1c attention-assign](./sdd/tracking/phase-1c-attention-assign.md)
 
@@ -118,7 +118,7 @@ a = cos∠(s, f) ∈ [−1, 1]                         // выравнивани
 
 ### Конфиг и UI
 
-**Принцип:** все коэффициенты штрафов/весов и пороги — **тюнятся в админке**, без хардкода в коде (домен хранит только дефолты-фолбэки). Источник правды для значений — `trackingPipelineConfigSchema` → `tracking_pipeline_state.config`.
+**Принцип:** все коэффициенты штрафов/весов и пороги — **тюнятся в админке**, без хардкода в коде (домен хранит только дефолты-фолбэки). Источник правды для значений — `trackingPipelineConfigSchema` → `state_track_pipeline.config`.
 
 Инвентарь настроек админки (`TrackingKinematicsSettingsWidget`, секции):
 

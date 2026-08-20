@@ -10,8 +10,8 @@ SSOT контрактов read-side для правого рейла. Связа
 
 | Панель | API | Store (`packages/web`) | Смысл |
 |--------|-----|------------------------|--------|
-| **Сообщения** | `GET /api/map/messages/recent` | `messagesStore` → `messagesFeed$` | Все **raw_messages**, parse опционален |
-| **Лента изменений** | `GET /api/map/events/recent` | `stateChangesFeedStore` → `stateChangesFeed$` | Только **parsed_event + event_locations** |
+| **Сообщения** | `GET /api/map/messages/recent` | `messagesStore` → `messagesFeed$` | Все **mat_ingest_raw**, parse опционален |
+| **Лента изменений** | `GET /api/map/events/recent` | `stateChangesFeedStore` → `stateChangesFeed$` | Только **parsed_event + mat_parse_location** |
 
 Poll: сообщения ~20 с, лента изменений ~15 с (`startMessagesStore` / `startStateChangesFeedStore` в `AppShell`).
 
@@ -19,11 +19,12 @@ Poll: сообщения ~20 с, лента изменений ~15 с (`startMes
 
 ## Сообщения (`/map/messages/recent`)
 
-- **1 строка = 1 raw_message** (без дублей от N `parsed_events` на один raw).
+- **1 строка = 1 raw_message** (без дублей от N `mat_parse_event` на один raw).
 - Без фильтра «только с loc» — в ленте и шум, и неразобранное, и mass-clear без EL.
 - Поля `MessageFeedItem`:
-  - `contentKind` — `event` \| `noise` \| `meta` (эвристика `classifyContentKind` в `@radar/shared`, считается на API).
-  - `parsedEventCount`, `hasLocations` — агрегат по active `parsed_events`.
+  - `contentKind` — `event` \| 
+oise` \| `meta` (эвристика `classifyContentKind` в `@radar/shared`, считается на API).
+  - `parsedEventCount`, `hasLocations` — агрегат по active `mat_parse_event`.
   - `eventType`, `stateLevel`, `regionCodes` — сводка parse (если есть).
 
 ### Бейджи в UI
@@ -43,9 +44,9 @@ Poll: сообщения ~20 с, лента изменений ~15 с (`startMes
 
 ## Лента изменений (`/map/events/recent`)
 
-- **Loc-oriented:** обязателен `INNER JOIN event_locations` (1 карточка = 1 `parsed_event` с loc).
+- **Loc-oriented:** обязателен `INNER JOIN mat_parse_location` (1 карточка = 1 `parsed_event` с loc).
 - **Без фильтра по типу события:** сняты ограничения `state_level <> 'grey'` — в ленту попадают `cleared`, `rocket_threat` и др., если есть EL.
-- **Не попадают:** канальный mass-clear **без** строк в `event_locations` (например «Отбой … по всем ранее объявленным регионам») — такие отбои видны в **Сообщениях** и на **карте** (синтетика `loadChannelClearFacts` в read-fold), но не в loc-ленте.
+- **Не попадают:** канальный mass-clear **без** строк в `mat_parse_location` (например «Отбой … по всем ранее объявленным регионам») — такие отбои видны в **Сообщениях** и на **карте** (синтетика `loadChannelClearFacts` в read-fold), но не в loc-ленте.
 
 ---
 
@@ -53,7 +54,8 @@ Poll: сообщения ~20 с, лента изменений ~15 с (`startMes
 
 | Слой | Логика |
 |------|--------|
-| **Карта** | LastWinner fold на `now` / `asOf` — побеждает более новый факт (clear после raise → green). |
+| **Карта** | LastWinner fold на 
+ow` / `asOf` — побеждает более новый факт (clear после raise → green). |
 | **Лента изменений** | Хронология **событий с loc**, не текущий winner. |
 | **Сообщения** | Хронология **raw**, не fold. |
 

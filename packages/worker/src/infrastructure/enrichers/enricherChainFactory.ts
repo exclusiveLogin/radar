@@ -1,15 +1,8 @@
 import type { ILocationEnricher } from "@radar/shared";
+import { loadGeoEnrichersManifest, type GeoEnrichersManifest } from "@radar/shared/manifest/domains/geoEnrichers.loader.js";
+import { MONOREPO_ROOT } from "@repo/root";
 import { CompositeEnricher } from "./compositeEnricher.js";
 import { loadLlmRuntimeConfig } from "./llmRuntimeConfig.js";
-
-const truthy = new Set(["1", "true", "yes", "on"]);
-
-function parseBoolean(value: string | undefined, fallback: boolean): boolean {
-  if (!value) return fallback;
-  return truthy.has(value.trim().toLowerCase());
-}
-
-// ─── Enricher flags ───────────────────────────────────────────────────────
 
 export type ResolvedEnricherFlags = {
   dadata: boolean;
@@ -17,16 +10,29 @@ export type ResolvedEnricherFlags = {
   llm: boolean;
 };
 
-/** Флаги из env; LLM включается только когда `RADAR_LLM_GEOCODER_ENABLED` truthy. */
-export function resolveEnricherFlagsFromEnv(env = process.env): ResolvedEnricherFlags {
-  const llmConfig = loadLlmRuntimeConfig(env);
+let cachedGeoManifest: GeoEnrichersManifest | undefined;
+
+/** SSOT: geo.enrichers.manifest.json (+ GEO__ env). */
+export function resolveGeoEnrichersManifest(): GeoEnrichersManifest {
+  cachedGeoManifest ??= loadGeoEnrichersManifest({ repoRoot: MONOREPO_ROOT });
+  return cachedGeoManifest;
+}
+
+/** Флаги enricher-цепочки из manifest. */
+export function resolveEnricherFlags(manifest = resolveGeoEnrichersManifest()): ResolvedEnricherFlags {
+  const llmConfig = loadLlmRuntimeConfig(manifest);
   return {
-    dadata: parseBoolean(env.RADAR_ENRICHER_DADATA_ENABLED, true),
-    nominatim: parseBoolean(env.RADAR_ENRICHER_NOMINATIM_ENABLED, true),
+    dadata: manifest.dadata.enabled,
+    nominatim: manifest.nominatim.enabled,
     llm: llmConfig.enabled,
   };
 }
 
+/** @deprecated Используй resolveEnricherFlags(). */
+export function resolveEnricherFlagsFromEnv(env = process.env): ResolvedEnricherFlags {
+  void env;
+  return resolveEnricherFlags();
+}
 // ─── Pipeline order ───────────────────────────────────────────────────────
 
 export type PipelineStepId = "catalog" | "llm" | "dadata" | "nominatim";
@@ -54,6 +60,8 @@ export const DEFAULT_PIPELINE_ORDER: PipelineStepId[] = [
  * Unknown tokens are silently dropped.
  */
 export function resolvePipelineOrderFromEnv(env = process.env): PipelineStepId[] | undefined {
+  const manifestOrder = resolveGeoEnrichersManifest().pipeline.order;
+  if (manifestOrder?.length) return manifestOrder;
   const raw = env.RADAR_GEO_PIPELINE_ORDER;
   if (!raw?.trim()) return undefined;
   const parsed = raw

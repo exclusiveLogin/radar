@@ -1,8 +1,8 @@
 import type { DataSource } from "typeorm";
 import { MONOREPO_ROOT } from "@repo/root";
 import { createWorkerCompositionRoot } from "../application/createWorkerCompositionRoot.js";
-import { WorkerStorageMode } from "../infrastructure/persistence/storageMode.js";
 import { loadRootEnv } from "../infrastructure/config/loadRootEnv.js";
+import { cliWorkerRuntime } from "./cliWorkerRuntime.js";
 import { createProgress } from "./progress.js";
 import { hasAnyFlag, parseLongFlagsMap, readStringFlag } from "./workerCliArgs.js";
 
@@ -22,7 +22,7 @@ async function listRawRows(
     return (await dataSource.query(
       `
         SELECT rm.id, rm.raw_text, rm.posted_at, ch.key AS channel_key
-        FROM raw_messages rm
+        FROM mat_ingest_raw rm
         JOIN channels ch ON ch.id = rm.channel_id AND ch.key = $1
         ORDER BY rm.posted_at DESC NULLS LAST
         LIMIT $2
@@ -33,7 +33,7 @@ async function listRawRows(
   return (await dataSource.query(
     `
       SELECT rm.id, rm.raw_text, rm.posted_at, ch.key AS channel_key
-      FROM raw_messages rm
+      FROM mat_ingest_raw rm
       JOIN channels ch ON ch.id = rm.channel_id
       ORDER BY rm.posted_at DESC NULLS LAST
       LIMIT $1
@@ -67,10 +67,7 @@ async function main(): Promise<void> {
     process.exit(0);
   }
 
-  const runtime = await createWorkerCompositionRoot({
-    storageMode: WorkerStorageMode.Db,
-    startIngestParseDaemon: false,
-  });
+  const runtime = await createWorkerCompositionRoot(cliWorkerRuntime("parse", ["parse"]));
   if (!runtime.dataSource || !runtime.workspaceService) {
     console.error("workspace:heal: нужен RADAR_STORAGE_MODE=db");
     process.exit(1);
@@ -80,7 +77,7 @@ async function main(): Promise<void> {
     ? ((await runtime.dataSource.query(
         `
           SELECT rm.id, rm.raw_text, rm.posted_at, ch.key AS channel_key
-          FROM raw_messages rm
+          FROM mat_ingest_raw rm
           JOIN channels ch ON ch.id = rm.channel_id
           WHERE rm.id = $1
         `,
@@ -89,7 +86,7 @@ async function main(): Promise<void> {
     : await listRawRows(runtime.dataSource, channelKey, limit);
 
   if (rows.length === 0) {
-    console.error("workspace:heal: raw_messages не найдены");
+    console.error("workspace:heal: mat_ingest_raw не найдены");
     process.exit(1);
   }
 

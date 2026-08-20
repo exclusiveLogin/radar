@@ -8,7 +8,7 @@
 
 - `MapStateFold` в `@radar/shared`
 - `GET /map/snapshot?asOf=`
-- `npm run map:fold:diff` — shadow vs read_model
+- `npm run map:fold:diff` — shadow vs read_model
 - `mapApi.snapshot({ asOf })`
 
 **Не делаем:** cutover live, удаление проекции, UI таймлайн.

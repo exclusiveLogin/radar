@@ -1,8 +1,8 @@
 import { MONOREPO_ROOT } from "@repo/root";
-import { purgeGarbageCatalogPlaces } from "../application/parsing/placeCatalogHealer.js";
+import { purgeGarbageCatalogPlaces } from "../application/parse/placeCatalogHealer.js";
 import { createWorkerCompositionRoot } from "../application/createWorkerCompositionRoot.js";
 import { loadRootEnv } from "../infrastructure/config/loadRootEnv.js";
-import { WorkerStorageMode } from "../infrastructure/persistence/storageMode.js";
+import { cliWorkerRuntime } from "./cliWorkerRuntime.js";
 import { hasAnyFlag, parseLongFlagsMap } from "./workerCliArgs.js";
 
 /** Снять с каталога places с мусорными именами (канал, футер, не топоним). */
@@ -15,14 +15,11 @@ async function main(): Promise<void> {
     console.log(`Usage: npm run parse-engine:catalog:purge-garbage [--dry-run]
 
   Деактивирует places с isGarbageIngestPlaceName (is_active=false, trust=rejected).
-  Удаляет place_enrichment_jobs для них.`);
+  Удаляет job_geo_place_enrich для них.`);
     process.exit(0);
   }
 
-  const runtime = await createWorkerCompositionRoot({
-    storageMode: WorkerStorageMode.Db,
-    startIngestParseDaemon: false,
-  });
+  const runtime = await createWorkerCompositionRoot(cliWorkerRuntime("geo", ["geo"]));
   if (!runtime.dataSource || !runtime.workerRepos) {
     console.error("catalog:purge-garbage: нужен RADAR_STORAGE_MODE=db");
     process.exit(1);

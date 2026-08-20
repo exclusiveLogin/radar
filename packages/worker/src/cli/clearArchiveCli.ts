@@ -3,20 +3,21 @@ import { clearOperationalContent } from "../application/archive/clearOperational
 import { createWorkerCompositionRoot } from "../application/createWorkerCompositionRoot.js";
 import { loadRootEnv } from "../infrastructure/config/loadRootEnv.js";
 import { notifyMapPushSnapshot } from "../infrastructure/notifyMapPushSnapshot.js";
-import { WorkerStorageMode } from "../infrastructure/persistence/storageMode.js";
+import { cliWorkerRuntime } from "./cliWorkerRuntime.js";
 import { hasAnyFlag, parseLongFlagsMap } from "./workerCliArgs.js";
 import { warnDeprecatedNpmScript } from "./deprecatedNpmScript.js";
 import { createWipeLogger } from "../application/archive/wipeLog.js";
+import { createPhaseOperationalDeps } from "../application/phases/phaseOperationalDeps.js";
 
 function printPlan(): void {
   console.log(`
 pipeline clear — полный сброс операционного контента (конфиг сохраняется):
 
-  • phase_runs, phase_coverage, domain_events
-  • parsed_events, parse_attempts, event_locations
-  • event_evidence, place_enrichment_jobs
+  • log_parse_phase_run, queue_parse_coverage, event_outbox
+  • mat_parse_event, log_parse_attempt, mat_parse_location
+  • mat_parse_evidence, job_geo_place_enrich
   • ingest cursors/backfill
-  • raw_messages
+  • mat_ingest_raw
 
 Не трогает: channels, providers, bindings, regions/places (справочник), phase_definitions.
 
@@ -52,18 +53,14 @@ async function main(): Promise<void> {
     log.line("без forceLocks: остановите npm run dev / worker вручную");
   }
 
-  const runtime = await createWorkerCompositionRoot({
-    storageMode: WorkerStorageMode.Db,
-    startIngestParseDaemon: false,
-  });
-  if (!runtime.dataSource || !runtime.workerRepos) {
+  const runtime = await createWorkerCompositionRoot(cliWorkerRuntime("parse", ["parse"]));
+  if (!runtime.operationalSql || !runtime.workerRepos) {
     console.error("pipeline clear: нужен RADAR_STORAGE_MODE=db и DATABASE_URL");
     process.exit(1);
   }
 
   const result = await clearOperationalContent({
-    dataSource: runtime.dataSource,
-    repos: runtime.workerRepos,
+    deps: createPhaseOperationalDeps(runtime.operationalSql, runtime.workerRepos),
     forceLocks,
     log,
     onStep: {
@@ -78,17 +75,17 @@ async function main(): Promise<void> {
   });
 
   console.log("\nРезультат pipeline clear:");
-  console.log(`  raw_messages: ${result.rawMessagesDeleted}`);
-  console.log(`  parsed_events: ${result.parsedEventsDeleted}`);
-  console.log(`  parse_attempts: ${result.parseAttemptsDeleted}`);
+  console.log(`  mat_ingest_raw: ${result.rawMessagesDeleted}`);
+  console.log(`  mat_parse_event: ${result.parsedEventsDeleted}`);
+  console.log(`  log_parse_attempt: ${result.parseAttemptsDeleted}`);
   console.log(
     `  map-state (no-op): places=${result.map.placesCleared} regions=${result.map.regionsCleared}`,
   );
-  console.log(`  phase_runs: ${result.phaseRunsDeleted} (остановлено ${result.phaseRunsStopped})`);
-  console.log(`  phase_coverage queue: ${result.queueCleared}`);
-  console.log(`  domain_events: ${result.domainEventsDeleted}`);
+  console.log(`  log_parse_phase_run: ${result.phaseRunsDeleted} (остановлено ${result.phaseRunsStopped})`);
+  console.log(`  queue_parse_coverage queue: ${result.queueCleared}`);
+  console.log(`  event_outbox: ${result.domainEventsDeleted}`);
   console.log(
-    `  event_evidence: ${result.eventEvidenceDeleted} place_enrichment_jobs: ${result.placeEnrichmentJobsDeleted}`,
+    `  mat_parse_evidence: ${result.eventEvidenceDeleted} job_geo_place_enrich: ${result.placeEnrichmentJobsDeleted}`,
   );
   console.log(
     `  ingest: backfill=${result.ingest.backfillJobsDeleted} cursors=${result.ingest.cursorsDeleted}`,

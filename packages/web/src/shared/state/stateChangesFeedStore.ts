@@ -5,7 +5,7 @@ import { mapApi } from "../api/mapApi";
 import { startIntervalPoll } from "../rx/startIntervalPoll";
 import { reportAppError } from "./appLogStore";
 
-/** parsed_event + event_locations (GET /api/map/events/recent). */
+/** parsed_event + mat_parse_location (GET /api/map/events/recent). */
 export const stateChangesFeed$ = new BehaviorSubject<StateChangeEventItem[]>([]);
 
 const POLL_MS = 15_000;

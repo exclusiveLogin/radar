@@ -3,8 +3,8 @@ import { createWorkerCompositionRoot } from "../application/createWorkerComposit
 import { DadataEnricher } from "../infrastructure/enrichers/dadataEnricher.js";
 import { loadDadataToken, isDadataConfigured } from "../infrastructure/enrichers/dadataConfig.js";
 import { loadRootEnv } from "../infrastructure/config/loadRootEnv.js";
-import { WorkerStorageMode } from "../infrastructure/persistence/storageMode.js";
-import { PlaceEnrichmentRunner } from "../application/geo-parse/placeEnrichmentRunner.js";
+import type { PlaceEnrichmentRunner } from "../application/geo-parse/placeEnrichmentRunner.js";
+import { cliWorkerRuntime } from "./cliWorkerRuntime.js";
 
 /**
  * Трассировка: реальный HTTP DaData для одного place из очереди geo-dadata.
@@ -14,17 +14,14 @@ async function main(): Promise<void> {
   const token = loadDadataToken();
   console.log("token present:", Boolean(token), "len:", token?.length ?? 0);
 
-  const runtime = await createWorkerCompositionRoot({
-    storageMode: WorkerStorageMode.Db,
-    startIngestParseDaemon: false,
-  });
+  const runtime = await createWorkerCompositionRoot(cliWorkerRuntime("geo", ["geo"]));
   if (!runtime.dataSource || !runtime.workerRepos || !runtime.placeEnrichmentRunner) {
     throw new Error("db mode required");
   }
 
   const row = (await runtime.dataSource.query(
     `SELECT j.id AS job_id, j.place_id, p.name, p.name_with_type, r.name AS region_name
-     FROM place_enrichment_jobs j
+     FROM job_geo_place_enrich j
      JOIN places p ON p.id = j.place_id
      JOIN regions r ON r.id = p.region_id
      WHERE j.provider = 'dadata' AND j.status = 'pending'

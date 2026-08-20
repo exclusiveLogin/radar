@@ -11,7 +11,7 @@
 2. Один `raw` технически может породить **несколько events** (город + область + разная meta).
 3. `extras` (repeat, mass, count…) размазаны — нет правил «кому из кандидатов клеить признак».
 4. После persist идёт **мутация** через enrich/merge — сложно ревалидировать при смене правил процессора.
-5. Повторный прогон **только по raw** не даёт стабильной обратной связи: старые `parsed_events` становятся сиротами.
+5. Повторный прогон **только по raw** не даёт стабильной обратной связи: старые `mat_parse_event` становятся сиротами.
 6. Geo spawn завязан на **построчный fallback** и `place_aliases` — теряются валидные топонимы (класс дефектов: Таганрог). Контракт исправления: [ADR-012](../adr-012-geo-scan-without-aliases.md).
 
 ---
@@ -27,13 +27,13 @@
 
 ```mermaid
 flowchart TD
-  RAW[raw_messages] --> GROOM[Grooming / Segmenter]
+  RAW[mat_ingest_raw] --> GROOM[Grooming / Segmenter]
   GROOM --> WS[ParseWorkspace in-memory]
   WS --> P1[Processors pipeline]
   P1 --> WS
   WS --> FIN[Finalizer]
-  FIN --> PE[parsed_events + event_locations]
-  FIN --> PWS[(message_parse_workspace)]
+  FIN --> PE[mat_parse_event + mat_parse_location]
+  FIN --> PWS[(work_parse_message)]
   PE --> PWS
   PE --> PROJ[Read projections: map fold, heatmap, …]
 ```
@@ -173,7 +173,7 @@ type ParseWorkspace = {
 ```
 
 Каждый processor:
-- читает `groomedText`, `blocks`, уже заполненные `namespaces` и `candidates`;
+- читает `groomedText`, `blocks`, уже заполненные `namespaces` и `candidates`;
 - пишет **только свой slice** (как шаг geo-pipeline).
 
 **Registry:** `processorId → ProcessorImpl` + `processorRegistryRevision` для версионирования прогонов.
@@ -200,7 +200,7 @@ type ParseWorkspace = {
 1. Читает **`groomedText`** (promo/footer уже вырезаны grooming).
 2. Full-text scan по индексу имён/stem из DB — **без** построчного noise-skip.
 3. На каждый hit: resolve с `regionScope` (region из текста) или `kindFloor=city` без scope (ADR-012 §2).
-4. Сырая канальная подпись — только в `matchedText`, не в `name`.
+4. Сырая канальная подпись — только в `matchedText`, не в `name`.
 
 ### Geo-topography collapse (ADR-012 §8)
 
@@ -235,7 +235,8 @@ Processors привязывают traits к candidates через `anchor.span` 
 | `strict` | fixation, attention, danger, pvo_work, intercept, impact… | region или place |
 | `region_only` | cleared, mass_warning… | субъект / список |
 | `macro_ok` | pvo_report, strategic… | macroZone / regions в extras |
-| `none` | служебные | без гео |
+| 
+one` | служебные | без гео |
 
 Finalizer применяет policy **per candidate**, не per raw.
 
@@ -248,27 +249,27 @@ Finalizer применяет policy **per candidate**, не per raw.
 | Подход | Минус |
 |--------|-------|
 | Только in-memory до finalize | нет re-heal, нет аудита промежуточного состояния |
-| Каждый раз только raw → reparse | при смене processor логики — сироты `parsed_events`, нет lineage |
+| Каждый раз только raw → reparse | при смене processor логики — сироты `mat_parse_event`, нет lineage |
 | Мутировать events после создания | ненадёжно, теряется provenance (противоречит ADR-003) |
 
-### Принятое решение: сущность `message_parse_workspace`
+### Принятое решение: сущность `work_parse_message`
 
 **Отдельная таблица** (имя TBD), 1..N строк на `raw_message_id` (версии прогона).
 
 | Поле | Назначение |
 |------|------------|
 | `id` | PK workspace-run |
-| `raw_message_id` | FK → raw_messages |
+| `raw_message_id` | FK → mat_ingest_raw |
 | `parser_revision` | версия registry / pipeline |
 | `status` | `draft` \| `finalized` \| `superseded` \| `invalid` |
 | `groomed_text` | после grooming |
 | `workspace` | JSONB — полный `ParseWorkspace` |
-| `spawned_event_ids` | `uuid[]` — ID `parsed_events`, порождённых/обновлённых **последним finalize** |
+| `spawned_event_ids` | `uuid[]` — ID `mat_parse_event`, порождённых/обновлённых **последним finalize** |
 | `candidate_event_map` | JSONB — `{ [candidateId]: parsedEventId }` для стабильного re-upsert |
 | `finalized_at` | timestamp |
 | `created_at` | timestamp |
 
-Поле `candidate_event_map` связывает **стабильный `EventCandidate.id`** с `parsed_events.id`.  
+Поле `candidate_event_map` связывает **стабильный `EventCandidate.id`** с `mat_parse_event.id`.  
 Без этой связи re-finalize после LLM не сможет идемпотентно upsert — только слепой INSERT.
 
 ---
@@ -283,7 +284,7 @@ Finalizer применяет policy **per candidate**, не per raw.
 | **LLM / dadata / lazy enrich** обновил `workspace.namespaces` или candidates | **`finalize()` снова** |
 | Смена `parser_revision` на том же workspace | новый finalize-run или supersede (TBD) |
 
-**Правило:** enrich processors **не пишут** в `parsed_events` напрямую.  
+**Правило:** enrich processors **не пишут** в `mat_parse_event` напрямую.  
 Любое дообогащение → обновление workspace → **повторный finalizer**.
 
 ```
@@ -302,7 +303,7 @@ type FinalizeMode = "initial" | "refinalize" | "heal";
 
 type FinalizeContext = {
   mode: FinalizeMode;
-  existingSpawnedIds: string[];              // из message_parse_workspace
+  existingSpawnedIds: string[];              // из work_parse_message
   candidateEventMap: Record<string, string>; // candidateId → parsedEventId
   /** heal / refinalize: что делать с сиротами и невалидными */
   orphanPolicy: "deactivate" | "hard_delete";
@@ -363,7 +364,7 @@ type FinalizeContext = {
 
 ## Heal CLI (операционные скрипты)
 
-Отдельные «ручные» правки `parsed_events` **не делаем**. Heal = загрузить workspace + вызвать finalizer.
+Отдельные «ручные» правки `mat_parse_event` **не делаем**. Heal = загрузить workspace + вызвать finalizer.
 
 | Команда (концепт) | Что делает |
 |-------------------|------------|
@@ -375,7 +376,7 @@ type FinalizeContext = {
 **Типовой heal-flow:**
 
 ```
-1. SELECT message_parse_workspace BY raw_message_id (active/finalized)
+1. SELECT work_parse_message BY raw_message_id (active/finalized)
 2. Загрузить workspace JSONB + spawned_event_ids + candidate_event_map
 3. (опционально) re-run processors → workspace′
 4. finalize({ mode: "heal", existingSpawnedIds, candidateEventMap, orphanPolicy })
@@ -413,12 +414,12 @@ type EventCandidate = {
 - при supersede: новый run → новый workspace → сравнение `spawned_event_ids` → деактивация/удаление сирот;
 - audit CLI может сравнивать workspace vs DB без catalog-only ложных `catalog_miss`.
 
-Это **не замена** `raw_messages`. Цепочка:
+Это **не замена** `mat_ingest_raw`. Цепочка:
 
 ```
 raw (immutable source)
-  → message_parse_workspace (versioned interpretation)
-    → parsed_events (facts)
+  → work_parse_message (versioned interpretation)
+    → mat_parse_event (facts)
       → projections (map fold, heatmap, …)
 ```
 
@@ -430,14 +431,14 @@ raw (immutable source)
 
 | Термин | Смысл |
 |--------|--------|
-| **Materialize (finalize)** | INSERT/UPSERT `parsed_events`, `event_locations`; записать `spawned_event_ids` в workspace |
+| **Materialize (finalize)** | INSERT/UPSERT `mat_parse_event`, `mat_parse_location`; записать `spawned_event_ids` в workspace |
 | **VIEW / projection** | read-only производная для UI/API (как `MapStateFold`, бывший read_model) |
 
 Ты прав: **карта не обязана читать workspace напрямую**.  
-Workspace — **write-side интерпретация**; карта — **projection из facts** (`parsed_events` + `event_locations`), как в ADR-006.
+Workspace — **write-side интерпретация**; карта — **projection из facts** (`mat_parse_event` + `mat_parse_location`), как в ADR-006.
 
 ```
-workspace  ──finalize──►  facts (parsed_events)
+workspace  ──finalize──►  facts (mat_parse_event)
 facts      ──fold/snapshot──►  map API (projection)
 ```
 
@@ -473,8 +474,8 @@ ADR-003 уже задаёт **накопитель с provenance** и field-agno
 
 | Фаза | Содержание |
 |------|------------|
-| **P0** | Контракт `ParseWorkspace` + grooming; 3 processor'а (Geo spawn, EventType, Finalizer); без новой таблицы (JSON в `parsed_events.extras` временно) |
-| **P1** | Таблица `message_parse_workspace` + `spawned_event_ids` + `candidate_event_map`; **`ParseFinalizerService` с reconcile (upsert + sweep) с первого дня**; heal CLI |
+| **P0** | Контракт `ParseWorkspace` + grooming; 3 processor'а (Geo spawn, EventType, Finalizer); без новой таблицы (JSON в `mat_parse_event.extras` временно) |
+| **P1** | Таблица `work_parse_message` + `spawned_event_ids` + `candidate_event_map`; **`ParseFinalizerService` с reconcile (upsert + sweep) с первого дня**; heal CLI |
 | **P2** | Trait processors (Repeat, Mass, Count) + AttachRule |
 | **P3** | Processor registry; новые типы без правки ядра |
 | **P4** | Semantic segmenter (вместо только `splitMessageBlocks`) |
@@ -488,9 +489,9 @@ Workspace — **единый контракт** для rule-based processors, LL
 | Режим | Где живёт workspace | Поведение |
 |-------|---------------------|-----------|
 | **Eager** (ingest/parse сразу) | In-memory → finalize → DB | LLM/geo пишут в `workspace.namespaces.*`; отражение в candidates через те же processors |
-| **Manual / lazy** (phase позже) | DB `message_parse_workspace` | Загрузить workspace → догнать processor (llm/dadata) → re-finalize |
+| **Manual / lazy** (phase позже) | DB `work_parse_message` | Загрузить workspace → догнать processor (llm/dadata) → re-finalize |
 
-LLM **не пишет напрямую в `parsed_events`**. Только namespace + trait/candidate enrich по контракту.  
+LLM **не пишет напрямую в `mat_parse_event`**. Только namespace + trait/candidate enrich по контракту.  
 Finalizer остаётся единственной точкой создания facts.
 
 ```
@@ -520,7 +521,7 @@ lazy:    raw → workspace (DB draft) → … → phase enrich → workspace upd
 2. Один active workspace на raw или история версий всегда?
 3. `scope: system` — A / B / C.
 4. Миграция с текущего `parsePost` + `RuleBasedEventClassifier` без big-bang.
-5. Связь с `parse_attempts` и `phase_coverage` — объединить или параллельно.
+5. Связь с `log_parse_attempt` и `queue_parse_coverage` — объединить или параллельно.
 6. Точные правила block-context для привязки типа к anchor (comma / pipe / adjacent blocks / `span`).
 7. Default `orphanPolicy`: deactivate vs hard_delete по типу heal (refinalize vs manual purge).
 8. Stable match key для upsert: `(rawMessageId, span.start, anchor.kind, eventType)` vs `candidate.id`.

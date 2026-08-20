@@ -1,4 +1,4 @@
-import type { AliasDraft, GeoProviderSnapshot, IGeoSourceProvider, IPlaceAliasRepository, IPlaceRepository, IRegionRepository, PlaceDraft, RegionDraft } from "@radar/shared";
+import type { AliasDraft, IGeoSourceProvider, IPlaceAliasRepository, IPlaceRepository, IRegionRepository, PlaceDraft, RegionDraft } from "@radar/shared";
 import { normalizeGeoText } from "../geo/normalizeText";
 import { diffAliases, diffPlaces, diffRegions } from "./diff-engine";
 import type { GeoSyncPlanRunOptions } from "./geo-sync.reporter.port";

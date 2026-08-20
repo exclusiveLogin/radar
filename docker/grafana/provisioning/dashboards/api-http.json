@@ -1,0 +1,290 @@
+{
+  "annotations": { "list": [] },
+  "description": "HTTP RED + WebSocket (map /ws, admin /ws/admin): connections, message rates.",
+  "editable": true,
+  "graphTooltip": 1,
+  "panels": [
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "unit": "reqps" },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 8, "x": 0, "y": 0 },
+      "id": 1,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(radar_http_requests_total[$__rate_interval]))",
+          "legendFormat": "RPS",
+          "refId": "A"
+        }
+      ],
+      "title": "Total RPS",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "unit": "percentunit" },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 8, "x": 8, "y": 0 },
+      "id": 2,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(radar_http_requests_total{status=~\"5..\"}[$__rate_interval])) / clamp_min(sum(rate(radar_http_requests_total[$__rate_interval])), 1e-9)",
+          "legendFormat": "5xx rate",
+          "refId": "A"
+        }
+      ],
+      "title": "Error rate (5xx)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "unit": "s" },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 8, "x": 16, "y": 0 },
+      "id": 3,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(radar_http_request_duration_seconds_bucket[$__rate_interval])))",
+          "legendFormat": "p95",
+          "refId": "A"
+        }
+      ],
+      "title": "Latency p95",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "unit": "reqps" },
+        "overrides": []
+      },
+      "gridPos": { "h": 14, "w": 12, "x": 0, "y": 4 },
+      "id": 4,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (route) (rate(radar_http_requests_total[$__rate_interval]))",
+          "legendFormat": "{{route}}",
+          "refId": "A"
+        }
+      ],
+      "title": "RPS by route",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "unit": "reqps" },
+        "overrides": []
+      },
+      "gridPos": { "h": 14, "w": 12, "x": 12, "y": 4 },
+      "id": 5,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (route, status) (rate(radar_http_requests_total{status=~\"[45]..\"}[$__rate_interval]))",
+          "legendFormat": "{{route}} {{status}}",
+          "refId": "A"
+        }
+      ],
+      "title": "4xx/5xx by route",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "unit": "s" },
+        "overrides": []
+      },
+      "gridPos": { "h": 16, "w": 24, "x": 0, "y": 18 },
+      "id": 6,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum by (le, route) (rate(radar_http_request_duration_seconds_bucket[$__rate_interval])))",
+          "legendFormat": "p50 {{route}}",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum by (le, route) (rate(radar_http_request_duration_seconds_bucket[$__rate_interval])))",
+          "legendFormat": "p95 {{route}}",
+          "refId": "B"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum by (le, route) (rate(radar_http_request_duration_seconds_bucket[$__rate_interval])))",
+          "legendFormat": "p99 {{route}}",
+          "refId": "C"
+        }
+      ],
+      "title": "Latency p50/p95/p99 by route",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 34 },
+      "id": 7,
+      "panels": [],
+      "title": "WebSocket",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "gridPos": { "h": 4, "w": 8, "x": 0, "y": 35 },
+      "id": 8,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "expr": "sum(radar_ws_connections) or vector(0)",
+          "instant": true,
+          "legendFormat": "clients",
+          "refId": "A"
+        }
+      ],
+      "title": "WS clients connected",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "unit": "ops" },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 8, "x": 8, "y": 35 },
+      "id": 9,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(radar_ws_messages_total{direction=\"out\"}[$__rate_interval])) or vector(0)",
+          "legendFormat": "out/s",
+          "refId": "A"
+        }
+      ],
+      "title": "WS outbound msg/s",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "unit": "ops" },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 8, "x": 16, "y": 35 },
+      "id": 10,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(radar_ws_connections_total{event=\"connect\"}[$__rate_interval])) or vector(0)",
+          "legendFormat": "connect/s",
+          "refId": "A"
+        }
+      ],
+      "title": "WS connect rate",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "gridPos": { "h": 12, "w": 12, "x": 0, "y": 39 },
+      "id": 11,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "radar_ws_connections",
+          "legendFormat": "{{gateway}}",
+          "refId": "A"
+        }
+      ],
+      "title": "WS connections by gateway",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "unit": "ops" },
+        "overrides": []
+      },
+      "gridPos": { "h": 12, "w": 12, "x": 12, "y": 39 },
+      "id": 12,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (gateway, channel) (rate(radar_ws_messages_total{direction=\"out\"}[$__rate_interval]))",
+          "legendFormat": "{{gateway}}/{{channel}}",
+          "refId": "A"
+        }
+      ],
+      "title": "WS outbound by channel",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "unit": "ops" },
+        "overrides": []
+      },
+      "gridPos": { "h": 12, "w": 24, "x": 0, "y": 51 },
+      "id": 13,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (gateway, event) (rate(radar_ws_connections_total[$__rate_interval]))",
+          "legendFormat": "{{gateway}}/{{event}}",
+          "refId": "A"
+        },
+        {
+          "expr": "sum by (gateway, channel) (rate(radar_ws_messages_total{direction=\"in\"}[$__rate_interval]))",
+          "legendFormat": "{{gateway}}/in/{{channel}}",
+          "refId": "B"
+        }
+      ],
+      "title": "WS connect/disconnect + inbound control",
+      "type": "timeseries"
+    }
+  ],
+  "schemaVersion": 39,
+  "tags": ["radar", "api", "http", "websocket"],
+  "time": { "from": "now-1h", "to": "now" },
+  "title": "Radar — API HTTP",
+  "uid": "radar-api-http",
+  "version": 1
+}

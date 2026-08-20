@@ -1,4 +1,4 @@
-import type { ClassifiedPost, EventType } from "@radar/shared";
+import type { ClassifiedPost } from "@radar/shared";
 import { extractCounts } from "./extractCounts.js";
 import { extractDirection } from "./extractDirection.js";
 import { extractEventSubject, extractEventType } from "./extractEventType.js";

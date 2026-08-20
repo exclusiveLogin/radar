@@ -7,11 +7,15 @@
  *          Winner = argmax(seedScore); clusterMass = Σ seedScore облака.
  * ---
  */
-import { haversineDistanceM } from "../haversine";
 import { computeSeedScore, DEFAULT_SEED_WEIGHTS, type SeedWeights } from "../pointWeightModel";
 import type { PlaceGravityIndex } from "../flow/placeGravityIndex";
 import { EMPTY_PLACE_GRAVITY_INDEX } from "../flow/placeGravityIndex";
 import type { TrackingCandidate } from "../types";
+import { compareTrackingCandidates } from "../strobePolicy";
+import {
+  findStdbscanNeighbors,
+  type StdbscanClusterParams,
+} from "./stdbscanNeighbors";
 
 export type MagnetismEntry = {
   clusterId: number;
@@ -45,11 +49,7 @@ export type StdbscanMagnetizeResult = {
   clusterCount: number;
 };
 
-export type ClusterParams = {
-  epsilonSpatialM: number;
-  epsilonTemporalMs: number;
-  minPts: number;
-};
+export type { StdbscanClusterParams as ClusterParams } from "./stdbscanNeighbors";
 
 const UNASSIGNED = -1;
 const NOISE = 0;
@@ -60,7 +60,7 @@ const NOISE = 0;
  */
 export function stdbscanMagnetize(
   candidates: TrackingCandidate[],
-  params: ClusterParams,
+  params: StdbscanClusterParams,
   weights: MagnetizeWeights = DEFAULT_MAGNETIZE_WEIGHTS,
   gravityIndex: PlaceGravityIndex = EMPTY_PLACE_GRAVITY_INDEX,
 ): StdbscanMagnetizeResult {
@@ -159,7 +159,11 @@ function selectWinnerBySeedScore(
   let bestScore = -Infinity;
   for (const i of indices) {
     const score = computeSeedScore(candidates[i]!, seedWeights);
-    if (score > bestScore) {
+    if (
+      score > bestScore
+      || (score === bestScore
+        && compareTrackingCandidates(candidates[i]!, candidates[bestIdx]!) < 0)
+    ) {
       bestScore = score;
       bestIdx = i;
     }
@@ -167,14 +171,17 @@ function selectWinnerBySeedScore(
   return bestIdx;
 }
 
-function runDbscanLabels(candidates: TrackingCandidate[], params: ClusterParams): number[] {
+function runDbscanLabels(
+  candidates: TrackingCandidate[],
+  params: StdbscanClusterParams,
+): number[] {
   const n = candidates.length;
   const labels = new Array<number>(n).fill(UNASSIGNED);
   let clusterCount = 0;
 
   for (let i = 0; i < n; i++) {
     if (labels[i] !== UNASSIGNED) continue;
-    const neighbors = getNeighbors(candidates, i, params);
+    const neighbors = findStdbscanNeighbors(candidates, i, params);
     if (neighbors.length < params.minPts - 1) {
       labels[i] = NOISE;
       continue;
@@ -187,7 +194,7 @@ function runDbscanLabels(candidates: TrackingCandidate[], params: ClusterParams)
       if (labels[j] === NOISE) labels[j] = clusterCount;
       if (labels[j] !== UNASSIGNED) continue;
       labels[j] = clusterCount;
-      const jNeighbors = getNeighbors(candidates, j, params);
+      const jNeighbors = findStdbscanNeighbors(candidates, j, params);
       if (jNeighbors.length >= params.minPts - 1) {
         for (const jn of jNeighbors) {
           if (!seeds.includes(jn)) seeds.push(jn);
@@ -198,20 +205,3 @@ function runDbscanLabels(candidates: TrackingCandidate[], params: ClusterParams)
   return labels;
 }
 
-function getNeighbors(
-  candidates: TrackingCandidate[],
-  i: number,
-  params: ClusterParams,
-): number[] {
-  const ci = candidates[i]!;
-  const neighbors: number[] = [];
-  for (let j = 0; j < candidates.length; j++) {
-    if (i === j) continue;
-    const cj = candidates[j]!;
-    const dtMs = Math.abs(ci.occurredAt.getTime() - cj.occurredAt.getTime());
-    if (dtMs > params.epsilonTemporalMs) continue;
-    const dist = haversineDistanceM(ci.lat, ci.lon, cj.lat, cj.lon);
-    if (dist <= params.epsilonSpatialM) neighbors.push(j);
-  }
-  return neighbors;
-}

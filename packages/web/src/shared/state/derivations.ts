@@ -1,17 +1,15 @@
-import type { MapPlaceSnapshot, MapRegionSnapshot, StateLevel, Warning } from "@radar/shared";
+import type {
+  IngestProviderConnectionSnapshot,
+  MapPlaceSnapshot,
+  MapRegionSnapshot,
+  StateLevel,
+  Warning,
+} from "@radar/shared";
+import { STATE_LEVEL_RANK } from "@radar/shared";
 import { LEVEL_COLORS, LEVEL_LABELS } from "../config/mapConfig.service";
 import type { DonutSegment } from "../ds/Donut";
 
 const ALL_LEVELS: StateLevel[] = ["red", "orange", "yellow", "green", "grey"];
-
-/** Числовой вес уровня: чем выше — тем опаснее. */
-const LEVEL_SEVERITY: Record<StateLevel, number> = {
-  grey: 0,
-  green: 1,
-  yellow: 2,
-  orange: 3,
-  red: 4,
-};
 
 /**
  * Эффективный уровень места с учётом регионального контекста.
@@ -23,7 +21,7 @@ export function effectivePlaceLevel(
   placeLevel: StateLevel,
   regionLevel: StateLevel,
 ): StateLevel {
-  return LEVEL_SEVERITY[regionLevel] > LEVEL_SEVERITY[placeLevel]
+  return STATE_LEVEL_RANK[regionLevel] > STATE_LEVEL_RANK[placeLevel]
     ? regionLevel
     : placeLevel;
 }
@@ -121,45 +119,6 @@ export function topRegionsByActivity(
     .filter((r) => r.activity > 0)
     .sort((a, b) => b.activity - a.activity)
     .slice(0, limit);
-}
-
-/**
- * Производит карту регионов с учётом соседней подсветки (read-side derivation).
- *
- * Правило: если у региона stateLevel === 'grey' И хотя бы один сосед имеет
- * собственный уровень 'red' — регион получает производный уровень 'yellow'.
- * Любой собственный сигнал (включая green = явный отбой) приоритетнее.
- * statusEventAt производного yellow = statusEventAt красного соседа, чтобы
- * яркость затухания синхронизировалась с источником угрозы.
- * Возвращает новую Map только если есть хотя бы один производный yellow.
- */
-export function deriveNeighborLevels(
-  regions: Map<string, MapRegionSnapshot>,
-  adjacency: Record<string, string[]>,
-): Map<string, MapRegionSnapshot> {
-  // Собираем red-регионы с их statusEventAt для передачи соседям
-  const redRegions = new Map<string, string | undefined>();
-  for (const region of regions.values()) {
-    if (region.stateLevel === "red") redRegions.set(region.regionCode, region.statusEventAt);
-  }
-  if (redRegions.size === 0) return regions;
-
-  let changed = false;
-  const next = new Map(regions);
-  for (const [code, region] of regions) {
-    if (region.stateLevel !== "grey") continue;
-    const neighbors = adjacency[code] ?? [];
-    const redNeighbor = neighbors.find((n) => redRegions.has(n));
-    if (!redNeighbor) continue;
-    // Берём statusEventAt красного соседа — fade синхронизирован с источником
-    next.set(code, {
-      ...region,
-      stateLevel: "yellow",
-      statusEventAt: redRegions.get(redNeighbor) ?? region.statusEventAt,
-    });
-    changed = true;
-  }
-  return changed ? next : regions;
 }
 
 /** Число активных регионов (stateLevel ≠ grey). */
@@ -278,12 +237,130 @@ export type IngestProviderDisplayStatus = {
   tip: string;
 };
 
+/** Live MTProto-фаза → бейдж для админки/карты. */
+export function resolveIngestConnectionDisplay(
+  connection: IngestProviderConnectionSnapshot | null | undefined,
+): IngestProviderDisplayStatus | null {
+  if (!connection || connection.phase === "idle") return null;
+
+  const detail = connection.detail?.trim() || null;
+
+  switch (connection.phase) {
+    case "connecting":
+      return {
+        kind: "warn",
+        label: "Подключение…",
+        pulse: true,
+        tip: detail ?? "Установка MTProto-соединения с Telegram",
+      };
+    case "reconnecting":
+      return {
+        kind: "warn",
+        label: "Переподключение…",
+        pulse: true,
+        tip: detail ?? "Повторное подключение к Telegram",
+      };
+    case "connected":
+      return {
+        kind: "warn",
+        label: "Подключён",
+        pulse: true,
+        tip: detail ?? "Сессия готова, старт live duty…",
+      };
+    case "live":
+      return {
+        kind: "ok",
+        label: "Live",
+        pulse: true,
+        tip: detail ?? "Слушает каналы",
+      };
+    case "disconnected":
+      return {
+        kind: "error",
+        label: "Отключён",
+        pulse: false,
+        tip: detail ?? "Нет соединения с Telegram (VPN/сеть?)",
+      };
+    case "error":
+      return {
+        kind: "error",
+        label: "Ошибка",
+        pulse: false,
+        tip: detail ?? "Ошибка соединения ingest",
+      };
+    default:
+      return null;
+  }
+}
+
+/**
+ * Бейдж канала в списке: SSOT = ответ API/БД (listening, providerStatus).
+ * Probe connection — только явный runtime (live / сеть / error).
+ * Transitional connected/connecting не перекрывают БД (чужой probe / ложный TCP).
+ */
+export function resolveChannelIngestDisplay(input: {
+  listening: boolean;
+  providerStatus: string | null | undefined;
+  connection: IngestProviderConnectionSnapshot | null | undefined;
+}): IngestProviderDisplayStatus {
+  const phase = input.connection?.phase;
+  const runtimeProbe =
+    phase === "live" ||
+    phase === "error" ||
+    phase === "disconnected" ||
+    phase === "reconnecting";
+  if (runtimeProbe) {
+    const fromProbe = resolveIngestConnectionDisplay(input.connection);
+    if (fromProbe) return fromProbe;
+  }
+
+  if (input.listening) {
+    return {
+      kind: "ok",
+      label: "слушается",
+      pulse: true,
+      tip: "БД: channel enabled + provider active + binding enabled",
+    };
+  }
+  if (input.providerStatus === "error") {
+    return {
+      kind: "error",
+      label: "ошибка",
+      pulse: false,
+      tip: "Provider error — см. lastError в статусе канала",
+    };
+  }
+  if (input.providerStatus === "draft") {
+    return {
+      kind: "neutral",
+      label: "черновик",
+      pulse: false,
+      tip: "Запустите провайдер: POST /providers/:id/start",
+    };
+  }
+  if (input.providerStatus === "paused") {
+    return {
+      kind: "warn",
+      label: "пауза",
+      pulse: false,
+      tip: "Провайдер остановлен",
+    };
+  }
+  return {
+    kind: "neutral",
+    label: "пауза",
+    pulse: false,
+    tip: "Канал не слушается",
+  };
+}
+
 /**
  * Live-статус канала для UI: DB status + worker probe + свежесть heartbeat.
  * `active` в PostgreSQL ≠ worker сейчас слушает Telegram.
  */
 export function resolveIngestProviderDisplayStatus(
   provider: {
+    id: string;
     status: "draft" | "active" | "paused" | "error";
     lastHeartbeatAt: string | null;
     lastError: string | null;
@@ -295,6 +372,7 @@ export function resolveIngestProviderDisplayStatus(
     dbReady: boolean;
     workerReachable: boolean;
     orchestratorRunning: boolean;
+    connection?: IngestProviderConnectionSnapshot | null;
   },
 ): IngestProviderDisplayStatus {
   const hbAge = provider.lastHeartbeatAt
@@ -327,6 +405,19 @@ export function resolveIngestProviderDisplayStatus(
       tip: `В БД: ${provider.status}. Probe worker недоступен — канал не слушается.`,
     };
   }
+
+  // Probe перекрывает БД только при живом duty / явной сетевой аварии — не connected/connecting.
+  const liveConnection = resolveIngestConnectionDisplay(ctx.connection);
+  if (
+    liveConnection &&
+    ctx.connection &&
+    ["reconnecting", "disconnected", "error", "live"].includes(ctx.connection.phase)
+  ) {
+    if (ctx.connection.phase !== "live" || provider.status === "active") {
+      return liveConnection;
+    }
+  }
+
   if (!ctx.orchestratorRunning) {
     return {
       kind: "warn",

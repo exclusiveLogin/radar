@@ -1,13 +1,13 @@
 /**
- * useGeoMapLifecycle — MapLibre init, RxJS-подписки и side effects карты.
- * UI-оверлеи вынесены в AppShell (GeoMapOverlays); виджет — только canvas.
+ * MapLibre runtime и рендер слоёв.
+ *
+ * Синхронизация данных находится в geoMapDataSync, переход live/replay —
+ * в mapLiveReplayEffects. UI-оверлеи вынесены в GeoMapOverlays.
  */
 import { useEffect, useRef, type RefObject } from "react";
 import type {
   Map as MapLibreMap,
-  MapLayerMouseEvent,
   MapLibreEvent,
-  Popup,
 } from "maplibre-gl";
 import { Subject, Subscription, takeUntil } from "rxjs";
 import {
@@ -39,18 +39,13 @@ import {
 import { placesById$, regionsByCode$, mapViewAnchor$, vicinityScopesById$, derivedRegionCodes$ } from "../../shared/state/mapStore";
 import { geoMapLayers$, type GeoMapLayerId } from "../../shared/state/mapLayerStore";
 import {
-  hasActiveHeatmapEventTypesFilter,
-  heatmapEventTypesFilter$,
   setHeatmapMeta,
 } from "../../shared/state/heatmapStore";
 import { buildDistrictsCollection, buildRegionsCollection } from "../../shared/state/geoGeometryStore";
 import { resetAllGeoMapLayerFetchStatus } from "../../shared/state/geoMapLayerFetchStore";
 import { resetGeoMapStats, setGeoMapStats } from "../../shared/state/geoMapStatsStore";
-import { selectRegion, selectedRegion$ } from "../../shared/state/selectionStore";
 import {
   setLocusDebugFocus,
-  selectTrack,
-  selectedTrackId$,
   tracksFlow$,
   tracksGravity$,
   tracksList$,
@@ -100,27 +95,21 @@ import {
 } from "./geoMapPaint";
 import { createGeoMapRuntime, whenStyleReady, wireMapBootstrap } from "./geoMapRuntime";
 import {
-  createGeoMapFetchStreams,
-  type GeoMapEffectSignals,
-} from "./geoMapEffects";
-import {
-  geoRenderTick$,
   mapCanvasReady$,
 } from "../../shared/state/mapGeoPipeline";
-import { wireLayerFetchStreams } from "./geoMapFetchWire";
+import { wireGeoMapDataSync } from "./geoMapDataSync";
+import { wireGeoMapLiveReplayCoordination } from "./geoMapLiveReplayCoordination";
 import {
   afterStyleChange,
   applyEventsHeatmapPaint,
-  buildPlacePopupLines,
-  buildRegionPopupHtml,
   enforceGeoEntityLayerOrder,
   fitMapView,
   fitOperationalOverview,
   flyToRegion,
-  hasChildEntityAtPointer,
   preserveUserLayers,
   syncGeoOverlayLayers,
 } from "./geoMapEngine";
+import { createGeoMapInteractionController } from "./geoMapInteractions";
 import {
   emptyTracksFeatureCollection,
   tracksFlowToGeoJson,
@@ -158,14 +147,6 @@ export function useGeoMapLifecycle(containerRef: RefObject<HTMLDivElement | null
      * (иначе code === prev → early return → flyToRegion не вызывается).
      */
     let highlightedCode: string | null = null;
-    /** Track, зафиксированный кликом/карточкой. */
-    let focusedTrackId: string | null = null;
-    /** Track под курсором (временный debug-фокус). */
-    let hoveredTrackId: string | null = null;
-    let placePopup: Popup | null = null;
-    let regionPopup: Popup | null = null;
-    let activePlacePopupId: string | null = null;
-    let activeRegionPopupKey: string | null = null;
     /** Пользователь сдвинул карту до прихода geojson — не делаем auto-fit/stop. */
     let userAdjustedViewBeforeGeo = false;
     /** Программный fitBounds/flyTo — не считаем ручным pan. */
@@ -176,9 +157,6 @@ export function useGeoMapLifecycle(containerRef: RefObject<HTMLDivElement | null
     let resizeObserver: ResizeObserver | null = null;
     /** Однократная инициализация слоёв и подписок (не привязана к успеху тайлов). */
     let mapBootstrapped = false;
-    // Хранит ссылку на maplibre после динамического import — нужна для Popup в обработчиках
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let maplibreRef: any = null;
     /** Deck.gl overlay для анимации направления L1-треков. */
     let tracksDeckOverlay: TracksDeckOverlay | null = null;
 
@@ -187,6 +165,7 @@ export function useGeoMapLifecycle(containerRef: RefObject<HTMLDivElement | null
       getMap: () => map,
       isDisposed: () => disposed,
     });
+    let interactions: ReturnType<typeof createGeoMapInteractionController> | null = null;
 
     /** Обзор всех активных регионов/мест — только по явному сбросу выбора региона. */
     const tryFitOverview = (duration: number): void => {
@@ -426,7 +405,7 @@ export function useGeoMapLifecycle(containerRef: RefObject<HTMLDivElement | null
       const tracksFetchPending =
         needsTracksData && tracksLoading$.value && !tracksList$.value;
 
-      const activeLocusTrackId = focusedTrackId ?? hoveredTrackId;
+      const activeLocusTrackId = interactions?.getActiveLocusTrackId() ?? null;
 
       whenStyleReady(map, () => {
         if (!map || disposed) return;
@@ -474,13 +453,12 @@ export function useGeoMapLifecycle(containerRef: RefObject<HTMLDivElement | null
     };
 
     /**
-     * Добавляет источники, слои и обработчики событий на карту.
+     * Добавляет источники и слои на карту.
      * Вызывается при начальной загрузке и при каждой смене стиля (map.setStyle).
      * После setStyle все источники и слои удаляются — их нужно переинициализировать.
      */
-    const setupLayersAndHandlers = (): void => {
-      if (!map || !maplibreRef) return;
-      const ml = maplibreRef;
+    const setupLayers = (): void => {
+      if (!map) return;
 
       // --- Регионы ---
       if (!map.getSource(REGIONS_SOURCE)) {
@@ -890,201 +868,7 @@ export function useGeoMapLifecycle(containerRef: RefObject<HTMLDivElement | null
       enforceGeoEntityLayerOrder(map);
       syncGeoOverlayLayers(map, geoMapLayers$.value);
 
-      // --- Обработчики событий (переустанавливаем после смены стиля) ---
-      /** Клик по региону или place — toggle выбора в selectionStore. */
-      const onPick = (event: MapLayerMouseEvent): void => {
-        const props = event.features?.[0]?.properties;
-        const code = props?.regionCode;
-        if (typeof code === "string") {
-          selectRegion(code === highlightedCode ? null : code);
-        }
-      };
-
-      const trackIdFromEvent = (event: MapLayerMouseEvent): string | null => {
-        const trackId = event.features?.[0]?.properties?.trackId;
-        return typeof trackId === "string" && trackId.length > 0 ? trackId : null;
-      };
-
-      const applyLocusFocus = (): void => {
-        if (!map || disposed || !geoMapLayers$.value.locusDebug) return;
-        whenStyleReady(map, () => {
-          if (!map || disposed) return;
-          runtime.sources.apply(
-            TRACKS_LOCUS_SOURCE,
-            tracksLocusDebugToGeoJson(tracksList$.value, {
-              trackId: focusedTrackId ?? hoveredTrackId,
-            }) as GeoJsonCollection,
-          );
-        });
-      };
-
-      const onTrackHover = (event: MapLayerMouseEvent): void => {
-        if (focusedTrackId) return;
-        const trackId = trackIdFromEvent(event);
-        if (!trackId || trackId === hoveredTrackId) return;
-        hoveredTrackId = trackId;
-        if (map) map.getCanvas().style.cursor = "pointer";
-        setLocusDebugFocus("hover", trackId);
-        applyLocusFocus();
-      };
-
-      const onTrackHoverEnd = (): void => {
-        if (focusedTrackId) return;
-        if (!hoveredTrackId) return;
-        hoveredTrackId = null;
-        if (map) map.getCanvas().style.cursor = "";
-        setLocusDebugFocus("none", null);
-        applyLocusFocus();
-      };
-
-      const onTrackPick = (event: MapLayerMouseEvent): void => {
-        const trackId = trackIdFromEvent(event);
-        if (!trackId) return;
-        selectTrack(trackId === focusedTrackId ? null : trackId);
-      };
-
-      /** Popup place/района: сначала локальные строки, затем обогащение rawText с API. */
-      const showPlacePopup = (lngLat: MapLayerMouseEvent["lngLat"], placeId: string): void => {
-        if (!map) return;
-        activePlacePopupId = placeId;
-        activeRegionPopupKey = null;
-        regionPopup?.remove();
-        regionPopup = null;
-        map.getCanvas().style.cursor = "pointer";
-
-        const lines = buildPlacePopupLines(placeId);
-        if (lines.length === 0) return;
-
-        placePopup?.remove();
-        placePopup = new ml.Popup({
-          closeButton: false,
-          closeOnClick: false,
-          className: "geo-map-place-popup",
-          offset: 12,
-        })
-          .setLngLat(lngLat)
-          .setText(lines.join("\n"))
-          .addTo(map);
-
-        void runtime.popups.resolvePlaceSource(placeId).then((sourceMessage) => {
-          if (!map || !placePopup || activePlacePopupId !== placeId) return;
-          const enriched = buildPlacePopupLines(placeId, sourceMessage);
-          if (enriched.length === 0) return;
-          placePopup.setText(enriched.join("\n"));
-        });
-      };
-
-      /** Hover по кружку place — показываем popup. */
-      const onPlaceHover = (event: MapLayerMouseEvent): void => {
-        const placeId = event.features?.[0]?.properties?.placeId;
-        if (typeof placeId !== "string" || !placeId) return;
-        showPlacePopup(event.lngLat, placeId);
-      };
-
-      /** Hover по полигону района — тот же popup, что у place (общий placeId в properties). */
-      const onDistrictHover = (event: MapLayerMouseEvent): void => {
-        const placeId = event.features?.[0]?.properties?.placeId;
-        if (typeof placeId !== "string" || !placeId) return;
-        showPlacePopup(event.lngLat, placeId);
-      };
-
-      /** Уход курсора с place/района — скрываем popup и сбрасываем cursor. */
-      const onPlaceHoverEnd = (): void => {
-        if (!map) return;
-        map.getCanvas().style.cursor = "";
-        activePlacePopupId = null;
-        placePopup?.remove();
-        placePopup = null;
-      };
-
-      /**
-       * Hover по региону: tooltip с уровнем и winner-сообщением (API + лента).
-       * Под place/районом — не показываем (дочерняя сущность перекрывает регион).
-       */
-      const showRegionPopup = (lngLat: MapLayerMouseEvent["lngLat"], code: string): void => {
-        if (!map) return;
-        const region = regionsByCode$.value.get(code);
-        const popupKey = `${code}:${region?.statusEventAt ?? ""}`;
-        activeRegionPopupKey = popupKey;
-        placePopup?.remove();
-        placePopup = null;
-        activePlacePopupId = null;
-        map.getCanvas().style.cursor = "pointer";
-
-        regionPopup?.remove();
-        regionPopup = new ml.Popup({
-          closeButton: false,
-          closeOnClick: false,
-          className: "geo-map-region-popup",
-          offset: 12,
-        })
-          .setLngLat(lngLat)
-          .setHTML(buildRegionPopupHtml(code))
-          .addTo(map);
-
-        void runtime.popups.resolveRegionSource(code, region?.statusEventAt).then((sourceMessage) => {
-          if (!map || !regionPopup || activeRegionPopupKey !== popupKey) return;
-          regionPopup.setHTML(buildRegionPopupHtml(code, sourceMessage));
-        });
-      };
-
-      const onRegionHover = (event: MapLayerMouseEvent): void => {
-        if (!map) return;
-        if (hasChildEntityAtPointer(map, event.point)) {
-          regionPopup?.remove();
-          regionPopup = null;
-          activeRegionPopupKey = null;
-          return;
-        }
-        const code = event.features?.[0]?.properties?.regionCode;
-        if (typeof code !== "string" || !code) return;
-        showRegionPopup(event.lngLat, code);
-      };
-
-      /** Уход курсора с региона — скрываем region popup. */
-      const onRegionHoverEnd = (): void => {
-        if (!map) return;
-        map.getCanvas().style.cursor = "";
-        activeRegionPopupKey = null;
-        regionPopup?.remove();
-        regionPopup = null;
-      };
-
-      // Привязка pointer-событий к слоям (пересоздаётся в setupLayersAndHandlers после setStyle).
-      map.on("click", REGIONS_FILL, onPick);
-      map.on("click", REGIONS_OUTLINE, onPick);
-      map.on("click", PLACES_LAYER, onPick);
-      map.on("mouseenter", PLACES_LAYER, onPlaceHover);
-      map.on("mousemove", PLACES_LAYER, onPlaceHover);
-      map.on("mouseleave", PLACES_LAYER, onPlaceHoverEnd);
-      map.on("mouseenter", DISTRICTS_FILL, onDistrictHover);
-      map.on("mousemove", DISTRICTS_FILL, onDistrictHover);
-      map.on("mouseleave", DISTRICTS_FILL, onPlaceHoverEnd);
-      map.on("mouseenter", DISTRICTS_OUTLINE, onDistrictHover);
-      map.on("mousemove", DISTRICTS_OUTLINE, onDistrictHover);
-      map.on("mouseleave", DISTRICTS_OUTLINE, onPlaceHoverEnd);
-      map.on("mousemove", REGIONS_FILL, onRegionHover);
-      map.on("mouseleave", REGIONS_FILL, onRegionHoverEnd);
-      map.on("click", TRACKS_LINES_LAYER, onTrackPick);
-      map.on("click", TRACKS_LINES_DASHED_LAYER, onTrackPick);
-      map.on("click", TRACKS_LINES_HIT_LAYER, onTrackPick);
-      map.on("click", TRACKS_LINES_DASHED_HIT_LAYER, onTrackPick);
-      map.on("click", TRACKS_ORIGIN_LAYER, onTrackPick);
-      map.on("mouseenter", TRACKS_LINES_LAYER, onTrackHover);
-      map.on("mousemove", TRACKS_LINES_LAYER, onTrackHover);
-      map.on("mouseleave", TRACKS_LINES_LAYER, onTrackHoverEnd);
-      map.on("mouseenter", TRACKS_LINES_DASHED_LAYER, onTrackHover);
-      map.on("mousemove", TRACKS_LINES_DASHED_LAYER, onTrackHover);
-      map.on("mouseleave", TRACKS_LINES_DASHED_LAYER, onTrackHoverEnd);
-      map.on("mouseenter", TRACKS_LINES_HIT_LAYER, onTrackHover);
-      map.on("mousemove", TRACKS_LINES_HIT_LAYER, onTrackHover);
-      map.on("mouseleave", TRACKS_LINES_HIT_LAYER, onTrackHoverEnd);
-      map.on("mouseenter", TRACKS_LINES_DASHED_HIT_LAYER, onTrackHover);
-      map.on("mousemove", TRACKS_LINES_DASHED_HIT_LAYER, onTrackHover);
-      map.on("mouseleave", TRACKS_LINES_DASHED_HIT_LAYER, onTrackHoverEnd);
-      map.on("mouseenter", TRACKS_ORIGIN_LAYER, onTrackHover);
-      map.on("mousemove", TRACKS_ORIGIN_LAYER, onTrackHover);
-      map.on("mouseleave", TRACKS_ORIGIN_LAYER, onTrackHoverEnd);
+      interactions?.wire();
 
       // Только пользовательский pan/zoom — программный fitBounds не блокирует auto-fit.
       map.on("movestart", (event: MapLibreEvent) => {
@@ -1099,7 +883,6 @@ export function useGeoMapLifecycle(containerRef: RefObject<HTMLDivElement | null
       const maplibre = (await import("maplibre-gl")).default;
       await import("maplibre-gl/dist/maplibre-gl.css");
       if (disposed || !containerRef.current) return;
-      maplibreRef = maplibre;
 
       map = new maplibre.Map({
         container: containerRef.current,
@@ -1107,6 +890,13 @@ export function useGeoMapLifecycle(containerRef: RefObject<HTMLDivElement | null
         center: MAP_INITIAL_VIEW.center,
         zoom: MAP_INITIAL_VIEW.zoom,
         attributionControl: { compact: true },
+      });
+      interactions = createGeoMapInteractionController({
+        getMap: () => map,
+        isDisposed: () => disposed,
+        popup: maplibre.Popup,
+        runtime,
+        getHighlightedRegionCode: () => highlightedCode,
       });
 
       const container = containerRef.current;
@@ -1140,41 +930,19 @@ export function useGeoMapLifecycle(containerRef: RefObject<HTMLDivElement | null
         if (!map || mapBootstrapped) return;
         mapBootstrapped = true;
 
-        setupLayersAndHandlers();
+        setupLayers();
         map.resize();
 
-        const effectSignals: GeoMapEffectSignals = { heatmapManualRefresh$ };
-        const fetchStreams = createGeoMapFetchStreams(effectSignals);
-
-        // Regions/districts: HTTP-геометрия льётся в geoGeometryStore (bump revision),
-        // а revision входит в geoRenderTick$ → перерисует единый тик. Отдельного paint
-        // здесь нет (SSOT покраски — только тик); wire нужен ради loading/error overlay.
-        wireLayerFetchStreams({
-          sub: storeSubscriptions,
+        wireGeoMapDataSync({
+          subscriptions: storeSubscriptions,
           destroy$,
-          layerId: "regions",
-          streams: fetchStreams.regions,
-          fallbackError: "Ошибка загрузки геометрии",
-        });
-
-        wireLayerFetchStreams({
-          sub: storeSubscriptions,
-          destroy$,
-          layerId: "districts",
-          streams: fetchStreams.districts,
-          fallbackError: "Ошибка загрузки районов",
-        });
-
-        // Heatmap — независимый слой (off по умолчанию, не входит в geoRenderTick$):
-        // данные применяются напрямую из своего fetch, отдельной перерисовкой.
-        wireLayerFetchStreams({
-          sub: storeSubscriptions,
-          destroy$,
-          layerId: "heatmap",
-          streams: fetchStreams.heatmap,
-          fallbackError: "Ошибка загрузки теплокарты",
-          onData: (data) => {
-            if (disposed || !map || !geoMapLayers$.value.heatmap) return;
+          heatmapManualRefresh$,
+          canRenderHeatmap: () => !disposed && !!map && geoMapLayers$.value.heatmap,
+          renderActiveLayers,
+          performInitialAutoFitOnce,
+          hideEventsHeatmap,
+          applyHeatmapData: (data) => {
+            if (!map) return;
             setHeatmapMeta(data.meta);
             runtime.sources.apply(EVENTS_HEATMAP_SOURCE, {
               type: "FeatureCollection",
@@ -1184,95 +952,60 @@ export function useGeoMapLifecycle(containerRef: RefObject<HTMLDivElement | null
           },
         });
 
-        // ЕДИНЫЙ render-блок (SSOT покраски): одна подписка на ВСЕ источники слоёв →
-        // один проход renderActiveLayers() со всем снапшотом → один кадр. Сразу за
-        // рендером пробуем auto-fit (сам гейтится по первому осмысленному bbox).
-        storeSubscriptions.add(
-          geoRenderTick$().pipe(takeUntil(destroy$)).subscribe(() => {
-            renderActiveLayers();
-            performInitialAutoFitOnce();
-          }),
-        );
+        wireGeoMapLiveReplayCoordination({
+          subscriptions: storeSubscriptions,
+          destroy$,
+          initialTheme: theme$.value,
+          onThemeChange: (theme) => {
+            if (!map || disposed) return;
+            interactions?.clearPopups();
+            // transformStyle сохраняет наши GeoJSON-источники и слои в новом стиле —
+            // данные регионов и мест остаются, меняются только тайлы подложки.
+            map.setStyle(resolveMapBasemapStyleForTheme(theme) as never, {
+              transformStyle: preserveUserLayers,
+            } as never);
+            // После загрузки нового стиля восстанавливаем выделение региона.
+            afterStyleChange(map, () => {
+              if (disposed || !map) return;
+              if (highlightedCode) {
+                runtime.selection.setRegionSelected(highlightedCode, true);
+              }
+              // Стиль пересоздал слои → форсируем полный проход рендера всех слоёв.
+              renderActiveLayers(true);
+              applyEventsHeatmapPaint(map, theme);
+              syncGeoOverlayLayers(map, geoMapLayers$.value);
+              void recreateTracksDeckOverlay();
+              if (geoMapLayers$.value.heatmap) heatmapManualRefresh$.next();
+            }, {
+              fallbackStyle: resolveMapBasemapFallbackForTheme(theme),
+            });
+          },
+          onRegionSelection: (code) => {
+            const prev = highlightedCode;
+            runtime.selection.apply(prev, code);
+            highlightedCode = code;
 
-        storeSubscriptions.add(
-          heatmapEventTypesFilter$.pipe(takeUntil(destroy$)).subscribe((filter) => {
-            if (!map || disposed || !geoMapLayers$.value.heatmap) return;
-            if (!hasActiveHeatmapEventTypesFilter(filter)) hideEventsHeatmap();
-          }),
-        );
-
-        // Открываем тик и красим текущий снапшот сразу (force — источники только созданы).
-        mapCanvasReady$.next(true);
-        renderActiveLayers(true);
-
-        let appliedTheme = theme$.value;
-        storeSubscriptions.add(
-          theme$.pipe(takeUntil(destroy$)).subscribe((theme) => {
-          if (!map || disposed || theme === appliedTheme) return;
-          appliedTheme = theme;
-          placePopup?.remove();
-          regionPopup?.remove();
-          // transformStyle сохраняет наши GeoJSON-источники и слои в новом стиле —
-          // данные регионов и мест остаются, меняются только тайлы подложки.
-          map.setStyle(resolveMapBasemapStyleForTheme(theme) as never, {
-            transformStyle: preserveUserLayers,
-          } as never);
-          // После загрузки нового стиля восстанавливаем выделение региона.
-          afterStyleChange(map, () => {
-            if (disposed || !map) return;
-            if (highlightedCode) {
-              runtime.selection.setRegionSelected(highlightedCode, true);
+            if (!code) {
+              tryFitOverview(350);
+              return;
             }
-            // Стиль пересоздал слои → форсируем полный проход рендера всех слоёв.
-            renderActiveLayers(true);
-            applyEventsHeatmapPaint(map, theme);
-            syncGeoOverlayLayers(map, geoMapLayers$.value);
-            void recreateTracksDeckOverlay();
-            if (geoMapLayers$.value.heatmap) heatmapManualRefresh$.next();
-          }, {
-            fallbackStyle: resolveMapBasemapFallbackForTheme(theme),
-          });
-          }),
-        );
-
-        // Выбор региона: feature-state + flyTo / overview fit.
-        storeSubscriptions.add(
-          selectedRegion$.pipe(takeUntil(destroy$)).subscribe((code) => {
-          const prev = highlightedCode;
-          runtime.selection.apply(prev, code);
-          highlightedCode = code;
-
-          if (!code) {
-            tryFitOverview(350);
-            return;
-          }
-          if (!map) return;
-          if (code === prev) return;
-
-          whenStyleReady(map, () => {
             if (!map) return;
-            const regions = buildRegionsCollection();
-            if (regions.features.length === 0) return;
-            map.stop();
-            const animate = prev === null;
-            flyToRegion(map, code, regions, animate ? 320 : 0);
-          });
-          }),
-        );
-        storeSubscriptions.add(
-          selectedTrackId$.pipe(takeUntil(destroy$)).subscribe((trackId) => {
-            focusedTrackId = trackId;
-            if (trackId) {
-              hoveredTrackId = null;
-              setLocusDebugFocus("pinned", trackId);
-            } else if (hoveredTrackId) {
-              setLocusDebugFocus("hover", hoveredTrackId);
-            } else {
-              setLocusDebugFocus("none", null);
-            }
+            if (code === prev) return;
+
+            whenStyleReady(map, () => {
+              if (!map) return;
+              const regions = buildRegionsCollection();
+              if (regions.features.length === 0) return;
+              map.stop();
+              const animate = prev === null;
+              flyToRegion(map, code, regions, animate ? 320 : 0);
+            });
+          },
+          onTrackSelection: (trackId) => {
+            interactions?.onTrackSelection(trackId);
             applyTracksLayers();
-          }),
-        );
+          },
+        });
       };
 
       disposeMapBootstrap = wireMapBootstrap({
@@ -1296,10 +1029,8 @@ export function useGeoMapLifecycle(containerRef: RefObject<HTMLDivElement | null
       setLocusDebugFocus("none", null);
       tracksDeckOverlay?.dispose();
       tracksDeckOverlay = null;
-      placePopup?.remove();
-      placePopup = null;
-      regionPopup?.remove();
-      regionPopup = null;
+      interactions?.clearPopups();
+      interactions = null;
       disposeMapBootstrap?.();
       resizeObserver?.disconnect();
       resizeObserver = null;

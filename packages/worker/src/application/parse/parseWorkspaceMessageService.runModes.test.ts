@@ -6,8 +6,8 @@ import {
   InMemoryParsedEventRepository,
   InMemoryPlaceRepository,
   InMemoryRegionRepository,
-} from "../handlers/inMemoryRepositories.js";
-import { createParseWorkspaceStack } from "./createParseWorkspaceStack.js";
+} from "../../infrastructure/testing/inMemoryRepositories.js";
+import { createParseWorkspaceMessageService } from "./createParseWorkspaceMessageService.js";
 import { createTestGeoValidation } from "./createTestGeoValidation.js";
 import { buildTestPlaceScanService } from "../../domain/parse/geo/testPlaceScanFixture.js";
 
@@ -33,7 +33,7 @@ test("phase_enrich: load workspace из БД без re-orchestrator", async () =
   const eventLocations = new InMemoryEventLocationRepository();
   const workspaces = new InMemoryMessageParseWorkspaceRepository();
 
-  const { workspaceService } = createParseWorkspaceStack({
+  const workspaceService = createParseWorkspaceMessageService({
     placeScan,
     regions,
     places,
@@ -41,6 +41,7 @@ test("phase_enrich: load workspace из БД без re-orchestrator", async () =
     parsedEvents,
     eventLocations,
     messageParseWorkspaces: workspaces,
+    externalEnricher: { enrich: async () => {} },
   });
 
   const rebuild = await workspaceService.run({
@@ -88,7 +89,7 @@ test("heal: без workspace → meta", async () => {
   const eventLocations = new InMemoryEventLocationRepository();
   const workspaces = new InMemoryMessageParseWorkspaceRepository();
 
-  const { workspaceService } = createParseWorkspaceStack({
+  const workspaceService = createParseWorkspaceMessageService({
     placeScan,
     regions,
     places,
@@ -96,6 +97,7 @@ test("heal: без workspace → meta", async () => {
     parsedEvents,
     eventLocations,
     messageParseWorkspaces: workspaces,
+    externalEnricher: { enrich: async () => {} },
   });
 
   const result = await workspaceService.run({

@@ -1,0 +1,28 @@
+{
+  "name": "@radar/observability",
+  "version": "0.0.1",
+  "private": true,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/main.js",
+    "dev": "tsc -p tsconfig.json --watch --preserveWatchOutput",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@radar/shared": "*",
+    "dotenv": "^16.4.7",
+    "pg": "^8.13.1",
+    "prom-client": "^15.1.3",
+    "typeorm": "^0.3.20"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "@types/pg": "^8.11.10",
+    "typescript": "^5.7.2"
+  }
+}

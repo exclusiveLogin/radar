@@ -82,7 +82,7 @@ npm run geo:seed
 | **`data/tiles/merged/`** | нет | `osmium merge` |
 | **`data/tiles/output/`** | нет | mbtiles + `config.json` для TileServer GL |
 
-Пайплайн: `npm run tiles:init` или `npm run radar -- stack cold-up -- -Tiles`.  
+Пайплайн: `npm run tiles:sync` или `npm run radar -- stack cold-up -- -Tiles`.  
 Документация: [docs/map-tiles-selfhost.md](../../docs/map-tiles-selfhost.md).
 
 **ODP (будущее):** `geoBasemapPackId` в domain pack → тот же контракт, что `tiles.manifest.json` ([sdd/odp/README.md](../../docs/sdd/odp/README.md)).

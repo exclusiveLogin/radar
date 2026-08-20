@@ -57,8 +57,8 @@ export function SourceMessageBlock({ regionCode, placeId }: Props) {
   const messageRegionCodes = [...new Set(regionCodes)];
 
   return (
-    <div style={{ marginTop: 8 }}>
-      <div className="ds-muted" style={{ fontSize: 11, marginBottom: 4 }}>
+    <div className="ds-event-card__source">
+      <div className="ds-muted" style={{ fontSize: 11, marginBottom: 6 }}>
         {channelKey ? `@${channelKey} · ` : null}
         {formatDateTime(postedAt)}
       </div>
@@ -68,17 +68,7 @@ export function SourceMessageBlock({ regionCode, placeId }: Props) {
           label="По сообщению"
         />
       )}
-      <pre
-        style={{
-          margin: 0,
-          whiteSpace: "pre-wrap",
-          wordBreak: "break-word",
-          fontFamily: "inherit",
-          fontSize: 12,
-        }}
-      >
-        {text}
-      </pre>
+      <pre className="ds-event-card__quote">{text}</pre>
     </div>
   );
 }

@@ -18,12 +18,12 @@ npm run worker:dev
 ```mermaid
 flowchart LR
   ingest[Ingest / Reparse] --> flow[phaseIngestFlow]
-  flow --> cov[phase_coverage pending]
+  flow --> cov[queue_parse_coverage pending]
   flow --> eager[eager inline по order]
   cov --> daemon[IngestParseDaemon scheduled]
   daemon --> claim[claimBatch + prerequisites]
   claim --> runner[PhaseRunner]
-  runner --> pe[parsed_events]
+  runner --> pe[mat_parse_event]
 ```
 
 | trigger | Исполнение |
@@ -41,8 +41,8 @@ flowchart LR
 | Таблица | Назначение |
 |---------|------------|
 | `phase_definitions` | SSOT фаз после import |
-| `phase_coverage` | Покрытие per `(raw_message_id, phase_id)` |
-| `phase_runs` | История тиков / manual run |
+| `queue_parse_coverage` | Покрытие per `(raw_message_id, phase_id)` |
+| `log_parse_phase_run` | История тиков / manual run |
 
 ## CLI
 
@@ -65,8 +65,8 @@ npm run radar -- parse run
 
 ```
 ingest/backfill → RawMessageIngested → phaseIngestFlow (eager)
-                                      → phase_coverage (pending)
-IngestParseDaemon (scheduled) → PhaseRunner → parsed_events
+                                      → queue_parse_coverage (pending)
+IngestParseDaemon (scheduled) → PhaseRunner → mat_parse_event
 manual: radar pipeline phase:run / админка Run
 ```
 
@@ -75,14 +75,14 @@ manual: radar pipeline phase:run / админка Run
 ## Прогресс
 
 - **SSOT бэклога:** `GET /api/admin/phases/runs/overview` → `coverage` per phase.
-- **Тики:** `phase_runs` (в т.ч. `claimed=0` с честным `pendingRemaining`).
+- **Тики:** `log_parse_phase_run` (в т.ч. `claimed=0` с честным `pendingRemaining`).
 - **Админка realtime:** WS `phases-update` (~3s) — overview + runs; не путать с backlog `phase-progress` (побайтовый прогресс тика).
 
 ## Админка
 
 | Виджет | Секция | Назначение |
 |--------|--------|------------|
-| **Сводка системы** | Система | KPI + карточки `phase_coverage` |
+| **Сводка системы** | Система | KPI + карточки `queue_parse_coverage` |
 | **Parse-engine** | Обогащение | фазы ingest/geo, Run, очереди, runs |
 | **Backfill V2** | Backfill | raw; parse — см. Обогащение |
 

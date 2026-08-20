@@ -1,6 +1,6 @@
 # Backfill V2 — автоматическая докачка истории
 
-**CLI:** [`radar-cli.md`](./radar-cli.md) — `npm run radar -- ingest backfill`, `ingest session:*`, `stack migrate`.
+**CLI:** [`radar-cli.md`](./radar-cli.md) — `npm run radar -- ingest backfill`, `ingest session:*`, `stack migrate`.
 
 Документ для **бизнеса** (что получаем в продукте) и **разработки** (как устроено в коде).  
 Связанные материалы: [ingest-providers.md](./ingest-providers.md), [domain/how-it-works.md](./domain/how-it-works.md#ingest-flow), [domain/contexts/ingest.md](./domain/contexts/ingest.md).
@@ -15,10 +15,10 @@
 
 | # | Что нужно | Зачем |
 |---|-----------|--------|
-| 1 | PostgreSQL, `DATABASE_URL` в `.env` | Задачи, `raw_messages`, parse |
-| 2 | `npm run radar -- stack migrate` | Таблица `ingest_backfill_jobs` и остальное |
+| 1 | PostgreSQL, `DATABASE_URL` в `.env` | Задачи, `mat_ingest_raw`, parse |
+| 2 | `npm run radar -- stack migrate` | Таблица `job_ingest_backfill` и остальное |
 | 3 | `TELEGRAM_API_ID`, `TELEGRAM_API_HASH` | MTProto (история **не** через bot token) |
-| 4 | User-сессия на диске | `npm run radar -- ingest session:deploy` → слот = `credentialRefs.mtprotoSessionSlot` |
+| 4 | User-сессия на диске | `npm run radar -- ingest session:deploy` → слот = `credentialRefs.mtprotoSessionSlot` |
 | 5 | Provider + binding в БД | Manifest import или Admin API; binding с **user MTProto** (`user_mtproto_channel` / `group`) |
 | 6 | Provider `status = active` (для live; backfill job — отдельно) | Live опционален; backfill идёт по job |
 
@@ -33,8 +33,17 @@ TELEGRAM_API_ID=...
 TELEGRAM_API_HASH=...
 # опционально:
 # RADAR_SESSIONS_DIR=.radar/sessions
-# RADAR_BACKFILL_POLL_MS=15000
-# RADAR_BACKFILL_DAEMON_ENABLED=1
+```
+
+**Backfill daemon** — `worker.runtime.manifest.json` → `backfill.*` (см. [ADR-021](./rfc/adr-021-manifest-env-ssot.md)):
+
+```json
+{ "backfill": { "enabled": true, "pollMs": 15000 } }
+```
+
+```bash
+WORKER__backfill__enabled=true
+WORKER__backfill__pollMs=20000
 ```
 
 ### Шаг 1 — сессия (один раз)
@@ -79,7 +88,7 @@ npm run worker:dev
 ```text
 Режим хранилища worker: db.
 Запуск IngestOrchestrator ...
-BackfillDaemon запущен (ingest_backfill_jobs).
+BackfillDaemon запущен (job_ingest_backfill).
 ```
 
 Без этих строк задача останется в `pending`.
@@ -112,13 +121,13 @@ Invoke-RestMethod `
 
 `strategy`: `all` / `full_history` — вся доступная история; `by_date_range` — см. примеры ниже в [Admin API](#admin-api).
 
-**Вариант B — только worker + SQL** (без API): вставка в `ingest_backfill_jobs` не описана в схеме миграции как публичный контракт — **рекомендуется API**.
+**Вариант B — только worker + SQL** (без API): вставка в `job_ingest_backfill` не описана в схеме миграции как публичный контракт — **рекомендуется API**.
 
 ### Шаг 5 — наблюдать прогресс
 
 ```sql
 SELECT id, status, strategy, stats, params->'checkpoint' AS checkpoint, updated_at
-FROM ingest_backfill_jobs
+FROM job_ingest_backfill
 ORDER BY created_at DESC
 LIMIT 5;
 ```
@@ -133,7 +142,7 @@ LIMIT 5;
 Проверка сырых сообщений:
 
 ```sql
-SELECT count(*) FROM raw_messages WHERE ingest_mode = 'backfill';
+SELECT count(*) FROM mat_ingest_raw WHERE ingest_mode = 'backfill';
 ```
 
 ### Альтернатива — CLI (одна пачка, без демона)
@@ -157,7 +166,7 @@ npm run radar -- ingest backfill -- --all-bindings --batch-size=100
 
 1. `RADAR_STORAGE_MODE=db`?
 2. Worker запущен, в логе есть `BackfillDaemon запущен`?
-3. `RADAR_BACKFILL_DAEMON_ENABLED` не `0`?
+3. `worker.runtime.manifest.json` → `backfill.enabled` не `false`? (или `WORKER__backfill__enabled`)
 4. У provider есть `mtprotoSessionSlot`, слот задеплоен?
 5. `binding_mode` — user MTProto, не только bot?
 6. Задача не `failed` — если да, лог worker в момент `running`.
@@ -169,9 +178,9 @@ npm run radar -- ingest backfill -- --all-bindings --batch-size=100
 | Вопрос | Ответ |
 |--------|--------|
 | **Зачем** | Заполнить архив сообщений канала **до** или **параллельно** с live-мониторингом, без ручного запуска CLI на каждую пачку. |
-| **Кто запускает** | Оператор через Admin API (`POST /backfill-jobs`) или скрипт, создающий строку в `ingest_backfill_jobs`. |
+| **Кто запускает** | Оператор через Admin API (`POST /backfill-jobs`) или скрипт, создающий строку в `job_ingest_backfill`. |
 | **Кто выполняет** | Worker в режиме `RADAR_STORAGE_MODE=db`: фоновый **BackfillDaemon** подхватывает задачу и качает историю. |
-| **Что на выходе** | Строки в `raw_messages` (`ingest_mode=backfill`), затем те же **parsed_events**, что и для live — единый пайплайн анализа. |
+| **Что на выходе** | Строки в `mat_ingest_raw` (`ingest_mode=backfill`), затем те же **mat_parse_event**, что и для live — единый пайплайн анализа. |
 | **Надёжность** | После **каждого** сообщения сохраняется чекпоинт: при падении worker продолжит с последнего ID, без повторной массовой выкачки. |
 | **Live не ломаем** | Курсор «последнее live-сообщение» **не** сдвигается от backfill; архив и «сейчас» разделены. |
 
@@ -181,7 +190,7 @@ npm run radar -- ingest backfill -- --all-bindings --batch-size=100
 ┌─────────────────────────────────────┬──────────────────────────────────────┐
 │ Backfill V2 (рекомендуется)         │ CLI chunk (разовый ручной проход)    │
 ├─────────────────────────────────────┼──────────────────────────────────────┤
-│ Задача в БД → демон worker          │ `npm run radar -- ingest backfill`   │
+│ Задача в БД → демон worker          │ `npm run radar -- ingest backfill`   │
 │ Поток iterMessages + чекпоинты      │ Одна пачка getMessages (batch)       │
 │ До конца истории / по стратегии     │ `--all-bindings` — все каналы сразу  │
 └─────────────────────────────────────┴──────────────────────────────────────┘
@@ -194,9 +203,9 @@ npm run radar -- ingest backfill -- --all-bindings --batch-size=100
 | Термин | Смысл |
 |--------|--------|
 | **Binding** | Привязка провайдера к конкретному чату/каналу (`ingest_bindings`). |
-| **Backfill job** | Запись операции докачки (`ingest_backfill_jobs`): стратегия, прогресс, статус. |
+| **Backfill job** | Запись операции докачки (`job_ingest_backfill`): стратегия, прогресс, статус. |
 | **Checkpoint** | `{ offsetId, postedAt }` последнего **успешно обработанного** сообщения в `job.params`. |
-| **backfillState** | JSON в `ingest_cursors.backfill_state` — зеркало прогресса на уровне канала+провайдера. |
+| **backfillState** | JSON в `state_ingest_cursor.backfill_state` — зеркало прогресса на уровне канала+провайдера. |
 | **Sink** | Колбек «одно нормализованное сообщение → ingest»; демон вешает на него сохранение чекпоинта. |
 | **Parse worker pool** | Отдельные потоки Node.js для тяжёлого classify/geo, чтобы не блокировать live и демон. |
 
@@ -212,10 +221,10 @@ flowchart TB
   end
 
   subgraph Data["PostgreSQL"]
-    Jobs[("ingest_backfill_jobs")]
-    Raw[("raw_messages")]
-    Cursor[("ingest_cursors")]
-    Parsed[("parsed_events")]
+    Jobs[("job_ingest_backfill")]
+    Raw[("mat_ingest_raw")]
+    Cursor[("state_ingest_cursor")]
+    Parsed[("mat_parse_event")]
   end
 
   subgraph Worker["Worker process"]
@@ -271,11 +280,11 @@ stateDiagram-v2
 | `completed` | Архив по стратегии выкачан | Итератор дошёл до границы (начало истории / даты / id). |
 | `failed` | Нужно вмешательство | Смотреть логи worker; исправить session/лимиты; создать новую задачу при необходимости. |
 
-**Поля прогресса** (`ingest_backfill_jobs.stats`):
+**Поля прогресса** (`job_ingest_backfill.stats`):
 
 | Поле | Смысл |
 |------|--------|
-| `inserted` | Новые строки в `raw_messages` (прошли dedup). |
+| `inserted` | Новые строки в `mat_ingest_raw` (прошли dedup). |
 | `duplicates` | Уже были (hash / identity / telegram extension). |
 | `parsed` | Зарезервировано под будущую явную метрику parse (сейчас parse идёт через события). |
 
@@ -296,7 +305,7 @@ sequenceDiagram
   participant Parse as ParseRawMessageHandler
   participant Pool as ParseWorkerPool
 
-  loop poll каждые RADAR_BACKFILL_POLL_MS
+  loop poll каждые backfill.pollMs (manifest)
     Daemon->>DB: findRunnable() → job
     Daemon->>DB: status = running
   end
@@ -313,7 +322,7 @@ sequenceDiagram
     TG-->>Adapter: Message
     Adapter->>Daemon: sink(normalized)
     Daemon->>Ingest: handle(raw, extension)
-    Ingest->>DB: upsert raw_messages
+    Ingest->>DB: upsert mat_ingest_raw
   Note over Ingest: live cursor НЕ трогаем при ingest_mode=backfill
     Ingest->>Bus: RawMessageIngested | RawMessageDuplicate
     opt inserted
@@ -322,7 +331,7 @@ sequenceDiagram
       Sub->>Parse: handle(raw)
       Parse->>Pool: execute(classify + geo)
       Pool-->>Parse: ParsePipelineResult
-      Parse->>DB: parsed_events, event_locations
+      Parse->>DB: mat_parse_event, mat_parse_location
     end
     Daemon->>DB: updateProgress(stats, params.checkpoint)
     Daemon->>DB: cursors.updateBackfillState(...)
@@ -357,12 +366,12 @@ sequenceDiagram
 ```mermaid
 flowchart LR
   subgraph PerJob["Уровень задачи"]
-    J["ingest_backfill_jobs.params.checkpoint"]
-    S["ingest_backfill_jobs.stats"]
+    J["job_ingest_backfill.params.checkpoint"]
+    S["job_ingest_backfill.stats"]
   end
 
   subgraph PerChannel["Уровень канала"]
-    C["ingest_cursors.backfill_state"]
+    C["state_ingest_cursor.backfill_state"]
   end
 
   Msg["Сообщение обработано"] --> J
@@ -437,7 +446,7 @@ flowchart TB
 | Слой | Где выполняется |
 |------|-----------------|
 | Classify + geo pipeline (`ParsePipelineService`) | **Пул worker_threads** (если не отключён env) |
-| Валидация мест, `parsed_events`, события `MessageParsed` | **Main thread** (нужен доступ к TypeORM repos) |
+| Валидация мест, `mat_parse_event`, события `MessageParsed` | **Main thread** (нужен доступ к TypeORM repos) |
 
 **Отключение пула:** `RADAR_PARSE_USE_WORKER_THREADS=0` — всё снова в main thread (отладка).
 
@@ -479,13 +488,20 @@ UUID binding/provider: см. SQL в [ingest-providers.md § Backfill](./ingest-p
 
 ---
 
-## Переменные окружения (worker)
+## Конфигурация worker (ADR-021)
 
-| Переменная | Default | Назначение |
-|------------|---------|------------|
+`worker.runtime.manifest.json` (см. [ADR-021](./rfc/adr-021-manifest-env-ssot.md)):
+
+| Поле manifest | Default | Назначение |
+|---------------|---------|------------|
+| `backfill.enabled` | `true` | Kill-switch демона backfill. |
+| `backfill.pollMs` | `15000` | Интервал опроса `job_ingest_backfill`. |
+
+Env override: `WORKER__backfill__enabled`, `WORKER__backfill__pollMs`.
+
+| Переменная `.env` | Default | Назначение |
+|-------------------|---------|------------|
 | `RADAR_STORAGE_MODE` | — | Должен быть `db` для демона и пула. |
-| `RADAR_BACKFILL_DAEMON_ENABLED` | включён | `0` / `false` — не стартовать демон. |
-| `RADAR_BACKFILL_POLL_MS` | `15000` | Интервал опроса `ingest_backfill_jobs`. |
 | `RADAR_PARSE_USE_WORKER_THREADS` | включён | `0` — parse только в main thread. |
 | `RADAR_PARSE_WORKER_POOL_SIZE` | `2` | Число потоков (1–8). |
 | `TELEGRAM_API_ID`, `TELEGRAM_API_HASH` | — | MTProto для `streamHistory`. |
@@ -499,14 +515,14 @@ UUID binding/provider: см. SQL в [ingest-providers.md § Backfill](./ingest-p
 
 ```mermaid
 erDiagram
-  ingest_backfill_jobs ||--o{ ingest_bindings : binding_id
+  job_ingest_backfill ||--o{ ingest_bindings : binding_id
   ingest_bindings ||--o| channels : channel_id
   ingest_bindings }o--|| ingest_providers : provider_id
-  ingest_bindings ||--o{ raw_messages : channel_key
-  ingest_cursors }o--|| channels : channel_key
-  raw_messages ||--o| parsed_events : raw_message_id
+  ingest_bindings ||--o{ mat_ingest_raw : channel_key
+  state_ingest_cursor }o--|| channels : channel_key
+  mat_ingest_raw ||--o| mat_parse_event : raw_message_id
 
-  ingest_backfill_jobs {
+  job_ingest_backfill {
     uuid id PK
     uuid binding_id
     uuid provider_id
@@ -516,13 +532,13 @@ erDiagram
     jsonb stats
   }
 
-  ingest_cursors {
+  state_ingest_cursor {
     text channel_key
     text provider_key
     jsonb backfill_state
   }
 
-  raw_messages {
+  mat_ingest_raw {
     uuid id PK
     text ingest_mode
     timestamptz posted_at
@@ -539,9 +555,9 @@ erDiagram
 | Поток Telegram + FloodWait | `packages/worker/src/infrastructure/ingest-adapters/telegram/telegramRawIngestAdapter.ts` |
 | Порт `streamHistory` | `packages/shared/src/ports/ingest-adapters.ts` |
 | Репозиторий задач | `packages/api/src/infrastructure/persistence/typeorm-ingest-backfill-job.repository.ts` |
-| Пул parse threads | `packages/worker/src/application/parsing/parseWorkerPool.ts` |
-| Worker entry parse | `packages/worker/src/application/parsing/parsePipeline.worker.ts` |
-| SSOT сборки pipeline | `packages/worker/src/application/parsing/createParsePipeline.ts` |
+| Пул parse threads | `packages/worker/src/application/parse/parseWorkerPool.ts` |
+| Worker entry parse | `packages/worker/src/application/parse/parsePipeline.worker.ts` |
+| SSOT сборки pipeline | `packages/worker/src/application/parse/createParsePipeline.ts` |
 | Parse use case | `packages/worker/src/application/handlers/parseRawMessageHandler.ts` |
 | Wiring | `packages/worker/src/application/createWorkerCompositionRoot.ts` |
 | Старт демона | `packages/worker/src/application/runBootstrap.ts` |

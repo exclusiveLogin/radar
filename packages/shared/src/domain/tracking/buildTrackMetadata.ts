@@ -7,7 +7,7 @@
  *          скорость, курс, статус (active/closed/stale).
  * ---
  */
-import type { KalmanStateJson, TrackStatus, TrajectoryNode } from "./types";
+import type { TrackStatus, TrajectoryNode } from "./types";
 import type { ProfileKinematics } from "./profileKinematics";
 
 type TrackMetadata = {

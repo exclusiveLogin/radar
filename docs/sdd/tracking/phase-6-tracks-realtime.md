@@ -2,7 +2,7 @@
 
 ## Цель
 
-После батча rebuild worker обновляет `tracking_pipeline_state.updated_at`. API поллер (~2s) эмитит `tracks-updated` на WS `/ws`; web refetch `tracksList` в live-режиме.
+После батча rebuild worker обновляет `state_track_pipeline.updated_at`. API поллер (~2s) эмитит `tracks-updated` на WS `/ws`; web refetch `tracksList` в live-режиме.
 
 ## Поток
 

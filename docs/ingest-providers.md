@@ -8,7 +8,7 @@
 |----------|-----------------|
 | **Ingest Acquisition** | сырой текст, dedup, курсоры, дежурство провайдеров |
 | **Runtime Credentials** | session slots на volume (MTProto / bot token) |
-| **Signal Processing** | classify → geo → `parsed_events` |
+| **Signal Processing** | classify → geo → `mat_parse_event` |
 | **Operations Read Model** | admin API, timeline |
 
 ## Агрегаты и инварианты
@@ -25,7 +25,7 @@
 
 1. **Hash** — `ingestMessageHash()` в `@radar/shared` (universal + `rawPayload` whitelist)
 2. **Base identity** — `(channel_id, provider_key, external_message_id, revision_key)`
-3. **Telegram extension** — `raw_message_telegram` UNIQUE `(chat_id, message_id, edit_date)`
+3. **Telegram extension** — `mat_ingest_raw_tg` UNIQUE `(chat_id, message_id, edit_date)`
 
 Duplicate → `RawMessageDuplicate`, parse не вызывается.
 
@@ -46,7 +46,7 @@ Swagger: `/api/docs` → tag `admin-ingest`.
 
 ## CLI — справочник команд (с примерами)
 
-Команды — **из корня репозитория**. Предпочтительно: `npm run radar -- <domain> <action> [-- флаги…]`.  
+Команды — **из корня репозитория**. Предпочтительно: `npm run radar -- <domain> <action> [-- флаги…]`.  
 SSOT: [radar-cli.md](./radar-cli.md). Legacy `worker:*` / `ingest:*` — алиасы.
 
 **Синтаксис флагов:** `--имя=значение` или `--имя значение`. Всё после `--` уходит в worker.
@@ -84,9 +84,9 @@ session deploy  →  manifest import (или admin API)  →  provider start  �
 
 Секреты **не в git и не в БД** — только в `.radar/sessions/{slot}/`.
 
-### `npm run radar -- ingest session:deploy`
+### `npm run radar -- ingest session:deploy`
 
-**Legacy:** `npm run worker:session:deploy`
+**Legacy:** `npm run worker:session:deploy`
 
 **Что делает:** один раз логинится в Telegram (телефон + код + 2FA) или принимает bot token, сохраняет сессию на диск.
 
@@ -123,7 +123,7 @@ npm run radar -- ingest session:probe -- --slot tg-user-1
 
 ---
 
-### `npm run radar -- ingest session:probe`
+### `npm run radar -- ingest session:probe`
 
 **Legacy:** `worker:session:probe`
 
@@ -145,7 +145,7 @@ npm run radar -- ingest session:probe -- --slot tg-user-1
 
 ---
 
-### `npm run radar -- ingest session:invalidate`
+### `npm run radar -- ingest session:invalidate`
 
 **Legacy:** `worker:session:invalidate`
 
@@ -176,7 +176,7 @@ npm run radar -- ingest session:deploy -- --slot tg-user-1 --kind mtproto_user
 
 **Важно:** worker в runtime читает **только БД**. Manifest — черновик для import/export.
 
-### `npm run radar -- ingest manifest:import`
+### `npm run radar -- ingest manifest:import`
 
 **Legacy:** `ingest:manifest:import`
 
@@ -554,7 +554,7 @@ npm run radar -- ingest manifest:import
 
 ---
 
-### `npm run radar -- ingest manifest:export`
+### `npm run radar -- ingest manifest:export`
 
 **Legacy:** `ingest:manifest:export`
 
@@ -588,15 +588,15 @@ npm run radar -- ingest manifest:export
 |-----|----------|
 | 1 | `POST /api/admin/ingest/backfill-jobs` — `strategy`: `full_history` / `all` / `by_date_range` / `by_external_id_range` |
 | 2 | Worker в `RADAR_STORAGE_MODE=db` (демон включён по умолчанию) |
-| 3 | Статус в `ingest_backfill_jobs`: `pending` → `running` → `completed` \| `failed` |
+| 3 | Статус в `job_ingest_backfill`: `pending` → `running` → `completed` \| `failed` |
 
 **Стратегия «вся история»:** `{ "bindingId": "<uuid>", "strategy": "all", "params": {} }`.
 
-### `npm run radar -- ingest backfill` — разовый chunk (CLI)
+### `npm run radar -- ingest backfill` — разовый chunk (CLI)
 
 **Legacy:** `worker:ingest:backfill`, `parse-engine:ingest:backfill`
 
-**Что делает:** за **один запуск** выкачивает **одну пачку** старых сообщений (`fetchHistoryBatch`) и кладёт в `raw_messages` с `ingest_mode=backfill`.
+**Что делает:** за **один запуск** выкачивает **одну пачку** старых сообщений (`fetchHistoryBatch`) и кладёт в `mat_ingest_raw` с `ingest_mode=backfill`.
 
 **Зачем:** отладка, ручной догон без записи job; повторные запуски — вручную.
 
@@ -652,7 +652,7 @@ npm run radar -- ingest backfill -- --all-bindings --batch-size=100
 
 ---
 
-## 4. `npm run radar -- parse report` (не ingest)
+## 4. `npm run radar -- parse report` (не ingest)
 
 **Legacy:** `worker:parse:report`
 
@@ -713,9 +713,9 @@ RADAR_STORAGE_MODE=db npm run worker:dev
 
 ### Типичный сценарий (чистый стенд)
 
-1. `npm run radar -- stack migrate`
-2. `npm run radar -- ingest session:deploy -- --slot tg-user-1 --kind mtproto_user`
-3. `npm run radar -- ingest manifest:import` **или** admin API
+1. `npm run radar -- stack migrate`
+2. `npm run radar -- ingest session:deploy -- --slot tg-user-1 --kind mtproto_user`
+3. `npm run radar -- ingest manifest:import` **или** admin API
 4. `POST /api/admin/ingest/providers/:id/start`
 5. `RADAR_STORAGE_MODE=db npm run worker:dev`
 
@@ -723,9 +723,9 @@ RADAR_STORAGE_MODE=db npm run worker:dev
 
 ## Smoke
 
-1. `npm run radar -- stack migrate`
+1. `npm run radar -- stack migrate`
 2. `POST /api/admin/ingest/messages` с `channelKey` + `rawText`
-3. Проверить `raw_messages` и `domain_events` → parse_attempts
+3. Проверить `mat_ingest_raw` и `event_outbox` → log_parse_attempt
 
 ---
 
@@ -759,13 +759,13 @@ IngestGapRecoveryService
 ### Хранение данных — текущая модель
 
 ```
-raw_messages
+mat_ingest_raw
 ├── rawText         ← текст как есть
 ├── rawPayload      ← JSONB: полный оригинал от источника (entities, media, metadata)
 ├── hash            ← SHA-256 content fingerprint для dedup
 └── ingestMode      ← live | backfill | manual
 
-raw_message_telegram (O2O extension)
+mat_ingest_raw_tg (O2O extension)
 ├── chatId + messageId + editDate  ← UNIQUE индекс для Telegram-specific dedup
 └── peerType                       ← channel | group | supergroup | user
 ```

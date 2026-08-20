@@ -48,7 +48,7 @@ async function deleteOptional(
  * Полный сброс гео-справочника в БД перед geo:catalog:import.
  * Удаляет places, aliases, geo_feature, regions и связанные строки.
  *
- * Операционный слой (raw_messages, parsed_events) не трогает —
+ * Операционный слой (mat_ingest_raw, mat_parse_event) не трогает —
  * только обнуляет place_id там, где FK RESTRICT.
  */
 export class GeoCatalogResetService {
@@ -144,12 +144,12 @@ export class GeoCatalogResetService {
           ),
       },
       {
-        id: "geo_sync_log",
-        label: "geo_sync_log",
+        id: "log_geo_sync",
+        label: "log_geo_sync",
         run: () =>
           deleteOptional(
             this.dataSource,
-            `DELETE FROM geo_sync_log RETURNING id`,
+            `DELETE FROM log_geo_sync RETURNING id`,
           ),
       },
       {
@@ -162,12 +162,12 @@ export class GeoCatalogResetService {
           ),
       },
       {
-        id: "event_locations",
-        label: "event_locations.place_id → NULL",
+        id: "mat_parse_location",
+        label: "mat_parse_location.place_id → NULL",
         run: () =>
           deleteOptional(
             this.dataSource,
-            `UPDATE event_locations SET place_id = NULL
+            `UPDATE mat_parse_location SET place_id = NULL
              WHERE place_id IS NOT NULL RETURNING id`,
           ),
       },
@@ -218,9 +218,9 @@ export class GeoCatalogResetService {
       region_state_active: "regionStateActiveDeleted",
       place_geo_link: "placeGeoLinksDeleted",
       geo_feature: "geoFeaturesDeleted",
-      geo_sync_log: "geoSyncLogDeleted",
+      log_geo_sync: "geoSyncLogDeleted",
       place_aliases: "aliasesDeleted",
-      event_locations: "eventLocationsUnlinked",
+      mat_parse_location: "eventLocationsUnlinked",
       places: "placesDeleted",
       geo_dataset_file: "geoDatasetFilesDeleted",
       regions: "regionsDeleted",

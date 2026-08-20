@@ -1,8 +1,6 @@
 import type { EnricherId, GeoNode, ParseWorkspace } from "@radar/shared";
 import { buildCandidateMergeKey } from "@radar/shared";
 import { appendCandidate, listActiveCandidates } from "./parseProcessorContract.js";
-import { createTraitAttachment } from "./attachRule.js";
-import { EVENT_TYPE_TRAIT_KEY } from "./resolveEventTypeForCandidate.js";
 
 function findSpan(text: string, needle: string): { start: number; end: number; matchedText: string } {
   const lower = text.toLowerCase();
@@ -44,6 +42,14 @@ export function appendCandidatesFromGeoNodes(input: {
     });
     if (input.onlyMissingMergeKeys && existingKeys.has(mergeKey)) continue;
 
+    const extras: Record<string, unknown> = {};
+    if (typeof node.confidence === "number") {
+      extras.llmConfidence = node.confidence;
+    }
+    if (typeof node.reason === "string" && node.reason.trim()) {
+      extras.llmReason = node.reason;
+    }
+
     appendCandidate({
       workspace: input.workspace,
       authorProcessorId: input.authorProcessorId,
@@ -58,6 +64,7 @@ export function appendCandidatesFromGeoNodes(input: {
         span,
       },
       eventType: "unknown",
+      extras,
       provenance: {
         eventTypeSource: "pending",
         anchorSource: input.authorProcessorId,

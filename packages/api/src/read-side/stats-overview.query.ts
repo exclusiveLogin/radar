@@ -10,8 +10,8 @@ export type PhaseCoverageStatsRow = {
 };
 
 /**
- * Агрегаты phase_coverage: два лёгких прохода вместо GROUP BY + correlated EXISTS.
- * Использует idx_phase_coverage_phase_status_created.
+ * Агрегаты job_parse_phase: два лёгких прохода вместо GROUP BY + correlated EXISTS.
+ * Использует idx_job_parse_phase_phase_status_created.
  */
 export async function loadPhaseCoverageStats(
   dataSource: DataSource,
@@ -20,7 +20,7 @@ export async function loadPhaseCoverageStats(
     Array<{ phase_id: string; status: string; count: string }>
   >(
     `SELECT phase_id, status, COUNT(*)::int AS count
-     FROM phase_coverage
+     FROM job_parse_phase
      GROUP BY phase_id, status
      ORDER BY phase_id, status`,
   );
@@ -29,8 +29,8 @@ export async function loadPhaseCoverageStats(
     Array<{ phase_id: string; done_for_parsed: string }>
   >(
     `SELECT pc.phase_id, COUNT(DISTINCT pc.raw_message_id)::int AS done_for_parsed
-     FROM phase_coverage pc
-     INNER JOIN parsed_events pe
+     FROM job_parse_phase pc
+     INNER JOIN mat_parse_event pe
        ON pe.raw_message_id = pc.raw_message_id AND pe.is_active = true
      WHERE pc.status = 'done'
      GROUP BY pc.phase_id`,

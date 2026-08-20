@@ -14,9 +14,9 @@ export const messageFeedItemSchema = z.object({
   ingestMode: ingestModeSchema,
   /** Эвристика groom/noise — для бейджа в UI даже без parse. */
   contentKind: contentKindSchema,
-  /** Число active parsed_events (0 = не разобрано / noise skip). */
+  /** Число active mat_parse_event (0 = не разобрано / noise skip). */
   parsedEventCount: z.number().int().nonnegative().default(0),
-  /** Есть хотя бы одна строка event_locations. */
+  /** Есть хотя бы одна строка mat_parse_location. */
   hasLocations: z.boolean().default(false),
   /** Тип события после parse (null — ещё не разобрано). */
   eventType: z.string().nullable().optional(),

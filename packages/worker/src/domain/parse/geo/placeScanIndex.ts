@@ -20,24 +20,43 @@ type PhraseIndexRow = {
 const GEO_MARKER_BEFORE =
   /(?:^|[\s.,;:(«"'\-—])(?:г|с|д|п|пос|пгт|ст|х|город|село|деревня|пос[её]лок|станица|хутор)\.?\s*$/i;
 
+type PhraseResolveInput = {
+  /** Записи каталога с этой фразой (после kind-фильтра). */
+  entries: PlaceScanEntry[];
+  minKind: PlaceRecord["kind"];
+  phraseLower: string;
+  /** Гео-маркер перед фразой («д. Осколки») — признак НП без явного субъекта. */
+  hasGeoMarker: boolean;
+  /**
+   * Явные субъекты в тексте: сужают пул ДО проверки однозначности.
+   * Один или несколько — уникальность считается внутри этого множества, не по всей стране.
+   */
+  regionScopeIds?: ReadonlySet<string>;
+};
+
 /**
  * ADR-012 (ужесточено): без regionScope — kind ≥ city.
- * Одиночный locality/settlement по ГОЛОМУ имени поднимаем только при regionScope ИЛИ гео-маркере
- * (г./с./д./пос.). Иначе нарицательное-омоним (д. Осколки) ложно матчится.
+ * Одиночный locality/settlement по ГОЛОМУ имени поднимаем только когда неоднозначности нет:
+ * либо явные субъекты оставили в пуле одну запись (районы каталога лежат как locality),
+ * либо перед фразой стоит гео-маркер (г./с./д./пос.).
+ * Иначе нарицательное-омоним (д. Осколки) ложно матчится.
  */
-function resolvePhraseCandidates(
-  entries: PlaceScanEntry[],
-  minKind: PlaceRecord["kind"],
-  phraseLower: string,
-  allowBareLocality: boolean,
-): PlaceScanEntry[] {
+function resolvePhraseCandidates(input: PhraseResolveInput): PlaceScanEntry[] {
+  const { minKind, phraseLower, hasGeoMarker, regionScopeIds } = input;
+  const hasScope = Boolean(regionScopeIds && regionScopeIds.size > 0);
+  const entries = hasScope
+    ? input.entries.filter((e) => regionScopeIds!.has(e.regionId))
+    : input.entries;
+  if (entries.length === 0) return [];
+
   const cityPlus = entries.filter(
     (e) => e.kind !== "region" && kindMeetsFloor(e.kind, minKind),
   );
   if (cityPlus.length > 0) return cityPlus;
 
-  // Без скоупа/маркера голое имя НП не поднимаем — корневое правило (дух ADR-012).
-  if (!allowBareLocality) return [];
+  // Внутри найденных субъектов имя однозначно → kindFloor не нужен («Кировский район» = locality).
+  const uniqueInRegionScope = hasScope && entries.length === 1;
+  if (!uniqueInRegionScope && !hasGeoMarker) return [];
 
   if (isGeoPhraseStopword(phraseLower) || phraseLower.length < 4) {
     return [];
@@ -128,7 +147,7 @@ export class PlaceScanIndex {
     text: string,
     kindFilter?: (e: PlaceScanEntry) => boolean,
     phraseMinKind: PlaceRecord["kind"] = "city",
-    regionScoped = false,
+    regionScopeIds?: ReadonlySet<string>,
   ): PlaceScanHit[] {
     const lower = text.toLowerCase();
     const hits: PlaceScanHit[] = [];
@@ -155,10 +174,15 @@ export class PlaceScanIndex {
           const filtered = kindFilter ? row.entries.filter(kindFilter) : row.entries;
           // Гео-маркер ищем в коротком префиксе перед фразой («д. Осколки» → деревня).
           const hasGeoMarker = GEO_MARKER_BEFORE.test(lower.slice(Math.max(0, start - 14), start));
-          const allowBareLocality = regionScoped || hasGeoMarker;
           const candidates =
             kindFilter && filtered.length > 0 && filtered.every((e) => e.kind !== "region")
-              ? resolvePhraseCandidates(filtered, phraseMinKind, row.phraseLower, allowBareLocality)
+              ? resolvePhraseCandidates({
+                  entries: filtered,
+                  minKind: phraseMinKind,
+                  phraseLower: row.phraseLower,
+                  hasGeoMarker,
+                  regionScopeIds,
+                })
               : filtered;
           if (candidates.length > 0) {
             const sorted = sortPlaceScanEntriesStable(candidates);
@@ -184,14 +208,23 @@ export class PlaceScanIndex {
 
   /**
    * Phrase-match для place: ADR-012 — без regionScope только kind ≥ city
-   * (locality/settlement по голому имени — только при regionScoped или гео-маркере в тексте).
+   * (locality/settlement по голому имени — только при regionScopeIds или гео-маркере в тексте).
    */
   matchPlacesByPhrase(
     text: string,
-    options?: { minKind?: PlaceRecord["kind"]; regionScoped?: boolean },
+    options?: {
+      minKind?: PlaceRecord["kind"];
+      /** Один субъект (shorthand). */
+      regionScopeId?: string;
+      /** Несколько явных субъектов — уникальность внутри объединения. */
+      regionScopeIds?: ReadonlySet<string>;
+    },
   ): PlaceScanHit[] {
     const minKind = options?.minKind ?? "city";
-    return this.matchPhrases(text, (e) => e.kind !== "region", minKind, options?.regionScoped ?? false);
+    const regionScopeIds =
+      options?.regionScopeIds
+      ?? (options?.regionScopeId ? new Set([options.regionScopeId]) : undefined);
+    return this.matchPhrases(text, (e) => e.kind !== "region", minKind, regionScopeIds);
   }
 }
 
@@ -199,6 +232,13 @@ export function mergeSpanHit(
   entry: PlaceScanEntry,
   span: TextSpan,
   geoImprecise?: boolean,
+  signals?: { matchedViaAdjectiveStem?: boolean; stemPoolSize?: number },
 ): PlaceScanHit {
-  return { entry, span, geoImprecise };
+  return {
+    entry,
+    span,
+    geoImprecise,
+    matchedViaAdjectiveStem: signals?.matchedViaAdjectiveStem,
+    stemPoolSize: signals?.stemPoolSize,
+  };
 }

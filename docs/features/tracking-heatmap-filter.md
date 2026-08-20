@@ -74,7 +74,7 @@ WHERE pe.event_type = :eventType          -- если задан
   AND pe.extras->>'eventCategory' = :cat  -- если задан
 ```
 
-Индекс (опционально): `(event_type)` на `parsed_events`, GIN на `extras` — при perf issues.
+Индекс (опционально): `(event_type)` на `mat_parse_event`, GIN на `extras` — при perf issues.
 
 ---
 
@@ -104,7 +104,7 @@ Wire в `useGeoMapLifecycle` → `mapApi.eventsHeatmap({ period, eventType, ... 
 - [ ] UI: селект типа в панели heatmap
 - [ ] Без фильтра — поведение идентично текущему
 - [ ] Zod schema + Swagger обновлены
-- [ ] `npm run typecheck` зелёный
+- [ ] `npm run typecheck` зелёный
 
 ---
 
